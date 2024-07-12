@@ -20,6 +20,7 @@ spec:
     additionalArguments:
       - "--serversTransport.insecureSkipVerify=true"
       - "--log.level=INFO"
+      - "--providers.kubernetesingress.ingressendpoint.publishedservice=traefik/traefik"
 
     deployment:
       kind: DaemonSet
