@@ -41,12 +41,19 @@ spec:
 
     ingressRoute:
       dashboard:
-        enabled: false
+        enabled: true
+        matchRule: Host('traefik.example.com')
+        entryPoints: ["websecure"]
+        middlewares:
+          - name: traefik-dashboard-basicauth
+            namespace: traefik
+        services:
+          - name: api@internal
+            kind: TraefikService
 
     providers:
       kubernetesCRD:
         enabled: true
-        ingressClass: traefik
         allowExternalNameServices: true
       kubernetesIngress:
         enabled: true
