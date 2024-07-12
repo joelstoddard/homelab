@@ -11,7 +11,7 @@ spec:
       sourceRef:
         kind: HelmRepository
         name: traefik
-      version: 29.0.1
+      version: 28.3.0
       valuesFiles:
       - values.yaml
   interval: 1m0s
