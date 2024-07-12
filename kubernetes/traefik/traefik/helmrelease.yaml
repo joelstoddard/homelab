@@ -19,7 +19,7 @@ spec:
 
     additionalArguments:
       - "--serversTransport.insecureSkipVerify=true"
-      - "--log.level=INFO"
+      - "--log.level=DEBUG"
       - "--providers.kubernetesingress.ingressendpoint.publishedservice=traefik/traefik"
 
     deployment:
