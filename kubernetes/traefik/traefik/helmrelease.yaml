@@ -11,7 +11,7 @@ spec:
       sourceRef:
         kind: HelmRepository
         name: traefik
-      version: 29.0.0
+      version: 29.0.1
   values:
     globalArguments:
       - "--global.sendanonymoususage=false"
