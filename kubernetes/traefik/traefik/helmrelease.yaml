@@ -1,8 +1,8 @@
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
-    name: traefik
-    namespace: traefik
+  name: traefik
+  namespace: traefik
 spec:
   chart:
     spec:
@@ -12,59 +12,6 @@ spec:
         kind: HelmRepository
         name: traefik
       version: 29.0.1
-  values:
-    globalArguments:
-      - "--global.sendanonymoususage=false"
-      - "--global.checknewversion=false"
-
-    additionalArguments:
-      - "--serversTransport.insecureSkipVerify=true"
-      - "--log.level=DEBUG"
-      - "--providers.kubernetesingress.ingressendpoint.publishedservice=traefik/traefik"
-
-    deployment:
-      kind: DaemonSet
-      enabled: true
-      replicas: 3
-      annotations: {}
-      podAnnotations: {}
-      additionalContainers: []
-      initContainers: []
-
-    ports:
-      web:
-        redirectTo:
-          port: websecure
-      websecure:
-        tls:
-          enabled: true
-
-    ingressRoute:
-      dashboard:
-        enabled: false
-
-    providers:
-      kubernetesCRD:
-        enabled: true
-        ingressClass: traefik
-        allowExternalNameServices: true
-      kubernetesIngress:
-        enabled: true
-        allowExternalNameServices: true
-        publishedService:
-          enabled: false
-
-    rbac:
-      enabled: true
-
-    service:
-      enabled: true
-      type: LoadBalancer
-      annotations: {}
-      labels: {}
-      spec:
-        loadBalancerIP: 192.168.1.123
-      loadBalancerSourceRanges: []
-      externalIPs: []
-
+      valuesFiles:
+      - values.yaml
   interval: 1m0s
