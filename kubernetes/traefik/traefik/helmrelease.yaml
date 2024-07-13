@@ -7,7 +7,7 @@ spec:
   chart:
     spec:
       chart: traefik
-      reconcileStrategy: ChartVersion
+      reconcileStrategy: Revision
       sourceRef:
         kind: HelmRepository
         name: traefik
@@ -67,4 +67,3 @@ spec:
           externalIPs: []
 
   interval: 15m0s
-  reconcileStrategy: Revision
