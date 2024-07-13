@@ -66,4 +66,5 @@ spec:
           loadBalancerSourceRanges: []
           externalIPs: []
 
-  interval: 1m0s
+  interval: 15m0s
+  reconcileStrategy: Revision
