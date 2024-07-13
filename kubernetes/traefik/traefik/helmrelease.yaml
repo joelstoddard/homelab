@@ -12,58 +12,58 @@ spec:
         kind: HelmRepository
         name: traefik
       version: 29.0.1
-    values:
-      globalArguments:
-        - "--global.sendanonymoususage=false"
-        - "--global.checknewversion=false"
+      values:
+        globalArguments:
+          - "--global.sendanonymoususage=false"
+          - "--global.checknewversion=false"
 
-      additionalArguments:
-        - "--serversTransport.insecureSkipVerify=true"
-        - "--log.level=INFO"
+        additionalArguments:
+          - "--serversTransport.insecureSkipVerify=true"
+          - "--log.level=INFO"
 
-      deployment:
-        kind: DaemonSet
-        enabled: true
-        replicas: 3
-        annotations: {}
-        podAnnotations: {}
-        additionalContainers: []
-        initContainers: []
-
-      ports:
-        web:
-          redirectTo:
-            port: websecure
-        websecure:
-          tls:
-            enabled: true
-            
-      ingressRoute:
-        dashboard:
-          enabled: false
-
-      providers:
-        kubernetesCRD:
+        deployment:
+          kind: DaemonSet
           enabled: true
-          ingressClass: traefik
-          allowExternalNameServices: true
-        kubernetesIngress:
-          enabled: true
-          allowExternalNameServices: true
-          publishedService:
+          replicas: 3
+          annotations: {}
+          podAnnotations: {}
+          additionalContainers: []
+          initContainers: []
+
+        ports:
+          web:
+            redirectTo:
+              port: websecure
+          websecure:
+            tls:
+              enabled: true
+              
+        ingressRoute:
+          dashboard:
             enabled: false
 
-      rbac:
-        enabled: true
+        providers:
+          kubernetesCRD:
+            enabled: true
+            ingressClass: traefik
+            allowExternalNameServices: true
+          kubernetesIngress:
+            enabled: true
+            allowExternalNameServices: true
+            publishedService:
+              enabled: false
 
-      service:
-        enabled: true
-        type: LoadBalancer
-        annotations: {}
-        labels: {}
-        spec:
-          loadBalancerIP: 192.168.1.123
-        loadBalancerSourceRanges: []
-        externalIPs: []
+        rbac:
+          enabled: true
+
+        service:
+          enabled: true
+          type: LoadBalancer
+          annotations: {}
+          labels: {}
+          spec:
+            loadBalancerIP: 192.168.1.123
+          loadBalancerSourceRanges: []
+          externalIPs: []
 
   interval: 15m0s
