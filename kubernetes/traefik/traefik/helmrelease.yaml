@@ -1,20 +1,33 @@
+---
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
   name: traefik
   namespace: traefik
 spec:
+  interval: 15m
   chart:
     spec:
       chart: traefik
-      reconcileStrategy: ChartVersion
       version: 29.0.1
       sourceRef:
         kind: HelmRepository
         name: traefik
         namespace: traefik
-      valuesFiles:
-        - values.yaml
+      interval: 15m
+
+  # dependsOn:
+  #   - name: cert-manager
+  #     namespace: cert-manager
+
+  install:
+    remediation:
+      retries: 3
+
+  upgrade:
+    remediation:
+      retries: 3
+
   values:
     globalArguments:
       - "--global.sendanonymoususage=false"
@@ -25,7 +38,7 @@ spec:
       - "--log.level=INFO"
 
     deployment:
-      kind: DaemonSet
+      kind: Deployment
       enabled: true
       replicas: 3
       annotations: {}
@@ -44,10 +57,19 @@ spec:
         advertisedPort: 4443
         tls:
           enabled: true
-          
+
+    image:
+      registry: docker.io
+      repository: traefik
+      pullPolicy: IfNotPresent
+
     ingressRoute:
       dashboard:
         enabled: false
+
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 1
 
     providers:
       kubernetesCRD:
@@ -58,7 +80,7 @@ spec:
         enabled: true
         allowExternalNameServices: true
         publishedService:
-          enabled: false
+          enabled: true
 
     rbac:
       enabled: true
@@ -70,6 +92,11 @@ spec:
       labels: {}
       spec:
         loadBalancerIP: "192.168.1.123"
+        externalTrafficPolicy: local
       loadBalancerSourceRanges: []
       externalIPs: []
-  interval: 15m0s
+
+    # resources:
+    #   requests:
+    #     memory: 100Mi
+    #     cpu: 100m
