@@ -1,0 +1,13 @@
+---
+- name: Reboot into Proxmox kernel
+  ansible.builtin.reboot:
+    msg: "Rebooting into Proxmox VE kernel."
+    reboot_timeout: 600
+    test_command: pveversion -v
+
+- name: Reload networking
+  # ifupdown2 (PVE-installed) supports reloading config without dropping
+  # active interfaces — fall back to systemctl restart if it isn't there.
+  ansible.builtin.shell:
+    cmd: ifreload -a 2>/dev/null || systemctl restart networking
+  changed_when: true

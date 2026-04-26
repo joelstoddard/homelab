@@ -1,0 +1,105 @@
+---
+# Convert a fresh Debian install (provisioned by 00-pxe) into a Proxmox VE hypervisor.
+# Steps:
+#   1. Refuse to run if Proxmox is already present (avoid clobbering).
+#   2. Add Proxmox apt repo + signing key.
+#   3. apt update && install pve-manager + dependencies.
+#   4. Lay down /etc/network/interfaces with vmbr0 bridge.
+#   5. Reboot into Proxmox kernel.
+#   6. Verify pveproxy is reachable on https://<host>:8006.
+
+- name: Detect whether Proxmox is already installed.
+  ansible.builtin.stat:
+    path: /etc/pve/.version
+  register: pve_existing
+  tags: [proxmox-install]
+
+# pmxcfs (the cluster filesystem) refuses to start if the node's hostname
+# resolves only to a loopback (Debian's default 127.0.1.1 line). Anchor the
+# fqdn+short to the host's real LAN IP per the Proxmox-on-Debian docs.
+- name: Remove default 127.0.1.1 line for this host.
+  ansible.builtin.lineinfile:
+    path: /etc/hosts
+    regexp: '^127\.0\.1\.1\s'
+    state: absent
+  tags: [proxmox-install]
+
+- name: Anchor hostname to LAN IP in /etc/hosts.
+  ansible.builtin.lineinfile:
+    path: /etc/hosts
+    regexp: '^{{ ansible_host | regex_escape }}\s'
+    line: "{{ ansible_host }}\t{{ fqdn }}\t{{ inventory_hostname }}"
+    state: present
+  tags: [proxmox-install]
+
+- name: Ensure /etc/apt/keyrings exists.
+  ansible.builtin.file:
+    path: /etc/apt/keyrings
+    state: directory
+    mode: "0755"
+  tags: [proxmox-install]
+
+- name: Install Proxmox apt signing key.
+  ansible.builtin.get_url:
+    url: "{{ proxmox_apt_key_url }}"
+    dest: /etc/apt/keyrings/proxmox-release.gpg
+    mode: "0644"
+  tags: [proxmox-install]
+
+- name: Add Proxmox VE no-subscription repo.
+  ansible.builtin.template:
+    src: pve-sources.list.j2
+    dest: /etc/apt/sources.list.d/pve-install-repo.list
+    mode: "0644"
+  tags: [proxmox-install]
+
+- name: Remove the Proxmox enterprise repo if present.
+  # pve-manager's postinst drops /etc/apt/sources.list.d/pve-enterprise.list
+  # which 401s without a subscription. Idempotent: removes if present, no-op otherwise.
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - /etc/apt/sources.list.d/pve-enterprise.list
+    - /etc/apt/sources.list.d/ceph.list
+  tags: [proxmox-install]
+
+- name: Update apt cache.
+  ansible.builtin.apt:
+    update_cache: true
+    cache_valid_time: 0
+  tags: [proxmox-install]
+
+- name: Install Proxmox VE meta-package and dependencies.
+  ansible.builtin.apt:
+    name:
+      - proxmox-default-kernel
+      - pve-manager
+      - postfix
+      - open-iscsi
+    state: present
+  notify: Reboot into Proxmox kernel
+  when: not pve_existing.stat.exists
+  tags: [proxmox-install]
+
+- name: Remove os-prober (avoids spurious GRUB entries for VM disks).
+  ansible.builtin.apt:
+    name: os-prober
+    state: absent
+  tags: [proxmox-install]
+
+# Force the kernel reboot now (if pending) BEFORE writing the bridge
+# config: PVE 9's first boot regenerates /etc/network/interfaces, which
+# would clobber our template. Writing it post-reboot means PVE has
+# already settled and our config sticks.
+- name: Force pending reboot (so PVE first-boot completes before bridge config).
+  ansible.builtin.meta: flush_handlers
+
+- name: Configure /etc/network/interfaces with vmbr0 bridge.
+  ansible.builtin.template:
+    src: interfaces.j2
+    dest: /etc/network/interfaces
+    mode: "0644"
+    backup: true
+  notify: Reload networking
+  tags: [proxmox-install]
