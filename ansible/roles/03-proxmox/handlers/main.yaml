@@ -1,0 +1,15 @@
+---
+- name: Reboot into Proxmox kernel
+  ansible.builtin.reboot:
+    msg: "Rebooting into Proxmox VE kernel."
+    # First boot of the PVE kernel runs initramfs + microcode + module
+    # rebuilds; observed up to ~12 min on 12th-gen NUCs. Keep generous.
+    reboot_timeout: 1200
+    test_command: pveversion -v
+
+- name: Reload networking
+  # ifupdown2 (PVE-installed) supports reloading config without dropping
+  # active interfaces — fall back to systemctl restart if it isn't there.
+  ansible.builtin.shell:
+    cmd: ifreload -a 2>/dev/null || systemctl restart networking
+  changed_when: true
