@@ -99,11 +99,9 @@ d-i grub-installer/only_debian boolean true
 d-i grub-installer/with_other_os boolean true
 d-i grub-installer/bootdev string {{ disk_device }}
 
-### Late commands — install root SSH key, lock SSH password auth, persist
-### legacy NIC names (eth0 not enp*) and the iwlwifi blacklist so the
-### installed kernel matches the installer's working cmdline. Without
-### the blacklist, NUC 12th-gen units soft-lock in modprobe iwlwifi on
-### first boot of the Proxmox kernel.
+### Late commands — install root SSH key, lock SSH password auth, and
+### persist the installed_kernel_cmdline so first boot of the Proxmox
+### kernel matches the installer's working cmdline.
 d-i preseed/late_command string \
     in-target mkdir -p /root/.ssh; \
     echo "{{ ssh_public_key }}" > /target/root/.ssh/authorized_keys; \
@@ -111,7 +109,7 @@ d-i preseed/late_command string \
     in-target chmod 600 /root/.ssh/authorized_keys; \
     in-target sed -i 's/^#\?PermitRootLogin.*/PermitRootLogin prohibit-password/' /etc/ssh/sshd_config; \
     in-target sed -i 's/^#\?PasswordAuthentication.*/PasswordAuthentication no/' /etc/ssh/sshd_config; \
-    in-target sed -i 's|^GRUB_CMDLINE_LINUX=.*|GRUB_CMDLINE_LINUX="net.ifnames=0 biosdevname=0 modprobe.blacklist=iwlwifi,iwlmvm"|' /etc/default/grub; \
+    in-target sed -i 's|^GRUB_CMDLINE_LINUX=.*|GRUB_CMDLINE_LINUX="{{ installed_kernel_cmdline }}"|' /etc/default/grub; \
     in-target update-grub
 
 ### Finish
