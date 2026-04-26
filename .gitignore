@@ -1,8 +1,0 @@
-**/.venv
-.DS_Store
-
-# Inventories carry MAC addresses, static IPs, and (for offsites)
-# public IPs — local secrets, not for public history. Operators copy
-# the *.example files to *.yaml and fill in their environment.
-ansible/inventory/*.yaml
-!ansible/inventory/*.yaml.example
