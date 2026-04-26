@@ -1,0 +1,54 @@
+---
+# Copy this file to main.yaml and fill in real values for your environment.
+# main.yaml itself is gitignored — LAN IPs and offsite addresses live here.
+
+masters:
+  hosts:
+    # k3s-server-01:
+    #   ansible_host: 192.168.1.31
+    # k3s-server-02:
+    #   ansible_host: 192.168.1.32
+
+nodes:
+  hosts:
+    # k3s-agent-01:
+    #   ansible_host: 192.168.1.35
+    # k3s-agent-02:
+    #   ansible_host: 192.168.1.36
+
+k3s_cluster:
+  children:
+    masters:
+    nodes:
+
+pis:
+  hosts:
+    # kosmos:
+    #   ansible_host: 192.168.1.21
+
+vms:
+  hosts:
+    # k3s-server-01:
+    #   ansible_host: 192.168.1.31
+
+nucs:
+  hosts:
+    # rumba:
+    #   ansible_host: 192.168.1.202
+
+servers:
+  children:
+    pis:
+    nucs:
+  # hosts:
+  #   voyager:
+  #     ansible_host: 192.168.1.100
+  #     ansible_user: "root"
+
+# Offsite hosts (e.g., cloud VPS) — public IPs/hostnames go here when
+# you copy this file to main.yaml. Leave commented in the example.
+# offsites:
+#   hosts:
+#     <hostname>:
+#       ansible_host: <public-ip-or-hostname>
+#       ansible_user: "ops"

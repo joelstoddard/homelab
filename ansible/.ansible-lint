@@ -1,0 +1,6 @@
+---
+# Roles are numbered (00-pxe, 01-wake-on-lan, …) to encode execution order in
+# the directory name, following khuedoan/homelab's convention. ansible-lint's
+# role-name rule rejects names starting with a digit; skip it project-wide.
+skip_list:
+  - role-name
