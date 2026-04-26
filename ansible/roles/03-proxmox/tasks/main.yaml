@@ -125,6 +125,27 @@
 - name: Force pending reboot (so PVE first-boot completes before bridge config).
   ansible.builtin.meta: flush_handlers
 
+# If vmbr0 already exists, take its current member as the physical NIC.
+# Re-using ansible_default_ipv4.interface is unsafe here: once the bridge
+# holds the default route, that fact returns vmbr0 itself, and the
+# template would render `bridge-ports vmbr0` — a circular reference that
+# breaks networking on the next ifreload.
+- name: Detect existing vmbr0 bridge member (if any).
+  ansible.builtin.shell: |
+    bridge link show 2>/dev/null \
+      | awk '/master vmbr0/{gsub(/[:@].*/, "", $2); print $2; exit}'
+  register: vmbr0_member
+  changed_when: false
+  check_mode: false
+  failed_when: false
+  tags: [proxmox-install]
+
+- name: Pin bridge interface to the existing vmbr0 member.
+  ansible.builtin.set_fact:
+    proxmox_bridge_iface: "{{ vmbr0_member.stdout }}"
+  when: vmbr0_member.stdout | default('') | length > 0
+  tags: [proxmox-install]
+
 - name: Configure /etc/network/interfaces with vmbr0 bridge.
   ansible.builtin.template:
     src: interfaces.j2
