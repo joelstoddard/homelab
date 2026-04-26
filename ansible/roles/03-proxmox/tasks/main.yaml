@@ -32,6 +32,33 @@
     state: present
   tags: [proxmox-install]
 
+# NUC 12th-gen units soft-lock in modprobe iwlwifi on first boot of the
+# Proxmox kernel. The PXE preseed already sets this for fresh installs;
+# this task heals existing installs whose preseed predated the fix.
+- name: Persist iwlwifi blacklist in GRUB cmdline.
+  ansible.builtin.lineinfile:
+    path: /etc/default/grub
+    regexp: '^GRUB_CMDLINE_LINUX='
+    line: 'GRUB_CMDLINE_LINUX="net.ifnames=0 biosdevname=0 modprobe.blacklist=iwlwifi,iwlmvm"'
+  tags: [proxmox-install]
+
+# /proc/cmdline is the actual running cmdline — authoritative whether the
+# blacklist is in effect. lineinfile on /etc/default/grub alone isn't:
+# update-grub may not have run, or grub.cfg may be stale from a previous
+# half-applied run. Use the running cmdline as the apply-vs-skip signal.
+- name: Read /proc/cmdline.
+  ansible.builtin.slurp:
+    src: /proc/cmdline
+  register: proc_cmdline
+  tags: [proxmox-install]
+
+- name: Regenerate GRUB and reboot when running kernel lacks the blacklist.
+  ansible.builtin.command: update-grub
+  when: "'modprobe.blacklist=iwlwifi' not in (proc_cmdline.content | b64decode)"
+  changed_when: true
+  notify: Reboot into Proxmox kernel
+  tags: [proxmox-install]
+
 - name: Ensure /etc/apt/keyrings exists.
   ansible.builtin.file:
     path: /etc/apt/keyrings
