@@ -1,0 +1,16 @@
+---
+# Proxmox VE version line (no-subscription repo)
+proxmox_repo_distribution: "trixie"  # Pairs with Proxmox VE 9.x; use "bookworm" for PVE 8.x
+proxmox_apt_repo_url: "http://download.proxmox.com/debian/pve"
+proxmox_apt_key_url: "https://enterprise.proxmox.com/debian/proxmox-release-{{ proxmox_repo_distribution }}.gpg"
+proxmox_apt_key_fingerprint: ""  # leave empty initially; pin once verified
+
+# Networking — vmbr0 bridges the host's primary NIC for VM connectivity.
+# cidr_subnet and gateway match the 00-pxe role's defaults so the same
+# inventory hostvars drive both roles. Move these to group_vars/all later.
+cidr_subnet: "/24"
+gateway: "{{ ansible_default_ipv4.gateway }}"
+
+proxmox_bridge_iface: "{{ ansible_default_ipv4.interface }}"
+proxmox_bridge_address: "{{ ansible_host }}{{ cidr_subnet }}"
+proxmox_bridge_gateway: "{{ gateway }}"
