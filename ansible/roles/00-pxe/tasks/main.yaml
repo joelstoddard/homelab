@@ -1,0 +1,13 @@
+---
+# Role entry. Runs the OS-agnostic common phase, then includes the
+# per-OS task file for each PXE-managed group present in inventory.
+
+- name: Common PXE infrastructure (dnsmasq + Caddy + iPXE).
+  ansible.builtin.import_tasks: common.yaml
+
+- name: Configure Proxmox PXE path.
+  ansible.builtin.import_tasks: proxmox.yaml
+  when: groups['proxmox'] is defined and groups['proxmox'] | length > 0
+
+# Future: include talos.yaml when groups['talos'] is populated.
+# Future: include truenas.yaml when groups['truenas'] is populated.

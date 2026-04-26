@@ -1,0 +1,13 @@
+{
+    auto_https off
+    admin off
+}
+
+:80 {
+    root * /srv/http
+    file_server browse
+    log {
+        output stdout
+        format console
+    }
+}
