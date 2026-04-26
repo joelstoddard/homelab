@@ -17,8 +17,7 @@ kernel ${base}/debian/{{ debian_version }}/linux \
     netcfg/link_wait_timeout=30 \
     hostname={{ target_hostname }} \
     domain={{ fqdn | regex_replace('^[^.]+\\.', '') }} \
-    modprobe.blacklist=iwlwifi,iwlmvm \
-    net.ifnames=0 biosdevname=0 \
+    {{ installed_kernel_cmdline }} \
     console=tty0
 
 initrd ${base}/debian/{{ debian_version }}/initrd.gz
