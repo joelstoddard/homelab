@@ -80,15 +80,18 @@
     mode: "0644"
   tags: [proxmox-install]
 
-- name: Remove the Proxmox enterprise repo if present.
-  # pve-manager's postinst drops /etc/apt/sources.list.d/pve-enterprise.list
-  # which 401s without a subscription. Idempotent: removes if present, no-op otherwise.
+- name: Remove the Proxmox enterprise repos if present.
+  # pve-manager's postinst drops enterprise repo files which 401 without
+  # a subscription. PVE 8 / Bookworm uses one-line .list; PVE 9 / Trixie
+  # uses DEB822 .sources. Cover both. Idempotent.
   ansible.builtin.file:
     path: "{{ item }}"
     state: absent
   loop:
     - /etc/apt/sources.list.d/pve-enterprise.list
+    - /etc/apt/sources.list.d/pve-enterprise.sources
     - /etc/apt/sources.list.d/ceph.list
+    - /etc/apt/sources.list.d/ceph.sources
   tags: [proxmox-install]
 
 - name: Update apt cache.
