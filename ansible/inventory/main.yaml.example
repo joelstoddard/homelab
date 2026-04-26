@@ -1,0 +1,70 @@
+---
+# Copy this file to main.yaml and fill in real values for your environment.
+# main.yaml itself is gitignored — LAN IPs and offsite addresses live here.
+
+masters:
+  hosts:
+    # k3s-server-01:
+    #   ansible_host: 192.168.1.31
+    # k3s-server-02:
+    #   ansible_host: 192.168.1.32
+
+nodes:
+  hosts:
+    # k3s-agent-01:
+    #   ansible_host: 192.168.1.35
+    # k3s-agent-02:
+    #   ansible_host: 192.168.1.36
+
+k3s_cluster:
+  children:
+    masters:
+    nodes:
+
+pis:
+  hosts:
+    # kosmos:
+    #   ansible_host: 192.168.1.21
+
+vms:
+  hosts:
+    # k3s-server-01:
+    #   ansible_host: 192.168.1.31
+
+nucs:
+  hosts:
+    # rumba:
+    #   ansible_host: 192.168.1.202
+    #   ansible_user: root
+    #   fqdn: rumba.example.lan
+
+# Hosts that should be running Proxmox VE. playbooks/main.yaml's
+# 03-proxmox role targets `hosts: proxmox`, so a host must live in
+# this group (directly or via children) to be converted. The role
+# uses `fqdn` to pin /etc/hosts so pmxcfs can resolve the hostname
+# off the loopback — set it on each host (or via group_vars).
+proxmox:
+  children:
+    nucs:
+  # hosts:
+  #   <bare-metal-host>:
+  #     ansible_host: <ip>
+  #     ansible_user: root
+  #     fqdn: <host>.example.lan
+
+servers:
+  children:
+    pis:
+    nucs:
+  # hosts:
+  #   voyager:
+  #     ansible_host: 192.168.1.100
+  #     ansible_user: "root"
+
+# Offsite hosts (e.g., cloud VPS) — public IPs/hostnames go here when
+# you copy this file to main.yaml. Leave commented in the example.
+# offsites:
+#   hosts:
+#     <hostname>:
+#       ansible_host: <public-ip-or-hostname>
+#       ansible_user: "ops"

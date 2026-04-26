@@ -1,0 +1,43 @@
+---
+- name: Ensure PXE artifact directories exist.
+  ansible.builtin.file:
+    path: "{{ role_path }}/files/{{ item }}"
+    state: directory
+    mode: "0755"
+  loop:
+    - tftp
+    - http
+    - http/boot
+    - http/preseed
+    - pxe-config
+
+- name: Get Docker info.
+  community.docker.docker_host_info:
+  register: docker_info_result
+
+- name: Verify Docker host is x86_64.
+  ansible.builtin.assert:
+    that:
+      - docker_info_result.host_info is defined
+      - "'amd64' in docker_info_result.host_info.Architecture or 'x86_64' in docker_info_result.host_info.Architecture"
+    fail_msg: "Docker host must be x86_64 (amd64)."
+
+- name: Download iPXE chainloader.
+  ansible.builtin.get_url:
+    url: "{{ ipxe_url }}"
+    dest: "{{ role_path }}/files/tftp/ipxe.efi"
+    checksum: "{{ ('sha256:' ~ ipxe_sha256) if ipxe_sha256 else omit }}"
+    mode: "0644"
+
+- name: Render dnsmasq config.
+  ansible.builtin.template:
+    src: dnsmasq.conf.j2
+    dest: "{{ role_path }}/files/pxe-config/dnsmasq.conf"
+    mode: "0644"
+  notify: Restart dnsmasq
+
+- name: Start the PXE stack (dnsmasq + Caddy).
+  community.docker.docker_compose_v2:
+    project_src: "{{ role_path }}/files"
+    state: present
+    pull: missing
