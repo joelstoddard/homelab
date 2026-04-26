@@ -144,7 +144,7 @@
 - name: Pin bridge interface to the existing vmbr0 member.
   ansible.builtin.set_fact:
     proxmox_bridge_iface: "{{ vmbr0_member.stdout }}"
-  when: vmbr0_member.stdout | default('') | length > 0
+  when: vmbr0_member.stdout
   tags: [proxmox-install]
 
 - name: Configure /etc/network/interfaces with vmbr0 bridge.
