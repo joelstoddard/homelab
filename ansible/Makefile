@@ -42,12 +42,12 @@ dev:
 # Lint playbooks
 .PHONY: lint
 lint:
-	ansible-lint .
+	$(VENV)/bin/ansible-lint .
 
 # Check (dry run)
 .PHONY: check-pxe
 check-pxe:
-	ansible-playbook -i inventory/pxe.yaml pxe.yaml --check --diff \
+	$(VENV)/bin/ansible-playbook -i inventory/pxe.yaml pxe.yaml --check --diff \
 		$(if $(TARGETS),--extra-vars='pxe_targets=$(TARGETS)') \
 		$(if $(LIMIT),--limit=$(LIMIT)) \
 		$(if $(TAGS),--tags=$(TAGS)) \
@@ -56,7 +56,7 @@ check-pxe:
 
 .PHONY: check
 check:
-	ansible-playbook -i inventory/main.yaml playbooks/main.yaml --check --diff \
+	$(VENV)/bin/ansible-playbook -i inventory/main.yaml playbooks/main.yaml --check --diff \
 		$(if $(LIMIT),--limit=$(LIMIT)) \
 		$(if $(TAGS),--tags=$(TAGS)) \
 		$(if $(VERBOSITY),-$(VERBOSITY)) \
@@ -65,7 +65,7 @@ check:
 # Apply playbooks
 .PHONY: apply-pxe
 apply-pxe:
-	ansible-playbook -i inventory/pxe.yaml pxe.yaml \
+	$(VENV)/bin/ansible-playbook -i inventory/pxe.yaml pxe.yaml \
 		$(if $(TARGETS),--extra-vars='pxe_targets=$(TARGETS)') \
 		$(if $(LIMIT),--limit=$(LIMIT)) \
 		$(if $(TAGS),--tags=$(TAGS)) \
@@ -74,7 +74,7 @@ apply-pxe:
 
 .PHONY: apply
 apply:
-	ansible-playbook -i inventory/main.yaml playbooks/main.yaml \
+	$(VENV)/bin/ansible-playbook -i inventory/main.yaml playbooks/main.yaml \
 		$(if $(LIMIT),--limit=$(LIMIT)) \
 		$(if $(TAGS),--tags=$(TAGS)) \
 		$(if $(VERBOSITY),-$(VERBOSITY)) \
@@ -83,7 +83,7 @@ apply:
 # Ping all hosts
 .PHONY: ping
 ping:
-	ansible -i inventory/pxe.yaml all -m ping \
+	$(VENV)/bin/ansible -i inventory/pxe.yaml all -m ping \
 		$(if $(LIMIT),--limit=$(LIMIT))
 
 # Clean temporary files
@@ -96,5 +96,5 @@ clean:
 
 .PHONY: console
 console:
-	ansible-console \
+	$(VENV)/bin/ansible-console \
 		--inventory inventory/pxe.yaml
