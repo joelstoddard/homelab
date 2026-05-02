@@ -46,6 +46,21 @@ apt-get install -y \
     python3 python3-pip python3-venv \
     git make rsync
 
+# age + sops decrypt the per-host secrets under
+# ansible/inventory/host_vars/*.sops.yaml at apply time, via the
+# community.sops.sops vars plugin enabled in ansible.cfg.
+# age is in apt; sops isn't packaged for Debian/Ubuntu, so pull the
+# upstream binary. Bump SOPS_VERSION when operator workstations move.
+echo ">> Installing age (encrypted host_vars decryption)"
+apt-get install -y age
+
+SOPS_VERSION="v3.12.2"
+SOPS_ARCH="$(dpkg --print-architecture)"
+echo ">> Installing sops ${SOPS_VERSION} from upstream release"
+curl -fsSL -o /usr/local/bin/sops \
+    "https://github.com/getsops/sops/releases/download/${SOPS_VERSION}/sops-${SOPS_VERSION}.linux.${SOPS_ARCH}"
+chmod +x /usr/local/bin/sops
+
 echo ">> Installing Docker apt key + repo (${DOCKER_REPO_DISTRO}/${CODENAME})"
 install -m 0755 -d /etc/apt/keyrings
 curl -fsSL "https://download.docker.com/linux/${DOCKER_REPO_DISTRO}/gpg" \
