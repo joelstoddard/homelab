@@ -51,7 +51,7 @@ Roles are numbered by execution order:
 - `03-proxmox` — Debian → Proxmox VE conversion: adds the Proxmox apt repo, installs `pve-manager`, configures `vmbr0` bridge networking, reboots into the Proxmox kernel.
 - `04-external`, `05-extras`, `06-tests` — Planned post-cluster roles, not yet implemented.
 
-Per-host secrets (e.g., `root_password`) live in `host_vars/<hostname>.sops.yaml`, SOPS+Age encrypted. The `community.sops` Ansible collection auto-decrypts at apply time.
+Per-host secrets (e.g., `root_password`) live in `ansible/inventory/host_vars/<hostname>.sops.yaml`, SOPS+Age encrypted. The `community.sops.sops` vars plugin (enabled in `ansible/ansible.cfg`) auto-decrypts them at apply time. Recipients are configured in the repo-root `.sops.yaml`.
 
 Host vars in the PXE inventory include MAC addresses (for WOL and dnsmasq allowlist), disk device paths, and per-host networking.
 

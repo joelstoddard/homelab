@@ -45,15 +45,24 @@ $EDITOR inventory/pxe.yaml inventory/main.yaml
 
 ## Encrypted host secrets
 
-Per-host secrets (root password, etc.) live in `host_vars/<hostname>.sops.yaml`,
-encrypted with the Age public key configured in `.sops.yaml`. To create or
-edit:
+Per-host secrets (root password, etc.) live in `inventory/host_vars/<hostname>.sops.yaml`,
+encrypted with the Age public key(s) configured in the repo-root `.sops.yaml`.
+The `community.sops.sops` Ansible vars plugin (enabled in `ansible.cfg`)
+auto-decrypts these at apply time, so playbooks see them as ordinary host vars.
+
+Templates for the four NUCs (`rumba`, `tango`, `salsa`, `samba`) ship in
+`inventory/host_vars/` with placeholder values. Before any apply, edit each
+to set the real password:
 
 ```bash
-sops host_vars/tango.sops.yaml          # opens decrypted in $EDITOR; re-encrypts on save
+sops inventory/host_vars/tango.sops.yaml   # opens decrypted in $EDITOR; re-encrypts on save
 ```
 
 Required keys per host: `root_password`. (Add others as roles require them.)
+
+To authorise a new operator: append their Age recipient under the matching
+`creation_rules` entry in `.sops.yaml`, then re-encrypt every covered file
+with `sops updatekeys inventory/host_vars/<host>.sops.yaml`.
 
 ## Provisioning a host (PoC: Proxmox on tango)
 
@@ -103,9 +112,9 @@ ansible/
   inventory/
     pxe.yaml                 # all PXE-managed hosts, plus the implicit localhost entry
     main.yaml                # post-install inventory (used by playbooks/main.yaml)
-  host_vars/
-    <host>.sops.yaml         # per-host SOPS-encrypted secrets
-  group_vars/                # group-level non-secret vars
+    host_vars/
+      <host>.sops.yaml       # per-host SOPS-encrypted secrets (auto-loaded by community.sops vars plugin)
+    group_vars/              # group-level non-secret vars
   collections/requirements.yaml
   requirements.txt
   pxe.yaml                   # bare-metal install playbook
