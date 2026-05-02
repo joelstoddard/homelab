@@ -39,5 +39,6 @@ debian_initrd_url: >-
 debian_apt_mirror: "deb.debian.org"
 
 # root_password is intentionally not defaulted. Must be supplied via:
-# - host_vars/<host>.sops.yaml (preferred)
+# - inventory/host_vars/<host>.sops.yaml (preferred; auto-decrypted by
+#   the community.sops.sops vars plugin enabled in ansible.cfg)
 # - --extra-vars (one-off testing)
