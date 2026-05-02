@@ -1,3 +1,18 @@
+# A pre-WOL slurp of /proc/sys/kernel/random/boot_id lets us tell
+# whether the WOL'd host actually rebooted: wait_for_connection alone
+# returns instantly for already-running hosts, so without this check we
+# silently mark the play green even when WOL was a no-op (host was in
+# S0/S3, woke without POST/PXE).
+#
+# When the host is off pre-WOL, the slurp fails — we ignore that and
+# skip the post-WOL verify, since the upcoming boot is necessarily fresh.
+- name: Snapshot pre-WOL boot ID (best-effort; host may be off).
+  ansible.builtin.slurp:
+    src: /proc/sys/kernel/random/boot_id
+  register: pre_wol_boot_id
+  ignore_errors: true
+  ignore_unreachable: true
+
 - name: Send Wake-on-LAN magic packet.
   community.general.wakeonlan:
     mac: "{{ mac_address }}"
@@ -6,3 +21,18 @@
 - name: Wait for the machine to come online.
   ansible.builtin.wait_for_connection:
     timeout: 600
+
+# wait_for_connection succeeds on any reachable SSH — verify a real
+# reboot occurred by re-reading boot_id and requiring it to differ
+# from the pre-WOL snapshot. Skipped when we couldn't snapshot
+# (host was off → first boot, no comparison needed). retries+delay
+# absorb any lag between sshd accepting connections and the new
+# boot_id being readable.
+- name: Confirm a fresh boot occurred (boot_id changed).
+  ansible.builtin.slurp:
+    src: /proc/sys/kernel/random/boot_id
+  register: post_wol_boot_id
+  retries: 60
+  delay: 10
+  until: post_wol_boot_id.content != pre_wol_boot_id.content
+  when: pre_wol_boot_id.content is defined
