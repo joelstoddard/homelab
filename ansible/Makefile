@@ -7,6 +7,9 @@ TAGS ?=
 VERBOSITY ?=
 EXTRA_VARS ?=
 VENV ?= .venv
+# Pin to 3.13 — pyproject ecosystem (rpds-py via referencing/jsonschema) doesn't
+# yet ship 3.14 wheels, so a default `python3` of 3.14 breaks `make build`.
+PYTHON ?= python3.13
 ANSIBLE_STDOUT_CALLBACK=yaml
 
 default: apply-pxe apply
@@ -30,7 +33,7 @@ help:
 # Development setup
 .PHONY: build
 build:
-	python3 -m venv $(VENV)
+	$(PYTHON) -m venv $(VENV)
 	$(MAKE) dev
 
 .PHONY: dev
