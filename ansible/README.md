@@ -37,11 +37,20 @@ multiple operating systems (Proxmox now; Talos and TrueNAS planned).
 cd ansible
 make build                              # creates .venv, installs deps + Galaxy collections
 
-# Inventories are gitignored. Copy the examples and fill in real values:
-cp inventory/pxe.yaml.example inventory/pxe.yaml
-cp inventory/main.yaml.example inventory/main.yaml
-$EDITOR inventory/pxe.yaml inventory/main.yaml
+# Authenticate against NetBox (the inventory source of truth):
+mkdir -p ~/.config/netbox
+cat > ~/.config/netbox/env <<'EOF'
+NETBOX_URL=https://netbox.example.com
+NETBOX_TOKEN=nbt_<id>.<secret>
+EOF
 ```
+
+The Makefile sources `~/.config/netbox/env` automatically before each
+`ansible-playbook` invocation. Generate a read-only token at
+`$NETBOX_URL/account/personal-access-tokens/`. See `inventory/README.md`
+for the env-var contract, the seeding flow when adding a new
+PXE-managed host (one-time NetBox writes per host), and the static
+`*.yaml.example` bootstrap fallback if you don't have a NetBox.
 
 ## Encrypted host secrets
 
@@ -60,8 +69,8 @@ Required keys per host: `root_password`. (Add others as roles require them.)
 ```bash
 # 1. Confirm the target's UEFI boot order is "network first".
 # 2. Set up the PXE server and pre-stage tango's iPXE+preseed:
-make apply-pxe TARGETS=tango
-#    (use TARGETS=proxmox for all 4 NUCs once you've verified on tango)
+make apply-pxe LIMIT=tango
+#    (drop LIMIT to run against every host in the pxe group)
 
 # 3. Power on tango. It will:
 #    - PXE-boot, fetch ipxe.efi, chain to /boot/<mac>.ipxe.
@@ -71,7 +80,7 @@ make apply-pxe TARGETS=tango
 # 4. Convert the fresh Debian into Proxmox:
 make apply LIMIT=tango
 
-# 5. Verify: https://192.168.1.203:8006 (Proxmox web UI).
+# 5. Verify: https://<host>.example.com:8006 (Proxmox web UI).
 ```
 
 ## Reimage workflow
@@ -87,7 +96,7 @@ make apply LIMIT=tango
 
 - `make build` — create venv, install Python + Galaxy deps.
 - `make lint` — `ansible-lint` everything.
-- `make check-pxe` — dry-run `pxe.yaml` (`LIMIT`, `TARGETS`, `EXTRA_VARS`
+- `make check-pxe` — dry-run `pxe.yaml` (`LIMIT`, `TAGS`, `EXTRA_VARS`
   optional).
 - `make apply-pxe` — apply `pxe.yaml` for real.
 - `make check` / `make apply` — same for `playbooks/main.yaml` (Proxmox
@@ -96,16 +105,26 @@ make apply LIMIT=tango
 - `make console` — interactive ansible-console.
 - `make clean` — stop containers, remove cache.
 
+All runtime targets source `~/.config/netbox/env` so `NETBOX_TOKEN` is
+available to the inventory plugin.
+
 ## Repo layout
 
 ```
 ansible/
   inventory/
-    pxe.yaml                 # all PXE-managed hosts, plus the implicit localhost entry
-    main.yaml                # post-install inventory (used by playbooks/main.yaml)
+    netbox.yaml              # NetBox dynamic inventory (default)
+    local.yaml               # localhost stub (PXE-server play)
+    group_vars/              # group-level non-secret vars
+      all.yaml               # repo-wide defaults + runtime aliases (mac_address, fqdn)
+      nucs.yaml              # disk_device for NUC device-types
+      pis.yaml               # disk_device for Pi device-types
+      proxmox.yaml           # ansible_user=root for the conversion phase
+      k3s-cluster.yaml       # K3s control-plane endpoint + LB pool
+    *.yaml.example           # static inventory bootstrap fallback
+    README.md                # inventory mechanics
   host_vars/
-    <host>.sops.yaml         # per-host SOPS-encrypted secrets
-  group_vars/                # group-level non-secret vars
+    <host>.sops.yaml         # per-host SOPS-encrypted secrets (lowercase names)
   collections/requirements.yaml
   requirements.txt
   pxe.yaml                   # bare-metal install playbook
