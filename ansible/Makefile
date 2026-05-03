@@ -2,7 +2,6 @@
 
 # Variables
 LIMIT ?=
-TARGETS ?=
 TAGS ?=
 VERBOSITY ?=
 EXTRA_VARS ?=
@@ -52,7 +51,6 @@ lint:
 check-pxe:
 	@[ -f $(HOME)/.config/netbox/env ] && set -a && . $(HOME)/.config/netbox/env && NETBOX_API="$$NETBOX_URL" && set +a; \
 	ansible-playbook pxe.yaml --check --diff \
-		$(if $(TARGETS),--extra-vars='pxe_targets=$(TARGETS)') \
 		$(if $(LIMIT),--limit=$(LIMIT)) \
 		$(if $(TAGS),--tags=$(TAGS)) \
 		$(if $(VERBOSITY),-$(VERBOSITY)) \
@@ -72,7 +70,6 @@ check:
 apply-pxe:
 	@[ -f $(HOME)/.config/netbox/env ] && set -a && . $(HOME)/.config/netbox/env && NETBOX_API="$$NETBOX_URL" && set +a; \
 	ansible-playbook pxe.yaml \
-		$(if $(TARGETS),--extra-vars='pxe_targets=$(TARGETS)') \
 		$(if $(LIMIT),--limit=$(LIMIT)) \
 		$(if $(TAGS),--tags=$(TAGS)) \
 		$(if $(VERBOSITY),-$(VERBOSITY)) \
