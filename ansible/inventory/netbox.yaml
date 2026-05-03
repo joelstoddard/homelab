@@ -1,0 +1,101 @@
+---
+# NetBox dynamic inventory.
+#
+# The plugin reads its endpoint and credentials from the environment:
+#   - NETBOX_API   (the NetBox URL — required)
+#   - NETBOX_TOKEN (the auth token — required)
+#
+# The Makefile sources ~/.config/netbox/env (which carries NETBOX_URL +
+# NETBOX_TOKEN) and re-exports NETBOX_URL as NETBOX_API before each
+# ansible-playbook run. Operators using ansible-inventory ad-hoc should
+# do the same: `set -a; . ~/.config/netbox/env; export NETBOX_API=$NETBOX_URL; set +a`.
+# The URL stays out of this YAML on purpose — the homelab uses NetBox
+# as its inventory source of truth precisely to keep network details
+# out of the public repo.
+#
+# Groups derived from NetBox attributes via keyed_groups (bare names,
+# matching the previous static-inventory shape):
+#   - <platform>                            (e.g. proxmox, talos, truenas)
+#   - pxe       <- tag pxe-managed
+#   - nucs      <- device_type ~ ^nuc
+#   - pis       <- device_type ~ ^pi-
+#
+# IMPORTANT — nb_inventory compose limitations (as of netbox.netbox 3.x):
+#   - compose evaluates against the raw NetBox API dict, NOT the enriched
+#     hostvars.  Fields set by `interfaces: true` / `dns_name: true` (e.g.
+#     `interfaces`, `dns_name`) are NOT available in compose expressions.
+#   - keyed_groups DO see enriched hostvars (combine_vars is called there).
+#   - With `plurals: false`, nested objects are flattened to slug strings in
+#     hostvars — use `device_type` (not `device_type.slug`) in keyed_groups.
+#   - The `hostnames:` key is not supported by nb_inventory; it is silently
+#     ignored.  Hostnames are always the exact NetBox device name.
+#
+# To access interface MACs in playbooks/templates use:
+#   hostvars[inventory_hostname].interfaces
+#     | selectattr('name','eq','01')
+#     | map(attribute='mac_addresses') | sum(start=[])
+#     | map(attribute='mac_address') | first
+#
+# Auto-prefixed groups (e.g. device_types_nuc12wski5) remain available
+# through the plugin's built-in grouping. To inspect:
+#   ansible-inventory --graph
+#   ansible-inventory --list
+plugin: netbox.netbox.nb_inventory
+validate_certs: true
+
+# Pull every page; we don't have enough hosts for this to matter.
+fetch_all: true
+
+# Pull VMs in addition to devices (Skylab today; future K3s VMs).
+fetch_virtual_machines: true
+
+# No filtering: every NetBox device and VM lands in @all. Playbooks scope
+# themselves with `hosts: <group>`.
+device_query_filters: []
+vm_query_filters: []
+
+# Enrich each host with interface data and DNS names.
+# These are exposed as hostvars (interfaces, dns_name) but are NOT available
+# in compose expressions (compose sees the raw API dict, not hostvars).
+interfaces: true
+dns_name: true
+
+# Keep singular keys in hostvars — the keyed_groups below assume singulars.
+# device_type, tenant, platform etc. become plain slug strings.
+plurals: false
+
+compose:
+  # primary_ip4 is a dict in the raw API dict; .address has the /prefix.
+  # The plugin already sets ansible_host in _fill_host_variables, but this
+  # makes the stripping explicit and survives if primary_ip4 has no primary_ip.
+  ansible_host: "(primary_ip4.address | default('')) | regex_replace('/.*$', '') | default(omit)"
+  # Note: mac_address and fqdn are NOT computed here. compose: only sees the
+  # raw NetBox API dict; the `interfaces` list (from `interfaces: true`) and
+  # `dns_name` (from `dns_name: true`) aren't visible until task time. They're
+  # set as runtime hostvars in inventory/group_vars/all.yaml instead, where
+  # the full hostvars context is in scope.
+
+keyed_groups:
+  # Platform → bare group (proxmox, talos, truenas, …).
+  # Hosts without a platform get '' which is falsy and produces no group.
+  - prefix: ''
+    separator: ''
+    key: "platform | default('')"
+
+  # Tag pxe-managed → group `pxe`. Hosts without the tag get '' (filtered).
+  # Under `plurals: false`, `tags` is already a flat list of slug strings —
+  # no `map(attribute='slug')` needed (and including it would map to nulls).
+  - prefix: ''
+    separator: ''
+    key: >-
+      (tags | default([]) | select('eq','pxe-managed') | first | default(''))
+      | regex_replace('^pxe-managed$', 'pxe')
+
+  # Device type slug → nucs / pis. Non-matching slugs → '' (no group created).
+  - prefix: ''
+    separator: ''
+    key: >-
+      device_type | default('')
+      | regex_replace('^nuc.*$', 'nucs')
+      | regex_replace('^pi-.*$', 'pis')
+      | regex_replace('^(?!nucs$|pis$).*$', '')

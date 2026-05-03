@@ -1,4 +1,9 @@
 ---
+ansible_user: "admin"
+ansible_ssh_private_key_file: "~/.ssh/id_rsa"
+ssh_public_key: "{{ lookup('file', '~/.ssh/id_rsa.pub') }}"
+quad_nine_dns_server: "9.9.9.9"
+
 # Kernel cmdline parameters baked into the installed system. Two
 # consumers reference this and must stay in sync:
 #   - 00-pxe preseed `late_command` persists it for fresh installs.
@@ -11,3 +16,24 @@
 # - modprobe.blacklist=iwlwifi,iwlmvm: 12th-gen NUCs soft-lock in
 #   modprobe iwlwifi on first boot of the Proxmox kernel.
 installed_kernel_cmdline: "net.ifnames=0 biosdevname=0 modprobe.blacklist=iwlwifi,iwlmvm"
+
+# Runtime aliases for fields the netbox.netbox.nb_inventory plugin can't
+# expose via compose. The plugin's compose: only sees the raw NetBox API
+# dict — it does NOT see hostvars added by `interfaces: true` or
+# `dns_name: true`. Setting these here works because group_vars is
+# evaluated at task time, with the full hostvars (including `interfaces`
+# and `dns_name`) in scope.
+#
+# Consumers:
+#   - mac_address → 01-wake-on-lan role's WOL packet
+#   - fqdn → 03-proxmox role's /etc/hosts hostname pinning
+fqdn: "{{ dns_name | default('') }}"
+mac_address: >-
+  {{ ((interfaces | default([]) | selectattr('name','eq','01')
+        | map(attribute='primary_mac_address') | select | list
+        | map(attribute='mac_address') | select | list | first)
+       | default(
+         (interfaces | default([]) | selectattr('name','eq','01')
+            | map(attribute='mac_addresses') | sum(start=[])
+            | map(attribute='mac_address')
+            | select | list | first), true)) | default('') }}
