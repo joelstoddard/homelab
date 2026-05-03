@@ -8,7 +8,7 @@
     - 00-pxe
 
 - name: Wake target machines and wait for them to come online.
-  hosts: "{{ pxe_targets | default('proxmox') }}"
+  hosts: pxe
   gather_facts: false
   roles:
     - 01-wake-on-lan
