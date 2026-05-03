@@ -6,6 +6,10 @@
 # the *.example files to *.yaml and fill in their environment.
 ansible/inventory/*.yaml
 !ansible/inventory/*.yaml.example
+# netbox.yaml and local.yaml are config, not secrets — hardcoded URL
+# (in netbox.yaml) and a static localhost stub (in local.yaml).
+!ansible/inventory/netbox.yaml
+!ansible/inventory/local.yaml
 
 # Galaxy-installed roles are vendored at runtime by `make dev` into
 # ansible/roles/. Custom roles are numbered (00-pxe, 01-wake-on-lan,

@@ -105,4 +105,5 @@ clean:
 .PHONY: console
 console:
 	@[ -f $(HOME)/.config/netbox/env ] && set -a && . $(HOME)/.config/netbox/env && NETBOX_API="$$NETBOX_URL" && set +a; \
-	ansible-console
+	ansible-console \
+		$(if $(LIMIT),--limit=$(LIMIT))
