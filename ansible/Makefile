@@ -50,7 +50,8 @@ lint:
 # Check (dry run)
 .PHONY: check-pxe
 check-pxe:
-	ansible-playbook -i inventory/pxe.yaml pxe.yaml --check --diff \
+	@[ -f $(HOME)/.config/netbox/env ] && set -a && . $(HOME)/.config/netbox/env && NETBOX_API="$$NETBOX_URL" && set +a; \
+	ansible-playbook pxe.yaml --check --diff \
 		$(if $(TARGETS),--extra-vars='pxe_targets=$(TARGETS)') \
 		$(if $(LIMIT),--limit=$(LIMIT)) \
 		$(if $(TAGS),--tags=$(TAGS)) \
@@ -59,7 +60,8 @@ check-pxe:
 
 .PHONY: check
 check:
-	ansible-playbook -i inventory/main.yaml playbooks/main.yaml --check --diff \
+	@[ -f $(HOME)/.config/netbox/env ] && set -a && . $(HOME)/.config/netbox/env && NETBOX_API="$$NETBOX_URL" && set +a; \
+	ansible-playbook playbooks/main.yaml --check --diff \
 		$(if $(LIMIT),--limit=$(LIMIT)) \
 		$(if $(TAGS),--tags=$(TAGS)) \
 		$(if $(VERBOSITY),-$(VERBOSITY)) \
@@ -68,7 +70,8 @@ check:
 # Apply playbooks
 .PHONY: apply-pxe
 apply-pxe:
-	ansible-playbook -i inventory/pxe.yaml pxe.yaml \
+	@[ -f $(HOME)/.config/netbox/env ] && set -a && . $(HOME)/.config/netbox/env && NETBOX_API="$$NETBOX_URL" && set +a; \
+	ansible-playbook pxe.yaml \
 		$(if $(TARGETS),--extra-vars='pxe_targets=$(TARGETS)') \
 		$(if $(LIMIT),--limit=$(LIMIT)) \
 		$(if $(TAGS),--tags=$(TAGS)) \
@@ -77,7 +80,8 @@ apply-pxe:
 
 .PHONY: apply
 apply:
-	ansible-playbook -i inventory/main.yaml playbooks/main.yaml \
+	@[ -f $(HOME)/.config/netbox/env ] && set -a && . $(HOME)/.config/netbox/env && NETBOX_API="$$NETBOX_URL" && set +a; \
+	ansible-playbook playbooks/main.yaml \
 		$(if $(LIMIT),--limit=$(LIMIT)) \
 		$(if $(TAGS),--tags=$(TAGS)) \
 		$(if $(VERBOSITY),-$(VERBOSITY)) \
@@ -86,7 +90,8 @@ apply:
 # Ping all hosts
 .PHONY: ping
 ping:
-	ansible -i inventory/pxe.yaml all -m ping \
+	@[ -f $(HOME)/.config/netbox/env ] && set -a && . $(HOME)/.config/netbox/env && NETBOX_API="$$NETBOX_URL" && set +a; \
+	ansible all -m ping \
 		$(if $(LIMIT),--limit=$(LIMIT))
 
 # Clean temporary files
@@ -99,5 +104,5 @@ clean:
 
 .PHONY: console
 console:
-	ansible-console \
-		--inventory inventory/pxe.yaml
+	@[ -f $(HOME)/.config/netbox/env ] && set -a && . $(HOME)/.config/netbox/env && NETBOX_API="$$NETBOX_URL" && set +a; \
+	ansible-console
