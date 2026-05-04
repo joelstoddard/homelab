@@ -51,7 +51,7 @@ Roles are numbered by execution order:
 - `03-proxmox` — Debian → Proxmox VE conversion: adds the Proxmox apt repo, installs `pve-manager`, configures `vmbr0` bridge networking, reboots into the Proxmox kernel.
 - `04-external`, `05-extras`, `06-tests` — Planned post-cluster roles, not yet implemented.
 
-Per-host secrets (e.g., `root_password`) live in `host_vars/<hostname>.sops.yaml`, SOPS+Age encrypted. The `community.sops` Ansible collection auto-decrypts at apply time.
+Per-host secrets (e.g., `root_password`) live in `ansible/inventory/host_vars/<hostname>.sops.yaml`, SOPS+Age encrypted. Each play loads them via a `community.sops.load_vars` pre-task that maps the NetBox-capitalized inventory hostname to the lowercase filename on disk. Recipients are configured in the repo-root `.sops.yaml`.
 
 Inventory is dynamic from NetBox via the `netbox.netbox.nb_inventory` plugin (`ansible/inventory/netbox.yaml`). The plugin reads `NETBOX_API` and `NETBOX_TOKEN` from the environment; export them in your shell (or via direnv / shell rc / per-session `export`) before running `make`. MAC addresses (for WOL and dnsmasq allowlist) come from NetBox's `dcim/mac-addresses/` table; `mac_address` and `fqdn` are surfaced as runtime hostvars via `inventory/group_vars/all.yaml`. All group_vars live inventory-adjacent at `ansible/inventory/group_vars/` (so they load for any playbook regardless of its directory): `all.yaml` for repo-wide defaults plus runtime aliases, `nucs.yaml`/`pis.yaml` for hardware-class disk paths, `proxmox.yaml` to override `ansible_user=root` for the Proxmox conversion phase. See `ansible/inventory/README.md` for the seeding flow when adding a new PXE-managed host.
 

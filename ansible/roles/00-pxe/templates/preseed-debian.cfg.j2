@@ -99,9 +99,14 @@ d-i grub-installer/only_debian boolean true
 d-i grub-installer/with_other_os boolean true
 d-i grub-installer/bootdev string {{ disk_device }}
 
-### Late commands — install root SSH key, lock SSH password auth, and
+### Late commands — install root SSH key, lock SSH password auth,
 ### persist the installed_kernel_cmdline so first boot of the Proxmox
-### kernel matches the installer's working cmdline.
+### kernel matches the installer's working cmdline, and rewrite
+### /etc/network/interfaces with the preseed's static netcfg values
+### (trixie's installer drops `iface eth0 inet dhcp` into the file
+### despite netcfg/disable_autoconfig=true + the static get_* values,
+### so the host first-boots on DHCP. Overwrite directly to defend
+### against the regression).
 d-i preseed/late_command string \
     in-target mkdir -p /root/.ssh; \
     echo "{{ ssh_public_key }}" > /target/root/.ssh/authorized_keys; \
@@ -110,7 +115,8 @@ d-i preseed/late_command string \
     in-target sed -i 's/^#\?PermitRootLogin.*/PermitRootLogin prohibit-password/' /etc/ssh/sshd_config; \
     in-target sed -i 's/^#\?PasswordAuthentication.*/PasswordAuthentication no/' /etc/ssh/sshd_config; \
     in-target sed -i 's|^GRUB_CMDLINE_LINUX=.*|GRUB_CMDLINE_LINUX="{{ installed_kernel_cmdline }}"|' /etc/default/grub; \
-    in-target update-grub
+    in-target update-grub; \
+    printf '%s\n' 'auto lo' 'iface lo inet loopback' '' 'allow-hotplug eth0' 'iface eth0 inet static' '    address {{ target_ip }}{{ cidr_subnet }}' '    gateway {{ gateway }}' '    dns-nameservers {{ dns_server }}' > /target/etc/network/interfaces
 
 ### Finish
 d-i finish-install/reboot_in_progress note

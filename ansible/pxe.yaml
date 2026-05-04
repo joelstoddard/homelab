@@ -20,7 +20,7 @@
       community.sops.load_vars:
         file: "{{ host_vars_file }}"
       vars:
-        host_vars_file: "{{ inventory_dir }}/../host_vars/{{ inventory_hostname | lower }}.sops.yaml"
+        host_vars_file: "{{ inventory_dir }}/host_vars/{{ inventory_hostname | lower }}.sops.yaml"
       when: host_vars_file is file
       no_log: true
   roles:
