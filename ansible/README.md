@@ -50,15 +50,23 @@ fallback for environments without a NetBox.
 
 ## Encrypted host secrets
 
-Per-host secrets (root password, etc.) live in `host_vars/<hostname>.sops.yaml`,
-encrypted with the Age public key configured in `.sops.yaml`. To create or
-edit:
+Per-host secrets (root password, etc.) live in `inventory/host_vars/<hostname>.sops.yaml`,
+encrypted with the Age public key(s) configured in the repo-root `.sops.yaml`.
+Each play loads them via a `community.sops.load_vars` pre-task that maps the
+NetBox-capitalized inventory hostname to the lowercase filename on disk.
+
+Files for the four NUCs (`rumba`, `tango`, `salsa`, `samba`) ship in
+`inventory/host_vars/`. Before any apply, edit each to set the real password:
 
 ```bash
-sops host_vars/tango.sops.yaml          # opens decrypted in $EDITOR; re-encrypts on save
+sops inventory/host_vars/tango.sops.yaml   # opens decrypted in $EDITOR; re-encrypts on save
 ```
 
 Required keys per host: `root_password`. (Add others as roles require them.)
+
+To authorise a new operator: append their Age recipient under the matching
+`creation_rules` entry in `.sops.yaml`, then re-encrypt every covered file
+with `sops updatekeys inventory/host_vars/<host>.sops.yaml`.
 
 ## Provisioning a host (PoC: Proxmox on tango)
 
@@ -119,8 +127,8 @@ ansible/
       k3s-cluster.yaml       # K3s control-plane endpoint + LB pool
     *.yaml.example           # static inventory bootstrap fallback
     README.md                # inventory mechanics
-  host_vars/
-    <host>.sops.yaml         # per-host SOPS-encrypted secrets (lowercase names)
+    host_vars/
+      <host>.sops.yaml       # per-host SOPS-encrypted secrets (lowercase names)
   collections/requirements.yaml
   requirements.txt
   pxe.yaml                   # bare-metal install playbook

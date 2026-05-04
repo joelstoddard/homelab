@@ -44,12 +44,12 @@ dev:
 # Lint playbooks
 .PHONY: lint
 lint:
-	ansible-lint .
+	$(VENV)/bin/ansible-lint .
 
 # Check (dry run)
 .PHONY: check-pxe
 check-pxe:
-	ansible-playbook pxe.yaml --check --diff \
+	$(VENV)/bin/ansible-playbook pxe.yaml --check --diff \
 		$(if $(LIMIT),--limit=$(LIMIT)) \
 		$(if $(TAGS),--tags=$(TAGS)) \
 		$(if $(VERBOSITY),-$(VERBOSITY)) \
@@ -57,7 +57,7 @@ check-pxe:
 
 .PHONY: check
 check:
-	ansible-playbook playbooks/main.yaml --check --diff \
+	$(VENV)/bin/ansible-playbook playbooks/main.yaml --check --diff \
 		$(if $(LIMIT),--limit=$(LIMIT)) \
 		$(if $(TAGS),--tags=$(TAGS)) \
 		$(if $(VERBOSITY),-$(VERBOSITY)) \
@@ -66,7 +66,7 @@ check:
 # Apply playbooks
 .PHONY: apply-pxe
 apply-pxe:
-	ansible-playbook pxe.yaml \
+	$(VENV)/bin/ansible-playbook pxe.yaml \
 		$(if $(LIMIT),--limit=$(LIMIT)) \
 		$(if $(TAGS),--tags=$(TAGS)) \
 		$(if $(VERBOSITY),-$(VERBOSITY)) \
@@ -74,7 +74,7 @@ apply-pxe:
 
 .PHONY: apply
 apply:
-	ansible-playbook playbooks/main.yaml \
+	$(VENV)/bin/ansible-playbook playbooks/main.yaml \
 		$(if $(LIMIT),--limit=$(LIMIT)) \
 		$(if $(TAGS),--tags=$(TAGS)) \
 		$(if $(VERBOSITY),-$(VERBOSITY)) \
@@ -83,7 +83,7 @@ apply:
 # Ping all hosts
 .PHONY: ping
 ping:
-	ansible all -m ping \
+	$(VENV)/bin/ansible all -m ping \
 		$(if $(LIMIT),--limit=$(LIMIT))
 
 # Clean temporary files
@@ -96,5 +96,5 @@ clean:
 
 .PHONY: console
 console:
-	ansible-console \
+	$(VENV)/bin/ansible-console \
 		$(if $(LIMIT),--limit=$(LIMIT))

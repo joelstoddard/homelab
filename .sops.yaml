@@ -1,0 +1,10 @@
+---
+# SOPS config — defines which Age recipients encrypt which paths.
+# `sops` walks up from the file being encrypted to find this config.
+#
+# To add a new operator, append their Age public key under `age:` for the
+# matching rule, then re-encrypt every covered file:
+#   sops updatekeys ansible/inventory/host_vars/<host>.sops.yaml
+creation_rules:
+  - path_regex: ansible/inventory/host_vars/.*\.sops\.ya?ml$
+    age: age1h5hafnt22aqn7uahcsmv5v8gfgwcxanypw0lantcush7jppt99fskz6vcv
