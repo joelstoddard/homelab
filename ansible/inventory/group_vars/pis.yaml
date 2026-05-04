@@ -1,0 +1,4 @@
+---
+# disk_device for NetBox device_type slug `pi-*` hosts.
+# Consumed by the 00-pxe role's preseed template (partman-auto/disk).
+disk_device: "/dev/sda"

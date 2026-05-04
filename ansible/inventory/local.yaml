@@ -1,0 +1,9 @@
+---
+# Localhost stub. The pxe.yaml first play (PXE-server-setup) runs here.
+# Lives next to the dynamic inventory; both load when ansible.cfg points
+# at the inventory/ directory.
+local:
+  hosts:
+    localhost:
+      ansible_connection: local
+      ansible_python_interpreter: "{{ ansible_playbook_python }}"

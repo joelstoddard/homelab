@@ -8,7 +8,20 @@
     - 00-pxe
 
 - name: Wake target machines and wait for them to come online.
-  hosts: "{{ pxe_targets | default('proxmox') }}"
+  hosts: pxe
   gather_facts: false
+  pre_tasks:
+    # NetBox inventory hostnames mirror the NetBox device-name field exactly,
+    # which the homelab keeps capitalized (Rumba, Tango, …). Linux hostnames
+    # and host_vars filenames are lowercase by convention. Bridge the two by
+    # explicitly loading host_vars/<lower>.sops.yaml — community.sops's vars
+    # plugin only auto-loads files matching inventory_hostname verbatim.
+    - name: Load SOPS-encrypted host vars (lowercase filename)
+      community.sops.load_vars:
+        file: "{{ host_vars_file }}"
+      vars:
+        host_vars_file: "{{ inventory_dir }}/../host_vars/{{ inventory_hostname | lower }}.sops.yaml"
+      when: host_vars_file is file
+      no_log: true
   roles:
     - 01-wake-on-lan
