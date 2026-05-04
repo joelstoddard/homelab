@@ -37,22 +37,26 @@ multiple operating systems (Proxmox now; Talos and TrueNAS planned).
 cd ansible
 make build                              # creates .venv, installs deps + Galaxy collections
 
-# Inventories are gitignored. Copy the examples and fill in real values:
-cp inventory/pxe.yaml.example inventory/pxe.yaml
-cp inventory/main.yaml.example inventory/main.yaml
-$EDITOR inventory/pxe.yaml inventory/main.yaml
+# Export NetBox credentials in your shell (or via direnv, shell rc, …):
+export NETBOX_API=https://netbox.example.com
+export NETBOX_TOKEN=nbt_<id>.<secret>
 ```
+
+`make` and `ansible-inventory` pick up `NETBOX_API` / `NETBOX_TOKEN`
+from the environment directly. Generate a read-only token at
+`$NETBOX_API/account/personal-access-tokens/`. See `inventory/README.md`
+for the env-var contract and the static `*.yaml.example` bootstrap
+fallback for environments without a NetBox.
 
 ## Encrypted host secrets
 
 Per-host secrets (root password, etc.) live in `inventory/host_vars/<hostname>.sops.yaml`,
 encrypted with the Age public key(s) configured in the repo-root `.sops.yaml`.
-The `community.sops.sops` Ansible vars plugin (enabled in `ansible.cfg`)
-auto-decrypts these at apply time, so playbooks see them as ordinary host vars.
+Each play loads them via a `community.sops.load_vars` pre-task that maps the
+NetBox-capitalized inventory hostname to the lowercase filename on disk.
 
-Templates for the four NUCs (`rumba`, `tango`, `salsa`, `samba`) ship in
-`inventory/host_vars/` with placeholder values. Before any apply, edit each
-to set the real password:
+Files for the four NUCs (`rumba`, `tango`, `salsa`, `samba`) ship in
+`inventory/host_vars/`. Before any apply, edit each to set the real password:
 
 ```bash
 sops inventory/host_vars/tango.sops.yaml   # opens decrypted in $EDITOR; re-encrypts on save
@@ -69,8 +73,8 @@ with `sops updatekeys inventory/host_vars/<host>.sops.yaml`.
 ```bash
 # 1. Confirm the target's UEFI boot order is "network first".
 # 2. Set up the PXE server and pre-stage tango's iPXE+preseed:
-make apply-pxe TARGETS=tango
-#    (use TARGETS=proxmox for all 4 NUCs once you've verified on tango)
+make apply-pxe LIMIT=tango
+#    (drop LIMIT to run against every host in the pxe group)
 
 # 3. Power on tango. It will:
 #    - PXE-boot, fetch ipxe.efi, chain to /boot/<mac>.ipxe.
@@ -80,7 +84,7 @@ make apply-pxe TARGETS=tango
 # 4. Convert the fresh Debian into Proxmox:
 make apply LIMIT=tango
 
-# 5. Verify: https://192.168.1.203:8006 (Proxmox web UI).
+# 5. Verify: https://<host>.example.com:8006 (Proxmox web UI).
 ```
 
 ## Reimage workflow
@@ -96,7 +100,7 @@ make apply LIMIT=tango
 
 - `make build` — create venv, install Python + Galaxy deps.
 - `make lint` — `ansible-lint` everything.
-- `make check-pxe` — dry-run `pxe.yaml` (`LIMIT`, `TARGETS`, `EXTRA_VARS`
+- `make check-pxe` — dry-run `pxe.yaml` (`LIMIT`, `TAGS`, `EXTRA_VARS`
   optional).
 - `make apply-pxe` — apply `pxe.yaml` for real.
 - `make check` / `make apply` — same for `playbooks/main.yaml` (Proxmox
@@ -105,16 +109,26 @@ make apply LIMIT=tango
 - `make console` — interactive ansible-console.
 - `make clean` — stop containers, remove cache.
 
+All runtime targets read `NETBOX_API` and `NETBOX_TOKEN` from the
+environment for the inventory plugin.
+
 ## Repo layout
 
 ```
 ansible/
   inventory/
-    pxe.yaml                 # all PXE-managed hosts, plus the implicit localhost entry
-    main.yaml                # post-install inventory (used by playbooks/main.yaml)
-    host_vars/
-      <host>.sops.yaml       # per-host SOPS-encrypted secrets (auto-loaded by community.sops vars plugin)
+    netbox.yaml              # NetBox dynamic inventory (default)
+    local.yaml               # localhost stub (PXE-server play)
     group_vars/              # group-level non-secret vars
+      all.yaml               # repo-wide defaults + runtime aliases (mac_address, fqdn)
+      nucs.yaml              # disk_device for NUC device-types
+      pis.yaml               # disk_device for Pi device-types
+      proxmox.yaml           # ansible_user=root for the conversion phase
+      k3s-cluster.yaml       # K3s control-plane endpoint + LB pool
+    *.yaml.example           # static inventory bootstrap fallback
+    README.md                # inventory mechanics
+    host_vars/
+      <host>.sops.yaml       # per-host SOPS-encrypted secrets (lowercase names)
   collections/requirements.yaml
   requirements.txt
   pxe.yaml                   # bare-metal install playbook
