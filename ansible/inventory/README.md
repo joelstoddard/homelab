@@ -25,10 +25,7 @@ set -a; . ~/.config/netbox/env; export NETBOX_API="$NETBOX_URL"; set +a
 ansible-inventory --graph
 ```
 
-A read-only token is sufficient for runtime inventory; a write-enabled
-token is only needed during seeding (see below). Generate tokens at
-`$NETBOX_URL/account/personal-access-tokens/`. Use short expiries (a
-few hours) for write-enabled ones.
+Generate a read-only token at `$NETBOX_URL/account/personal-access-tokens/`.
 
 ## Group derivation
 
@@ -80,8 +77,3 @@ sources merge if both are present.
 
 `local.yaml` defines `localhost` for the PXE-server-setup play in
 `pxe.yaml`. It's static because localhost can't live in NetBox.
-
-## See also
-
-`.claude/specs/2026-05-03-netbox-inventory-design.md` — full rationale
-for the data ownership and group-derivation choices.
