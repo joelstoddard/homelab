@@ -41,7 +41,7 @@ The root `Makefile` delegates to subdirectory Makefiles; currently only `ansible
 
 Two stages, two playbook entry points:
 
-- **`pxe.yaml`** — provisions baremetal by network-booting Debian onto target hosts via iPXE chainload + per-host preseed. Targets `hosts: pxe` (devices tagged `pxe-managed` in NetBox). Per-OS group membership (`proxmox` now, planned `talos` and `truenas`) is derived from NetBox `platform.slug` and drives which iPXE/preseed templates each host gets.
+- **`pxe.yaml`** — provisions baremetal by network-booting Debian onto target hosts via iPXE chainload + per-host preseed. Targets `hosts: pxe` (devices tagged `pxe` in NetBox). Per-OS group membership (`proxmox` now, planned `talos` and `truenas`) is derived from NetBox `platform.slug` and drives which iPXE/preseed templates each host gets.
 - **`playbooks/main.yaml`** — runs against PXE-installed Debian to convert each host into its target OS (currently Proxmox; Talos and TrueNAS later). Targets `hosts: proxmox`.
 
 Roles are numbered by execution order:

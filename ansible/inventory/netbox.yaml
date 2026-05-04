@@ -16,7 +16,7 @@
 # Groups derived from NetBox attributes via keyed_groups (bare names,
 # matching the previous static-inventory shape):
 #   - <platform>                            (e.g. proxmox, talos, truenas)
-#   - pxe       <- tag pxe-managed
+#   - pxe       <- tag pxe
 #   - nucs      <- device_type ~ ^nuc
 #   - pis       <- device_type ~ ^pi-
 #
@@ -82,14 +82,11 @@ keyed_groups:
     separator: ''
     key: "platform | default('')"
 
-  # Tag pxe-managed → group `pxe`. Hosts without the tag get '' (filtered).
-  # Under `plurals: false`, `tags` is already a flat list of slug strings —
-  # no `map(attribute='slug')` needed (and including it would map to nulls).
+  # Tag `pxe` → group `pxe`. Hosts without the tag get '' (filtered).
+  # Under `plurals: false`, `tags` is already a flat list of slug strings.
   - prefix: ''
     separator: ''
-    key: >-
-      (tags | default([]) | select('eq','pxe-managed') | first | default(''))
-      | regex_replace('^pxe-managed$', 'pxe')
+    key: "tags | default([]) | select('eq','pxe') | first | default('')"
 
   # Device type slug → nucs / pis. Non-matching slugs → '' (no group created).
   - prefix: ''

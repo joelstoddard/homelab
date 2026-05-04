@@ -37,7 +37,7 @@ The dynamic inventory produces these bare-named groups via `keyed_groups`:
 | Ansible group | NetBox source |
 |---|---|
 | `proxmox` / `talos` / `truenas` | `platform.slug` |
-| `pxe` | tag `pxe-managed` |
+| `pxe` | tag `pxe` |
 | `nucs` | `device_type` slug matching `^nuc` |
 | `pis` | `device_type` slug matching `^pi-` |
 
@@ -57,7 +57,7 @@ runtime aliases that the plugin's `compose:` can't construct directly
 - `fqdn` — `dns_name` of `primary_ip4`.
 
 A new PXE-managed host needs `platform` set (e.g. `proxmox`) and tag
-`pxe-managed` applied in NetBox before it shows up in the corresponding
+`pxe` applied in NetBox before it shows up in the corresponding
 groups. Set those via the NetBox UI when adding a device.
 
 ## Bootstrap fallback: static inventory files
