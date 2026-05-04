@@ -9,6 +9,7 @@ collections:
   - name: community.general
   - name: community.docker
   - name: kubernetes.core
+  - name: netbox.netbox
   - name: community.sops
   # techno-tim/k3s-ansible isn't packaged as a Galaxy collection (no galaxy.yml),
   # so `ansible-galaxy collection install` fails on it. Re-enable when the k3s

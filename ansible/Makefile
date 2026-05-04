@@ -2,11 +2,13 @@
 
 # Variables
 LIMIT ?=
-TARGETS ?=
 TAGS ?=
 VERBOSITY ?=
 EXTRA_VARS ?=
 VENV ?= .venv
+# Pin to 3.13 — pyproject ecosystem (rpds-py via referencing/jsonschema) doesn't
+# yet ship 3.14 wheels, so a default `python3` of 3.14 breaks `make build`.
+PYTHON ?= python3.13
 ANSIBLE_STDOUT_CALLBACK=yaml
 
 default: apply-pxe apply
@@ -30,7 +32,7 @@ help:
 # Development setup
 .PHONY: build
 build:
-	python3 -m venv $(VENV)
+	$(PYTHON) -m venv $(VENV)
 	$(MAKE) dev
 
 .PHONY: dev
@@ -47,8 +49,7 @@ lint:
 # Check (dry run)
 .PHONY: check-pxe
 check-pxe:
-	ansible-playbook -i inventory/pxe.yaml pxe.yaml --check --diff \
-		$(if $(TARGETS),--extra-vars='pxe_targets=$(TARGETS)') \
+	ansible-playbook pxe.yaml --check --diff \
 		$(if $(LIMIT),--limit=$(LIMIT)) \
 		$(if $(TAGS),--tags=$(TAGS)) \
 		$(if $(VERBOSITY),-$(VERBOSITY)) \
@@ -56,7 +57,7 @@ check-pxe:
 
 .PHONY: check
 check:
-	ansible-playbook -i inventory/main.yaml playbooks/main.yaml --check --diff \
+	ansible-playbook playbooks/main.yaml --check --diff \
 		$(if $(LIMIT),--limit=$(LIMIT)) \
 		$(if $(TAGS),--tags=$(TAGS)) \
 		$(if $(VERBOSITY),-$(VERBOSITY)) \
@@ -65,8 +66,7 @@ check:
 # Apply playbooks
 .PHONY: apply-pxe
 apply-pxe:
-	ansible-playbook -i inventory/pxe.yaml pxe.yaml \
-		$(if $(TARGETS),--extra-vars='pxe_targets=$(TARGETS)') \
+	ansible-playbook pxe.yaml \
 		$(if $(LIMIT),--limit=$(LIMIT)) \
 		$(if $(TAGS),--tags=$(TAGS)) \
 		$(if $(VERBOSITY),-$(VERBOSITY)) \
@@ -74,7 +74,7 @@ apply-pxe:
 
 .PHONY: apply
 apply:
-	ansible-playbook -i inventory/main.yaml playbooks/main.yaml \
+	ansible-playbook playbooks/main.yaml \
 		$(if $(LIMIT),--limit=$(LIMIT)) \
 		$(if $(TAGS),--tags=$(TAGS)) \
 		$(if $(VERBOSITY),-$(VERBOSITY)) \
@@ -83,7 +83,7 @@ apply:
 # Ping all hosts
 .PHONY: ping
 ping:
-	ansible -i inventory/pxe.yaml all -m ping \
+	ansible all -m ping \
 		$(if $(LIMIT),--limit=$(LIMIT))
 
 # Clean temporary files
@@ -97,4 +97,4 @@ clean:
 .PHONY: console
 console:
 	ansible-console \
-		--inventory inventory/pxe.yaml
+		$(if $(LIMIT),--limit=$(LIMIT))
