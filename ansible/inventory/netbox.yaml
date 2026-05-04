@@ -5,13 +5,10 @@
 #   - NETBOX_API   (the NetBox URL — required)
 #   - NETBOX_TOKEN (the auth token — required)
 #
-# The Makefile sources ~/.config/netbox/env (which carries NETBOX_URL +
-# NETBOX_TOKEN) and re-exports NETBOX_URL as NETBOX_API before each
-# ansible-playbook run. Operators using ansible-inventory ad-hoc should
-# do the same: `set -a; . ~/.config/netbox/env; export NETBOX_API=$NETBOX_URL; set +a`.
-# The URL stays out of this YAML on purpose — the homelab uses NetBox
-# as its inventory source of truth precisely to keep network details
-# out of the public repo.
+# Export them in the operator's shell (direnv, shell rc, or
+# per-session). The URL stays out of this YAML on purpose — the
+# homelab uses NetBox as its inventory source of truth precisely to
+# keep network details out of the public repo.
 #
 # Groups derived from NetBox attributes via keyed_groups (bare names,
 # matching the previous static-inventory shape):

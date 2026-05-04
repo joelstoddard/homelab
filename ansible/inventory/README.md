@@ -6,26 +6,19 @@ in `../ansible.cfg`). Two sources coexist:
 ## Default: NetBox dynamic inventory (`netbox.yaml`)
 
 `netbox.yaml` uses `netbox.netbox.nb_inventory` to fetch hosts. The
-plugin's endpoint and credentials come from the environment so no
-network details land in the repo.
-
-Required env file (`~/.config/netbox/env`):
+plugin reads its endpoint and credentials from environment variables
+so no network details land in the repo:
 
 ```
-NETBOX_URL=https://netbox.example.com
+NETBOX_API=https://netbox.example.com
 NETBOX_TOKEN=nbt_<id>.<secret>
 ```
 
-The plugin reads `NETBOX_API` and `NETBOX_TOKEN`. The Makefile sources
-the env file and re-exports `NETBOX_URL` as `NETBOX_API` before each
-`ansible-playbook` invocation. For interactive use:
+Export them however you prefer (shell rc, `direnv`, per-session
+`export`, …). The Makefile and `ansible-inventory` invocations pick
+them up directly — there's no project-managed env file.
 
-```bash
-set -a; . ~/.config/netbox/env; export NETBOX_API="$NETBOX_URL"; set +a
-ansible-inventory --graph
-```
-
-Generate a read-only token at `$NETBOX_URL/account/personal-access-tokens/`.
+Generate a read-only token at `$NETBOX_API/account/personal-access-tokens/`.
 
 ## Group derivation
 

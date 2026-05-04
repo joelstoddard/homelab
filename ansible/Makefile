@@ -49,7 +49,6 @@ lint:
 # Check (dry run)
 .PHONY: check-pxe
 check-pxe:
-	@[ -f $(HOME)/.config/netbox/env ] && set -a && . $(HOME)/.config/netbox/env && NETBOX_API="$$NETBOX_URL" && set +a; \
 	ansible-playbook pxe.yaml --check --diff \
 		$(if $(LIMIT),--limit=$(LIMIT)) \
 		$(if $(TAGS),--tags=$(TAGS)) \
@@ -58,7 +57,6 @@ check-pxe:
 
 .PHONY: check
 check:
-	@[ -f $(HOME)/.config/netbox/env ] && set -a && . $(HOME)/.config/netbox/env && NETBOX_API="$$NETBOX_URL" && set +a; \
 	ansible-playbook playbooks/main.yaml --check --diff \
 		$(if $(LIMIT),--limit=$(LIMIT)) \
 		$(if $(TAGS),--tags=$(TAGS)) \
@@ -68,7 +66,6 @@ check:
 # Apply playbooks
 .PHONY: apply-pxe
 apply-pxe:
-	@[ -f $(HOME)/.config/netbox/env ] && set -a && . $(HOME)/.config/netbox/env && NETBOX_API="$$NETBOX_URL" && set +a; \
 	ansible-playbook pxe.yaml \
 		$(if $(LIMIT),--limit=$(LIMIT)) \
 		$(if $(TAGS),--tags=$(TAGS)) \
@@ -77,7 +74,6 @@ apply-pxe:
 
 .PHONY: apply
 apply:
-	@[ -f $(HOME)/.config/netbox/env ] && set -a && . $(HOME)/.config/netbox/env && NETBOX_API="$$NETBOX_URL" && set +a; \
 	ansible-playbook playbooks/main.yaml \
 		$(if $(LIMIT),--limit=$(LIMIT)) \
 		$(if $(TAGS),--tags=$(TAGS)) \
@@ -87,7 +83,6 @@ apply:
 # Ping all hosts
 .PHONY: ping
 ping:
-	@[ -f $(HOME)/.config/netbox/env ] && set -a && . $(HOME)/.config/netbox/env && NETBOX_API="$$NETBOX_URL" && set +a; \
 	ansible all -m ping \
 		$(if $(LIMIT),--limit=$(LIMIT))
 
@@ -101,6 +96,5 @@ clean:
 
 .PHONY: console
 console:
-	@[ -f $(HOME)/.config/netbox/env ] && set -a && . $(HOME)/.config/netbox/env && NETBOX_API="$$NETBOX_URL" && set +a; \
 	ansible-console \
 		$(if $(LIMIT),--limit=$(LIMIT))
