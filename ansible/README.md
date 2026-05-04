@@ -37,20 +37,16 @@ multiple operating systems (Proxmox now; Talos and TrueNAS planned).
 cd ansible
 make build                              # creates .venv, installs deps + Galaxy collections
 
-# Authenticate against NetBox (the inventory source of truth):
-mkdir -p ~/.config/netbox
-cat > ~/.config/netbox/env <<'EOF'
-NETBOX_URL=https://netbox.example.com
-NETBOX_TOKEN=nbt_<id>.<secret>
-EOF
+# Export NetBox credentials in your shell (or via direnv, shell rc, …):
+export NETBOX_API=https://netbox.example.com
+export NETBOX_TOKEN=nbt_<id>.<secret>
 ```
 
-The Makefile sources `~/.config/netbox/env` automatically before each
-`ansible-playbook` invocation. Generate a read-only token at
-`$NETBOX_URL/account/personal-access-tokens/`. See `inventory/README.md`
-for the env-var contract, the seeding flow when adding a new
-PXE-managed host (one-time NetBox writes per host), and the static
-`*.yaml.example` bootstrap fallback if you don't have a NetBox.
+`make` and `ansible-inventory` pick up `NETBOX_API` / `NETBOX_TOKEN`
+from the environment directly. Generate a read-only token at
+`$NETBOX_API/account/personal-access-tokens/`. See `inventory/README.md`
+for the env-var contract and the static `*.yaml.example` bootstrap
+fallback for environments without a NetBox.
 
 ## Encrypted host secrets
 
@@ -105,8 +101,8 @@ make apply LIMIT=tango
 - `make console` — interactive ansible-console.
 - `make clean` — stop containers, remove cache.
 
-All runtime targets source `~/.config/netbox/env` so `NETBOX_TOKEN` is
-available to the inventory plugin.
+All runtime targets read `NETBOX_API` and `NETBOX_TOKEN` from the
+environment for the inventory plugin.
 
 ## Repo layout
 
