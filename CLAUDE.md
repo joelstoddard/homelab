@@ -41,8 +41,8 @@ The root `Makefile` delegates to subdirectory Makefiles; currently only `ansible
 
 Two stages, two playbook entry points:
 
-- **`pxe.yaml`** — provisions baremetal by network-booting Debian onto target hosts via iPXE chainload + per-host preseed. Inventory: `inventory/pxe.yaml`. The `pxe` parent group contains all PXE-managed hosts; per-OS subgroups (`proxmox` now, planned `talos` and `truenas`) drive which iPXE/preseed templates each host gets.
-- **`playbooks/main.yaml`** — runs against PXE-installed Debian to convert each host into its target OS (currently Proxmox; Talos and TrueNAS later). Inventory: `inventory/main.yaml`.
+- **`pxe.yaml`** — provisions baremetal by network-booting Debian onto target hosts via iPXE chainload + per-host preseed. Targets `hosts: pxe` (devices tagged `pxe` in NetBox). Per-OS group membership (`proxmox` now, planned `talos` and `truenas`) is derived from NetBox `platform.slug` and drives which iPXE/preseed templates each host gets.
+- **`playbooks/main.yaml`** — runs against PXE-installed Debian to convert each host into its target OS (currently Proxmox; Talos and TrueNAS later). Targets `hosts: proxmox`.
 
 Roles are numbered by execution order:
 - `00-pxe` — PXE server. Runs dnsmasq (DHCP-proxy + TFTP for `ipxe.efi`) and Caddy (HTTP for kernels, initrds, per-host iPXE scripts, preseeds) in Docker. Per-OS dispatchers under `tasks/` (`proxmox.yaml` now; future `talos.yaml`, `truenas.yaml`).
@@ -51,9 +51,9 @@ Roles are numbered by execution order:
 - `03-proxmox` — Debian → Proxmox VE conversion: adds the Proxmox apt repo, installs `pve-manager`, configures `vmbr0` bridge networking, reboots into the Proxmox kernel.
 - `04-external`, `05-extras`, `06-tests` — Planned post-cluster roles, not yet implemented.
 
-Per-host secrets (e.g., `root_password`) live in `ansible/inventory/host_vars/<hostname>.sops.yaml`, SOPS+Age encrypted. The `community.sops.sops` vars plugin (enabled in `ansible/ansible.cfg`) auto-decrypts them at apply time. Recipients are configured in the repo-root `.sops.yaml`.
+Per-host secrets (e.g., `root_password`) live in `ansible/inventory/host_vars/<hostname>.sops.yaml`, SOPS+Age encrypted. Each play loads them via a `community.sops.load_vars` pre-task that maps the NetBox-capitalized inventory hostname to the lowercase filename on disk. Recipients are configured in the repo-root `.sops.yaml`.
 
-Host vars in the PXE inventory include MAC addresses (for WOL and dnsmasq allowlist), disk device paths, and per-host networking.
+Inventory is dynamic from NetBox via the `netbox.netbox.nb_inventory` plugin (`ansible/inventory/netbox.yaml`). The plugin reads `NETBOX_API` and `NETBOX_TOKEN` from the environment; export them in your shell (or via direnv / shell rc / per-session `export`) before running `make`. MAC addresses (for WOL and dnsmasq allowlist) come from NetBox's `dcim/mac-addresses/` table; `mac_address` and `fqdn` are surfaced as runtime hostvars via `inventory/group_vars/all.yaml`. All group_vars live inventory-adjacent at `ansible/inventory/group_vars/` (so they load for any playbook regardless of its directory): `all.yaml` for repo-wide defaults plus runtime aliases, `nucs.yaml`/`pis.yaml` for hardware-class disk paths, `proxmox.yaml` to override `ansible_user=root` for the Proxmox conversion phase. See `ansible/inventory/README.md` for the seeding flow when adding a new PXE-managed host.
 
 ### Kubernetes (kubernetes/)
 
@@ -71,13 +71,14 @@ Key deployments:
 - **K3s cluster**: 4 control plane VMs + 8 worker VMs on NUCs
 
 Naming theme: Soviet/Russian space program. Specific MAC addresses, LAN
-IPs, and any offsite/cloud hosts live in `ansible/inventory/*.yaml`,
-which is gitignored — see `*.yaml.example` for the schema.
+IPs, and any offsite/cloud hosts live in NetBox; the static
+`ansible/inventory/*.yaml.example` files document the bootstrap
+fallback schema for environments without NetBox.
 
 ## Key Conventions
 
 - Ansible collections are pinned in `ansible/requirements.yaml`; Python deps in `ansible/requirements.txt`.
-- Group vars in `ansible/group_vars/` — default SSH user is `admin` with key-based auth.
+- Group vars in `ansible/inventory/group_vars/` (inventory-adjacent so they load for every playbook) — default SSH user is `admin` with key-based auth, overridden to `root` for the `proxmox` group during the Debian → Proxmox conversion phase.
 - Jinja2 templates in role `templates/` dirs generate per-host configs (iPXE scripts, Debian preseeds, dnsmasq).
 - Kubernetes manifests use Kustomize; Helm releases are managed through Flux `HelmRelease` CRDs.
 - Commit messages follow `type: Description` format (e.g., `chore: Add PXELINUX...`).

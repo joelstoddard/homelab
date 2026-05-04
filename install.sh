@@ -48,7 +48,7 @@ apt-get install -y \
 
 # age + sops decrypt the per-host secrets under
 # ansible/inventory/host_vars/*.sops.yaml at apply time, via the
-# community.sops.sops vars plugin enabled in ansible.cfg.
+# community.sops.load_vars pre-task in each playbook.
 # age is in apt; sops isn't packaged for Debian/Ubuntu, so pull the
 # upstream binary. Bump SOPS_VERSION when operator workstations move.
 echo ">> Installing age (encrypted host_vars decryption)"
