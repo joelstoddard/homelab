@@ -11,17 +11,6 @@
     - http/preseed
     - pxe-config
 
-- name: Get Docker info.
-  community.docker.docker_host_info:
-  register: docker_info_result
-
-- name: Verify Docker host is x86_64.
-  ansible.builtin.assert:
-    that:
-      - docker_info_result.host_info is defined
-      - "'amd64' in docker_info_result.host_info.Architecture or 'x86_64' in docker_info_result.host_info.Architecture"
-    fail_msg: "Docker host must be x86_64 (amd64)."
-
 - name: Download iPXE chainloader.
   ansible.builtin.get_url:
     url: "{{ ipxe_url }}"
