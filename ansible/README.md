@@ -65,7 +65,7 @@ The bootstrap target writes:
   `NETBOX_TOKEN`. Source it from your shell rc.
 
 If you'd rather land them by hand, both files are plain text — see
-`bootstrap-secrets.sh` for the expected shapes.
+`../bootstrap-secrets.sh` (at the repo root) for the expected shapes.
 
 ## First-time setup
 

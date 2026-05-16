@@ -1,77 +1,55 @@
 #!/bin/bash
+# Reverse of install.sh — removes packages and binaries it laid down.
+# Operator-private state (the venv under ansible/.venv, ~/.config/sops/,
+# ~/.config/netbox/) is NOT touched: those belong to the operator, not
+# install.sh.
 
-# This script uninstalls the dependencies installed by install.sh
+set -euo pipefail
 
-# Check if the script is run as root
-if [ "$EUID" -ne 0 ]; then
-    echo "Please run as root"
-    exit
+if [[ $EUID -ne 0 ]]; then
+    echo "Please run as root (e.g. sudo ./uninstall.sh)" >&2
+    exit 1
 fi
 
-echo "Starting uninstallation process..."
+prompt_yn() {
+    local reply
+    read -rp "$1 [y/N] " -n 1 reply
+    echo
+    [[ "$reply" =~ ^[Yy]$ ]]
+}
 
-# Uninstall Docker
-echo "Uninstalling Docker..."
-apt-get remove -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
-if [ $? -eq 0 ]; then
-    echo "Docker packages removed successfully."
-else
-    echo "Failed to remove Docker packages."
+echo ">> Removing Docker engine + plugins"
+apt-get remove -y \
+    docker-ce docker-ce-cli containerd.io \
+    docker-buildx-plugin docker-compose-plugin \
+    || echo "  (nothing to remove)"
+
+echo ">> Removing Docker apt repo + key"
+rm -f /etc/apt/keyrings/docker.asc /etc/apt/sources.list.d/docker.list
+
+echo ">> Removing sops binary"
+rm -f /usr/local/bin/sops
+
+echo ">> Removing age and other install.sh-installed apt packages"
+# python3 itself is not removed — it's a core distro package and pulling it
+# uninstalls half the system. Pass --remove-python3 to force it.
+apt-get remove -y age python3-pip python3-venv git make rsync \
+    || echo "  (nothing to remove)"
+
+if [[ "${1:-}" == "--remove-python3" ]] && prompt_yn "Really remove python3 (likely breaks the system)?"; then
+    apt-get remove -y python3
 fi
 
-# Remove Docker repository and GPG key
-echo "Removing Docker repository and GPG key..."
-rm -f /etc/apt/keyrings/docker.asc
-rm -f /etc/apt/sources.list.d/docker.list
-if [ $? -eq 0 ]; then
-    echo "Docker repository configuration removed successfully."
-else
-    echo "Failed to remove Docker repository configuration."
-fi
-
-# Uninstall other packages
-echo "Uninstalling other packages..."
-apt remove -y python3-pip python3-venv git make
-if [ $? -eq 0 ]; then
-    echo "Other packages removed successfully."
-else
-    echo "Failed to remove other packages."
-fi
-
-# Note: python3 is a system package and removing it could break the system
-# Ask for confirmation before removing python3
-read -p "Do you want to remove python3? This may break your system. (y/n) " -n 1 -r
-echo
-if [[ $REPLY =~ ^[Yy]$ ]]; then
-    echo "Uninstalling python3..."
-    apt remove -y python3
-    if [ $? -eq 0 ]; then
-        echo "Python3 removed successfully."
-    else
-        echo "Failed to remove Python3."
-    fi
-else
-    echo "Skipping python3 removal."
-fi
-
-# Remove Docker data directory
-read -p "Do you want to remove Docker data? This will delete all Docker images and containers. (y/n) " -n 1 -r
-echo
-if [[ $REPLY =~ ^[Yy]$ ]]; then
-    echo "Removing Docker data..."
+if prompt_yn "Remove /var/lib/docker (deletes all Docker images, containers, volumes)?"; then
     rm -rf /var/lib/docker
-    if [ $? -eq 0 ]; then
-        echo "Docker data removed successfully."
-    else
-        echo "Failed to remove Docker data."
-    fi
-else
-    echo "Skipping Docker data removal."
 fi
 
-# Clean up
-echo "Cleaning up..."
-apt autoremove -y
-apt autoclean
+echo ">> Cleanup"
+apt-get autoremove -y
+apt-get autoclean
 
-echo "Uninstallation completed. You may need to reboot your system."
+echo
+echo "Done. Note: operator state was left alone —"
+echo "  - docker group membership (run 'gpasswd -d <user> docker' to remove)"
+echo "  - ~/.config/sops/age/keys.txt and ~/.config/netbox/env"
+echo "  - ansible/.venv (run 'make clean' inside ansible/ or 'rm -rf ansible/.venv')"
