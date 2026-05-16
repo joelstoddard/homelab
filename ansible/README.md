@@ -20,8 +20,9 @@ multiple operating systems (Proxmox now; Talos and TrueNAS planned).
 
 ## Prerequisites
 
-- Linux host (Ubuntu 22.04+ recommended) with Docker, Python 3.11+, `make`,
-  `7zip`. This is the PXE server — does not have to be a managed host.
+- Linux host (amd64 or arm64; Ubuntu 22.04+ recommended) with Docker,
+  Python 3.11+, `make`, `7zip`. This is the PXE server — does not have to
+  be a managed host.
 - Operator workstation has `age` and `sops` installed (`brew install age sops`
   on macOS).
 - Operator has generated an Age keypair and exported `SOPS_AGE_KEY_FILE`:
