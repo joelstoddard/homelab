@@ -1,6 +1,10 @@
 **/.venv
 .DS_Store
 
+# Operator-local Claude Code state: handoff drafts, scratch specs,
+# session-private notes. Not for shared history.
+.claude/
+
 # Inventories carry MAC addresses, static IPs, and (for offsites)
 # public IPs — local secrets, not for public history. Operators copy
 # the *.example files to *.yaml and fill in their environment.
