@@ -1,4 +1,20 @@
 ---
+- name: Load per-host SOPS vars onto each PXE target.
+  hosts: pxe
+  gather_facts: false
+  connection: local
+  tasks:
+    # The localhost play below renders per-host preseeds that embed
+    # each target's root_password from host_vars; load them here so the
+    # values land in hostvars[<host>] before that render.
+    - name: Load SOPS-encrypted host vars (lowercase filename)
+      community.sops.load_vars:
+        file: "{{ host_vars_file }}"
+      vars:
+        host_vars_file: "{{ inventory_dir }}/host_vars/{{ inventory_hostname | lower }}.sops.yaml"
+      when: host_vars_file is file
+      no_log: true
+
 - name: Start PXE server.
   hosts: localhost
   connection: local
