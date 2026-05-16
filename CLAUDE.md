@@ -12,7 +12,7 @@ All commands run from `ansible/` unless noted. A Python venv is required first.
 
 ```bash
 # Setup
-cd ansible && make build          # Create venv + install deps (Python 3.13+)
+cd ansible && make build          # Create venv + install deps (Python 3.11+)
 
 # Linting
 make lint                         # ansible-lint on all playbooks

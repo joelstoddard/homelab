@@ -18,33 +18,70 @@ multiple operating systems (Proxmox now; Talos and TrueNAS planned).
    The `03-proxmox` role converts each fresh Debian into a Proxmox VE
    hypervisor.
 
+## Host requirements
+
+The machine you run `make apply-pxe` on (the PXE server) needs:
+
+- **Linux amd64 or arm64.** Tested on Debian 12+, Ubuntu 22.04+,
+  Raspberry Pi OS Bookworm+. macOS Docker Desktop is out: the 00-pxe
+  stack uses `--network=host` for the dnsmasq DHCP-proxy + TFTP
+  services, which Docker Desktop does not support.
+- **On the same L2 segment as the PXE targets.** dnsmasq runs as a
+  DHCP-proxy (it does not lease IPs — it answers PXE-boot offers
+  alongside the LAN's existing DHCP) and a TFTP server. Both rely on
+  broadcast traffic reaching the targets.
+- **No conflicting services on UDP/67 (DHCP), UDP/69 (TFTP), UDP/53
+  (DNS) on the host.** `systemd-resolved` in particular binds UDP/53
+  — disable or move it before bringing up the 00-pxe stack.
+- **Python 3.11+** (ansible-core 2.18 requirement). The
+  `ansible/Makefile` `build` target enforces this floor. Pi OS Bullseye
+  ships 3.10 — upgrade to Bookworm or override with
+  `PYTHON=python3.13 make build` if you've sideloaded a newer
+  interpreter.
+- **Operator account in the `docker` group.** `install.sh` adds the
+  account, but membership only takes effect on a fresh login session
+  (or after `newgrp docker`).
+
+`./install.sh <operator-user>` lands `docker`, `age`, `sops`, the
+Python toolchain, and the supporting binaries. After it finishes,
+`make bootstrap-secrets` interactively writes the operator-private
+credentials (see below).
+
 ## Prerequisites
 
-- Linux host (amd64 or arm64; Ubuntu 22.04+ recommended) with Docker,
-  Python 3.11+, `make`, `7zip`. This is the PXE server — does not have to
-  be a managed host.
-- Operator workstation has `age` and `sops` installed (`brew install age sops`
-  on macOS).
-- Operator has generated an Age keypair and exported `SOPS_AGE_KEY_FILE`:
-  ```bash
-  mkdir -p ~/.config/sops/age
-  age-keygen -o ~/.config/sops/age/keys.txt
-  echo 'export SOPS_AGE_KEY_FILE=~/.config/sops/age/keys.txt' >> ~/.zshrc
-  ```
+- Run `./install.sh <operator-user>` at the repo root (as root) to land
+  `docker`, `age`, `sops`, `python3`, `git`, `make`, `rsync`.
+- Run `make bootstrap-secrets` (as the operator, not root) to land the
+  age private key and NetBox env file. Idempotent — won't overwrite
+  unless `FORCE=1 make bootstrap-secrets` is passed.
+
+The bootstrap target writes:
+
+- `~/.config/sops/age/keys.txt` — decrypts
+  `inventory/host_vars/*.sops.yaml`. Point `SOPS_AGE_KEY_FILE` at it
+  from your shell rc.
+- `~/.config/netbox/env` — exports `NETBOX_API` (the netbox.netbox
+  inventory plugin's documented env var name; not `NETBOX_URL`) and
+  `NETBOX_TOKEN`. Source it from your shell rc.
+
+If you'd rather land them by hand, both files are plain text — see
+`bootstrap-secrets.sh` for the expected shapes.
 
 ## First-time setup
 
 ```bash
+./install.sh $(whoami)                  # repo-root, as root
+exec $SHELL -l                          # pick up docker-group membership
+make bootstrap-secrets                  # interactive; writes age key + NetBox env
+echo 'export SOPS_AGE_KEY_FILE=~/.config/sops/age/keys.txt' >> ~/.zshrc
+echo 'source ~/.config/netbox/env' >> ~/.zshrc
+exec $SHELL -l                          # pick up the env exports
+
 cd ansible
 make build                              # creates .venv, installs deps + Galaxy collections
-
-# Export NetBox credentials in your shell (or via direnv, shell rc, …):
-export NETBOX_API=https://netbox.example.com
-export NETBOX_TOKEN=nbt_<id>.<secret>
 ```
 
-`make` and `ansible-inventory` pick up `NETBOX_API` / `NETBOX_TOKEN`
-from the environment directly. Generate a read-only token at
+Generate a read-only NetBox token at
 `$NETBOX_API/account/personal-access-tokens/`. See `inventory/README.md`
 for the env-var contract and the static `*.yaml.example` bootstrap
 fallback for environments without a NetBox.
