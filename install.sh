@@ -83,6 +83,51 @@ echo ">> Adding ${TARGET_USER} to docker group"
 usermod -aG docker "$TARGET_USER"
 
 echo
-echo "Done. Verify with:  docker --version  &&  docker compose version"
-echo "${TARGET_USER} must start a fresh login session (or run 'newgrp docker')"
-echo "before Docker commands work without sudo."
+echo ">> Verifying install"
+fail=0
+verify() {
+    # $1: command name to test for. $2 (optional): version-printing argv.
+    local cmd="$1"
+    shift
+    if ! command -v "$cmd" >/dev/null 2>&1; then
+        echo "  MISSING: $cmd" >&2
+        fail=1
+        return
+    fi
+    if [[ $# -eq 0 ]]; then
+        echo "  ok: $("$cmd" --version 2>&1 | head -n1)"
+    else
+        echo "  ok: $("$cmd" "$@" 2>&1 | head -n1)"
+    fi
+}
+verify docker
+docker compose version >/dev/null 2>&1 \
+    && echo "  ok: $(docker compose version 2>&1 | head -n1)" \
+    || { echo "  MISSING: docker compose plugin" >&2; fail=1; }
+verify sops
+verify age
+verify python3
+verify git
+verify make
+verify rsync
+
+# Python 3.11+ matches ansible/Makefile's PYTHON_MIN_VERSION floor.
+if python3 -c 'import sys; sys.exit(0 if sys.version_info[:2] >= (3, 11) else 1)' 2>/dev/null; then
+    echo "  ok: python3 >= 3.11"
+else
+    echo "  WARN: python3 is < 3.11; 'make build' in ansible/ will refuse to run." >&2
+    echo "        Upgrade the distro or set PYTHON=python3.13 (etc.) on make calls." >&2
+fi
+
+if [[ $fail -ne 0 ]]; then
+    echo
+    echo "Install verification failed. See messages above." >&2
+    exit 1
+fi
+
+echo
+echo "Done."
+echo "  - ${TARGET_USER} must start a fresh login session (or run 'newgrp docker')"
+echo "    before Docker commands work without sudo."
+echo "  - Next: run 'make bootstrap-secrets' (as ${TARGET_USER}, not root) to land"
+echo "    the age key and NetBox credentials."
