@@ -1,5 +1,5 @@
 .POSIX:
-.PHONY: help homelab install bootstrap-secrets ansible terraform kubernetes \
+.PHONY: help homelab install bootstrap-secrets ansible opentofu kubernetes \
         build dev lint check clean check-env
 .NOTPARALLEL:
 
@@ -40,11 +40,11 @@ help:
 	@echo "Homelab orchestration."
 	@echo
 	@echo "Top-level targets:"
-	@echo "  homelab           - One command: install -> ansible -> terraform -> kubernetes."
+	@echo "  homelab           - One command: install -> ansible -> opentofu -> kubernetes."
 	@echo "  install           - Host prerequisites via install.sh (idempotent, needs sudo)."
 	@echo "  bootstrap-secrets - Interactively write the operator's age key + NetBox env."
 	@echo "  ansible           - PXE-install hosts, then convert Debian -> Proxmox."
-	@echo "  terraform         - (when subdir lands) Provision VMs/LXCs via OpenTofu."
+	@echo "  opentofu          - (when subdir lands) Provision VMs/LXCs via OpenTofu."
 	@echo "  kubernetes        - (when subdir lands) k3s install + Flux bootstrap."
 	@echo
 	@echo "Dev / maintenance:"
@@ -66,7 +66,7 @@ bootstrap-secrets:
 # Canonical "empty disk to running services" target. Each step is
 # idempotent — re-running on a healthy fleet should be a no-op that
 # exercises every role's idempotency guarantees.
-homelab: check-env install ansible terraform kubernetes
+homelab: check-env install ansible opentofu kubernetes
 
 # install.sh is idempotent and cheap to re-run; we invoke it every
 # time rather than gating on a sentinel, which keeps the chain
@@ -77,15 +77,15 @@ install:
 ansible:
 	$(MAKE) -C ansible
 
-# terraform/ and kubernetes/ subdir Makefiles don't exist yet. Skip
+# opentofu/ and kubernetes/ subdir Makefiles don't exist yet. Skip
 # with a notice so the chain keeps working; adding either Makefile in
 # a future thread auto-extends `make homelab` without touching this
 # file.
-terraform:
-	@if [ -f terraform/Makefile ]; then \
-		$(MAKE) -C terraform; \
+opentofu:
+	@if [ -f opentofu/Makefile ]; then \
+		$(MAKE) -C opentofu; \
 	else \
-		echo ">> terraform/ Makefile not present; skipping."; \
+		echo ">> opentofu/ Makefile not present; skipping."; \
 	fi
 
 kubernetes:
