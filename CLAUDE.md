@@ -33,7 +33,7 @@ make clean                        # Stop containers, remove cache/retry files
 
 All make targets accept: `LIMIT=<host>`, `TAGS=<tag>`, `VERBOSITY=-vvv`, `EXTRA_VARS='key=val'`.
 
-The root `Makefile` delegates to subdirectory Makefiles; currently only `ansible/` and `kubernetes/` exist (api, tailscale, terraform are referenced but not yet created).
+The root `Makefile` delegates to subdirectory Makefiles; currently only `ansible/` and `kubernetes/` exist (tailscale, opentofu are referenced but not yet created).
 
 ## Architecture
 
