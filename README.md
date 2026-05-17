@@ -5,6 +5,18 @@ a K3s Kubernetes cluster, and Flux-driven GitOps. Adapted from
 [khuedoan/homelab](https://github.com/khuedoan/homelab)'s "empty disk to
 running services with one command" pattern.
 
+Three layers, each owned by a top-level directory:
+
+| Status  | Layer              | Directory     | What it does                                                                                  |
+| ------- | ------------------ | ------------- | --------------------------------------------------------------------------------------------- |
+| Active  | Bare metal         | `ansible/`    | PXE-installs Debian on the target NUCs, then converts each to Proxmox VE.                     |
+| Planned | Cluster, LXC & VMs | `opentofu/`   | Provisions K3s control-plane + worker VMs on the Proxmox hosts, plus all other LXCs and VMs. |
+| Planned | Workloads          | `kubernetes/` | Flux CD-managed Helm releases + Kustomize manifests.                                          |
+| Planned | Networking         | `tailscale/`  | ACLs for Tailscale routes.                                                                    |
+
+`make homelab` runs the chain end-to-end; "planned" stages skip silently
+until their subdirectory Makefiles land.
+
 ## Quick start
 
 ```bash
@@ -24,7 +36,7 @@ make homelab                  # then go for a coffee
 1. **`install.sh`** — host prerequisites. Idempotent; re-runs cheaply.
 2. **`make -C ansible`** — PXE-installs Debian on the target NUCs (waits for
    them to come back online), then converts each to Proxmox VE.
-3. **`make -C terraform`** — *(when the subdir lands)* provisions VMs, LXCs,
+3. **`make -C opentofu`** — *(when the subdir lands)* provisions VMs, LXCs,
    and NFS storage on the Proxmox cluster via OpenTofu.
 4. **`make -C kubernetes`** — *(when the subdir lands)* installs K3s and
    bootstraps Flux.
@@ -82,11 +94,11 @@ vars win over the file.
 ## Make targets
 
 ```
-homelab            One command: install -> ansible -> terraform -> kubernetes.
+homelab            One command: install -> ansible -> opentofu -> kubernetes.
 install            Run install.sh to set up host prerequisites (idempotent).
 bootstrap-secrets  Interactively land the age key + NetBox env (FORCE=1 to overwrite).
 ansible            PXE-install hosts, then convert Debian -> Proxmox.
-terraform          (when subdir lands) Provision VMs/LXCs via OpenTofu.
+opentofu           (when subdir lands) Provision VMs/LXCs via OpenTofu.
 kubernetes         (when subdir lands) k3s install + Flux bootstrap.
 
 build              Set up dev environments in subdirs (venv, deps).
@@ -113,5 +125,9 @@ Per-stage flags pass through: `make ansible LIMIT=tango TAGS=proxmox`.
 └── .sops.yaml            # SOPS Age-recipient policy.
 ```
 
-See `ansible/README.md` for the provisioning workflow; `kubernetes/` is
-managed by Flux pointing at `main`.
+## See also
+
+- [`ansible/README.md`](ansible/README.md) — bare-metal provisioning workflow + Proxmox conversion details.
+- [`ansible/inventory/README.md`](ansible/inventory/README.md) — NetBox-backed inventory mechanics and the static bootstrap fallback.
+- [`CLAUDE.md`](CLAUDE.md) — AI-assistant guidance and architectural notes.
+- [khuedoan/homelab](https://github.com/khuedoan/homelab) — the pattern this repo adapts.
