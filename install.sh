@@ -115,8 +115,8 @@ verify rsync
 if python3 -c 'import sys; sys.exit(0 if sys.version_info[:2] >= (3, 11) else 1)' 2>/dev/null; then
     echo "  ok: python3 >= 3.11"
 else
-    echo "  WARN: python3 is < 3.11; 'make build' in ansible/ will refuse to run." >&2
-    echo "        Upgrade the distro or set PYTHON=python3.13 (etc.) on make calls." >&2
+    echo "  WARN: python3 is < 3.11; 'make build' in ansible/ will refuse to run."
+    echo "        Upgrade the distro or set PYTHON=python3.13 (etc.) on make calls."
 fi
 
 if [[ $fail -ne 0 ]]; then
