@@ -13,15 +13,19 @@ default: ansible
 help:
 	@echo "Setup Homelab environment."
 	@echo "Available options:"
-	@echo "  help     	- Show this help message."
-	@echo "  build    	- Build the dev environment."
-	@echo "  dev	  	- Activate the dev environment."
-	@echo "  lint     	- Check repository syntax."
-	@echo "  check		- Perform a dry run."
-	@echo "  apply		- Build homelab."
-	@echo "  ansible	- Run ansible playbooks."
-	@echo "  terraform	- Run terraform."
-	@echo "  clean		- Clean temporary files."
+	@echo "  help     	     - Show this help message."
+	@echo "  bootstrap-secrets - Interactively write the operator's age key + NetBox env."
+	@echo "  build    	     - Build the dev environment."
+	@echo "  dev	  	     - Activate the dev environment."
+	@echo "  lint     	     - Check repository syntax."
+	@echo "  check		     - Perform a dry run."
+	@echo "  apply		     - Build homelab."
+	@echo "  ansible	     - Run ansible playbooks."
+	@echo "  terraform	     - Run terraform."
+	@echo "  clean		     - Clean temporary files."
+
+bootstrap-secrets:
+	./bootstrap-secrets.sh $(if $(FORCE),--force)
 
 build:
 	make -C ansible build && \

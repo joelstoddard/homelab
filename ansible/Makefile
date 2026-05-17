@@ -6,9 +6,12 @@ TAGS ?=
 VERBOSITY ?=
 EXTRA_VARS ?=
 VENV ?= .venv
-# Pin to 3.13 — pyproject ecosystem (rpds-py via referencing/jsonschema) doesn't
-# yet ship 3.14 wheels, so a default `python3` of 3.14 breaks `make build`.
-PYTHON ?= python3.13
+# ansible-core 2.18 needs Python >= 3.11. Default to whatever `python3`
+# resolves to; override with `PYTHON=python3.13 make build` if you need
+# a specific interpreter (e.g. to dodge wheel gaps on bleeding-edge
+# 3.14). The `build` target enforces the floor.
+PYTHON ?= python3
+PYTHON_MIN_VERSION ?= 3.11
 ANSIBLE_STDOUT_CALLBACK=yaml
 
 default: apply-pxe apply
@@ -32,6 +35,10 @@ help:
 # Development setup
 .PHONY: build
 build:
+	@$(PYTHON) -c 'import sys; req = tuple(int(p) for p in "$(PYTHON_MIN_VERSION)".split(".")); \
+	  assert sys.version_info[:2] >= req, \
+	  f"Python $(PYTHON_MIN_VERSION)+ required, got {sys.version_info.major}.{sys.version_info.minor}"; \
+	  print(f"using {sys.executable} ({sys.version.split()[0]})")'
 	$(PYTHON) -m venv $(VENV)
 	$(MAKE) dev
 
