@@ -78,17 +78,15 @@
     - not corosync_conf.stat.exists
   changed_when: true
 
-- name: Fetch the leader's pveproxy SHA-256 fingerprint (for non-interactive --fingerprint).
+- name: Fetch the leader's certificate inventory (for the pve-ssl fingerprint).
   # pvecm add joins via the leader's HTTPS API (port 8006). Without a
-  # fingerprint, pvecm sets manual_verification and asks the operator
-  # to confirm interactively — a prompt expect can't anchor on. Pass
-  # the leader's cert fingerprint explicitly so the join is fully
-  # non-interactive. run_once + register propagates the result as a
-  # fact on every host (delegate_facts: true would only land it in
-  # the delegate's hostvars, NOT on followers — surprising but true
-  # for `register` on a `command` task).
-  ansible.builtin.command:
-    cmd: openssl x509 -in /etc/pve/local/pve-ssl.pem -fingerprint -sha256 -noout
+  # fingerprint, pvecm sets manual_verification and prompts the operator
+  # interactively. Pass the leader's pve-ssl cert fingerprint explicitly
+  # so the join is fully non-interactive. run_once + register propagates
+  # the result as a fact on every host (delegate_facts: true would only
+  # land it in the delegate's hostvars, NOT on followers — surprising
+  # but true for `register` on a `command` task).
+  ansible.builtin.command: pvenode cert info --output-format json
   register: leader_cert
   changed_when: false
   check_mode: false
@@ -100,12 +98,14 @@
   # fight for quorum recomputation. PVE::PTY::read_password (in
   # /usr/share/perl5/PVE/PTY.pm) checks `-t STDIN` and falls through
   # to a plain `<STDIN>` line-read when stdin isn't a TTY. So we feed
-  # the leader's root password via the shell module's stdin parameter
+  # the leader's root password via the command module's stdin parameter
   # and skip the expect/PTY dance entirely.
-  ansible.builtin.shell:
+  ansible.builtin.command:
     cmd: >-
       pvecm add {{ hostvars[proxmox_cluster_leader].ansible_host }}
-      --fingerprint {{ leader_cert.stdout | regex_replace('^.*=', '') }}
+      --fingerprint {{ ((leader_cert.stdout | from_json)
+                        | selectattr('filename', 'equalto', 'pve-ssl.pem')
+                        | first).fingerprint }}
     stdin: "{{ leader_root_password }}"
   when:
     - inventory_hostname != proxmox_cluster_leader
