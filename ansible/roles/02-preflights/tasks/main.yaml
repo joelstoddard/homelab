@@ -4,20 +4,12 @@
 # (admin user, swap, fail2ban) will land here ahead of the per-OS
 # dispatch in a future change.
 
-- name: Convert Debian to Proxmox VE on proxmox-group hosts.
+- name: Run the proxmox-group lifecycle (debian-to-pve, cluster, api-token).
   ansible.builtin.include_role:
     name: proxmox
-    tasks_from: debian-to-pve
-  when: "'proxmox' in group_names"
-
-- name: Form the Proxmox VE cluster across proxmox-group hosts.
-  ansible.builtin.include_role:
-    name: proxmox
-    tasks_from: cluster
-  when: "'proxmox' in group_names"
-
-- name: Bootstrap the Proxmox API token for downstream automation.
-  ansible.builtin.include_role:
-    name: proxmox
-    tasks_from: api-token
+    tasks_from: "{{ item }}"
+  loop:
+    - debian-to-pve
+    - cluster
+    - api-token
   when: "'proxmox' in group_names"
