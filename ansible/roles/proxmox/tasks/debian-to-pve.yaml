@@ -1,12 +1,5 @@
 ---
 # Convert a fresh Debian install (provisioned by 00-pxe) into a Proxmox VE hypervisor.
-# Steps:
-#   1. Refuse to run if Proxmox is already present (avoid clobbering).
-#   2. Add Proxmox apt repo + signing key.
-#   3. apt update && install pve-manager + dependencies.
-#   4. Lay down /etc/network/interfaces with vmbr0 bridge.
-#   5. Reboot into Proxmox kernel.
-#   6. Verify pveproxy is reachable on https://<host>:8006.
 
 - name: Detect whether Proxmox is already installed.
   ansible.builtin.stat:

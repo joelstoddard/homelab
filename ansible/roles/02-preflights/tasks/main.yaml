@@ -1,0 +1,11 @@
+---
+# OS-agnostic post-PXE lifecycle orchestrator. Dispatches into per-OS
+# task libraries by group membership. Generic Debian hygiene tasks
+# (admin user, swap, fail2ban) will land here ahead of the per-OS
+# dispatch in a future change.
+
+- name: Convert Debian to Proxmox VE on proxmox-group hosts.
+  ansible.builtin.include_role:
+    name: proxmox
+    tasks_from: debian-to-pve
+  when: "'proxmox' in group_names"

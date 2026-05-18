@@ -1,7 +1,4 @@
 ---
-# Hosts in the `proxmox` group are Debian-installed (post-PXE) NUCs that
-# the 03-proxmox role converts into Proxmox VE hypervisors. Only `root`
-# exists on a freshly PXE-installed host; the admin user from
-# group_vars/all.yaml is created later (by 02-preflights, when that
-# role lands). Override here so the conversion playbook can SSH in.
+# Override default ansible_user — only `root` exists on a freshly
+# PXE-installed host until 02-preflights creates the admin user.
 ansible_user: root
