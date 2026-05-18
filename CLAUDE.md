@@ -42,14 +42,39 @@ The root `Makefile` delegates to subdirectory Makefiles; currently only `ansible
 Two stages, two playbook entry points:
 
 - **`pxe.yaml`** — provisions baremetal by network-booting Debian onto target hosts via iPXE chainload + per-host preseed. Targets `hosts: pxe` (devices tagged `pxe` in NetBox). Per-OS group membership (`proxmox` now, planned `talos` and `truenas`) is derived from NetBox `platform.slug` and drives which iPXE/preseed templates each host gets.
-- **`playbooks/main.yaml`** — runs against PXE-installed Debian to convert each host into its target OS (currently Proxmox; Talos and TrueNAS later). Targets `hosts: proxmox`.
+- **`playbooks/main.yaml`** — runs against PXE-installed hosts via the `02-preflights` orchestrator. Targets `hosts: all`; the orchestrator dispatches per-OS work via `'<group>' in group_names` guards (currently `proxmox`; Talos and TrueNAS later).
 
-Roles are numbered by execution order:
-- `00-pxe` — PXE server. Runs dnsmasq (DHCP-proxy + TFTP for `ipxe.efi`) and Caddy (HTTP for kernels, initrds, per-host iPXE scripts, preseeds) in Docker. Per-OS dispatchers under `tasks/` (`proxmox.yaml` now; future `talos.yaml`, `truenas.yaml`).
-- `01-wake-on-lan` — Sends WOL magic packets at the end of `pxe.yaml` to bring up sleeping target hosts.
-- `02-preflights` — Generic Debian hygiene (admin user, swap, fail2ban). Reusable for any Debian-base host. *(Planned, not yet implemented.)*
-- `03-proxmox` — Debian → Proxmox VE conversion: adds the Proxmox apt repo, installs `pve-manager`, configures `vmbr0` bridge networking, reboots into the Proxmox kernel.
-- `04-external`, `05-extras`, `06-tests` — Planned post-cluster roles, not yet implemented.
+Roles split into two layers:
+
+- **Numbered orchestrators** (`00-pxe`, `01-wake-on-lan`, `02-preflights`, future
+  `03-k3s` / `04-external` / `05-tests` / `06-extras`) are OS-agnostic lifecycle
+  phases. Each numbered role dispatches into per-OS task libraries based on
+  group membership.
+- **OS-named libraries** (`proxmox`, future `talos`, `truenas`) are non-numbered
+  and contain task files invoked via `include_role: tasks_from: ...` from the
+  numbered orchestrators.
+
+Current implementation:
+
+- `00-pxe` — PXE server. Runs dnsmasq (DHCP-proxy + TFTP for `ipxe.efi`) and
+  Caddy (HTTP for kernels, initrds, per-host iPXE scripts, preseeds) in
+  Docker. Per-OS dispatchers under `tasks/` (`proxmox.yaml` now; future
+  `talos.yaml`, `truenas.yaml`).
+- `01-wake-on-lan` — Sends WOL magic packets at the end of `pxe.yaml` to bring
+  up sleeping target hosts.
+- `02-preflights` — OS-agnostic orchestrator. Currently dispatches the
+  `proxmox` library's `debian-to-pve`, `cluster`, and `api-token` tasks for
+  proxmox-group hosts. Generic Debian hygiene tasks (admin user, swap,
+  fail2ban) are planned, not yet implemented.
+- `proxmox` — OS library. Three task files: `debian-to-pve.yaml` (Debian →
+  Proxmox VE conversion: adds the Proxmox apt repo, installs `pve-manager`,
+  configures `vmbr0` bridge networking, reboots into the Proxmox kernel),
+  `cluster.yaml` (`pvecm create` on the leader, `pvecm add` on followers via
+  `expect`-driven SSH; preflights against existing guests; verifies quorum),
+  and `api-token.yaml` (bootstraps a `root@pam!terraform` API token, persisted
+  to `inventory/group_vars/proxmox.sops.yaml` for downstream automation).
+- `03-k3s`, `04-external`, `05-extras`, `06-tests` — Planned post-cluster
+  roles, not yet implemented.
 
 Per-host secrets (e.g., `root_password`) live in `ansible/inventory/host_vars/<hostname>.sops.yaml`, SOPS+Age encrypted. Each play loads them via a `community.sops.load_vars` pre-task that maps the NetBox-capitalized inventory hostname to the lowercase filename on disk. Recipients are configured in the repo-root `.sops.yaml`.
 
@@ -82,3 +107,6 @@ fallback schema for environments without NetBox.
 - Jinja2 templates in role `templates/` dirs generate per-host configs (iPXE scripts, Debian preseeds, dnsmasq).
 - Kubernetes manifests use Kustomize; Helm releases are managed through Flux `HelmRelease` CRDs.
 - Commit messages follow `type: Description` format (e.g., `chore: Add PXELINUX...`).
+- Cluster identity (`proxmox_cluster_name`, `proxmox_cluster_leader`) lives in
+  `group_vars/proxmox.yaml`. The leader runs `pvecm create`; followers run
+  `pvecm add <leader>`.

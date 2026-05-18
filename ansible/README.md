@@ -14,9 +14,10 @@ multiple operating systems (Proxmox now; Talos and TrueNAS planned).
    Debian netinstall kernel + initrd, generates per-host iPXE scripts and
    preseeds, and (optionally) WOL-wakes target machines. The targets PXE-boot,
    install Debian unattended, and reboot.
-2. **`playbooks/main.yaml`** — runs against the now-installed Debian hosts.
-   The `03-proxmox` role converts each fresh Debian into a Proxmox VE
-   hypervisor.
+2. **`playbooks/main.yaml`** — runs against post-PXE hosts via the
+   `02-preflights` orchestrator. For proxmox-group hosts, that dispatches
+   the `proxmox` role's `debian-to-pve`, `cluster`, and `api-token` tasks
+   (Debian → PVE conversion, then cluster formation, then API-token bootstrap).
 
 ## Host requirements
 
@@ -108,31 +109,33 @@ with `sops updatekeys inventory/host_vars/<host>.sops.yaml`.
 
 ## Provisioning a host (PoC: Proxmox on tango)
 
+Targets are configured so that Wake-on-LAN drops them into PXE while a
+normal power-on boots from disk — no UEFI fiddling between phases.
+
 ```bash
-# 1. Confirm the target's UEFI boot order is "network first".
-# 2. Set up the PXE server and pre-stage tango's iPXE+preseed:
+# 1. Set up the PXE server and pre-stage tango's iPXE+preseed; the role
+#    fires a WOL packet at the end which boots tango into PXE:
 make apply-pxe LIMIT=tango
 #    (drop LIMIT to run against every host in the pxe group)
 
-# 3. Power on tango. It will:
+# 2. tango will:
 #    - PXE-boot, fetch ipxe.efi, chain to /boot/<mac>.ipxe.
 #    - Boot Debian netinstall, fetch /preseed/<mac>.cfg, install unattended.
-#    - Reboot. Operator should now flip UEFI boot order to "disk first".
+#    - Reboot — this time normally, so it boots from disk into Debian.
 
-# 4. Convert the fresh Debian into Proxmox:
+# 3. Convert the fresh Debian into Proxmox:
 make apply LIMIT=tango
 
-# 5. Verify: https://<host>.example.com:8006 (Proxmox web UI).
+# 4. Verify: https://<host>.example.com:8006 (Proxmox web UI).
 ```
 
 ## Reimage workflow
 
-1. Flip target host's UEFI boot order back to "network first" (or wipe its
-   disk).
-2. Power-cycle.
-3. PXE re-installs Debian (~15–20 min).
-4. Operator flips UEFI back to "disk first".
-5. `make apply LIMIT=<host>` reconfigures Proxmox.
+1. `make apply-pxe LIMIT=<host>` (the WOL packet drives the host into
+   PXE on its own — no UEFI changes needed).
+2. PXE re-installs Debian (~15–20 min). The host reboots from disk
+   when done.
+3. `make apply LIMIT=<host>` reconfigures Proxmox.
 
 ## Make targets
 
@@ -175,11 +178,13 @@ ansible/
   roles/
     00-pxe/                  # PXE server (dnsmasq + Caddy + iPXE) + per-OS dispatchers
     01-wake-on-lan/          # WOL helper, used at end of pxe.yaml
-    03-proxmox/              # Debian → Proxmox VE conversion
+    02-preflights/           # OS-agnostic orchestrator (group-dispatched)
+    proxmox/                 # OS library: debian-to-pve, cluster, api-token
 ```
 
 ## References
 
 - [khuedoan/homelab](https://github.com/khuedoan/homelab) — pattern inspiration.
 - [Proxmox VE on Debian 12](https://pve.proxmox.com/wiki/Install_Proxmox_VE_on_Debian_12_Bookworm)
-  — official Proxmox-on-Debian install procedure that `03-proxmox` automates.
+  — official Proxmox-on-Debian install procedure that the `proxmox` role's
+  `debian-to-pve` task automates.
