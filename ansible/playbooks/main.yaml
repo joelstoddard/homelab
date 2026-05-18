@@ -1,6 +1,6 @@
 ---
-- name: Convert PXE-installed Debian hosts into Proxmox hypervisors.
-  hosts: proxmox
+- name: Apply post-install configuration to PXE-installed hosts.
+  hosts: all
   gather_facts: true
   become: true
   pre_tasks:
@@ -17,5 +17,4 @@
       when: host_vars_file is file
       no_log: true
   roles:
-    # - 02-preflights   # uncomment when 02-preflights role lands
-    - 03-proxmox
+    - 02-preflights

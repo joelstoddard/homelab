@@ -38,11 +38,13 @@ nucs:
     #   ansible_user: root
     #   fqdn: rumba.example.lan
 
-# Hosts that should be running Proxmox VE. playbooks/main.yaml's
-# 03-proxmox role targets `hosts: proxmox`, so a host must live in
-# this group (directly or via children) to be converted. The role
-# uses `fqdn` to pin /etc/hosts so pmxcfs can resolve the hostname
-# off the loopback — set it on each host (or via group_vars).
+# Hosts that should be running Proxmox VE. playbooks/main.yaml runs
+# the 02-preflights orchestrator, which dispatches the proxmox role's
+# debian-to-pve, cluster, and api-token tasks for hosts in this group.
+# A host must live here (directly or via children) to be converted.
+# The debian-to-pve task uses `fqdn` to pin /etc/hosts so pmxcfs can
+# resolve the hostname off the loopback — set it on each host (or via
+# group_vars).
 proxmox:
   children:
     nucs:
