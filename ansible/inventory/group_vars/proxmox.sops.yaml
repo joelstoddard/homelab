@@ -1,0 +1,16 @@
+proxmox_api_token: ENC[AES256_GCM,data:C2m/Ez9LAu1CEpULbS20vY6jzNB24SHrElXapo5R0LV+0sRWnjnymrbPiUcl8vJ+35L+qoibOw==,iv:RccxIQuw1nnWtEuLjwL9+4XdCPWdJQ1Q1NSe4Ji7p2c=,tag:SNNCOONa7FsZhZWypGiC9w==,type:str]
+sops:
+    age:
+        - recipient: age1h5hafnt22aqn7uahcsmv5v8gfgwcxanypw0lantcush7jppt99fskz6vcv
+          enc: |
+            -----BEGIN AGE ENCRYPTED FILE-----
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBOOUQ2S2VaMGN0QnVuUjRw
+            RVFYZG0vWGswTjN1MHNPK2dQbThnRFdqVGtBCkdORjJ2M3RlOUhEd0JJRkR1ZDBv
+            YWNnSXlHTlJzVGFLN2ZIa2VObjh6YWMKLS0tIHVZODhZdkNVb3FncitGb0gzTzRz
+            OWRGZG1IS1FwaGJGRGtnNWZ1UjdaQlEKDZ7qjug+87kCizrwfkgLTlVmE2E9EkKS
+            tm+gV5BVKFkkX9ImBOdF5teRS7D9SpJ1AMPqVWNFLgWl8oCBX2fd7A==
+            -----END AGE ENCRYPTED FILE-----
+    lastmodified: "2026-05-18T13:23:39Z"
+    mac: ENC[AES256_GCM,data:o4z+43cPlRY2qgLSDkAV6cEjWCvXlJxP64KHCjakZA5RFqElFShOOYsUneZ8mL0kbZtQCc9hokodjJJ7AeHTuX/U1IvbN3gIuEbz6pIi614BIGrWnGMZTKXlDlwtygwNlGjmcLEZLelE6CG7/p0oCpKKa4P+tRZd2HPix0QDEv0=,iv:7E+PIAcBD3eFe8PfF8vXpsNuQ8ZRHQAot91wGgzYy/4=,tag:mi7oullrrQKPSdwbmRoScA==,type:str]
+    unencrypted_suffix: _unencrypted
+    version: 3.12.2
