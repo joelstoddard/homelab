@@ -15,3 +15,9 @@
     name: proxmox
     tasks_from: cluster
   when: "'proxmox' in group_names"
+
+- name: Bootstrap the Proxmox API token for downstream automation.
+  ansible.builtin.include_role:
+    name: proxmox
+    tasks_from: api-token
+  when: "'proxmox' in group_names"

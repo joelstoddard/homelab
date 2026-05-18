@@ -1,0 +1,63 @@
+---
+# Generate a cluster-wide root@pam!terraform API token for downstream
+# automation and persist it SOPS-encrypted to
+# inventory/group_vars/proxmox.sops.yaml. Idempotent: a token named
+# "terraform" on root@pam skips the create+persist pair.
+#
+# RECOVERY: the secret component is returned only on creation; it
+# can't be recovered later. If the SOPS file is lost, or sops_encrypt
+# fails after `pveum user token add` succeeds (token minted but not
+# persisted), delete the server-side token and re-run:
+#   pveum user token remove root@pam terraform
+
+- name: Check whether the terraform API token already exists on the leader.
+  # Read-only; opt in to check_mode so dry-runs render the downstream
+  # set_fact correctly instead of failing on undefined existing_tokens.
+  ansible.builtin.command: pveum user token list root@pam --output-format json
+  register: existing_tokens
+  changed_when: false
+  failed_when: existing_tokens.rc != 0
+  check_mode: false
+  delegate_to: "{{ proxmox_cluster_leader }}"
+  run_once: true
+
+- name: Determine whether the terraform token needs creating.
+  ansible.builtin.set_fact:
+    terraform_token_exists: >-
+      {{
+        (existing_tokens.stdout | from_json)
+        | selectattr('tokenid', 'equalto', 'terraform')
+        | list
+        | length > 0
+      }}
+  run_once: true
+
+- name: Generate the terraform API token on the leader.
+  # --privsep 0 inherits root@pam's full ACL — acceptable for a
+  # single-operator homelab; revisit if multi-user. Proxmox returns
+  # the secret component once on creation only; capture it now.
+  #
+  # Skipped in check mode: minting a one-time-only secret can't be
+  # faithfully simulated. The persist task below shares the gate.
+  ansible.builtin.command:
+    cmd: pveum user token add root@pam terraform --privsep 0 --output-format json
+  register: new_token
+  when:
+    - not terraform_token_exists
+    - not ansible_check_mode
+  changed_when: true
+  delegate_to: "{{ proxmox_cluster_leader }}"
+  run_once: true
+  no_log: true
+
+- name: Persist the API token to the SOPS-encrypted cluster group_vars.
+  community.sops.sops_encrypt:
+    path: "{{ inventory_dir }}/group_vars/proxmox.sops.yaml"
+    content_yaml:
+      proxmox_api_token: "root@pam!terraform={{ (new_token.stdout | from_json).value }}"
+  when:
+    - not terraform_token_exists
+    - not ansible_check_mode
+  delegate_to: localhost
+  run_once: true
+  no_log: true
