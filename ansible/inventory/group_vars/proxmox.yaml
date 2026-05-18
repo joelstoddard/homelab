@@ -2,3 +2,11 @@
 # Override default ansible_user — only `root` exists on a freshly
 # PXE-installed host until 02-preflights creates the admin user.
 ansible_user: root
+
+# Proxmox VE cluster identity. Explicit leader (vs. inventory order)
+# keeps topology readable and avoids silent leader changes when
+# NetBox dynamic inventory order shifts. Hostname casing must match
+# what the inventory plugin emits (NetBox keeps device-names
+# capitalized).
+proxmox_cluster_name: pve
+proxmox_cluster_leader: Rumba
