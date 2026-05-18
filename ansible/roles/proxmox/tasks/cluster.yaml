@@ -1,0 +1,125 @@
+---
+# Form (or join) the Proxmox VE cluster. Leader runs `pvecm create`,
+# followers run `pvecm add`. Idempotent: stat /etc/pve/corosync.conf
+# decides whether each branch fires.
+#
+# HARD INVARIANT: pvecm refuses cluster join when guests (VMs, LXCs,
+# templates) already exist on the joining node. The preflight below
+# fails loudly with remediation rather than letting that surface as
+# a confusing corosync error mid-apply.
+#
+# RECOVERY: a half-joined follower needs `pvecm delnode <node>` from
+# the leader, then re-run.
+
+- name: Validate that proxmox_cluster_leader resolves to a real proxmox-group host.
+  ansible.builtin.assert:
+    that:
+      - proxmox_cluster_leader is defined
+      - proxmox_cluster_leader in groups['proxmox']
+    fail_msg: |
+      proxmox_cluster_leader ({{ proxmox_cluster_leader | default('UNDEFINED') }})
+      must be a hostname in the 'proxmox' group. Current group members:
+      {{ groups['proxmox'] | join(', ') }}
+  run_once: true
+
+- name: Preflight — list any existing VMs on this node.
+  ansible.builtin.command: qm list
+  register: preflight_qm
+  changed_when: false
+  check_mode: false
+
+- name: Preflight — list any existing LXCs on this node.
+  ansible.builtin.command: pct list
+  register: preflight_pct
+  changed_when: false
+  check_mode: false
+
+- name: Preflight — fail loudly if any guest exists on a follower.
+  # Only enforced on followers; pvecm create accepts non-empty leaders,
+  # but pvecm add rejects any node that already has guests.
+  ansible.builtin.fail:
+    msg: |
+      Refusing to form cluster: {{ inventory_hostname }} has existing guests.
+      Proxmox cluster join is rejected when guests already exist on a node.
+      Destroy them before re-running this role:
+        qm destroy <vmid>
+        pct destroy <vmid>
+      qm list:
+      {{ preflight_qm.stdout }}
+      pct list:
+      {{ preflight_pct.stdout }}
+  when:
+    - inventory_hostname != proxmox_cluster_leader
+    - (preflight_qm.stdout_lines | length > 1) or (preflight_pct.stdout_lines | length > 1)
+
+- name: Detect existing corosync configuration.
+  ansible.builtin.stat:
+    path: /etc/pve/corosync.conf
+  register: corosync_conf
+
+- name: Load the leader's root password from its SOPS host_vars (followers only).
+  # Lookup plugins run on the controller, so the SOPS file decrypts with
+  # the operator's age key — followers never see it. The play's pre_task
+  # only loads each host's own host_vars; the leader's password isn't in
+  # follower scope without this explicit hydration.
+  ansible.builtin.set_fact:
+    leader_root_password: "{{ (lookup('community.sops.sops', leader_sops_path) | from_yaml).root_password }}"
+  vars:
+    leader_sops_path: "{{ inventory_dir }}/host_vars/{{ proxmox_cluster_leader | lower }}.sops.yaml"
+  when:
+    - inventory_hostname != proxmox_cluster_leader
+    - not corosync_conf.stat.exists
+  no_log: true
+
+- name: Bootstrap the cluster on the leader.
+  ansible.builtin.command: pvecm create {{ proxmox_cluster_name }}
+  when:
+    - inventory_hostname == proxmox_cluster_leader
+    - not corosync_conf.stat.exists
+  changed_when: true
+
+- name: Fetch the leader's pveproxy SHA-256 fingerprint (for non-interactive --fingerprint).
+  # pvecm add joins via the leader's HTTPS API (port 8006). Without a
+  # fingerprint, pvecm sets manual_verification and asks the operator
+  # to confirm interactively — a prompt expect can't anchor on. Pass
+  # the leader's cert fingerprint explicitly so the join is fully
+  # non-interactive. run_once + register propagates the result as a
+  # fact on every host (delegate_facts: true would only land it in
+  # the delegate's hostvars, NOT on followers — surprising but true
+  # for `register` on a `command` task).
+  ansible.builtin.command:
+    cmd: openssl x509 -in /etc/pve/local/pve-ssl.pem -fingerprint -sha256 -noout
+  register: leader_cert
+  changed_when: false
+  check_mode: false
+  delegate_to: "{{ proxmox_cluster_leader }}"
+  run_once: true
+
+- name: Join the cluster from each follower.
+  # throttle: 1 avoids the corosync race where simultaneous joins
+  # fight for quorum recomputation. PVE::PTY::read_password (in
+  # /usr/share/perl5/PVE/PTY.pm) checks `-t STDIN` and falls through
+  # to a plain `<STDIN>` line-read when stdin isn't a TTY. So we feed
+  # the leader's root password via the shell module's stdin parameter
+  # and skip the expect/PTY dance entirely.
+  ansible.builtin.shell:
+    cmd: >-
+      pvecm add {{ hostvars[proxmox_cluster_leader].ansible_host }}
+      --fingerprint {{ leader_cert.stdout | regex_replace('^.*=', '') }}
+    stdin: "{{ leader_root_password }}"
+  when:
+    - inventory_hostname != proxmox_cluster_leader
+    - not corosync_conf.stat.exists
+  throttle: 1
+  no_log: true
+  changed_when: true
+
+- name: Verify cluster quorum on the leader.
+  # pvecm right-pads the "Quorate:" label with multiple spaces; match
+  # the column tolerantly with a regex rather than a literal substring.
+  ansible.builtin.command: pvecm status
+  register: pvecm_status
+  changed_when: false
+  failed_when: not (pvecm_status.stdout is regex('Quorate:\s+Yes'))
+  delegate_to: "{{ proxmox_cluster_leader }}"
+  run_once: true

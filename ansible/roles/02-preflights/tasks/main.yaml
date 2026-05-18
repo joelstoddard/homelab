@@ -9,3 +9,9 @@
     name: proxmox
     tasks_from: debian-to-pve
   when: "'proxmox' in group_names"
+
+- name: Form the Proxmox VE cluster across proxmox-group hosts.
+  ansible.builtin.include_role:
+    name: proxmox
+    tasks_from: cluster
+  when: "'proxmox' in group_names"
