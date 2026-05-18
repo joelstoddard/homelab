@@ -8,3 +8,5 @@
 creation_rules:
   - path_regex: ansible/inventory/host_vars/.*\.sops\.ya?ml$
     age: age1h5hafnt22aqn7uahcsmv5v8gfgwcxanypw0lantcush7jppt99fskz6vcv
+  - path_regex: ansible/inventory/group_vars/.*\.sops\.ya?ml$
+    age: age1h5hafnt22aqn7uahcsmv5v8gfgwcxanypw0lantcush7jppt99fskz6vcv

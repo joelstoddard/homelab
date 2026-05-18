@@ -16,7 +16,8 @@ ansible/inventory/*.yaml
 !ansible/inventory/local.yaml
 
 # Galaxy-installed roles are vendored at runtime by `make dev` into
-# ansible/roles/. Custom roles are numbered (00-pxe, 01-wake-on-lan,
-# 03-proxmox), galaxy roles have a vendor.name shape — ignore the
-# latter.
+# ansible/roles/. Custom roles are either numbered (00-pxe,
+# 01-wake-on-lan, 02-preflights, ...) or OS-named (proxmox, future
+# talos / truenas); galaxy roles have a vendor.name shape — ignore
+# the latter.
 ansible/roles/*.*/
