@@ -1,0 +1,9 @@
+# terraform.tfstate (without .backup) is intentionally not ignored — state
+# is committed encrypted. The .backup is a transient artifact of the last
+# successful run and is regenerated on every apply.
+.terraform/
+.terraform.tfstate.lock.info
+*.tfstate.backup
+*.tfplan
+crash.log
+crash.*.log
