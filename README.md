@@ -9,7 +9,7 @@ This project can be broken down into layers, each owned by a top-level directory
 | Status  | Layer              | Directory     | What it does                                                                                  |
 | ------- | ------------------ | ------------- | --------------------------------------------------------------------------------------------- |
 | Active  | Bare metal         | `ansible/`    | PXE-installs OSs.                                                                             |
-| Active  | LXC & VMs          | `opentofu/`   | Provisions K3S control-plane + worker VMs, HA Database LXCs, DNS LXCs, etc. (stage 1: cloud-init template) |
+| Active  | LXC & VMs          | `opentofu/`   | Provisions K3S control-plane + worker VMs, HA Database LXCs, DNS LXCs, etc. |
 | Planned | Networking         | `tailscale/`  | Provisions ACLs for Tailscale nodes & routes.                                                 |
 | Planned | Workloads          | `kubernetes/` | Configures & Provisions Flux CD-managed Helm releases + Kustomize manifests.                  |
 
