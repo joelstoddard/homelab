@@ -126,6 +126,7 @@ lint:
 check: check-env
 	$(MAKE) -C ansible check-pxe
 	$(MAKE) -C ansible check
+	$(MAKE) -C opentofu check
 
 clean:
 	$(MAKE) -C ansible clean
