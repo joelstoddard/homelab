@@ -1,0 +1,183 @@
+# Architecture
+
+How the layers stack, what owns what, and where state lives.
+
+## Layers
+
+The repo is sliced into top-level directories, each a layer with its own
+`Makefile`. Layers run bottom-up:
+
+```
+┌────────────────────────────────────────────────────────────────┐
+│ kubernetes/   (Planned) Flux-managed Helm + Kustomize          │
+├────────────────────────────────────────────────────────────────┤
+│ tailscale/    (Planned) ACLs and routes                        │
+├────────────────────────────────────────────────────────────────┤
+│ opentofu/     VMs / LXCs / cloud-init templates on Proxmox     │
+├────────────────────────────────────────────────────────────────┤
+│ ansible/      PXE-install OS, convert to Proxmox, form cluster │
+├────────────────────────────────────────────────────────────────┤
+│ Bare metal    NUCs, Pis. Tracked in NetBox.                    │
+└────────────────────────────────────────────────────────────────┘
+```
+
+Each layer assumes the one below is healthy. The root `Makefile` chains
+them in order — see [makefile.md](./makefile.md).
+
+### ansible/
+
+PXE-installs the OS, then converts the fresh Debian into Proxmox and forms
+the cluster.
+
+Two playbook entry points:
+
+- `ansible/pxe.yaml` — runs the PXE server on `localhost` and (optionally)
+  WOL-wakes targets. Hosts boot from network, install Debian unattended,
+  reboot from disk.
+- `ansible/playbooks/main.yaml` — runs against PXE-installed hosts. For
+  proxmox-group hosts: converts Debian → Proxmox VE, forms the cluster,
+  mints a Terraform API token.
+
+Roles split into two layers:
+
+- **Numbered orchestrators** (`00-pxe`, `01-wake-on-lan`, `02-preflights`)
+  are OS-agnostic lifecycle phases.
+- **OS-named libraries** (`proxmox` now; `talos`, `truenas` planned)
+  contain task files that orchestrators `include_role: tasks_from: ...`
+  based on group membership.
+
+This split is intentional: the numbered phases describe *when* things run
+(PXE → wake → preflights → cluster); the OS libraries describe *what*
+runs for a given platform. Adding Talos doesn't require touching the
+numbered roles — just adding `talos/` and a dispatch line.
+
+### opentofu/
+
+Provisions resources on top of the Proxmox fleet. Each `resources/<dir>/`
+is its own root module with its own state. State files are AES-GCM
+encrypted at rest (OpenTofu 1.7+ native state encryption) and committed.
+
+Two secret inputs:
+
+- `opentofu/secrets.sops.yaml` — state encryption passphrase + Proxmox API
+  endpoint. Committed (SOPS-encrypted at rest).
+- `ansible/inventory/group_vars/proxmox.sops.yaml` — the
+  `root@pam!terraform` API token, minted by `ansible/roles/proxmox/tasks/api-token.yaml:42`.
+
+The OpenTofu `Makefile` decrypts both at apply time and exports them as
+`TF_VAR_*` env vars before iterating each `resources/*/` dir.
+
+### tailscale/ (planned)
+
+Will own ACLs and subnet routes for the Tailnet that bridges the homelab
+to operator workstations.
+
+### kubernetes/ (planned)
+
+Already exists as Flux manifests under `kubernetes/{flux-system,traefik,longhorn-system}/`,
+but the `Makefile` to drive bootstrap doesn't exist yet. Until it does,
+`make kubernetes` skips with a notice (`Makefile:91-96`).
+
+## NetBox as source of truth
+
+There is no static inventory file checked into the repo for the real
+fleet. Inventory comes from NetBox via the `netbox.netbox.nb_inventory`
+plugin (`ansible/inventory/netbox.yaml`).
+
+Data flow from NetBox to a running play:
+
+```
+NetBox device record
+  ├─ name "Rumba"               → inventory_hostname (kept capitalized)
+  ├─ primary_ip4 "10.0.0.10/20" → ansible_host (CIDR stripped)
+  ├─ platform.slug "proxmox"    → keyed_groups → group `proxmox`
+  ├─ tag "pxe"                  → keyed_groups → group `pxe`
+  ├─ device_type "nuc12wski5"   → keyed_groups → group `nucs`
+  ├─ interfaces[name=01]        → hostvars.mac_address (via all.yaml alias)
+  └─ dns_name                   → hostvars.fqdn         (via all.yaml alias)
+```
+
+Two non-obvious wrinkles:
+
+1. **`mac_address` and `fqdn` are runtime aliases**, not `compose:`
+   expressions. The plugin's `compose:` only sees the raw NetBox API
+   dict — the enriched `interfaces` list and `dns_name` from
+   `interfaces: true` / `dns_name: true` are not available there. They're
+   set in `ansible/inventory/group_vars/all.yaml:30-39` instead, where full
+   hostvars are in scope.
+2. **NetBox keeps hostnames capitalized** (`Rumba`, `Tango`, …) and the
+   Linux hosts use lowercase. Every play loads SOPS host_vars with an
+   explicit lowercase filename map — see e.g. `ansible/pxe.yaml:11-15`.
+
+Static `.yaml.example` files under `ansible/inventory/` document the
+bootstrap fallback for environments without a NetBox. The real fleet
+never uses them.
+
+## Secrets model
+
+Three encrypted artifacts, three different lifecycles:
+
+| Path | Encrypted with | Where it lives | Lifecycle |
+| --- | --- | --- | --- |
+| `~/.config/sops/age/keys.txt` | n/a (it's the Age private key) | Operator's home, 0600. Never in git. | Generated by `bootstrap-secrets.sh` or pasted from another machine. |
+| `~/.config/netbox/env` | n/a (plain text) | Operator's home, 0600. Never in git. | Holds `NETBOX_API` + `NETBOX_TOKEN`. Generated by `bootstrap-secrets.sh`. |
+| `ansible/inventory/host_vars/*.sops.yaml` | Age (via SOPS) | Committed. Encrypted at rest. | Per-host `root_password` and friends. |
+| `ansible/inventory/group_vars/proxmox.sops.yaml` | Age (via SOPS) | Committed. Encrypted at rest. | `proxmox_api_token`, minted by the api-token task. |
+| `opentofu/secrets.sops.yaml` | Age (via SOPS) | Committed. Encrypted at rest. | State encryption passphrase + Proxmox endpoint URL. |
+
+The repo-root `.sops.yaml` defines which Age recipients can decrypt which
+paths. To authorise a new operator: append their public key to the
+matching `creation_rules` entry, then `sops updatekeys <file>` for every
+covered file.
+
+Bootstrap order is: install.sh → bootstrap-secrets.sh → exports from shell rc.
+See [setup.md](./setup.md) for the full sequence.
+
+## Network topology
+
+Two networks:
+
+- **LAN** — `192.168.1.0/24` (documentation placeholder; the real subnet
+  lives in NetBox). Hosts: NUCs, Pis, the operator workstation, and any
+  other physical kit. The PXE server (whichever machine you run
+  `make apply-pxe` from) must sit on this segment for DHCP-proxy and TFTP
+  broadcasts to reach the targets.
+- **K3s cluster network** — `10.0.0.0/24` (placeholder). Used by the
+  in-cluster pods. Control-plane endpoint at `10.0.0.100`; MetalLB pool
+  starts at `10.0.0.101/27`. See `ansible/inventory/group_vars/k3s-cluster.yaml`.
+
+The PXE flow assumes the PXE server and the targets share L2. dnsmasq
+runs in *DHCP-proxy* mode (it does not allocate IPs — it answers PXE-boot
+offers alongside the LAN's existing DHCP). This is why the operator
+machine has to be on the same segment and free on UDP/67, 69, 53.
+
+## Host inventory
+
+| Hardware | Names | Role |
+| --- | --- | --- |
+| Intel NUCs (4) | Rumba, Tango, Salsa, Samba | Proxmox hypervisors. Cluster leader: Rumba. |
+| Raspberry Pis (8) | Kosmos, Vostok, Soyuz, Zond, Salyut, Mir, Voskhod, Buran | Edge nodes (future Talos K8s workers). |
+| K3s cluster | 4 control-plane VMs + 8 worker VMs | Provisioned by OpenTofu on the NUCs. |
+
+Naming follows the Soviet/Russian space programme. Real MACs, LAN IPs,
+and offsite/cloud hosts live in NetBox.
+
+## How a host gets from "rack it" to "running"
+
+End-to-end, what happens to a new physical host:
+
+1. **NetBox** — create the device. Set `platform.slug` (e.g. `proxmox`),
+   add tag `pxe`, populate `primary_ip4` and the interface's MAC.
+2. **Secrets** — `cp host_vars/.template.sops.yaml host_vars/<host>.sops.yaml`
+   and `sops` it to set `root_password`.
+3. **PXE install** — `make apply-pxe LIMIT=<host>` from `ansible/`. The
+   role renders a per-host iPXE script + preseed, fires WOL, the host
+   boots from network, installs Debian unattended, reboots from disk.
+   Full details: [pxe-flow.md](./pxe-flow.md).
+4. **Convert** — `make apply LIMIT=<host>`. `02-preflights` dispatches
+   the `proxmox` library (debian-to-pve → cluster → api-token).
+5. **Verify** — `https://<host>.example.com:8006` Proxmox UI, and
+   `make ping` confirms SSH reachability.
+
+Layers 2 and 3 (opentofu, kubernetes) build on top of step 4: a healthy
+PVE cluster with an API token persisted in `proxmox.sops.yaml`.
