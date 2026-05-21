@@ -1,11 +1,13 @@
 # GNU make required.
-.PHONY: default help build dev lint check apply clean check-secrets
+.PHONY: default help build dev lint check apply clean check-secrets provider-mirror
 
 # LIMIT=<dirname> filters iteration to one resources/<dirname>/.
 LIMIT ?=
 
-ANSIBLE_TOKEN_FILE := ../ansible/inventory/group_vars/proxmox.sops.yaml
-OPENTOFU_SECRETS   := secrets.sops.yaml
+ANSIBLE_TOKEN_FILE  := ../ansible/inventory/group_vars/proxmox.sops.yaml
+OPENTOFU_SECRETS    := secrets.sops.yaml
+PLUGIN_MIRROR_ROOT  ?= $(HOME)/.local/share/opentofu/plugin-mirror
+GENERATED_TOFURC    := $(abspath .tofurc.generated)
 
 # Resource dirs to iterate. resources/ may not exist yet on scaffold
 # commit; the wildcard returns empty and targets become no-ops.
@@ -44,8 +46,23 @@ check-secrets:
 	@sops -d --extract '["proxmox_api_token"]' $(ANSIBLE_TOKEN_FILE) >/dev/null
 	@sops -d --extract '["state_encryption_passphrase"]' $(OPENTOFU_SECRETS) >/dev/null
 	@sops -d --extract '["proxmox_endpoint"]' $(OPENTOFU_SECRETS) >/dev/null
+	@sops -d --extract '["lan_gateway"]'      $(OPENTOFU_SECRETS) >/dev/null
+	@# Per-resource secrets — each resources/<dir>/secrets.env (if present)
+	@# is a SOPS-encrypted dotenv with `export TF_VAR_*=…` lines scoped to
+	@# that single resource. Verify each decrypts cleanly. The Makefile
+	@# eval-sources them at apply time (see `define run_tofu`).
+	@for d in $(RESOURCE_DIRS); do \
+		if [ -f $$d/secrets.env ]; then \
+			sops -d $$d/secrets.env >/dev/null || exit $$?; \
+		fi; \
+	done
 
-build: check-secrets
+provider-mirror:
+	@./scripts/ensure-pihole-provider.sh >/dev/null
+	@printf 'provider_installation {\n  filesystem_mirror {\n    path    = "%s"\n    include = ["registry.terraform.io/dklesev/*"]\n  }\n  direct {\n    exclude = ["registry.terraform.io/dklesev/*"]\n  }\n}\n' \
+		"$(PLUGIN_MIRROR_ROOT)" > $(GENERATED_TOFURC)
+
+build: check-secrets provider-mirror
 
 # Run `tofu $(1) $(2)` in every resource dir with shared env exported once.
 define run_tofu
@@ -54,19 +71,24 @@ define run_tofu
 		echo "no resource dirs under resources/; nothing to do."; \
 		exit 0; \
 	fi; \
+	export TF_CLI_CONFIG_FILE="$(GENERATED_TOFURC)"; \
 	export TF_ENCRYPTION="$$(./scripts/build-tf-encryption.sh)"; \
 	export TF_VAR_proxmox_api_token="$$(sops -d --extract '["proxmox_api_token"]' $(ANSIBLE_TOKEN_FILE))"; \
 	export TF_VAR_proxmox_endpoint="$$(sops -d --extract '["proxmox_endpoint"]' $(OPENTOFU_SECRETS))"; \
+	export TF_VAR_lan_gateway="$$(sops -d --extract '["lan_gateway"]' $(OPENTOFU_SECRETS))"; \
 	for d in $(RESOURCE_DIRS); do \
 		echo ">> tofu $(1) in $$d"; \
+		if [ -f $$d/secrets.env ]; then \
+			eval "$$(sops -d $$d/secrets.env)"; \
+		fi; \
 		tofu -chdir=$$d $(1) $(2) || exit $$?; \
 	done
 endef
 
-dev: check-secrets
+dev: check-secrets provider-mirror
 	$(call run_tofu,init,)
 
-lint: check-secrets
+lint: check-secrets provider-mirror
 	@set -e; \
 	if [ -z "$(strip $(RESOURCE_DIRS))" ]; then exit 0; fi; \
 	for d in $(RESOURCE_DIRS); do \
@@ -75,11 +97,12 @@ lint: check-secrets
 	done
 	$(call run_tofu,validate,)
 
-check: check-secrets
+check: check-secrets provider-mirror
 	$(call run_tofu,plan,-detailed-exitcode)
 
-apply: check-secrets
+apply: check-secrets provider-mirror
 	$(call run_tofu,apply,-auto-approve)
 
 clean:
 	@for d in $(RESOURCE_DIRS); do rm -rf $$d/.terraform; done
+	@rm -f $(GENERATED_TOFURC)
