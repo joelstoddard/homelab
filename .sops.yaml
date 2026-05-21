@@ -12,3 +12,7 @@ creation_rules:
     age: age1h5hafnt22aqn7uahcsmv5v8gfgwcxanypw0lantcush7jppt99fskz6vcv
   - path_regex: opentofu/.*\.sops\.ya?ml$
     age: age1h5hafnt22aqn7uahcsmv5v8gfgwcxanypw0lantcush7jppt99fskz6vcv
+  # Per-resource secrets files (dotenv format; the Makefile
+  # eval-sources them as `export TF_VAR_*=...` lines).
+  - path_regex: opentofu/resources/.*/secrets\.env$
+    age: age1h5hafnt22aqn7uahcsmv5v8gfgwcxanypw0lantcush7jppt99fskz6vcv
