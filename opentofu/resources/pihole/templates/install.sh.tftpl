@@ -1,0 +1,78 @@
+#!/bin/bash
+set -euo pipefail
+
+# Pi-hole v6 bootstrap script. Runs once on the freshly provisioned
+# LXC via null_resource + remote-exec. Idempotent: re-running over an
+# existing install re-applies setupVars.conf and sets the password
+# without breaking the running instance.
+
+# Wait up to ~2 min for any apt locks from the standard template's
+# first-boot self-configuration to clear. Bail loudly rather than
+# spinning forever if something upstream is wedged.
+APT_LOCK_WAIT_MAX=60
+i=0
+while fuser /var/lib/apt/lists/lock >/dev/null 2>&1 \
+   || fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1; do
+    sleep 2
+    i=$((i + 1))
+    if [ "$i" -ge "$APT_LOCK_WAIT_MAX" ]; then
+        echo "apt locks still held after $((APT_LOCK_WAIT_MAX * 2))s; aborting." >&2
+        exit 1
+    fi
+done
+
+export DEBIAN_FRONTEND=noninteractive
+apt-get update -y
+apt-get install -y --no-install-recommends curl ca-certificates
+
+install -d -m 0755 /etc/pihole
+
+# Pi-hole v6 reads setupVars.conf at install time and migrates the
+# values into /etc/pihole/pihole.toml. Only the keys v6 still consumes
+# are seeded here — INSTALL_WEB_*, LIGHTTPD_ENABLED, API_* etc. were
+# v5-era and are ignored by v6 (which ships its own embedded web
+# server and stores config in pihole.toml).
+cat > /etc/pihole/setupVars.conf <<'SETUPVARS_EOF'
+PIHOLE_INTERFACE=eth0
+IPV4_ADDRESS=${static_ipv4_cidr}
+IPV6_ADDRESS=
+PIHOLE_DNS_1=${dns_1}
+PIHOLE_DNS_2=${dns_2}
+QUERY_LOGGING=true
+DNSSEC=false
+SETUPVARS_EOF
+chmod 0644 /etc/pihole/setupVars.conf
+
+if ! command -v pihole >/dev/null 2>&1; then
+    curl -sSL https://install.pi-hole.net -o /tmp/pi-hole-install.sh
+    PIHOLE_SKIP_OS_CHECK=true bash /tmp/pi-hole-install.sh --unattended
+    rm -f /tmp/pi-hole-install.sh
+fi
+
+# Single-quote the rendered password value so a literal $, `, ", or \
+# in it doesn't get re-interpreted by bash on the LXC. (A single-quote
+# in the password itself would still break this; openssl rand -base64
+# never emits one, so the generated default is safe.)
+pihole setpassword '${web_password}'
+
+# Bump the API session pool from the default 16 to 50 so back-to-back
+# tofu plan + apply runs (each opens several sessions during state
+# refresh and resource writes) don't trip api_seats_exceeded.
+#
+# Assert the sed landed — if Pi-hole renames the key in a future
+# release, the substitution silently no-ops and we'd find out via
+# api_seats_exceeded on the next plan instead of here.
+sed -i 's/max_sessions = [0-9]\+/max_sessions = 50/' /etc/pihole/pihole.toml
+if ! grep -q '^[[:space:]]*max_sessions = 50$' /etc/pihole/pihole.toml; then
+    echo "max_sessions = 50 not present after sed; pihole.toml schema changed?" >&2
+    exit 1
+fi
+
+# Restart FTL to drop any half-warmed state from the install path,
+# pick up the new max_sessions config, and clear any open sessions.
+# Without this, the first API write (create a group/adlist) can fail
+# with "attempt to write a readonly database" even though file
+# permissions are correct — FTL hasn't fully re-opened gravity.db
+# in read-write mode after pihole-setpassword.
+systemctl restart pihole-FTL
+sleep 5
