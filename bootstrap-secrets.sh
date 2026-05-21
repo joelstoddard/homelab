@@ -103,6 +103,53 @@ export NETBOX_TOKEN="$netbox_token"
 EOF
 fi
 
+# ---- OpenTofu secrets ----
+# secrets.sops.yaml holds the state encryption passphrase and the
+# Proxmox API endpoint URL. Unlike the Age key + NetBox env (which are
+# operator-private under $HOME), this file is committed to the repo —
+# the contents are SOPS-encrypted at rest.
+#
+# --force rotates the passphrase, which renders every existing
+# encrypted state file unreadable. Don't pass --force unless you have
+# rebuilt state from scratch.
+OPENTOFU_SECRETS_FILE="opentofu/secrets.sops.yaml"
+echo
+echo ">> OpenTofu secrets   -> $OPENTOFU_SECRETS_FILE (SOPS-encrypted, committed)"
+if [[ -f "$OPENTOFU_SECRETS_FILE" && $FORCE -ne 1 ]]; then
+    echo "  exists, skipping (re-run with --force to ROTATE — DESTRUCTIVE)"
+else
+    require_cmd sops
+    require_cmd openssl
+    if [[ ! -f "$AGE_KEY_FILE" ]]; then
+        echo "  Age key file ($AGE_KEY_FILE) missing; cannot encrypt." >&2
+        exit 1
+    fi
+    if ! grep -q 'opentofu/.\*\\.sops\\.ya' .sops.yaml; then
+        echo "  .sops.yaml is missing the opentofu/ creation_rule." >&2
+        echo "  Add a rule for path_regex 'opentofu/.*\\.sops\\.ya?ml\$' and re-run." >&2
+        exit 1
+    fi
+    if [[ -f "$OPENTOFU_SECRETS_FILE" && $FORCE -eq 1 ]]; then
+        echo "  --force given; rotating passphrase. All existing state files will become unreadable." >&2
+        echo "  Press Ctrl-C in the next 5s to abort." >&2
+        sleep 5
+    fi
+    read -rp "  Proxmox API endpoint URL (e.g. https://<leader>.example.com:8006/): " proxmox_endpoint
+    if [[ -z "$proxmox_endpoint" ]]; then
+        echo "Endpoint URL is required." >&2
+        exit 1
+    fi
+    PASSPHRASE="$(openssl rand -base64 32)"
+    SOPS_AGE_KEY_FILE="$AGE_KEY_FILE" \
+        sops --encrypt --input-type yaml --output-type yaml \
+        --filename-override "$OPENTOFU_SECRETS_FILE" /dev/stdin \
+        > "$OPENTOFU_SECRETS_FILE" <<EOF
+state_encryption_passphrase: "$PASSPHRASE"
+proxmox_endpoint: "$proxmox_endpoint"
+EOF
+    echo "  Wrote $OPENTOFU_SECRETS_FILE. Commit it."
+fi
+
 # ---- Final hints ----
 echo
 echo "Done. Add these lines to your shell rc (~/.zshrc, ~/.bashrc, …):"

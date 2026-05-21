@@ -9,7 +9,7 @@ This project can be broken down into layers, each owned by a top-level directory
 | Status  | Layer              | Directory     | What it does                                                                                  |
 | ------- | ------------------ | ------------- | --------------------------------------------------------------------------------------------- |
 | Active  | Bare metal         | `ansible/`    | PXE-installs OSs.                                                                             |
-| Planned | LXC & VMs          | `opentofu/`   | Provisions K3S control-plane + worker VMs, HA Database LXCs, DNS LXCs, etc.                   |
+| Active  | LXC & VMs          | `opentofu/`   | Provisions K3S control-plane + worker VMs, HA Database LXCs, DNS LXCs, etc. |
 | Planned | Networking         | `tailscale/`  | Provisions ACLs for Tailscale nodes & routes.                                                 |
 | Planned | Workloads          | `kubernetes/` | Configures & Provisions Flux CD-managed Helm releases + Kustomize manifests.                  |
 
@@ -30,10 +30,11 @@ This project can be broken down into layers, each owned by a top-level directory
     
     If these aren't set, run `make bootstrap-secrets` to pull in some or generate new.
     
-    `make bootstrap-secrets` writes both files in the standard locations:
+    `make bootstrap-secrets` writes the files in the standard locations:
 
     - `~/.config/netbox/env` — exports `NETBOX_API` and `NETBOX_TOKEN`. Source it from your shell rc.
     - `~/.config/sops/age/keys.txt` — the age private key. Point `SOPS_AGE_KEY_FILE` at it from your shell rc.
+    - `opentofu/secrets.sops.yaml` — SOPS-encrypted; holds the state passphrase + Proxmox endpoint.
 
     The top-level `Makefile` also sources `~/.config/netbox/env` directly (so ad-hoc `make` invocations work even from shells that haven't sourced it), but exporting from your rc is the cleaner long-term setup. Operator env vars win over the file.
 
@@ -49,8 +50,8 @@ make homelab
 4. **`make -C tailscale`**
 5. **`make -C kubernetes`**
 
-Steps 3, 4 and 5 skip silently while their Makefiles don't exist yet, so today
-`make homelab` runs steps 1 and 2.
+Steps 4 and 5 skip silently while their Makefiles don't exist yet, so today
+`make homelab` runs steps 1, 2 and 3.
 
 Per-stage flags pass through: `make ansible LIMIT=tango TAGS=proxmox`.
 

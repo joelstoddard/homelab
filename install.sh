@@ -61,6 +61,17 @@ curl -fsSL -o /usr/local/bin/sops \
     "https://github.com/getsops/sops/releases/download/${SOPS_VERSION}/sops-${SOPS_VERSION}.linux.${SOPS_ARCH}"
 chmod +x /usr/local/bin/sops
 
+# tofu isn't in apt for Debian/Ubuntu; pull the upstream .deb release.
+# Bump TOFU_VERSION when operator workstations move.
+TOFU_VERSION="1.10.6"
+TOFU_ARCH="$(dpkg --print-architecture)"
+echo ">> Installing OpenTofu ${TOFU_VERSION} from upstream .deb release"
+TOFU_DEB="$(mktemp --suffix=.deb)"
+curl -fsSL -o "$TOFU_DEB" \
+    "https://github.com/opentofu/opentofu/releases/download/v${TOFU_VERSION}/tofu_${TOFU_VERSION}_${TOFU_ARCH}.deb"
+apt-get install -y "$TOFU_DEB"
+rm -f "$TOFU_DEB"
+
 echo ">> Installing Docker apt key + repo (${DOCKER_REPO_DISTRO}/${CODENAME})"
 install -m 0755 -d /etc/apt/keyrings
 curl -fsSL "https://download.docker.com/linux/${DOCKER_REPO_DISTRO}/gpg" \
@@ -105,6 +116,7 @@ docker compose version >/dev/null 2>&1 \
     && echo "  ok: $(docker compose version 2>&1 | head -n1)" \
     || { echo "  MISSING: docker compose plugin" >&2; fail=1; }
 verify sops
+verify tofu
 verify age
 verify python3
 verify git
