@@ -59,4 +59,18 @@ resource "proxmox_virtual_environment_vm" "template" {
       }
     }
   }
+
+  # Templates are permanently stopped so the QEMU agent can't report
+  # these fields. Without this block, every plan shows them flipping
+  # between [] and "known after apply" — refresh noise, not real change.
+  # OpenTofu warns "ignore_changes has no effect" because these are
+  # computed-only attributes; the warning is misleading — the
+  # bpg/proxmox provider does honour the block in practice.
+  lifecycle {
+    ignore_changes = [
+      ipv4_addresses,
+      ipv6_addresses,
+      network_interface_names,
+    ]
+  }
 }
