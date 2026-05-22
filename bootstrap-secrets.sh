@@ -104,15 +104,32 @@ EOF
 fi
 
 # ---- OpenTofu secrets ----
-# secrets.sops.yaml holds the state encryption passphrase and the
-# Proxmox API endpoint URL. Unlike the Age key + NetBox env (which are
-# operator-private under $HOME), this file is committed to the repo —
-# the contents are SOPS-encrypted at rest.
+# Two SOPS-encrypted files, both committed to the repo:
 #
-# --force rotates the passphrase, which renders every existing
-# encrypted state file unreadable. Don't pass --force unless you have
-# rebuilt state from scratch.
+#  opentofu/secrets.sops.yaml             — shared values: state
+#    encryption passphrase, Proxmox API endpoint, LAN gateway. YAML
+#    so the Makefile can pull individual keys via `sops --extract`.
+#    Loaded once per `make -C opentofu …` invocation.
+#
+#  opentofu/resources/<dir>/secrets.env   — resource-scoped values
+#    (e.g. the Pi-hole admin password + static IP). Dotenv with
+#    `export TF_VAR_*=…` lines; the Makefile eval-sources it inside
+#    the run_tofu loop, only when that resource is iterated.
+#
+# Unlike the Age key + NetBox env (which are operator-private under
+# $HOME), these are committed — the contents are SOPS-encrypted at
+# rest.
+#
+# --force rebuilds the SOPS bundle from scratch:
+#   - Rotates the state-encryption passphrase, which renders every
+#     existing encrypted state file unreadable.
+#   - Re-prompts (and re-writes) every other key, including the
+#     Pi-hole admin password — so a `--force` rotation is also a
+#     Pi-hole password rotation. Don't pass --force unless you have
+#     rebuilt state from scratch AND are OK rotating downstream
+#     credentials.
 OPENTOFU_SECRETS_FILE="opentofu/secrets.sops.yaml"
+PIHOLE_SECRETS_FILE="opentofu/resources/pihole/secrets.env"
 echo
 echo ">> OpenTofu secrets   -> $OPENTOFU_SECRETS_FILE (SOPS-encrypted, committed)"
 if [[ -f "$OPENTOFU_SECRETS_FILE" && $FORCE -ne 1 ]]; then
@@ -129,8 +146,13 @@ else
         echo "  Add a rule for path_regex 'opentofu/.*\\.sops\\.ya?ml\$' and re-run." >&2
         exit 1
     fi
+    if ! grep -q "secrets\\\\\\.env" .sops.yaml; then
+        echo "  .sops.yaml is missing the opentofu/resources/*/secrets.env creation_rule." >&2
+        echo "  Add a rule for path_regex 'opentofu/resources/.*/secrets\\.env\$' and re-run." >&2
+        exit 1
+    fi
     if [[ -f "$OPENTOFU_SECRETS_FILE" && $FORCE -eq 1 ]]; then
-        echo "  --force given; rotating passphrase. All existing state files will become unreadable." >&2
+        echo "  --force given; rotating passphrase AND Pi-hole password. All existing state files will become unreadable." >&2
         echo "  Press Ctrl-C in the next 5s to abort." >&2
         sleep 5
     fi
@@ -139,6 +161,35 @@ else
         echo "Endpoint URL is required." >&2
         exit 1
     fi
+    read -rp "  LAN gateway IPv4 (e.g. 192.168.1.1): " lan_gateway
+    if [[ -z "$lan_gateway" ]]; then
+        echo "LAN gateway IPv4 is required." >&2
+        exit 1
+    fi
+    read -rp "  Pi-hole static IPv4 CIDR (e.g. 192.168.1.2/24): " pihole_static_ipv4_cidr
+    if [[ -z "$pihole_static_ipv4_cidr" ]]; then
+        echo "Pi-hole static IPv4 CIDR is required." >&2
+        exit 1
+    fi
+    # The installer drops the password into a bash script on the LXC
+    # via single-quote escaping; a literal ' in the password would
+    # break that. Refuse it here rather than discovering it via a
+    # broken install. openssl rand -base64 never emits one, so the
+    # auto-generate path is safe.
+    while :; do
+        read -rsp "  Pi-hole admin password (leave blank to auto-generate; no ' character): " pihole_web_password
+        echo
+        if [[ "$pihole_web_password" == *\'* ]]; then
+            echo "  Password contains a single-quote; the installer can't escape that. Try again." >&2
+            continue
+        fi
+        break
+    done
+    if [[ -z "$pihole_web_password" ]]; then
+        pihole_web_password="$(openssl rand -base64 24)"
+        echo "  Auto-generated 24-byte random password. Read it later via:"
+        echo "    sops -d $PIHOLE_SECRETS_FILE | grep TF_VAR_pihole_web_password"
+    fi
     PASSPHRASE="$(openssl rand -base64 32)"
     SOPS_AGE_KEY_FILE="$AGE_KEY_FILE" \
         sops --encrypt --input-type yaml --output-type yaml \
@@ -146,8 +197,16 @@ else
         > "$OPENTOFU_SECRETS_FILE" <<EOF
 state_encryption_passphrase: "$PASSPHRASE"
 proxmox_endpoint: "$proxmox_endpoint"
+lan_gateway: "$lan_gateway"
 EOF
-    echo "  Wrote $OPENTOFU_SECRETS_FILE. Commit it."
+    SOPS_AGE_KEY_FILE="$AGE_KEY_FILE" \
+        sops --encrypt --input-type dotenv --output-type dotenv \
+        --filename-override "$PIHOLE_SECRETS_FILE" /dev/stdin \
+        > "$PIHOLE_SECRETS_FILE" <<EOF
+export TF_VAR_pihole_static_ipv4_cidr=$pihole_static_ipv4_cidr
+export TF_VAR_pihole_web_password=$pihole_web_password
+EOF
+    echo "  Wrote $OPENTOFU_SECRETS_FILE and $PIHOLE_SECRETS_FILE. Commit both."
 fi
 
 # ---- Final hints ----
