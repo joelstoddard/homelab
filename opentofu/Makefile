@@ -43,6 +43,9 @@ check-secrets:
 		echo "missing $(OPENTOFU_SECRETS)." >&2; \
 		echo "run 'make bootstrap-secrets' from repo root." >&2; \
 		exit 1; }
+	@[ -n "$$NETBOX_URL" ] && [ -n "$$NETBOX_TOKEN" ] || { \
+		echo "NETBOX_URL and NETBOX_TOKEN must be exported (e.g. 'set -a; . ~/.config/netbox/env; set +a')." >&2; \
+		exit 1; }
 	@sops -d --extract '["proxmox_api_token"]' $(ANSIBLE_TOKEN_FILE) >/dev/null
 	@sops -d --extract '["state_encryption_passphrase"]' $(OPENTOFU_SECRETS) >/dev/null
 	@sops -d --extract '["proxmox_endpoint"]' $(OPENTOFU_SECRETS) >/dev/null
@@ -76,6 +79,8 @@ define run_tofu
 	export TF_VAR_proxmox_api_token="$$(sops -d --extract '["proxmox_api_token"]' $(ANSIBLE_TOKEN_FILE))"; \
 	export TF_VAR_proxmox_endpoint="$$(sops -d --extract '["proxmox_endpoint"]' $(OPENTOFU_SECRETS))"; \
 	export TF_VAR_lan_gateway="$$(sops -d --extract '["lan_gateway"]' $(OPENTOFU_SECRETS))"; \
+	export TF_VAR_netbox_url="$$NETBOX_URL"; \
+	export TF_VAR_netbox_token="$$NETBOX_TOKEN"; \
 	for d in $(RESOURCE_DIRS); do \
 		echo ">> tofu $(1) in $$d"; \
 		if [ -f $$d/secrets.env ]; then \
