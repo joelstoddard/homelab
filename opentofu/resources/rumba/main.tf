@@ -24,3 +24,29 @@ module "debian_12_template" {
 output "debian_12_template_vm_id" {
   value = module.debian_12_template.template_vm_id
 }
+
+module "k8s_server_01" {
+  source    = "../../modules/k8s-vm"
+  vm_name   = "k8s-server-01"
+  node_name = "Rumba"
+}
+
+module "k8s_agent_01" {
+  source    = "../../modules/k8s-vm"
+  vm_name   = "k8s-agent-01"
+  node_name = "Rumba"
+}
+
+module "k8s_agent_02" {
+  source    = "../../modules/k8s-vm"
+  vm_name   = "k8s-agent-02"
+  node_name = "Rumba"
+}
+
+output "k8s_vms" {
+  value = {
+    "k8s-server-01" = module.k8s_server_01
+    "k8s-agent-01"  = module.k8s_agent_01
+    "k8s-agent-02"  = module.k8s_agent_02
+  }
+}
