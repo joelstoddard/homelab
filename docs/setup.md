@@ -60,13 +60,27 @@ pointing at the case statement to extend. Add your distro there.
 make bootstrap-secrets             # interactive, run as your user (not root)
 ```
 
-This script writes three files:
+This script writes four files:
 
 | File | Where | What |
 | --- | --- | --- |
 | `~/.config/sops/age/keys.txt` | Operator home, 0600 | Age private key — decrypts everything SOPS-encrypted in the repo. |
 | `~/.config/netbox/env` | Operator home, 0600 | Shell script with `export NETBOX_API=` + `export NETBOX_TOKEN=`. |
-| `opentofu/secrets.sops.yaml` | Repo (committed, encrypted) | State encryption passphrase + Proxmox API endpoint URL. |
+| `opentofu/secrets.sops.yaml` | Repo (committed, encrypted) | State encryption passphrase, Proxmox API endpoint URL, LAN gateway. |
+| `opentofu/resources/pihole/secrets.env` | Repo (committed, encrypted dotenv) | Pi-hole static IPv4 CIDR + admin web password as `export TF_VAR_*=…`. |
+
+You'll be prompted for:
+
+- **NetBox URL** (e.g. `https://netbox.example.com`) and a read-only
+  personal access token from `$NETBOX_API/account/personal-access-tokens/`.
+- **Proxmox API endpoint URL** (e.g. `https://<leader>.example.com:8006/`).
+- **LAN gateway IPv4** (the router on the lab segment, e.g. `192.168.1.1`).
+- **Pi-hole static IPv4 CIDR** (e.g. `192.168.1.2/24`).
+- **Pi-hole admin password** — leave blank to auto-generate 24 random
+  bytes (read it back later with
+  `sops -d opentofu/resources/pihole/secrets.env | grep pihole_web_password`).
+  Note: a literal `'` in the password breaks the LXC installer's escaping,
+  so the script rejects it.
 
 For the Age key, the script offers two paths:
 
@@ -77,13 +91,11 @@ For the Age key, the script offers two paths:
 2. **Paste an existing one** — useful when copying from another
    workstation. The script writes 0600 and 0700 perms automatically.
 
-For NetBox: generate a read-only personal access token at
-`$NETBOX_API/account/personal-access-tokens/` and paste it when prompted.
-
 The script is idempotent — existing files are skipped unless you pass
-`FORCE=1 make bootstrap-secrets`. **Don't `--force` opentofu/secrets.sops.yaml
-on a healthy install**: rotating the passphrase makes every existing
-encrypted state file unreadable.
+`FORCE=1 make bootstrap-secrets`. **Don't `--force` on a healthy
+install**: rotating the SOPS passphrase makes every existing encrypted
+state file unreadable, *and* re-prompts every other key — so a
+`--force` rotation also rotates the Pi-hole admin password.
 
 ### Adding yourself as a SOPS recipient
 
@@ -95,9 +107,12 @@ authorised to decrypt the host_vars files. Two paths:
   covered file:
 
   ```bash
-  sops updatekeys ansible/inventory/host_vars/rumba.sops.yaml
-  sops updatekeys ansible/inventory/host_vars/tango.sops.yaml
-  # … etc, every *.sops.yaml in the repo
+  for f in ansible/inventory/host_vars/*.sops.yaml \
+           ansible/inventory/group_vars/*.sops.yaml \
+           opentofu/*.sops.yaml \
+           opentofu/resources/*/secrets.env; do
+    [ -f "$f" ] && sops updatekeys "$f"
+  done
   ```
 
 - **If a teammate already has access**: get them to add your key, then
@@ -272,9 +287,12 @@ EOF
 exec $SHELL -l
 
 # If new Age key: append public key to .sops.yaml, then:
-for f in ansible/inventory/host_vars/*.sops.yaml; do sops updatekeys "$f"; done
-for f in ansible/inventory/group_vars/*.sops.yaml; do sops updatekeys "$f"; done
-for f in opentofu/*.sops.yaml; do sops updatekeys "$f"; done
+for f in ansible/inventory/host_vars/*.sops.yaml \
+         ansible/inventory/group_vars/*.sops.yaml \
+         opentofu/*.sops.yaml \
+         opentofu/resources/*/secrets.env; do
+  [ -f "$f" ] && sops updatekeys "$f"
+done
 
 # Build + apply:
 make -C ansible build
