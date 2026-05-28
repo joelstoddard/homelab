@@ -95,10 +95,9 @@ to operator workstations.
 
 ### kubernetes/ (planned)
 
-Reserved for Flux GitOps once a cluster exists. The previous Flux
-manifests were wiped ahead of a cluster rebuild on Talos, so the
-directory is intentionally empty right now and `make kubernetes` skips
-with a notice (`Makefile:91-96`).
+Reserved for Flux GitOps once a cluster exists. The directory is
+intentionally empty right now and `make kubernetes` skips with a notice
+(`Makefile:91-96`).
 
 ## NetBox as source of truth
 
