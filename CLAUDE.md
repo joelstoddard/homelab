@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Infrastructure-as-Code homelab managing baremetal servers (Intel NUCs running Proxmox, Raspberry Pis) and a Kubernetes cluster (planned — not yet bootstrapped). Example LAN subnet `192.168.1.0/24`; real values live in NetBox. Use `example.com` as the placeholder domain throughout the docs.
+Infrastructure-as-Code homelab managing bare-metal servers (Intel NUCs running Proxmox, Raspberry Pis) and a Kubernetes cluster (planned — not yet bootstrapped). NetBox is the source of truth for the deployed network, all docs point to `192.168.1.0/24`  for IPAM and `example.com` as the root domain name.
 
 ## Commands
 
@@ -82,15 +82,15 @@ Inventory is dynamic from NetBox via the `netbox.netbox.nb_inventory` plugin (`a
 
 ### Kubernetes (kubernetes/)
 
-Planned. The directory was wiped ahead of the cluster rebuild and will be re-initialised once the Talos cluster is up; Flux CD will GitOps-manage workloads from there. Secrets will be encrypted with SOPS + Age.
+Planned. TalOS base, Flux CD will GitOps-manage workloads. Secrets will be encrypted with SOPS + Age.
 
 ### Infrastructure Hosts
 
 - **NUCs** (4): rumba, tango, salsa, samba — Proxmox hypervisors
 - **Pis** (8): kosmos, vostok, soyuz, zond, salyut, mir, voskhod, buran
-- **Kubernetes cluster** (planned): 4 control plane VMs + 8 worker VMs on NUCs
+- **Kubernetes cluster** (planned): 4 control plane VMs + 8 worker VMs on NUCs, plus 2 control plane Raspberry Pis + 6 workers. 
 
-Naming theme: Soviet/Russian space program. Specific MAC addresses, LAN
+Naming theme: Hosts are named after space programs. Specific MAC addresses, LAN
 IPs, and any offsite/cloud hosts live in NetBox; the static
 `ansible/inventory/*.yaml.example` files document the bootstrap
 fallback schema for environments without NetBox.
