@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Infrastructure-as-Code homelab managing baremetal servers (Intel NUCs running Proxmox, Raspberry Pis), a K3s Kubernetes cluster, and GitOps via Flux CD. The infrastructure is on a `192.168.1.0/24` network with K3s on `10.0.0.0/24`. Domain: `example.com`.
+Infrastructure-as-Code homelab managing bare-metal servers (Intel NUCs running Proxmox, Raspberry Pis) and a Kubernetes cluster (planned — not yet bootstrapped). NetBox is the source of truth for the deployed network, all docs point to `192.168.1.0/24`  for IPAM and `example.com` as the root domain name.
 
 ## Commands
 
@@ -33,7 +33,7 @@ make clean                        # Stop containers, remove cache/retry files
 
 All make targets accept: `LIMIT=<host>`, `TAGS=<tag>`, `VERBOSITY=-vvv`, `EXTRA_VARS='key=val'`.
 
-The root `Makefile` delegates to subdirectory Makefiles; currently only `ansible/` and `kubernetes/` exist (tailscale, opentofu are referenced but not yet created).
+The root `Makefile` delegates to subdirectory Makefiles; currently `ansible/` and `opentofu/` exist (tailscale, kubernetes are referenced but not yet present — their targets skip with a notice).
 
 ## Architecture
 
@@ -82,20 +82,15 @@ Inventory is dynamic from NetBox via the `netbox.netbox.nb_inventory` plugin (`a
 
 ### Kubernetes (kubernetes/)
 
-Flux CD GitOps pointing at `main` branch of this repo, path `./kubernetes`. Secrets encrypted with SOPS + Age.
-
-Key deployments:
-- **Traefik** (v29.0.1) — Ingress controller, 3 replicas, LoadBalancer at `192.168.1.123`
-- **Longhorn** (v1.6.2) — Distributed block storage
-- **Flux notifications** — Discord webhook
+Planned. TalOS base, Flux CD will GitOps-manage workloads. Secrets will be encrypted with SOPS + Age.
 
 ### Infrastructure Hosts
 
 - **NUCs** (4): rumba, tango, salsa, samba — Proxmox hypervisors
 - **Pis** (8): kosmos, vostok, soyuz, zond, salyut, mir, voskhod, buran
-- **K3s cluster**: 4 control plane VMs + 8 worker VMs on NUCs
+- **Kubernetes cluster** (planned): 4 control plane VMs + 8 worker VMs on NUCs, plus 2 control plane Raspberry Pis + 6 workers. 
 
-Naming theme: Soviet/Russian space program. Specific MAC addresses, LAN
+Naming theme: Hosts are named after space programs. Specific MAC addresses, LAN
 IPs, and any offsite/cloud hosts live in NetBox; the static
 `ansible/inventory/*.yaml.example` files document the bootstrap
 fallback schema for environments without NetBox.
@@ -105,7 +100,6 @@ fallback schema for environments without NetBox.
 - Ansible collections are pinned in `ansible/requirements.yaml`; Python deps in `ansible/requirements.txt`.
 - Group vars in `ansible/inventory/group_vars/` (inventory-adjacent so they load for every playbook) — default SSH user is `admin` with key-based auth, overridden to `root` for the `proxmox` group during the Debian → Proxmox conversion phase.
 - Jinja2 templates in role `templates/` dirs generate per-host configs (iPXE scripts, Debian preseeds, dnsmasq).
-- Kubernetes manifests use Kustomize; Helm releases are managed through Flux `HelmRelease` CRDs.
 - Commit messages follow `type: Description` format (e.g., `chore: Add PXELINUX...`).
 - Cluster identity (`proxmox_cluster_name`, `proxmox_cluster_leader`) lives in
   `group_vars/proxmox.yaml`. The leader runs `pvecm create`; followers run
