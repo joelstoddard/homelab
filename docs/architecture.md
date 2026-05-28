@@ -147,10 +147,14 @@ Six encrypted artifacts, three different lifecycles:
 | `opentofu/secrets.sops.yaml` | Age (via SOPS) | Committed. Encrypted at rest. | State encryption passphrase, Proxmox endpoint URL, LAN gateway. |
 | `opentofu/resources/<dir>/secrets.env` | Age (via SOPS) | Committed. Encrypted at rest. | Resource-scoped `TF_VAR_*` (e.g. Pi-hole password, static IP). |
 
-The repo-root `.sops.yaml` defines which Age recipients can decrypt which
-paths. To authorise a new operator: append their public key to the
-matching `creation_rules` entry, then `sops updatekeys <file>` for every
-covered file.
+The repo-root `.sops.yaml` defines which Age recipients can decrypt
+which paths. To authorise a new operator, an *existing* recipient (one
+whose key is already listed under the relevant `creation_rules` entry)
+appends the new public key and then runs `sops updatekeys <file>` for
+every covered file — `updatekeys` has to decrypt with one of the
+already-authorised keys before it can re-encrypt to the expanded
+recipient list, so the new operator can't run it themselves until
+someone has added their key.
 
 Bootstrap order is: install.sh → bootstrap-secrets.sh → exports from shell rc.
 See [setup.md](./setup.md) for the full sequence.
