@@ -72,14 +72,34 @@ Iterates `resources/*/`, each its own root module with its own state.
 `make check` runs `tofu plan -detailed-exitcode` per dir; `make apply`
 does `tofu apply -auto-approve` per dir. Filters with `LIMIT=<dirname>`.
 
-Two secrets are decrypted on the fly and exported as `TF_VAR_*` before
+Decrypts shared values and exports them as `TF_VAR_*` env vars before
 each `tofu` call:
 
 - `TF_VAR_proxmox_api_token` from `../ansible/inventory/group_vars/proxmox.sops.yaml`.
 - `TF_VAR_proxmox_endpoint` from `./secrets.sops.yaml`.
+- `TF_VAR_lan_gateway` from `./secrets.sops.yaml`.
+- `TF_VAR_netbox_url` / `TF_VAR_netbox_token` from the operator's
+  environment (`NETBOX_URL` / `NETBOX_TOKEN` must be exported — the
+  `k8s-vm` module reads VM identity from NetBox at plan time, so the
+  Makefile fails fast in `check-secrets` if they're missing).
+
+Per-resource secrets live in `resources/<dir>/secrets.env` — an
+optional SOPS-encrypted dotenv with `export TF_VAR_*=…` lines. The
+`run_tofu` loop eval-sources each one inside its `tofu` iteration, so
+values stay scoped to that single resource (e.g. Pi-hole's admin
+password and static IP only enter the env while `resources/pihole/`
+runs).
 
 The state encryption key (`TF_ENCRYPTION`) is built by
 `scripts/build-tf-encryption.sh` from the SOPS passphrase.
+
+One extra target: `make provider-mirror`. The `dklesev/pihole` provider
+is published on the Terraform registry but not the OpenTofu registry,
+so the Makefile builds a filesystem mirror under
+`$HOME/.local/share/opentofu/plugin-mirror/` and generates a
+`.tofurc.generated` that points OpenTofu at it for `dklesev/*`. Other
+providers still resolve via direct upstream. `make build` chains the
+mirror step in automatically.
 
 ### `kubernetes/Makefile` / `tailscale/Makefile`
 
