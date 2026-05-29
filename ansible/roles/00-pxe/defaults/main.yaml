@@ -37,16 +37,21 @@ ipxe_sha256: ""  # leave empty to skip checksum; set to pinned hash for producti
 ipxe_arm64_url: "https://boot.ipxe.org/arm64-efi/snp.efi"
 ipxe_arm64_sha256: ""
 
-# Talos netboot assets (arm64, served over HTTP to the Pis). Keep
-# talos_version in sync with the talos role and OpenTofu's ISO pin.
+# Talos netboot assets (arm64, served over HTTP to the Pis).
 #
-# NOTE: these defaults point at the vanilla siderolabs release kernel +
-# initramfs. A Raspberry Pi will only netboot Talos when the rpi overlay
+# talos_version is single-sourced from repo-root versions.env (read via
+# role_path: .../ansible/roles/00-pxe, so ../../../ is the repo root) — bump
+# it there, not here.
+#
+# NOTE: the asset URLs below point at the vanilla siderolabs release kernel
+# + initramfs. A Raspberry Pi will only netboot Talos when the rpi overlay
 # (siderolabs/sbc-raspberrypi) firmware/u-boot is in place — for a fully
 # self-contained Pi netboot, generate arm64 assets from the Talos Image
 # Factory with that overlay and override these two URLs. The runbook walks
 # through it.
-talos_version: "v1.9.5"
+talos_version: >-
+  {{ lookup('file', role_path ~ '/../../../versions.env')
+     | regex_findall('^TALOS_VERSION=(.+)$', multiline=True) | first | trim }}
 talos_arm64_kernel_url: >-
   https://github.com/siderolabs/talos/releases/download/{{ talos_version }}/kernel-arm64
 talos_arm64_initramfs_url: >-

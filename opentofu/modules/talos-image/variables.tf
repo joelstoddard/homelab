@@ -9,13 +9,12 @@ variable "datastore_id" {
   default     = "local"
 }
 
-# Keep talos_version in sync with the talos Ansible role
-# (ansible/roles/talos/defaults talos_version) and the Pi netboot assets
-# (ansible/roles/00-pxe/defaults talos_version).
+# Passed in by each resources/<node>/talos.tf, which gets it from
+# TF_VAR_talos_version (repo-root versions.env, injected by the Makefile).
+# No default: the version has exactly one source of truth.
 variable "talos_version" {
   description = "Talos release tag, e.g. 'v1.9.5'. Used to build the default ISO URL/name."
   type        = string
-  default     = "v1.9.5"
 
   validation {
     condition     = can(regex("^v[0-9]+\\.[0-9]+\\.[0-9]+$", var.talos_version))

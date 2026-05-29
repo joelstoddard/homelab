@@ -23,30 +23,37 @@ configs, bootstraps etcd, and pulls the kubeconfig.
 > over the Talos API — it is **not** part of the SSH-based `make apply`
 > (`02-preflights`) flow.
 
-## Versions — keep in sync
+## Versions — one source of truth
 
-One Talos version is pinned in **four** places. Bump them together:
+The Talos and Kubernetes versions live in repo-root
+[`versions.env`](../versions.env). **Bump them there only.** Every consumer
+reads that file:
 
-| Where | Var |
+| Consumer | How it reads `versions.env` |
 | --- | --- |
-| `ansible/roles/talos/defaults/main.yaml` | `talos_version` / `talos_kubernetes_version` |
-| `ansible/roles/00-pxe/defaults/main.yaml` | `talos_version` (Pi netboot assets) |
-| `opentofu/resources/*/talos.tf` | `talos_version` (VM ISO) |
-| `install.sh` | `TALOSCTL_VERSION` / `KUBECTL_VERSION` |
+| `ansible/roles/talos/defaults` | `lookup('file', …)` via `role_path` |
+| `ansible/roles/00-pxe/defaults` | `lookup('file', …)` via `role_path` |
+| `opentofu/` | `Makefile` sources it → `TF_VAR_talos_version` |
+| `install.sh` | sources it → `talosctl` + `kubectl` versions |
 
-## Topology note (read before you bootstrap)
+## Topology (control plane = 5, one per physical host)
 
-The default control plane is 6 members (4 VMs + 2 Pis,
-`talos_controlplane_hosts` in the talos role defaults). **6 is an even
-etcd quorum** — it tolerates the same number of failures (2) as 5 while
-needing one more healthy member, so it buys nothing. Prefer an odd count:
+`talos_controlplane_hosts` (talos role defaults) is **5 members, each on a
+distinct physical host**:
 
-- **5 (recommended):** drop one Pi from `talos_controlplane_hosts`.
-- **3:** keep only `k8s-server-01..03`.
+- `k8s-server-01..04` — the 4 control-plane VMs, one per NUC
+  (rumba/tango/salsa/samba).
+- `kosmos` — one Raspberry Pi.
 
-Control-plane Pis should boot from a **USB SSD**, not the SD card — etcd
-is write-heavy and will chew through SD cards. If you do, override
-`talos_install_disk` to `/dev/sda` for those Pis.
+This is deliberate: spreading the control plane across 5 separate machines
+means the kube-apiserver / etcd quorum survives any single physical host
+(and the guests co-located on it) going down. 5 is also an odd etcd
+quorum. Everything else in `groups['talos']` — including the other 7 Pis —
+is a worker.
+
+The control-plane Pi (`kosmos`) should boot from a **USB SSD**, not the SD
+card — etcd is write-heavy and will chew through SD cards. If it does,
+override `talos_install_disk` to `/dev/sda` for it.
 
 ## Prerequisites
 
@@ -70,6 +77,38 @@ is write-heavy and will chew through SD cards. If you do, override
    LAN DHCP server must hand each MAC its matching reserved address — or
    maintenance-mode IPs won't line up. (Override per node with
    `-e talos_node_ip=<ip> --limit <host>` if you must.)
+
+4. **Raspberry Pi boot firmware (one-time, per Pi).** Unlike the x86 VMs
+   (which UEFI-netboot or boot the ISO out of the box), a Raspberry Pi
+   needs firmware on its boot media before it can TFTP-netboot at all, and
+   Talos on the Pi needs the `siderolabs/sbc-raspberrypi` overlay. Do this
+   once per Pi, then the PXE flow in Step 2 takes over on every subsequent
+   boot:
+
+   1. **Build an arm64 Talos image with the rpi overlay** from the
+      [Talos Image Factory](https://factory.talos.dev/). Select board
+      *Raspberry Pi Generic* (overlay `siderolabs/sbc-raspberrypi`) for
+      your Talos version; note the **schematic ID** it gives you.
+   2. **Flash the SD card** with that image
+      (`talos-<schematic>-metal-arm64.raw.xz` → SD). This lands the rpi
+      firmware + u-boot. Boot the Pi once so u-boot is in place.
+   3. **Enable netboot** in u-boot/`config.txt` (or program the Pi
+      bootloader EEPROM to prefer network boot) so the next boot chains to
+      our arm64 iPXE (`ipxe-arm64.efi`) over TFTP.
+   4. **Point the role's netboot kernel/initramfs at the SAME schematic**
+      so the netbooted Talos matches the firmware: override in
+      `ansible/roles/00-pxe/defaults/main.yaml`
+      ```yaml
+      talos_arm64_kernel_url: "https://factory.talos.dev/image/<schematic>/{{ talos_version }}/kernel-arm64"
+      talos_arm64_initramfs_url: "https://factory.talos.dev/image/<schematic>/{{ talos_version }}/initramfs-arm64.xz"
+      ```
+      (The committed defaults point at the vanilla siderolabs release
+      assets, which are correct for generic arm64 UEFI but not sufficient
+      on a bare Pi.)
+
+   References: Talos
+   [single-board computers / rpi_generic](https://www.talos.dev/latest/talos-guides/install/single-board-computers/rpi_generic/)
+   and [bare-metal PXE](https://www.talos.dev/latest/talos-guides/install/bare-metal-platforms/pxe/).
 
 ## Step 1 — boot the VMs (OpenTofu)
 
@@ -95,19 +134,10 @@ arm64 (the Pis, client-arch 11).
 make -C ansible apply-pxe     # starts the PXE stack + WOL; Pis netboot Talos
 ```
 
-> **Raspberry Pi netboot caveat.** A Pi only TFTP-netboots once its
-> firmware/bootloader is configured for it, and Talos on the Pi needs the
-> `siderolabs/sbc-raspberrypi` overlay (u-boot/firmware). For a clean
-> netboot, flash the Talos **rpi boot assets once** (Image Factory image
-> with that overlay) so the Pi's bootloader chains to our iPXE, and
-> generate the arm64 `kernel`/`initramfs` from the **same** Image Factory
-> schematic — override `talos_arm64_kernel_url` /
-> `talos_arm64_initramfs_url` in `00-pxe/defaults`. The vanilla siderolabs
-> release assets pinned by default are correct for generic arm64 UEFI but
-> not sufficient on their own for a bare Pi. See the Talos
-> [bare-metal](https://www.talos.dev/latest/talos-guides/install/single-board-computers/rpi_generic/)
-> and [PXE](https://www.talos.dev/latest/talos-guides/install/bare-metal-platforms/pxe/)
-> docs.
+> **Raspberry Pi netboot depends on the one-time firmware setup** in
+> Prerequisite 4 above. Without the rpi overlay firmware + u-boot netboot
+> config (and matching Image Factory kernel/initramfs URLs), a bare Pi
+> won't reach our iPXE chainloader. The x86 VMs need none of this.
 
 Watch a node land in maintenance mode:
 `talosctl -n <ip> --insecure dmesg | tail` (or the Proxmox/Pi console).

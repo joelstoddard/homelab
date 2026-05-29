@@ -20,6 +20,7 @@ This project can be broken down into layers, each owned by a top-level directory
 - Linux operator workstation (Debian or Ubuntu, amd64 or arm64) with `sudo`. This box doubles as the PXE server, so it has to share the L2 segment with the targets and have no conflicting services on UDP/53, 67, 69. 
 - A **NetBox** instance with the homelab hosts modelled (devices tagged `pxe`, `platform.slug` set, primary MAC + IPv4 populated). See `ansible/inventory/README.md` for the bootstrap fallback when NetBox isn't available.
 - An **Age keypair** for SOPS decryption of per-host secrets. Put the private key in the path defined in `SOPS_AGE_KEY_FILE`.
+- For the **Talos Kubernetes cluster**: the 12 VMs and 8 Pis modelled in NetBox with `platform.slug = talos`, a free LAN IP for the control-plane VIP, and MAC-keyed DHCP reservations. The **arm64 Raspberry Pis additionally need a one-time boot-firmware setup** (rpi overlay + u-boot netboot) before they can PXE-netboot Talos — see the prerequisites in [`docs/talos-bootstrap.md`](docs/talos-bootstrap.md).
 - Environment Variables:
 
     | Variable            | Purpose                                           |
@@ -70,5 +71,6 @@ clean              Clean caches and retry files.
 - [khuedoan/homelab](https://github.com/khuedoan/homelab) — the pattern this repo adapts.
 - [`ansible/README.md`](ansible/README.md) — bare-metal provisioning workflow + Proxmox conversion details.
 - [`ansible/inventory/README.md`](ansible/inventory/README.md) — NetBox-backed inventory mechanics and the static bootstrap fallback.
+- [`docs/talos-bootstrap.md`](docs/talos-bootstrap.md) — bringing up the Talos Kubernetes cluster (VM ISO + Pi netboot, then config/bootstrap/kubeconfig).
 - [`CLAUDE.md`](CLAUDE.md) — AI-assistant guidance and architectural notes.
 

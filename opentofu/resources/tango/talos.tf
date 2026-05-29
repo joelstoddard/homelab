@@ -2,12 +2,12 @@
 # (see main.tf) so they boot into Talos maintenance mode. The talos
 # Ansible role then applies machine configs over the API.
 #
-# Keep talos_version in sync with ansible/roles/talos/defaults (talosctl /
-# installer) and ansible/roles/00-pxe/defaults (Pi netboot assets).
+# talos_version is injected by opentofu/Makefile (TF_VAR_talos_version)
+# from repo-root versions.env — the single source of truth. No default, so
+# `tofu` run outside `make` will (correctly) prompt for it.
 variable "talos_version" {
-  description = "Talos release tag for the boot ISO, e.g. 'v1.9.5'."
+  description = "Talos release tag for the boot ISO, e.g. 'v1.9.5'. Injected from versions.env by the Makefile."
   type        = string
-  default     = "v1.9.5"
 }
 
 module "talos_image" {

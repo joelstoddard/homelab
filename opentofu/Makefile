@@ -8,6 +8,9 @@ ANSIBLE_TOKEN_FILE  := ../ansible/inventory/group_vars/proxmox.sops.yaml
 OPENTOFU_SECRETS    := secrets.sops.yaml
 PLUGIN_MIRROR_ROOT  ?= $(HOME)/.local/share/opentofu/plugin-mirror
 GENERATED_TOFURC    := $(abspath .tofurc.generated)
+# Single source of truth for the Talos version (shared with ansible +
+# install.sh). Sourced in run_tofu and exported as TF_VAR_talos_version.
+VERSIONS_ENV        := $(abspath ../versions.env)
 
 # Resource dirs to iterate. resources/ may not exist yet on scaffold
 # commit; the wildcard returns empty and targets become no-ops.
@@ -42,6 +45,9 @@ check-secrets:
 	@[ -f $(OPENTOFU_SECRETS) ] || { \
 		echo "missing $(OPENTOFU_SECRETS)." >&2; \
 		echo "run 'make bootstrap-secrets' from repo root." >&2; \
+		exit 1; }
+	@[ -f $(VERSIONS_ENV) ] || { \
+		echo "missing $(VERSIONS_ENV) (the Talos version source of truth)." >&2; \
 		exit 1; }
 	@[ -n "$$NETBOX_URL" ] && [ -n "$$NETBOX_TOKEN" ] || { \
 		echo "NETBOX_URL and NETBOX_TOKEN must be exported (e.g. 'set -a; . ~/.config/netbox/env; set +a')." >&2; \
@@ -81,6 +87,7 @@ define run_tofu
 	export TF_VAR_lan_gateway="$$(sops -d --extract '["lan_gateway"]' $(OPENTOFU_SECRETS))"; \
 	export TF_VAR_netbox_url="$$NETBOX_URL"; \
 	export TF_VAR_netbox_token="$$NETBOX_TOKEN"; \
+	export TF_VAR_talos_version="$$(. $(VERSIONS_ENV) && echo $$TALOS_VERSION)"; \
 	for d in $(RESOURCE_DIRS); do \
 		echo ">> tofu $(1) in $$d"; \
 		if [ -f $$d/secrets.env ]; then \
