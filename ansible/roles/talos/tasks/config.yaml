@@ -29,22 +29,32 @@
          | map(attribute='inventory_hostname') | list }}
   when: _derived | length > 0
 
-# VIP: the NetBox IP tagged talos_vip_netbox_tag. nb_lookup may fail if
-# NetBox is unreachable or nothing is tagged — fall back to the default
-# literal in that case rather than aborting the run.
+# VIP: the NetBox IP tagged talos_vip_netbox_tag. The lookup runs in its
+# own block so an unreachable NetBox lands in the rescue (records → []) and
+# we fall back to the default literal, instead of aborting the run. The
+# materialized fact also keeps the lookup OUT of the next task's `when:`,
+# where a templating error would not be caught by ignore_errors.
 - name: Look up the control-plane VIP from NetBox.
+  block:
+    - name: Query NetBox for the VIP-tagged IP.
+      ansible.builtin.set_fact:
+        _vip_records: >-
+          {{ lookup('netbox.netbox.nb_lookup', 'ip-addresses',
+                    api_endpoint=lookup('ansible.builtin.env', 'NETBOX_API'),
+                    token=lookup('ansible.builtin.env', 'NETBOX_TOKEN'),
+                    api_filter='tag=' ~ talos_vip_netbox_tag) }}
+  rescue:
+    - name: NetBox unreachable — fall back to the default VIP literal.
+      ansible.builtin.set_fact:
+        _vip_records: []
+
+- name: Use the NetBox VIP when one is tagged (else keep the default).
   ansible.builtin.set_fact:
     talos_vip: "{{ _vip_addr }}"
   vars:
-    _vip_records: >-
-      {{ lookup('netbox.netbox.nb_lookup', 'ip-addresses',
-                api_endpoint=lookup('ansible.builtin.env', 'NETBOX_API'),
-                token=lookup('ansible.builtin.env', 'NETBOX_TOKEN'),
-                api_filter='tag=' ~ talos_vip_netbox_tag) }}
     _vip_addr: >-
       {{ (_vip_records | map(attribute='value.address') | list | first | default('')).split('/') | first }}
   when: _vip_addr | length > 0
-  ignore_errors: true
 
 - name: Report the resolved cluster facts.
   ansible.builtin.debug:
