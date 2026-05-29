@@ -11,11 +11,16 @@
 # reliably sees these values.
 
 # --- Versions -----------------------------------------------------------
-# Keep talos_version in sync with the ISO/asset version OpenTofu pins in
-# opentofu/modules/talos-image/ and the Pi netboot assets the 00-pxe role
-# downloads (00-pxe/defaults talos_version). Bump all three together.
-talos_version: "v1.9.5"
-talos_kubernetes_version: "v1.32.3"
+# Single-sourced from repo-root versions.env (read via role_path so it
+# resolves no matter which playbook includes the role). Bump the version
+# THERE — never inline it here. role_path is .../ansible/roles/talos, so
+# ../../../ is the repo root.
+talos_version: >-
+  {{ lookup('file', role_path ~ '/../../../versions.env')
+     | regex_findall('^TALOS_VERSION=(.+)$', multiline=True) | first | trim }}
+talos_kubernetes_version: >-
+  {{ lookup('file', role_path ~ '/../../../versions.env')
+     | regex_findall('^KUBERNETES_VERSION=(.+)$', multiline=True) | first | trim }}
 
 # Multi-arch installer image (manifest list covers amd64 + arm64), so the
 # same reference works for the x86 VMs and the arm64 Pis.
@@ -39,21 +44,22 @@ talos_primary_interface: "eth0"
 
 # --- Node roles ---------------------------------------------------------
 # Control-plane membership. Everything else in groups['talos'] is a
-# worker. Per CLAUDE.md: the 4 k8s-server VMs plus 2 Raspberry Pis.
+# worker. 5 members, each on a DISTINCT physical host: the 4 k8s-server
+# VMs (one per NUC — rumba/tango/salsa/samba) plus 1 Raspberry Pi
+# (kosmos). This spreads the control plane across 5 separate machines, so
+# the kube-apiserver/etcd quorum survives any single physical host (and
+# its co-located guests) going down. 5 is also an odd etcd quorum.
 #
-# NOTE: this yields 6 control-plane members, an EVEN etcd quorum. etcd
-# tolerates the same number of failures at 6 as at 5 (two) while needing
-# one more healthy member, so an odd count (5 or 7) is preferable. The
-# runbook (docs/talos-bootstrap.md) covers trimming to 5 — drop one Pi
-# here — if you want the recommended topology. Pi control-plane nodes
-# should boot from USB SSD rather than SD (etcd is write-heavy).
+# The control-plane Pi should boot from a USB SSD, not the SD card (etcd
+# is write-heavy); if it does, override talos_install_disk to /dev/sda for
+# it. vostok was demoted to a worker to keep the count odd and the failure
+# domains one-per-host.
 talos_controlplane_hosts:
   - "k8s-server-01"
   - "k8s-server-02"
   - "k8s-server-03"
   - "k8s-server-04"
   - "kosmos"
-  - "vostok"
 
 # First control-plane node — `talosctl bootstrap` is issued here exactly
 # once to initialise etcd. Its maintenance-mode IP is resolved from the

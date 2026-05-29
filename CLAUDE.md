@@ -106,8 +106,8 @@ stages the Talos amd64 ISO on each node via `modules/talos-image` and threads
 its file ID into the VMs, which then boot the ISO disk-first into Talos
 maintenance mode. `scripts/seed-netbox-k8s-vms.py` seeds the 12 VMs into NetBox
 (platform `talos`, per-NUC placement, MAC/IP convention) so both OpenTofu and
-the Ansible inventory can see them. Keep `talos_version` in sync across
-`resources/*/talos.tf`, the `talos`/`00-pxe` role defaults, and `install.sh`.
+the Ansible inventory can see them. The `talos_version` comes from repo-root
+`versions.env` (the Makefile injects it as `TF_VAR_talos_version`).
 
 ### Kubernetes (kubernetes/)
 
@@ -120,7 +120,7 @@ with SOPS + Age.
 
 - **NUCs** (4): rumba, tango, salsa, samba — Proxmox hypervisors
 - **Pis** (8): kosmos, vostok, soyuz, zond, salyut, mir, voskhod, buran
-- **Kubernetes cluster** (planned): 4 control plane VMs + 8 worker VMs on NUCs, plus 2 control plane Raspberry Pis + 6 workers. 
+- **Kubernetes cluster** (Talos): 4 control-plane VMs + 8 worker VMs on the NUCs, plus 1 control-plane Pi (`kosmos`) + 7 worker Pis. Control plane = 5, one per physical host.
 
 Naming theme: Hosts are named after space programs. Specific MAC addresses, LAN
 IPs, and any offsite/cloud hosts live in NetBox; the static
@@ -139,6 +139,10 @@ fallback schema for environments without NetBox.
 - Talos cluster identity (`talos_cluster_name`, `talos_vip`,
   `talos_controlplane_hosts`) lives in `roles/talos/defaults/main.yaml` — NOT a
   group_vars file — because the Talos bootstrap runs from `localhost`, which is
-  not in the `talos` inventory group. The Talos/Kubernetes version is pinned in
-  four places that must move together: `roles/talos/defaults`, `00-pxe/defaults`,
-  `opentofu/resources/*/talos.tf`, and `install.sh`.
+  not in the `talos` inventory group. The control plane is 5 nodes, one per
+  physical host (the 4 `k8s-server` VMs + the `kosmos` Pi), so the quorum
+  survives any single host failure.
+- The Talos/Kubernetes version has a single source of truth in repo-root
+  `versions.env`. Every consumer reads it: the `talos` and `00-pxe` role
+  defaults (file lookup via `role_path`), `opentofu/Makefile` (sourced →
+  `TF_VAR_talos_version`), and `install.sh` (sourced). Bump it there only.

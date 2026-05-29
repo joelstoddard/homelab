@@ -75,10 +75,13 @@ rm -f "$TOFU_DEB"
 # talosctl drives Talos config generation, apply, bootstrap, and kubeconfig
 # retrieval (ansible/roles/talos). kubectl talks to the resulting cluster.
 # Neither is packaged for Debian/Ubuntu; pull the upstream release binaries.
-# Bump these when the cluster's Talos / Kubernetes versions move (keep
-# TALOSCTL_VERSION aligned with ansible/roles/talos/defaults talos_version).
-TALOSCTL_VERSION="v1.9.5"
-KUBECTL_VERSION="v1.32.3"
+# Versions come from repo-root versions.env — the single source shared with
+# Ansible and OpenTofu. Bump there, not here.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck disable=SC1091
+. "${SCRIPT_DIR}/versions.env"
+TALOSCTL_VERSION="${TALOS_VERSION}"
+KUBECTL_VERSION="${KUBERNETES_VERSION}"
 case "$(dpkg --print-architecture)" in
     amd64) GOARCH="amd64" ;;
     arm64) GOARCH="arm64" ;;

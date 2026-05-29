@@ -24,7 +24,7 @@
 
 ## Kubernetes
 - [x] Bootstrap Cluster (`talos` role + `playbooks/talos.yaml`)
-    - [ ] Trim control plane to an odd quorum (default is 6; recommend 5)
+    - [x] Control plane = 5, one per physical host (4 VMs + kosmos)
     - [ ] Flux CD GitOps layer (kubernetes/)
     - [ ] CNI / LoadBalancer
 
