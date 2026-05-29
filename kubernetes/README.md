@@ -16,15 +16,13 @@ holds what runs *on* it once it's up.
 
 ## Inputs
 
-The bootstrap produces, in the git-ignored `ansible/.talos/`:
-
-- `kubeconfig` — cluster admin credentials (the input Flux bootstraps against)
-- `talosconfig` — node-level (Talos API) admin credentials
-
-Copy `kubeconfig` somewhere durable (e.g. `~/.kube/config`) for day-2 use:
+The bootstrap merges the cluster **kubeconfig** into your `~/.kube/config`
+(the input Flux bootstraps against) and leaves the **talosconfig**
+(node-level Talos API admin credentials) in the git-ignored
+`ansible/.talos/`.
 
 ```bash
-KUBECONFIG=ansible/.talos/kubeconfig kubectl get nodes
+kubectl --context admin@homelab get nodes
 ```
 
 ## Conventions (when this lands)

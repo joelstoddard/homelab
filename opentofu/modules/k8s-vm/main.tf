@@ -14,7 +14,8 @@ locals {
   is_server = startswith(var.vm_name, "k8s-server-")
   idx       = tonumber(substr(var.vm_name, length(var.vm_name) - 2, 2))
 
-  # Convention enforced by ../../scripts/seed-netbox-k8s-vms.py:
+  # NetBox is the source of truth; these are the conventions the records
+  # must follow (set when modelling the VM in NetBox):
   #   servers: vm_id = 100 + N, mac = 52:54:00:00:01:NN
   #   agents:  vm_id = 200 + N, mac = 52:54:00:00:02:NN
   vm_id    = local.is_server ? (100 + local.idx) : (200 + local.idx)
@@ -29,7 +30,7 @@ locals {
 check "netbox_consistency" {
   assert {
     condition     = local.nb_vm != null
-    error_message = "NetBox has no VM named '${var.vm_name}'. Run opentofu/scripts/seed-netbox-k8s-vms.py."
+    error_message = "NetBox has no VM named '${var.vm_name}'. Model it in NetBox first: platform=talos, assigned to the matching NUC, tags k8s + k8s-server/k8s-agent, vm_id/MAC per the convention above."
   }
 
   assert {

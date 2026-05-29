@@ -50,10 +50,9 @@ talos_primary_interface: "eth0"
 # the kube-apiserver/etcd quorum survives any single physical host (and
 # its co-located guests) going down. 5 is also an odd etcd quorum.
 #
-# The control-plane Pi should boot from a USB SSD, not the SD card (etcd
-# is write-heavy); if it does, override talos_install_disk to /dev/sda for
-# it. vostok was demoted to a worker to keep the count odd and the failure
-# domains one-per-host.
+# All Pis boot from a USB→NVMe SSD (a documented prerequisite), so etcd on
+# the control-plane Pi has fast, durable storage. vostok was demoted to a
+# worker to keep the count odd and the failure domains one-per-host.
 talos_controlplane_hosts:
   - "k8s-server-01"
   - "k8s-server-02"
@@ -67,21 +66,24 @@ talos_controlplane_hosts:
 talos_bootstrap_host: "{{ talos_controlplane_hosts[0] }}"
 
 # --- Install disk -------------------------------------------------------
-# Where Talos writes the system. Resolved per node from the hardware
-# class: the x86 VMs present their scsi0 disk as /dev/sda; the Pis install
-# to the SD card (/dev/mmcblk0). Override to /dev/sda for USB-SSD-booted
-# Pis (recommended for control-plane Pis). Evaluated against the *target*
-# host's groups, so it is correct both in apply.yaml (host == node) and in
-# config.yaml's per-node loop (via hostvars[item].group_names in the
-# patch templates).
-talos_install_disk: "{{ '/dev/mmcblk0' if 'pis' in group_names else '/dev/sda' }}"
+# Where Talos writes the system. Uniformly /dev/sda across the fleet: the
+# x86 VMs present their scsi0 disk as /dev/sda, and the Pis boot from a
+# USB→NVMe SSD adapter (a documented prerequisite — see
+# docs/talos-bootstrap.md) which enumerates as a USB mass-storage device,
+# also /dev/sda. Override per host (host_vars / extra-vars) only for an
+# oddball node (e.g. a natively-attached NVMe at /dev/nvme0n1).
+talos_install_disk: "/dev/sda"
 
 # --- Local build/output paths -------------------------------------------
-# Generated machine configs and the fetched kubeconfig/talosconfig land
-# here on the operator workstation. Git-ignored (see repo-root
-# .gitignore) — they contain cluster secrets. Only the SOPS-encrypted
-# secrets bundle below is committed.
+# Generated machine configs and the fetched talosconfig land here on the
+# operator workstation. Git-ignored (see repo-root .gitignore) — they
+# contain cluster secrets. Only the SOPS-encrypted secrets bundle below is
+# committed.
 talos_build_dir: "{{ playbook_dir }}/../.talos"
+
+# The cluster kubeconfig is merged into the operator's default kubeconfig
+# (preserving other clusters' contexts), not dropped in the repo.
+talos_kubeconfig_dest: "{{ lookup('ansible.builtin.env', 'HOME') }}/.kube/config"
 
 # Committed, SOPS-encrypted Talos secrets bundle (cluster CA keys, machine
 # + bootstrap tokens). Generated once on first run, then reused so re-runs

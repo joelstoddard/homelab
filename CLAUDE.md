@@ -104,10 +104,12 @@ declared per-NUC under `resources/{rumba,tango,salsa,samba}/` via the
 builds an empty UEFI shell with `modules/vm`. For Talos, `resources/*/talos.tf`
 stages the Talos amd64 ISO on each node via `modules/talos-image` and threads
 its file ID into the VMs, which then boot the ISO disk-first into Talos
-maintenance mode. `scripts/seed-netbox-k8s-vms.py` seeds the 12 VMs into NetBox
-(platform `talos`, per-NUC placement, MAC/IP convention) so both OpenTofu and
-the Ansible inventory can see them. The `talos_version` comes from repo-root
-`versions.env` (the Makefile injects it as `TF_VAR_talos_version`).
+maintenance mode. The 12 VMs must be modelled in NetBox (platform `talos`,
+per-NUC placement, deterministic vm_id/MAC/IP per the convention in
+`modules/k8s-vm/main.tf`) so both OpenTofu and the Ansible inventory can see
+them — NetBox is the source of truth, not a generator script. The
+`talos_version` comes from repo-root `versions.env` (the Makefile injects it as
+`TF_VAR_talos_version`).
 
 ### Kubernetes (kubernetes/)
 
