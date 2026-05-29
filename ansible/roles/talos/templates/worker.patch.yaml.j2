@@ -9,7 +9,8 @@ machine:
       - interface: {{ talos_primary_interface }}
         dhcp: true
   install:
-    # /dev/mmcblk0 on SD-booted Pis, /dev/sda on the VMs (and USB-SSD Pis).
-    disk: {{ '/dev/mmcblk0' if 'pis' in hostvars[item].group_names else '/dev/sda' }}
+    # /dev/sda for all nodes: VM scsi0 and the Pis' USB→NVMe SSD both
+    # enumerate as /dev/sda. See talos_install_disk in the role defaults.
+    disk: {{ talos_install_disk }}
     image: {{ talos_install_image }}
     wipe: false

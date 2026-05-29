@@ -49,27 +49,26 @@ This is deliberate: spreading the control plane across 5 separate machines
 means the kube-apiserver / etcd quorum survives any single physical host
 (and the guests co-located on it) going down. 5 is also an odd etcd
 quorum. Everything else in `groups['talos']` — including the other 7 Pis —
-is a worker.
-
-The control-plane Pi (`kosmos`) should boot from a **USB SSD**, not the SD
-card — etcd is write-heavy and will chew through SD cards. If it does,
-override `talos_install_disk` to `/dev/sda` for it.
+is a worker. All Pis boot from a USB→NVMe SSD (Prerequisite 4), so etcd on
+`kosmos` has fast, durable storage.
 
 ## Prerequisites
 
 1. **Workstation tooling.** `sudo ./install.sh` (installs `talosctl`,
    `kubectl`, `tofu`, `sops`, `age`, Docker, …). Then
    `make build` and `make bootstrap-secrets` per [setup.md](./setup.md).
-2. **NetBox records.** Both OpenTofu and the Ansible inventory read
-   NetBox. Seed the 12 VMs and tag the Pis for Talos:
-   ```bash
-   # 12 VMs: platform=talos, pinned to their NUC, deterministic MAC/IP.
-   opentofu/scripts/seed-netbox-k8s-vms.py --dry-run   # review
-   opentofu/scripts/seed-netbox-k8s-vms.py             # apply
+2. **NetBox records (the source of truth).** Both OpenTofu and the Ansible
+   inventory read NetBox; model the cluster there:
+   - **12 VMs** — `platform=talos`, each pinned to its NUC, with the
+     deterministic `vm_id`/MAC/IP convention from
+     `opentofu/modules/k8s-vm/main.tf` (servers `vm_id 100+N`,
+     `52:54:00:00:01:NN`; agents `vm_id 200+N`, `52:54:00:00:02:NN`).
+     Tag each `k8s` + `k8s-server`/`k8s-agent`.
+   - **8 Pis** — set `platform=talos` so they join the `talos` group (they
+     already exist as devices tagged `pxe`). Tag the control-plane Pi
+     (`kosmos`) the same way you mark control-plane membership (see
+     `talos_controlplane_hosts` in the role defaults).
 
-   # 8 Pis: set platform=talos in NetBox so they join the `talos` group.
-   # (They already exist as devices, tagged `pxe`.)
-   ```
    Confirm grouping: `ansible-inventory -i ansible/inventory --graph talos`
    should list all 20 nodes.
 3. **DHCP reservations.** dnsmasq runs in proxy mode (it does not assign
@@ -77,8 +76,12 @@ override `talos_install_disk` to `/dev/sda` for it.
    LAN DHCP server must hand each MAC its matching reserved address — or
    maintenance-mode IPs won't line up. (Override per node with
    `-e talos_node_ip=<ip> --limit <host>` if you must.)
+4. **All Raspberry Pis boot from a USB→NVMe SSD**, not the SD card. etcd
+   and the kubelet are write-heavy; SD cards wear out and are slow. The
+   role installs Talos to `/dev/sda` (where the USB SSD enumerates) on
+   every node. Attach the SSD before netbooting.
 
-4. **Raspberry Pi boot firmware (one-time, per Pi).** Unlike the x86 VMs
+5. **Raspberry Pi boot firmware (one-time, per Pi).** Unlike the x86 VMs
    (which UEFI-netboot or boot the ISO out of the box), a Raspberry Pi
    needs firmware on its boot media before it can TFTP-netboot at all, and
    Talos on the Pi needs the `siderolabs/sbc-raspberrypi` overlay. Do this
@@ -162,11 +165,11 @@ This runs `playbooks/talos.yaml`:
    mode.
 3. **bootstrap** (localhost, once) — `talosctl bootstrap` etcd on the
    first control-plane node, then waits for health.
-4. **kubeconfig** (localhost, once) — writes
-   `ansible/.talos/kubeconfig` + confirms `talosconfig`.
+4. **kubeconfig** (localhost, once) — merges the cluster context into your
+   `~/.kube/config` (other clusters' contexts are preserved).
 
 ```bash
-KUBECONFIG=ansible/.talos/kubeconfig kubectl get nodes
+kubectl --context admin@homelab get nodes
 ```
 
 > `apply-config --insecure` only works in maintenance mode. Re-running
