@@ -1,0 +1,52 @@
+---
+# Per-OS task file: Talos path (arm64 Raspberry Pi netboot). Runs after
+# common.yaml, only when there are talos-platform hosts that are also
+# PXE-managed (the Pis). Hosts: localhost — renders per-host artifacts for
+# each Pi in groups['pxe'] ∩ groups['talos'].
+#
+# The x86 VMs do NOT come through here: they boot the Talos ISO that
+# OpenTofu attaches to their CD-ROM. This path is exclusively the arm64
+# netboot for the Pis.
+
+- name: Compute the set of PXE-managed Talos hosts (the Pis).
+  ansible.builtin.set_fact:
+    talos_pxe_hosts: "{{ groups['pxe'] | intersect(groups['talos'] | default([])) }}"
+
+- name: Download the arm64 iPXE chainloader.
+  ansible.builtin.get_url:
+    url: "{{ ipxe_arm64_url }}"
+    dest: "{{ role_path }}/files/tftp/ipxe-arm64.efi"
+    checksum: "{{ ('sha256:' ~ ipxe_arm64_sha256) if ipxe_arm64_sha256 else omit }}"
+    mode: "0644"
+  when: talos_pxe_hosts | length > 0
+
+- name: Ensure the Talos asset directory exists.
+  ansible.builtin.file:
+    path: "{{ role_path }}/files/http/talos/{{ talos_version }}"
+    state: directory
+    mode: "0755"
+  when: talos_pxe_hosts | length > 0
+
+- name: Download Talos arm64 kernel.
+  ansible.builtin.get_url:
+    url: "{{ talos_arm64_kernel_url }}"
+    dest: "{{ role_path }}/files/http/talos/{{ talos_version }}/vmlinuz-arm64"
+    mode: "0644"
+  when: talos_pxe_hosts | length > 0
+
+- name: Download Talos arm64 initramfs.
+  ansible.builtin.get_url:
+    url: "{{ talos_arm64_initramfs_url }}"
+    dest: "{{ role_path }}/files/http/talos/{{ talos_version }}/initramfs-arm64.xz"
+    mode: "0644"
+  when: talos_pxe_hosts | length > 0
+
+- name: Render per-host Talos iPXE script.
+  ansible.builtin.template:
+    src: host-talos.ipxe.j2
+    dest: "{{ role_path }}/files/http/boot/{{ hostvars[item]['mac_address'] | lower | replace(':', '-') }}.ipxe"
+    mode: "0644"
+  loop: "{{ talos_pxe_hosts }}"
+  vars:
+    target_hostname: "{{ item }}"
+    mac_address: "{{ hostvars[item]['mac_address'] }}"

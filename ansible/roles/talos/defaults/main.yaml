@@ -1,0 +1,87 @@
+---
+# Talos OS-library defaults.
+#
+# Cluster identity lives here (not in inventory/group_vars/talos.yaml,
+# as proxmox's does in group_vars/proxmox.yaml) on purpose: the Talos
+# bootstrap play (playbooks/talos.yaml) generates configs and bootstraps
+# etcd from a `hosts: localhost` play, because Talos nodes have no SSH or
+# Python and cannot be targeted directly. localhost is not in the `talos`
+# inventory group, so it never loads group_vars/talos.yaml — role
+# defaults are the one place every talos play (localhost and per-node)
+# reliably sees these values.
+
+# --- Versions -----------------------------------------------------------
+# Keep talos_version in sync with the ISO/asset version OpenTofu pins in
+# opentofu/modules/talos-image/ and the Pi netboot assets the 00-pxe role
+# downloads (00-pxe/defaults talos_version). Bump all three together.
+talos_version: "v1.9.5"
+talos_kubernetes_version: "v1.32.3"
+
+# Multi-arch installer image (manifest list covers amd64 + arm64), so the
+# same reference works for the x86 VMs and the arm64 Pis.
+talos_install_image: "ghcr.io/siderolabs/installer:{{ talos_version }}"
+
+# --- Cluster identity ---------------------------------------------------
+talos_cluster_name: "homelab"
+
+# Shared control-plane VIP. Talos floats this across the control-plane
+# nodes (machine.network.interfaces[].vip), so the kube-apiserver endpoint
+# survives any single control-plane node going down. Must be a free
+# address on the node LAN (documented as 192.168.1.0/24) that the LAN DHCP
+# server is NOT handing out.
+talos_vip: "192.168.1.100"
+talos_cluster_endpoint: "https://{{ talos_vip }}:6443"
+
+# Interface the VIP attaches to. Talos names the first NIC eth0 on both
+# the virtio VMs and the Pis. Override per-environment if predictable
+# naming differs.
+talos_primary_interface: "eth0"
+
+# --- Node roles ---------------------------------------------------------
+# Control-plane membership. Everything else in groups['talos'] is a
+# worker. Per CLAUDE.md: the 4 k8s-server VMs plus 2 Raspberry Pis.
+#
+# NOTE: this yields 6 control-plane members, an EVEN etcd quorum. etcd
+# tolerates the same number of failures at 6 as at 5 (two) while needing
+# one more healthy member, so an odd count (5 or 7) is preferable. The
+# runbook (docs/talos-bootstrap.md) covers trimming to 5 — drop one Pi
+# here — if you want the recommended topology. Pi control-plane nodes
+# should boot from USB SSD rather than SD (etcd is write-heavy).
+talos_controlplane_hosts:
+  - "k8s-server-01"
+  - "k8s-server-02"
+  - "k8s-server-03"
+  - "k8s-server-04"
+  - "kosmos"
+  - "vostok"
+
+# First control-plane node — `talosctl bootstrap` is issued here exactly
+# once to initialise etcd. Its maintenance-mode IP is resolved from the
+# NetBox primary IP (ansible_host).
+talos_bootstrap_host: "{{ talos_controlplane_hosts[0] }}"
+
+# --- Install disk -------------------------------------------------------
+# Where Talos writes the system. Resolved per node from the hardware
+# class: the x86 VMs present their scsi0 disk as /dev/sda; the Pis install
+# to the SD card (/dev/mmcblk0). Override to /dev/sda for USB-SSD-booted
+# Pis (recommended for control-plane Pis). Evaluated against the *target*
+# host's groups, so it is correct both in apply.yaml (host == node) and in
+# config.yaml's per-node loop (via hostvars[item].group_names in the
+# patch templates).
+talos_install_disk: "{{ '/dev/mmcblk0' if 'pis' in group_names else '/dev/sda' }}"
+
+# --- Local build/output paths -------------------------------------------
+# Generated machine configs and the fetched kubeconfig/talosconfig land
+# here on the operator workstation. Git-ignored (see repo-root
+# .gitignore) — they contain cluster secrets. Only the SOPS-encrypted
+# secrets bundle below is committed.
+talos_build_dir: "{{ playbook_dir }}/../.talos"
+
+# Committed, SOPS-encrypted Talos secrets bundle (cluster CA keys, machine
+# + bootstrap tokens). Generated once on first run, then reused so re-runs
+# produce identical PKI. Covered by the role-files rule in .sops.yaml.
+talos_secrets_sops: "{{ role_path }}/files/secrets.sops.yaml"
+
+# talosctl/sops/kubectl binaries (overridable if not on PATH).
+talosctl_bin: "talosctl"
+sops_bin: "sops"
