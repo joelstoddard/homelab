@@ -23,10 +23,15 @@
           Pi netboot (see docs/talos-bootstrap.md caveat)
 
 ## Kubernetes
-- [x] Bootstrap Cluster (`talos` role + `playbooks/talos.yaml`)
+- [x] Bootstrap Cluster (`talos` role + `playbooks/talos.yaml`, talhelper)
     - [x] Control plane = 5, one per physical host (4 VMs + kosmos)
-    - [ ] Flux CD GitOps layer (kubernetes/)
-    - [ ] CNI / LoadBalancer
+    - [x] Source VIP + control-plane membership from NetBox tags
+
+## Post-cluster (deferred — get the cluster up first)
+- [ ] Cilium CNI + Cilium LB-IPAM/L2 over `load_balancer_ip_pool`
+- [ ] Flux CD GitOps layer (kubernetes/) with SOPS-at-runtime
+- [ ] Renovate for automated version-bump PRs
+- [ ] Pin all tool versions (talosctl/kubectl/talhelper/flux) — likely nix flakes
 
 ## OpenTofu
 - [x] Bootstrap Tofu
