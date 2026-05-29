@@ -2,7 +2,7 @@
 
 How the homelab Kubernetes cluster comes up: **12 VMs** (4 control-plane
 `k8s-server-*`, 8 worker `k8s-agent-*`, spread two-or-three per NUC) and
-**8 Raspberry Pis** (2 control-plane, 6 worker), all running
+**8 Raspberry Pis** (1 control-plane, 7 worker), all running
 [Talos Linux](https://www.talos.dev/).
 
 The two hardware classes reach Talos by different routes but converge on
