@@ -1,0 +1,56 @@
+---
+# Talos cluster bootstrap.
+#
+# Unlike playbooks/main.yaml, this does NOT SSH into the targets — Talos
+# Linux runs no SSH daemon and no Python. Every play here runs on the
+# operator workstation (connection: local) and talks to nodes over the
+# Talos API via talosctl. The `talos` role's task files do the work.
+#
+# Prerequisites (see docs/talos-bootstrap.md):
+#   - The 12 VMs and 8 Pis are in NetBox with platform=talos (so they land
+#     in the `talos` inventory group) and MAC-keyed DHCP reservations.
+#   - VMs booted from the Talos ISO (OpenTofu) and Pis netbooted (00-pxe)
+#     into maintenance mode.
+#   - talosctl + sops on PATH; the age key available to sops.
+#
+# Run: make -C ansible apply-talos   (or ansible-playbook playbooks/talos.yaml)
+
+- name: Generate Talos cluster + per-node machine configs.
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tasks:
+    - name: Render configs (secrets bundle, base configs, per-node patches).
+      ansible.builtin.include_role:
+        name: talos
+        tasks_from: config
+
+- name: Apply machine configs to nodes in maintenance mode.
+  hosts: talos
+  connection: local
+  gather_facts: false
+  # Deterministic, legible ordering in the log. Apply order is not
+  # load-bearing: etcd is bootstrapped separately (next play) and Talos
+  # workers retry the API until the control plane is up, so a worker whose
+  # config lands first simply waits.
+  order: sorted
+  tasks:
+    - name: Push this node's config.
+      ansible.builtin.include_role:
+        name: talos
+        tasks_from: apply
+
+- name: Bootstrap etcd and fetch cluster credentials.
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tasks:
+    - name: Bootstrap the control plane.
+      ansible.builtin.include_role:
+        name: talos
+        tasks_from: bootstrap
+
+    - name: Retrieve the kubeconfig.
+      ansible.builtin.include_role:
+        name: talos
+        tasks_from: kubeconfig

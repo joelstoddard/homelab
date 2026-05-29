@@ -72,6 +72,29 @@ curl -fsSL -o "$TOFU_DEB" \
 apt-get install -y "$TOFU_DEB"
 rm -f "$TOFU_DEB"
 
+# talosctl drives Talos config generation, apply, bootstrap, and kubeconfig
+# retrieval (ansible/roles/talos). kubectl talks to the resulting cluster.
+# Neither is packaged for Debian/Ubuntu; pull the upstream release binaries.
+# Bump these when the cluster's Talos / Kubernetes versions move (keep
+# TALOSCTL_VERSION aligned with ansible/roles/talos/defaults talos_version).
+TALOSCTL_VERSION="v1.9.5"
+KUBECTL_VERSION="v1.32.3"
+case "$(dpkg --print-architecture)" in
+    amd64) GOARCH="amd64" ;;
+    arm64) GOARCH="arm64" ;;
+    *) echo "Unsupported arch for talosctl/kubectl: $(dpkg --print-architecture)" >&2; exit 1 ;;
+esac
+
+echo ">> Installing talosctl ${TALOSCTL_VERSION} from upstream release"
+curl -fsSL -o /usr/local/bin/talosctl \
+    "https://github.com/siderolabs/talos/releases/download/${TALOSCTL_VERSION}/talosctl-linux-${GOARCH}"
+chmod +x /usr/local/bin/talosctl
+
+echo ">> Installing kubectl ${KUBECTL_VERSION} from upstream release"
+curl -fsSL -o /usr/local/bin/kubectl \
+    "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/${GOARCH}/kubectl"
+chmod +x /usr/local/bin/kubectl
+
 echo ">> Installing Docker apt key + repo (${DOCKER_REPO_DISTRO}/${CODENAME})"
 install -m 0755 -d /etc/apt/keyrings
 curl -fsSL "https://download.docker.com/linux/${DOCKER_REPO_DISTRO}/gpg" \
@@ -117,6 +140,8 @@ docker compose version >/dev/null 2>&1 \
     || { echo "  MISSING: docker compose plugin" >&2; fail=1; }
 verify sops
 verify tofu
+verify talosctl version --client
+verify kubectl version --client
 verify age
 verify python3
 verify git

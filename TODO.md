@@ -15,13 +15,18 @@
 - [ ] Configure LXCs
     - [ ] Pi-hole
         - [ ] Adlists
-- [ ] Configure VMs
+- [x] Configure VMs (k8s-vm modules boot the Talos ISO into maintenance mode)
 
 ## Raspberry Pis
-- [ ] Bootstrap with TalOS
+- [x] Bootstrap with TalOS (arm64 PXE netboot via 00-pxe `talos.yaml`)
+    - [ ] Bake the rpi overlay (sbc-raspberrypi) assets for a self-contained
+          Pi netboot (see docs/talos-bootstrap.md caveat)
 
 ## Kubernetes
-- [ ] Bootstrap Cluster
+- [x] Bootstrap Cluster (`talos` role + `playbooks/talos.yaml`)
+    - [ ] Trim control plane to an odd quorum (default is 6; recommend 5)
+    - [ ] Flux CD GitOps layer (kubernetes/)
+    - [ ] CNI / LoadBalancer
 
 ## OpenTofu
-- [ ] Bootstrap Tofu
+- [x] Bootstrap Tofu

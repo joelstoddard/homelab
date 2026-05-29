@@ -41,8 +41,9 @@ The root `Makefile` delegates to subdirectory Makefiles; currently `ansible/` an
 
 Two stages, two playbook entry points:
 
-- **`pxe.yaml`** — provisions baremetal by network-booting Debian onto target hosts via iPXE chainload + per-host preseed. Targets `hosts: pxe` (devices tagged `pxe` in NetBox). Per-OS group membership (`proxmox` now, planned `talos` and `truenas`) is derived from NetBox `platform.slug` and drives which iPXE/preseed templates each host gets.
-- **`playbooks/main.yaml`** — runs against PXE-installed hosts via the `02-preflights` orchestrator. Targets `hosts: all`; the orchestrator dispatches per-OS work via `'<group>' in group_names` guards (currently `proxmox`; Talos and TrueNAS later).
+- **`pxe.yaml`** — provisions baremetal by network-booting onto target hosts via iPXE chainload. Targets `hosts: pxe` (devices tagged `pxe` in NetBox). Per-OS group membership (`proxmox` and `talos` now, planned `truenas`) is derived from NetBox `platform.slug` and drives the boot path: Proxmox hosts get a Debian netinstall + per-host preseed; Talos hosts (the arm64 Pis) get an arm64 iPXE chainloader + Talos kernel/initramfs that netboots into maintenance mode.
+- **`playbooks/main.yaml`** — runs against PXE-installed hosts via the `02-preflights` orchestrator. Targets `hosts: all` over SSH with `become`; the orchestrator dispatches per-OS work via `'<group>' in group_names` guards (currently `proxmox`; TrueNAS later).
+- **`playbooks/talos.yaml`** — bootstraps the Kubernetes cluster. Targets `hosts: talos` but runs `connection: local`, driving nodes over the Talos API (`talosctl`) because Talos nodes have no SSH or Python. This is why the Talos lifecycle is its own play rather than a branch of `02-preflights`. Dispatches the `talos` library's `config`/`apply`/`bootstrap`/`kubeconfig` tasks.
 
 Roles split into two layers:
 
@@ -50,16 +51,18 @@ Roles split into two layers:
   `03-k3s` / `04-external` / `05-tests` / `06-extras`) are OS-agnostic lifecycle
   phases. Each numbered role dispatches into per-OS task libraries based on
   group membership.
-- **OS-named libraries** (`proxmox`, future `talos`, `truenas`) are non-numbered
+- **OS-named libraries** (`proxmox`, `talos`, future `truenas`) are non-numbered
   and contain task files invoked via `include_role: tasks_from: ...` from the
-  numbered orchestrators.
+  numbered orchestrators (or, for `talos`, from `playbooks/talos.yaml`).
 
 Current implementation:
 
-- `00-pxe` — PXE server. Runs dnsmasq (DHCP-proxy + TFTP for `ipxe.efi`) and
-  Caddy (HTTP for kernels, initrds, per-host iPXE scripts, preseeds) in
-  Docker. Per-OS dispatchers under `tasks/` (`proxmox.yaml` now; future
-  `talos.yaml`, `truenas.yaml`).
+- `00-pxe` — PXE server. Runs dnsmasq (DHCP-proxy + TFTP for the x86 `ipxe.efi`
+  and arm64 `ipxe-arm64.efi` chainloaders, arch-matched via DHCP client-arch)
+  and Caddy (HTTP for kernels, initrds, per-host iPXE scripts, preseeds, Talos
+  assets) in Docker. Per-OS dispatchers under `tasks/`: `proxmox.yaml` (Debian
+  netinstall) and `talos.yaml` (arm64 Pi netboot into Talos maintenance mode);
+  future `truenas.yaml`.
 - `01-wake-on-lan` — Sends WOL magic packets at the end of `pxe.yaml` to bring
   up sleeping target hosts.
 - `02-preflights` — OS-agnostic orchestrator. Currently dispatches the
@@ -73,16 +76,45 @@ Current implementation:
   `expect`-driven SSH; preflights against existing guests; verifies quorum),
   and `api-token.yaml` (bootstraps a `root@pam!terraform` API token, persisted
   to `inventory/group_vars/proxmox.sops.yaml` for downstream automation).
-- `03-k3s`, `04-external`, `05-extras`, `06-tests` — Planned post-cluster
-  roles, not yet implemented.
+- `talos` — OS library driving the Talos Kubernetes cluster via `talosctl`
+  from the operator workstation (Talos has no SSH/Python). Four task files:
+  `config.yaml` (generate/reuse the SOPS-encrypted secrets bundle at
+  `roles/talos/files/secrets.sops.yaml`, render base + per-node machine configs
+  into the git-ignored `ansible/.talos/`), `apply.yaml`
+  (`talosctl apply-config --insecure` to each node in maintenance mode),
+  `bootstrap.yaml` (`talosctl bootstrap` etcd on the first control-plane node +
+  health wait), and `kubeconfig.yaml` (fetch kubeconfig). Cluster identity and
+  node roles live in `roles/talos/defaults/main.yaml`, not in a group_vars file,
+  because the `localhost` config/bootstrap plays are not members of the `talos`
+  inventory group. Invoked from `playbooks/talos.yaml`. See the role README and
+  `docs/talos-bootstrap.md`.
+- `04-external`, `05-extras`, `06-tests` — Planned post-cluster
+  roles, not yet implemented. (Cluster bootstrap, once handled by a planned
+  `03-k3s`, is now the `talos` library + `playbooks/talos.yaml`.)
 
 Per-host secrets (e.g., `root_password`) live in `ansible/inventory/host_vars/<hostname>.sops.yaml`, SOPS+Age encrypted. Each play loads them via a `community.sops.load_vars` pre-task that maps the NetBox-capitalized inventory hostname to the lowercase filename on disk. Recipients are configured in the repo-root `.sops.yaml`.
 
 Inventory is dynamic from NetBox via the `netbox.netbox.nb_inventory` plugin (`ansible/inventory/netbox.yaml`). The plugin reads `NETBOX_API` and `NETBOX_TOKEN` from the environment; export them in your shell (or via direnv / shell rc / per-session `export`) before running `make`. MAC addresses (for WOL and dnsmasq allowlist) come from NetBox's `dcim/mac-addresses/` table; `mac_address` and `fqdn` are surfaced as runtime hostvars via `inventory/group_vars/all.yaml`. All group_vars live inventory-adjacent at `ansible/inventory/group_vars/` (so they load for any playbook regardless of its directory): `all.yaml` for repo-wide defaults plus runtime aliases, `nucs.yaml`/`pis.yaml` for hardware-class disk paths, `proxmox.yaml` to override `ansible_user=root` for the Proxmox conversion phase. See `ansible/inventory/README.md` for the seeding flow when adding a new PXE-managed host.
 
+### OpenTofu (opentofu/)
+
+Provisions Proxmox resources on the PXE-installed fleet. The 12 k8s VMs are
+declared per-NUC under `resources/{rumba,tango,salsa,samba}/` via the
+`modules/k8s-vm` wrapper (NetBox-driven sizing, deterministic vm_id/MAC), which
+builds an empty UEFI shell with `modules/vm`. For Talos, `resources/*/talos.tf`
+stages the Talos amd64 ISO on each node via `modules/talos-image` and threads
+its file ID into the VMs, which then boot the ISO disk-first into Talos
+maintenance mode. `scripts/seed-netbox-k8s-vms.py` seeds the 12 VMs into NetBox
+(platform `talos`, per-NUC placement, MAC/IP convention) so both OpenTofu and
+the Ansible inventory can see them. Keep `talos_version` in sync across
+`resources/*/talos.tf`, the `talos`/`00-pxe` role defaults, and `install.sh`.
+
 ### Kubernetes (kubernetes/)
 
-Planned. TalOS base, Flux CD will GitOps-manage workloads. Secrets will be encrypted with SOPS + Age.
+The cluster is bootstrapped by the `talos` role + `playbooks/talos.yaml` (see
+above and `docs/talos-bootstrap.md`). `kubernetes/` itself is planned: Flux CD
+will GitOps-manage workloads off the bootstrap's kubeconfig. Secrets encrypted
+with SOPS + Age.
 
 ### Infrastructure Hosts
 
@@ -104,3 +136,9 @@ fallback schema for environments without NetBox.
 - Cluster identity (`proxmox_cluster_name`, `proxmox_cluster_leader`) lives in
   `group_vars/proxmox.yaml`. The leader runs `pvecm create`; followers run
   `pvecm add <leader>`.
+- Talos cluster identity (`talos_cluster_name`, `talos_vip`,
+  `talos_controlplane_hosts`) lives in `roles/talos/defaults/main.yaml` — NOT a
+  group_vars file — because the Talos bootstrap runs from `localhost`, which is
+  not in the `talos` inventory group. The Talos/Kubernetes version is pinned in
+  four places that must move together: `roles/talos/defaults`, `00-pxe/defaults`,
+  `opentofu/resources/*/talos.tf`, and `install.sh`.

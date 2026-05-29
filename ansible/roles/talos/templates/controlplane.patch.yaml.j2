@@ -1,0 +1,28 @@
+{#
+  Per-node control-plane patch, merged onto the base controlplane.yaml by
+  `talosctl machineconfig patch`. Rendered in a loop where `item` is the
+  node's inventory hostname; hardware-class facts come from hostvars[item].
+#}
+machine:
+  network:
+    hostname: {{ item }}
+    interfaces:
+      - interface: {{ talos_primary_interface }}
+        dhcp: true
+        # Shared, floating control-plane VIP. Talos elects one
+        # control-plane node to hold it; the kube-apiserver endpoint
+        # ({{ talos_cluster_endpoint }}) rides on top.
+        vip:
+          ip: {{ talos_vip }}
+  # Make the VIP valid for the API server's serving cert.
+  certSANs:
+    - {{ talos_vip }}
+  install:
+    # /dev/mmcblk0 on SD-booted Pis, /dev/sda on the VMs (and USB-SSD Pis).
+    disk: {{ '/dev/mmcblk0' if 'pis' in hostvars[item].group_names else '/dev/sda' }}
+    image: {{ talos_install_image }}
+    wipe: false
+cluster:
+  apiServer:
+    certSANs:
+      - {{ talos_vip }}

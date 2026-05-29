@@ -12,6 +12,7 @@ the mental model from scratch.
 | [setup.md](./setup.md) | Zero-to-`make homelab` on a new operator workstation. | First time, or rebuilding a workstation. |
 | [architecture.md](./architecture.md) | The four layers, the data flow from NetBox → playbooks, secrets model, host topology. | Building a mental model, or onboarding someone else. |
 | [pxe-flow.md](./pxe-flow.md) | What actually happens between "WOL packet" and "Debian login prompt": DHCP-proxy, iPXE chainload, preseed render, late-command. | Debugging a stuck install, or extending PXE to a new OS. |
+| [talos-bootstrap.md](./talos-bootstrap.md) | Bringing up the Kubernetes cluster: VM ISO boot (OpenTofu) + Pi arm64 netboot (PXE), then `talosctl` config/bootstrap/kubeconfig via the `talos` role. | Bootstrapping or rebuilding the cluster, or debugging a node stuck in maintenance mode. |
 | [makefile.md](./makefile.md) | Root → subdir `make` chain, variable passthrough (`LIMIT`/`TAGS`/`EXTRA_VARS`), how planned subdirs auto-extend the chain. | Adding a new layer, or wondering why `make homelab` did/didn't do a thing. |
 
 ## Conventions

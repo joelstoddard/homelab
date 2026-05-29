@@ -1,0 +1,15 @@
+{#
+  Per-node worker patch, merged onto the base worker.yaml by
+  `talosctl machineconfig patch`. `item` is the node's inventory hostname.
+#}
+machine:
+  network:
+    hostname: {{ item }}
+    interfaces:
+      - interface: {{ talos_primary_interface }}
+        dhcp: true
+  install:
+    # /dev/mmcblk0 on SD-booted Pis, /dev/sda on the VMs (and USB-SSD Pis).
+    disk: {{ '/dev/mmcblk0' if 'pis' in hostvars[item].group_names else '/dev/sda' }}
+    image: {{ talos_install_image }}
+    wipe: false

@@ -24,3 +24,9 @@ variable "network_bridge" {
   type        = string
   default     = "vmbr0"
 }
+
+variable "iso_file_id" {
+  description = "Proxmox file ID of the Talos ISO to boot (from modules/talos-image, staged on this VM's node). null leaves an empty, stopped shell for staged bootstrap."
+  type        = string
+  default     = null
+}

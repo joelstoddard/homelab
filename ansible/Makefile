@@ -28,6 +28,8 @@ help:
 	@echo "  check		- Perform a dry run."
 	@echo "  apply-pxe 	- Run playbooks (pre-boot)."
 	@echo "  apply    	- Run playbooks."
+	@echo "  check-talos	- Dry run the Talos bootstrap."
+	@echo "  apply-talos	- Bootstrap the Talos cluster (talosctl, local conn)."
 	@echo "  ping     	- Ping hosts."
 	@echo "  clean    	- Clean temporary files."
 	@echo "  console	- Open a console."
@@ -82,6 +84,26 @@ apply-pxe:
 .PHONY: apply
 apply:
 	$(VENV)/bin/ansible-playbook playbooks/main.yaml \
+		$(if $(LIMIT),--limit=$(LIMIT)) \
+		$(if $(TAGS),--tags=$(TAGS)) \
+		$(if $(VERBOSITY),-$(VERBOSITY)) \
+		$(if $(EXTRA_VARS),--extra-vars='$(EXTRA_VARS)')
+
+# Talos cluster bootstrap. Runs entirely on the operator workstation
+# (connection: local) and talks to nodes via talosctl — Talos has no SSH.
+# Run AFTER the VMs are booted from the Talos ISO (make -C opentofu apply)
+# and the Pis are netbooted (make apply-pxe). See docs/talos-bootstrap.md.
+.PHONY: check-talos
+check-talos:
+	$(VENV)/bin/ansible-playbook playbooks/talos.yaml --check --diff \
+		$(if $(LIMIT),--limit=$(LIMIT)) \
+		$(if $(TAGS),--tags=$(TAGS)) \
+		$(if $(VERBOSITY),-$(VERBOSITY)) \
+		$(if $(EXTRA_VARS),--extra-vars='$(EXTRA_VARS)')
+
+.PHONY: apply-talos
+apply-talos:
+	$(VENV)/bin/ansible-playbook playbooks/talos.yaml \
 		$(if $(LIMIT),--limit=$(LIMIT)) \
 		$(if $(TAGS),--tags=$(TAGS)) \
 		$(if $(VERBOSITY),-$(VERBOSITY)) \

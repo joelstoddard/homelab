@@ -13,3 +13,9 @@
     - cluster
     - api-token
   when: "'proxmox' in group_names"
+
+# Talos is intentionally NOT dispatched here. This play SSHes into hosts
+# with become; Talos nodes run no SSH daemon and no Python. The Talos
+# lifecycle lives in its own local-connection play, playbooks/talos.yaml,
+# which drives the `talos` role over the Talos API. See that playbook and
+# ansible/roles/talos/README.md.

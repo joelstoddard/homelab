@@ -1,0 +1,48 @@
+---
+# Initialise etcd on the first control-plane node. Runs once, from the
+# playbooks/talos.yaml localhost play, after every node has had its config
+# applied and rebooted into secured mode.
+#
+# `talosctl bootstrap` is destructive if repeated (it would re-init etcd),
+# so it must target exactly one node and only on a fresh cluster. We make
+# it safe to re-run by treating an "already bootstrapped"/"already exists"
+# response as success rather than failure.
+
+- name: Resolve the bootstrap node's IP.
+  ansible.builtin.set_fact:
+    talos_bootstrap_ip: "{{ hostvars[talos_bootstrap_host].ansible_host }}"
+
+- name: Point the talosconfig at the control-plane endpoints + bootstrap node.
+  ansible.builtin.command:
+    cmd: >-
+      {{ talosctl_bin }} --talosconfig {{ talos_build_dir }}/talosconfig
+      config endpoint
+      {{ talos_controlplane_hosts | map('extract', hostvars, 'ansible_host') | join(' ') }}
+  changed_when: false
+
+- name: Bootstrap etcd on {{ talos_bootstrap_host }} ({{ talos_bootstrap_ip }}).
+  ansible.builtin.command:
+    cmd: >-
+      {{ talosctl_bin }} --talosconfig {{ talos_build_dir }}/talosconfig
+      bootstrap --nodes {{ talos_bootstrap_ip }} --endpoints {{ talos_bootstrap_ip }}
+  register: talos_bootstrap
+  changed_when: talos_bootstrap.rc == 0
+  failed_when: >-
+    talos_bootstrap.rc != 0
+    and 'already' not in (talos_bootstrap.stderr | default('') | lower)
+  retries: 10
+  delay: 30
+  until: >-
+    talos_bootstrap.rc == 0
+    or 'already' in (talos_bootstrap.stderr | default('') | lower)
+
+- name: Wait for the control plane to converge (etcd + kube-apiserver).
+  ansible.builtin.command:
+    cmd: >-
+      {{ talosctl_bin }} --talosconfig {{ talos_build_dir }}/talosconfig
+      health --wait-timeout 10m
+      --nodes {{ talos_bootstrap_ip }} --endpoints {{ talos_bootstrap_ip }}
+      --control-plane-nodes {{ talos_controlplane_hosts | map('extract', hostvars, 'ansible_host') | join(',') }}
+      --worker-nodes {{ (groups['talos'] | difference(talos_controlplane_hosts)) | map('extract', hostvars, 'ansible_host') | join(',') }}
+  register: talos_health
+  changed_when: false

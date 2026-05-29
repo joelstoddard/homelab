@@ -9,5 +9,10 @@
   ansible.builtin.import_tasks: proxmox.yaml
   when: groups['proxmox'] is defined and groups['proxmox'] | length > 0
 
-# Future: include talos.yaml when groups['talos'] is populated.
+- name: Configure Talos PXE path (arm64 Raspberry Pi netboot).
+  ansible.builtin.import_tasks: talos.yaml
+  when: >-
+    groups['talos'] is defined
+    and (groups['pxe'] | intersect(groups['talos'])) | length > 0
+
 # Future: include truenas.yaml when groups['truenas'] is populated.
