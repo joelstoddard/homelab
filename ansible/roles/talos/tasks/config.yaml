@@ -1,119 +1,105 @@
 ---
-# Generate the Talos cluster secrets bundle (once) and render a fully
-# patched machine config per node.
+# Resolve NetBox-sourced cluster facts, generate/reuse the talhelper
+# secret bundle, render talconfig.yaml, and run `talhelper genconfig`.
 #
 # Runs on the operator workstation (the playbooks/talos.yaml localhost
 # play). Talos nodes have no SSH/Python, so nothing here touches a node —
-# it only drives talosctl + sops locally. apply.yaml ships the rendered
-# configs to nodes over the Talos API.
+# apply.yaml ships the generated configs over the Talos API.
 
-- name: Ensure the Talos build directory exists.
+- name: Ensure the build + role-files directories exist.
   ansible.builtin.file:
-    path: "{{ talos_build_dir }}"
+    path: "{{ item }}"
     state: directory
     mode: "0700"
+  loop:
+    - "{{ talos_build_dir }}"
+    - "{{ talos_talsecret_sops | dirname }}"
 
-# --- Secrets bundle: reuse if committed, else generate + persist --------
-# The bundle holds the cluster CA private keys and join tokens. We keep it
-# SOPS-encrypted in the repo so every re-run derives identical PKI (adding
-# a node later must not rotate the cluster CA). First run generates it and
-# encrypts it back; commit the result.
+# --- NetBox-sourced facts (the source of truth) ------------------------
+# Control-plane membership: any talos host carrying the controlplane tag.
+# The inventory plugin exposes NetBox tags as a flat hostvar list.
+- name: Derive control-plane membership from the NetBox tag.
+  ansible.builtin.set_fact:
+    talos_controlplane_hosts: "{{ _derived }}"
+  vars:
+    _derived: >-
+      {{ groups['talos'] | default([]) | map('extract', hostvars)
+         | selectattr('tags', 'defined')
+         | selectattr('tags', 'contains', talos_controlplane_netbox_tag)
+         | map(attribute='inventory_hostname') | list }}
+  when: _derived | length > 0
 
-- name: Ensure the role files directory exists (holds the secrets bundle).
-  ansible.builtin.file:
-    path: "{{ talos_secrets_sops | dirname }}"
-    state: directory
-    mode: "0755"
+# VIP: the NetBox IP tagged talos_vip_netbox_tag. nb_lookup may fail if
+# NetBox is unreachable or nothing is tagged — fall back to the default
+# literal in that case rather than aborting the run.
+- name: Look up the control-plane VIP from NetBox.
+  ansible.builtin.set_fact:
+    talos_vip: "{{ _vip_addr }}"
+  vars:
+    _vip_records: >-
+      {{ lookup('netbox.netbox.nb_lookup', 'ip-addresses',
+                api_endpoint=lookup('ansible.builtin.env', 'NETBOX_API'),
+                token=lookup('ansible.builtin.env', 'NETBOX_TOKEN'),
+                api_filter='tag=' ~ talos_vip_netbox_tag) }}
+    _vip_addr: >-
+      {{ (_vip_records | map(attribute='value.address') | list | first | default('')).split('/') | first }}
+  when: _vip_addr | length > 0
+  ignore_errors: true
 
-- name: Check for the committed (SOPS-encrypted) secrets bundle.
-  ansible.builtin.stat:
-    path: "{{ talos_secrets_sops }}"
-  register: talos_secrets_committed
-
-- name: Decrypt the existing secrets bundle into the build dir.
-  ansible.builtin.command:
-    cmd: "{{ sops_bin }} -d {{ talos_secrets_sops }}"
-  register: talos_secrets_plain
-  changed_when: false
-  no_log: true
-  when: talos_secrets_committed.stat.exists
-
-- name: Stage the decrypted secrets bundle for talosctl.
-  ansible.builtin.copy:
-    content: "{{ talos_secrets_plain.stdout }}\n"
-    dest: "{{ talos_build_dir }}/secrets.yaml"
-    mode: "0600"
-  no_log: true
-  when: talos_secrets_committed.stat.exists
-
-- name: Generate a fresh secrets bundle (first run only).
-  ansible.builtin.command:
-    cmd: "{{ talosctl_bin }} gen secrets --output-file {{ talos_build_dir }}/secrets.yaml"
-    creates: "{{ talos_build_dir }}/secrets.yaml"
-  when: not talos_secrets_committed.stat.exists
-
-- name: Stage the plaintext bundle at the .sops.yaml path for encryption.
-  # sops picks its creation rule from the file path it operates on, and the
-  # rule in .sops.yaml keys on the .sops.yaml suffix — so encrypt in place
-  # at the final filename rather than via --output from build/secrets.yaml.
-  ansible.builtin.copy:
-    src: "{{ talos_build_dir }}/secrets.yaml"
-    dest: "{{ talos_secrets_sops }}"
-    mode: "0600"
-    remote_src: true
-  no_log: true
-  when: not talos_secrets_committed.stat.exists
-
-- name: Encrypt the secrets bundle in place.
-  ansible.builtin.command:
-    cmd: "{{ sops_bin }} -e -i {{ talos_secrets_sops }}"
-  when: not talos_secrets_committed.stat.exists
-  changed_when: true
-
-# --- Base machine configs ----------------------------------------------
-# One control-plane and one worker base, plus the operator talosconfig.
-# Per-node differences (hostname, install disk, VIP) are layered on by the
-# patch step below. --force lets the configs regenerate idempotently on
-# re-run; the secrets bundle (above) is what keeps PKI stable.
-
-- name: Generate base control-plane + worker machine configs.
-  ansible.builtin.command:
-    cmd: >-
-      {{ talosctl_bin }} gen config
-      {{ talos_cluster_name }} {{ talos_cluster_endpoint }}
-      --with-secrets {{ talos_build_dir }}/secrets.yaml
-      --kubernetes-version {{ talos_kubernetes_version | regex_replace('^v', '') }}
-      --install-image {{ talos_install_image }}
-      --output-types controlplane,worker,talosconfig
-      --output {{ talos_build_dir }}
-      --force
-  changed_when: true
-
-# --- Per-node patched configs ------------------------------------------
-# Render a small per-node patch (hostname, install disk, and — for
-# control-plane nodes — the shared VIP) then merge it onto the matching
-# base config. The result, .talos/<host>.yaml, is what apply.yaml pushes.
-
-- name: Render per-node config patches.
-  ansible.builtin.template:
-    src: "{{ 'controlplane' if (item in talos_controlplane_hosts) else 'worker' }}.patch.yaml.j2"
-    dest: "{{ talos_build_dir }}/patch-{{ item }}.yaml"
-    mode: "0600"
-  loop: "{{ groups['talos'] | default([]) }}"
-
-- name: Build per-node machine configs.
-  ansible.builtin.command:
-    cmd: >-
-      {{ talosctl_bin }} machineconfig patch
-      {{ talos_build_dir }}/{{ 'controlplane' if (item in talos_controlplane_hosts) else 'worker' }}.yaml
-      --patch @{{ talos_build_dir }}/patch-{{ item }}.yaml
-      --output {{ talos_build_dir }}/{{ item }}.yaml
-  loop: "{{ groups['talos'] | default([]) }}"
-  changed_when: true
-
-- name: Report the generated per-node configs.
+- name: Report the resolved cluster facts.
   ansible.builtin.debug:
-    msg: >-
-      Generated {{ groups['talos'] | default([]) | length }} machine configs in
-      {{ talos_build_dir }} ({{ talos_controlplane_hosts | length }} control-plane,
-      {{ (groups['talos'] | default([]) | length) - (talos_controlplane_hosts | length) }} worker).
+    msg:
+      - "VIP / endpoint: {{ talos_vip }} ({{ talos_cluster_endpoint }})"
+      - "Control plane ({{ talos_controlplane_hosts | length }}): {{ talos_controlplane_hosts | join(', ') }}"
+      - "Workers ({{ (groups['talos'] | default([]) | difference(talos_controlplane_hosts)) | length }}): {{ groups['talos'] | default([]) | difference(talos_controlplane_hosts) | join(', ') }}"
+
+# --- talhelper secret bundle: reuse if committed, else generate + persist
+- name: Check for the committed (SOPS-encrypted) talsecret bundle.
+  ansible.builtin.stat:
+    path: "{{ talos_talsecret_sops }}"
+  register: talos_talsecret_committed
+
+- name: Generate a fresh talhelper secret bundle (first run only).
+  ansible.builtin.command:
+    cmd: "{{ talhelper_bin }} gensecret"
+  register: talos_gensecret
+  changed_when: true
+  no_log: true
+  when: not talos_talsecret_committed.stat.exists
+
+- name: Stage the plaintext bundle at the .sops.yaml path.
+  # sops picks its creation rule from the file path, and the rule keys on
+  # the .sops.yaml suffix — so write the plaintext there, then encrypt in
+  # place. talhelper auto-decrypts it again at genconfig time.
+  ansible.builtin.copy:
+    content: "{{ talos_gensecret.stdout }}\n"
+    dest: "{{ talos_talsecret_sops }}"
+    mode: "0600"
+  no_log: true
+  when: not talos_talsecret_committed.stat.exists
+
+- name: Encrypt the talsecret bundle in place.
+  ansible.builtin.command:
+    cmd: "{{ sops_bin }} -e -i {{ talos_talsecret_sops }}"
+  changed_when: true
+  when: not talos_talsecret_committed.stat.exists
+
+# --- Render talconfig.yaml + generate per-node machine configs ---------
+- name: Render talconfig.yaml from NetBox/inventory.
+  ansible.builtin.template:
+    src: talconfig.yaml.j2
+    dest: "{{ talos_talconfig }}"
+    mode: "0600"
+
+- name: Generate per-node machine configs with talhelper.
+  ansible.builtin.command:
+    cmd: >-
+      {{ talhelper_bin }} genconfig
+      --config-file {{ talos_talconfig }}
+      --secret-file {{ talos_talsecret_sops }}
+      --out-dir {{ talos_clusterconfig_dir }}
+  changed_when: true
+
+- name: Report the generated configs.
+  ansible.builtin.debug:
+    msg: "talhelper wrote per-node configs + talosconfig to {{ talos_clusterconfig_dir }}"
