@@ -76,17 +76,21 @@ Current implementation:
   `expect`-driven SSH; preflights against existing guests; verifies quorum),
   and `api-token.yaml` (bootstraps a `root@pam!terraform` API token, persisted
   to `inventory/group_vars/proxmox.sops.yaml` for downstream automation).
-- `talos` — OS library driving the Talos Kubernetes cluster via `talosctl`
-  from the operator workstation (Talos has no SSH/Python). Four task files:
-  `config.yaml` (generate/reuse the SOPS-encrypted secrets bundle at
-  `roles/talos/files/secrets.sops.yaml`, render base + per-node machine configs
-  into the git-ignored `ansible/.talos/`), `apply.yaml`
-  (`talosctl apply-config --insecure` to each node in maintenance mode),
+- `talos` — OS library driving the Talos Kubernetes cluster from the operator
+  workstation (Talos has no SSH/Python). Config generation is delegated to
+  `talhelper`: `config.yaml` resolves the VIP (NetBox IP tagged `talos-vip`,
+  via `nb_lookup`) and control-plane membership (NetBox tag `k8s-controlplane`)
+  from NetBox, generates/reuses the SOPS-encrypted talhelper secret bundle at
+  `roles/talos/files/talsecret.sops.yaml`, renders `talconfig.yaml` from
+  NetBox/inventory, and runs `talhelper genconfig` into the git-ignored
+  `ansible/.talos/clusterconfig/`. Then `apply.yaml`
+  (`talosctl apply-config --insecure` per node in maintenance mode),
   `bootstrap.yaml` (`talosctl bootstrap` etcd on the first control-plane node +
-  health wait), and `kubeconfig.yaml` (fetch kubeconfig). Cluster identity and
-  node roles live in `roles/talos/defaults/main.yaml`, not in a group_vars file,
-  because the `localhost` config/bootstrap plays are not members of the `talos`
-  inventory group. Invoked from `playbooks/talos.yaml`. See the role README and
+  health wait), and `kubeconfig.yaml` (merge into `~/.kube/config`). Cluster
+  identity lives in `roles/talos/defaults/main.yaml` (fallbacks for the
+  NetBox-derived values), not in a group_vars file, because the `localhost`
+  config/bootstrap plays are not members of the `talos` inventory group.
+  Invoked from `playbooks/talos.yaml`. See the role README and
   `docs/talos-bootstrap.md`.
 - `04-external`, `05-extras`, `06-tests` — Planned post-cluster
   roles, not yet implemented. (Cluster bootstrap, once handled by a planned
@@ -138,12 +142,14 @@ fallback schema for environments without NetBox.
 - Cluster identity (`proxmox_cluster_name`, `proxmox_cluster_leader`) lives in
   `group_vars/proxmox.yaml`. The leader runs `pvecm create`; followers run
   `pvecm add <leader>`.
-- Talos cluster identity (`talos_cluster_name`, `talos_vip`,
-  `talos_controlplane_hosts`) lives in `roles/talos/defaults/main.yaml` — NOT a
+- Talos cluster identity lives in `roles/talos/defaults/main.yaml` — NOT a
   group_vars file — because the Talos bootstrap runs from `localhost`, which is
-  not in the `talos` inventory group. The control plane is 5 nodes, one per
-  physical host (the 4 `k8s-server` VMs + the `kosmos` Pi), so the quorum
-  survives any single host failure.
+  not in the `talos` inventory group. NetBox is the source of truth: the
+  control-plane VIP comes from the NetBox IP tagged `talos-vip`, and
+  control-plane membership from the `k8s-controlplane` tag; the literals in the
+  defaults are fallbacks. The control plane is 5 nodes, one per physical host
+  (the 4 `k8s-server` VMs + the `kosmos` Pi), so the quorum survives any single
+  host failure.
 - The Talos/Kubernetes version has a single source of truth in repo-root
   `versions.env`. Every consumer reads it: the `talos` and `00-pxe` role
   defaults (file lookup via `role_path`), `opentofu/Makefile` (sourced →

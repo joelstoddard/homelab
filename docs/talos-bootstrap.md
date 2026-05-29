@@ -38,8 +38,8 @@ reads that file:
 
 ## Topology (control plane = 5, one per physical host)
 
-`talos_controlplane_hosts` (talos role defaults) is **5 members, each on a
-distinct physical host**:
+The control plane (derived from the NetBox `k8s-controlplane` tag; see
+Prerequisites 2) is **5 members, each on a distinct physical host**:
 
 - `k8s-server-01..04` — the 4 control-plane VMs, one per NUC
   (rumba/tango/salsa/samba).
@@ -65,9 +65,14 @@ is a worker. All Pis boot from a USB→NVMe SSD (Prerequisite 4), so etcd on
      `52:54:00:00:01:NN`; agents `vm_id 200+N`, `52:54:00:00:02:NN`).
      Tag each `k8s` + `k8s-server`/`k8s-agent`.
    - **8 Pis** — set `platform=talos` so they join the `talos` group (they
-     already exist as devices tagged `pxe`). Tag the control-plane Pi
-     (`kosmos`) the same way you mark control-plane membership (see
-     `talos_controlplane_hosts` in the role defaults).
+     already exist as devices tagged `pxe`).
+   - **Control-plane membership** — tag the 5 control-plane nodes (the 4
+     `k8s-server` VMs + `kosmos`) with **`k8s-controlplane`**. The role
+     derives `talos_controlplane_hosts` from this tag; everything else in
+     the `talos` group is a worker. (`talos_controlplane_netbox_tag`.)
+   - **Control-plane VIP** — reserve a free LAN IP in NetBox and tag it
+     **`talos-vip`**. The role looks it up for the kube-apiserver endpoint.
+     (`talos_vip_netbox_tag`.)
 
    Confirm grouping: `ansible-inventory -i ansible/inventory --graph talos`
    should list all 20 nodes.
@@ -154,15 +159,19 @@ make -C ansible check-talos   # dry run
 make -C ansible apply-talos
 ```
 
-This runs `playbooks/talos.yaml`:
+This runs `playbooks/talos.yaml`. Config generation is delegated to
+[talhelper](https://github.com/budimanjojo/talhelper); NetBox stays the
+source of truth (the role renders talhelper's `talconfig.yaml` from it):
 
-1. **config** (localhost, once) — generates the SOPS-encrypted secrets
-   bundle on first run (commit `ansible/roles/talos/files/secrets.sops.yaml`
-   afterwards), then renders base + per-node machine configs into the
-   git-ignored `ansible/.talos/`.
-2. **apply** (per node) — `talosctl apply-config --insecure` to each
-   node's maintenance IP. Nodes install to disk and reboot into secured
-   mode.
+1. **config** (localhost, once) — resolves the VIP and control-plane
+   membership from NetBox (see Prerequisites 2), generates the
+   SOPS-encrypted talhelper secret bundle on first run (commit
+   `ansible/roles/talos/files/talsecret.sops.yaml` afterwards), renders
+   `talconfig.yaml`, and runs `talhelper genconfig` →
+   `ansible/.talos/clusterconfig/`.
+2. **apply** (per node) — `talosctl apply-config --insecure` of each
+   node's generated config to its maintenance IP. Nodes install to disk
+   and reboot into secured mode.
 3. **bootstrap** (localhost, once) — `talosctl bootstrap` etcd on the
    first control-plane node, then waits for health.
 4. **kubeconfig** (localhost, once) — merges the cluster context into your
@@ -177,9 +186,15 @@ kubectl --context admin@homelab get nodes
 > them as past maintenance mode and skip them. For day-2 config changes,
 > use the secured path:
 > ```bash
-> talosctl --talosconfig ansible/.talos/talosconfig \
->   apply-config --nodes <ip> --file ansible/.talos/<host>.yaml
+> talosctl --talosconfig ansible/.talos/clusterconfig/talosconfig \
+>   apply-config --nodes <ip> \
+>   --file ansible/.talos/clusterconfig/homelab-<host>.yaml
 > ```
+
+> **talhelper integration is untested in CI** (no NetBox/talhelper in the
+> sandbox it was written in). Before the first real run, validate locally:
+> `talhelper validate talconfig --config-file ansible/.talos/talconfig.yaml`
+> after a `--check` pass renders it.
 
 ## Step 4 — workloads
 
@@ -188,14 +203,14 @@ the planned Flux CD GitOps layer (CNI/LoadBalancer, then workloads).
 
 ## Recovery
 
-- **Lost `ansible/roles/talos/files/secrets.sops.yaml`.** The cluster CA
+- **Lost `ansible/roles/talos/files/talsecret.sops.yaml`.** The cluster CA
   and join tokens are gone; you cannot add nodes or regenerate matching
   configs. Recovery is a cluster rebuild: wipe the nodes (re-enter
   maintenance mode), delete `ansible/.talos/`, and re-run from Step 1.
 - **A node won't leave maintenance mode.** Check it actually received its
-  reserved DHCP IP and that `ansible/.talos/<host>.yaml` exists; re-apply
-  just that host with `--limit <host>`.
-- **etcd unhealthy after bootstrap.** Confirm the control-plane VIP
-  (`talos_vip`) is free on the LAN and not handed out by DHCP, and that
-  every control-plane node's config carries it (it's in the
-  `controlplane.patch` template).
+  reserved DHCP IP and that `ansible/.talos/clusterconfig/homelab-<host>.yaml`
+  exists; re-apply just that host with `--limit <host>`.
+- **etcd unhealthy after bootstrap.** Confirm the control-plane VIP is free
+  on the LAN and not handed out by DHCP, and that every control-plane
+  node's config carries it (talhelper writes it from the `talos-vip`
+  NetBox IP / the `controlPlane.patches` in `talconfig.yaml`).

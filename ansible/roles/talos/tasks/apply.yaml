@@ -25,7 +25,7 @@
     cmd: >-
       {{ talosctl_bin }} apply-config --insecure
       --nodes {{ talos_node_ip | default(ansible_host) }}
-      --file {{ talos_build_dir }}/{{ inventory_hostname }}.yaml
+      --file {{ talos_clusterconfig_dir }}/{{ talos_cluster_name }}-{{ inventory_hostname }}.yaml
   register: talos_apply
   changed_when: talos_apply.rc == 0
   # Surface a clearer message when the node has already left maintenance

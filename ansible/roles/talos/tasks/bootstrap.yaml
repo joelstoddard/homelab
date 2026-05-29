@@ -15,7 +15,7 @@
 - name: Point the talosconfig at the control-plane endpoints + bootstrap node.
   ansible.builtin.command:
     cmd: >-
-      {{ talosctl_bin }} --talosconfig {{ talos_build_dir }}/talosconfig
+      {{ talosctl_bin }} --talosconfig {{ talos_talosconfig }}
       config endpoint
       {{ talos_controlplane_hosts | map('extract', hostvars, 'ansible_host') | join(' ') }}
   changed_when: false
@@ -23,7 +23,7 @@
 - name: Bootstrap etcd on {{ talos_bootstrap_host }} ({{ talos_bootstrap_ip }}).
   ansible.builtin.command:
     cmd: >-
-      {{ talosctl_bin }} --talosconfig {{ talos_build_dir }}/talosconfig
+      {{ talosctl_bin }} --talosconfig {{ talos_talosconfig }}
       bootstrap --nodes {{ talos_bootstrap_ip }} --endpoints {{ talos_bootstrap_ip }}
   register: talos_bootstrap
   changed_when: talos_bootstrap.rc == 0
@@ -39,7 +39,7 @@
 - name: Wait for the control plane to converge (etcd + kube-apiserver).
   ansible.builtin.command:
     cmd: >-
-      {{ talosctl_bin }} --talosconfig {{ talos_build_dir }}/talosconfig
+      {{ talosctl_bin }} --talosconfig {{ talos_talosconfig }}
       health --wait-timeout 10m
       --nodes {{ talos_bootstrap_ip }} --endpoints {{ talos_bootstrap_ip }}
       --control-plane-nodes {{ talos_controlplane_hosts | map('extract', hostvars, 'ansible_host') | join(',') }}
