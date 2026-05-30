@@ -28,6 +28,40 @@ dhcp_proxy: true
 ipxe_url: "https://boot.ipxe.org/x86_64-efi/ipxe.efi"
 ipxe_sha256: ""  # leave empty to skip checksum; set to pinned hash for production
 
+# arm64 iPXE chainloader (for the Raspberry Pis netbooting Talos). Only
+# downloaded when there are talos-platform hosts in the pxe group.
+# snp.efi is the UEFI Simple-Network-Protocol build the Pi firmware /
+# u-boot hands off to. See docs/talos-bootstrap.md for the Pi netboot
+# prerequisites (the rpi firmware + u-boot must be present for the Pi to
+# reach this chainloader at all).
+ipxe_arm64_url: "https://boot.ipxe.org/arm64-efi/snp.efi"
+ipxe_arm64_sha256: ""
+
+# Talos netboot assets (arm64, served over HTTP to the Pis).
+#
+# talos_version is single-sourced from repo-root versions.env (read via
+# role_path: .../ansible/roles/00-pxe, so ../../../ is the repo root) — bump
+# it there, not here.
+#
+# NOTE: the asset URLs below point at the vanilla siderolabs release kernel
+# + initramfs. A Raspberry Pi will only netboot Talos when the rpi overlay
+# (siderolabs/sbc-raspberrypi) firmware/u-boot is in place — for a fully
+# self-contained Pi netboot, generate arm64 assets from the Talos Image
+# Factory with that overlay and override these two URLs. The runbook walks
+# through it.
+talos_version: >-
+  {{ lookup('file', role_path ~ '/../../../versions.env')
+     | regex_findall('^TALOS_VERSION=(.+)$', multiline=True) | first | trim }}
+talos_arm64_kernel_url: >-
+  https://github.com/siderolabs/talos/releases/download/{{ talos_version }}/kernel-arm64
+talos_arm64_initramfs_url: >-
+  https://github.com/siderolabs/talos/releases/download/{{ talos_version }}/initramfs-arm64.xz
+
+# Kernel cmdline for the Talos netboot (maintenance mode — no talos.config,
+# so the node waits for `talosctl apply-config` from the talos role).
+talos_kernel_cmdline: >-
+  talos.platform=metal console=tty1 console=ttyS0,115200n8 init_on_alloc=1 slab_nomerge pti=on
+
 # Debian netinstall artifacts.
 # These pin the version we PXE-boot. Bump together when upgrading.
 debian_version: "trixie"

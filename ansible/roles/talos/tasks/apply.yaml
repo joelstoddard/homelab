@@ -1,0 +1,44 @@
+---
+# Push a node's machine config while it sits in Talos maintenance mode.
+#
+# Invoked from the `hosts: talos` play in playbooks/talos.yaml with
+# connection: local — each iteration represents one node, but the talosctl
+# call runs on the operator workstation and reaches the node over the API
+# at its maintenance-mode IP (ansible_host, from the NetBox primary IP).
+#
+# Maintenance mode (no PKI yet) only accepts --insecure. Once a config is
+# applied the node installs to disk and reboots into secured mode, after
+# which --insecure is refused — so this task is a one-shot bootstrap step,
+# not an idempotent reconciler. Post-bootstrap config changes go through
+# `talosctl apply-config` with the generated talosconfig (see the role
+# README); re-running this play after install will (harmlessly) fail the
+# already-secured nodes, which the runbook calls out.
+#
+# IP assumption: nodes in maintenance mode get their address from the LAN
+# DHCP server. This relies on MAC-keyed DHCP reservations so the
+# maintenance IP matches the NetBox primary IP. If your DHCP hands out
+# dynamic leases instead, discover the live IP (talosctl/nmap) and pass it
+# via -e talos_node_ip=<ip> --limit <host>.
+
+- name: "Apply Talos config to {{ inventory_hostname }} ({{ talos_node_ip | default(ansible_host) }})."
+  ansible.builtin.command:
+    cmd: >-
+      {{ talosctl_bin }} apply-config --insecure
+      --nodes {{ talos_node_ip | default(ansible_host) }}
+      --file {{ talos_clusterconfig_dir }}/{{ talos_cluster_name }}-{{ inventory_hostname }}.yaml
+  register: talos_apply
+  changed_when: talos_apply.rc == 0
+  # Surface a clearer message when the node has already left maintenance
+  # mode (config previously applied) rather than dumping the raw gRPC error.
+  failed_when: >-
+    talos_apply.rc != 0
+    and 'certificate required' not in (talos_apply.stderr | default(''))
+    and 'connection refused' not in (talos_apply.stderr | default(''))
+
+- name: "Note: {{ inventory_hostname }} is already past maintenance mode (config previously applied)."
+  ansible.builtin.debug:
+    msg: >-
+      {{ inventory_hostname }} no longer accepts --insecure config — it has
+      already installed and rebooted. Skipping. Use `talosctl apply-config`
+      with the talosconfig for changes to a running node.
+  when: talos_apply.rc != 0
