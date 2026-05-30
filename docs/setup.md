@@ -11,7 +11,22 @@ If you've done this before and just want the commands, jump to
   Bookworm+, amd64 or arm64. This box doubles as the PXE server.
   macOS / Docker Desktop is out — the PXE stack uses host networking,
   which Docker Desktop doesn't support.
-- **Sudo access** on that machine.
+- **Sudo access** on that machine. A *minimal* Debian install ships
+  without `sudo`, `git`, or `curl`, and won't put the first user in the
+  `sudo` group. If so, become root once (console or `su -`) and bootstrap
+  it before anything else:
+
+  ```bash
+  apt-get update && apt-get install -y sudo git curl
+  usermod -aG sudo <operator>
+  # for unattended runs (install.sh is a long non-interactive job):
+  printf '<operator> ALL=(ALL) NOPASSWD:ALL\n' > /etc/sudoers.d/<operator>
+  chmod 0440 /etc/sudoers.d/<operator>
+  ```
+
+  `install.sh` installs `git`/`make`/`curl` itself, but you need `git`
+  up front just to clone the repo — the script can't bootstrap its own
+  delivery.
 - **L2 connectivity** to the target hosts. The PXE server runs dnsmasq
   in DHCP-proxy mode; it must share a broadcast domain with the
   machines it's PXE-booting. Confirm UDP/53, 67, and 69 are free on the
@@ -38,6 +53,8 @@ sudo ./install.sh
 - `docker-ce` + compose plugin (for the PXE stack).
 - `age` (apt) + `sops` (upstream release, pinned in `install.sh:57`).
 - `opentofu` (upstream `.deb`, pinned in `install.sh:66`).
+- `talosctl`, `kubectl`, `talhelper` (Talos cluster bootstrap; versions
+  single-sourced from `versions.env`).
 - `python3` + `python3-venv` + `python3-pip` (3.11+ required for
   `ansible-core 2.18`).
 - `git`, `make`, `rsync`.
@@ -89,7 +106,15 @@ For the Age key, the script offers two paths:
    `.sops.yaml` and re-encrypt existing covered files (see "Adding
    yourself as a SOPS recipient" below).
 2. **Paste an existing one** — useful when copying from another
-   workstation. The script writes 0600 and 0700 perms automatically.
+   workstation (e.g. migrating the operator role from one box to
+   another). The script writes 0600 and 0700 perms automatically.
+
+> **Back up `~/.config/sops/age/keys.txt` somewhere off-box** (password
+> manager, encrypted USB). It's the only key that decrypts every
+> `*.sops.yaml` in the repo *and* the Talos `talsecret` bundle — lose it
+> with no copy and you're locked out of all secrets and facing a cluster
+> rebuild. There is no single committed file that documents *where* the
+> live key is kept; that custody is on you.
 
 The script is idempotent — existing files are skipped unless you pass
 `FORCE=1 make bootstrap-secrets`. **Don't `--force` on a healthy
