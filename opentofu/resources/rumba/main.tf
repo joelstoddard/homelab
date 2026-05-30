@@ -26,21 +26,24 @@ output "debian_12_template_vm_id" {
 }
 
 module "k8s_server_01" {
-  source    = "../../modules/k8s-vm"
-  vm_name   = "k8s-server-01"
-  node_name = "Rumba"
+  source      = "../../modules/k8s-vm"
+  vm_name     = "k8s-server-01"
+  node_name   = "Rumba"
+  iso_file_id = module.talos_image.file_id
 }
 
 module "k8s_agent_01" {
-  source    = "../../modules/k8s-vm"
-  vm_name   = "k8s-agent-01"
-  node_name = "Rumba"
+  source      = "../../modules/k8s-vm"
+  vm_name     = "k8s-agent-01"
+  node_name   = "Rumba"
+  iso_file_id = module.talos_image.file_id
 }
 
 module "k8s_agent_02" {
-  source    = "../../modules/k8s-vm"
-  vm_name   = "k8s-agent-02"
-  node_name = "Rumba"
+  source      = "../../modules/k8s-vm"
+  vm_name     = "k8s-agent-02"
+  node_name   = "Rumba"
+  iso_file_id = module.talos_image.file_id
 }
 
 output "k8s_vms" {
