@@ -10,6 +10,11 @@ creation_rules:
     age: age1h5hafnt22aqn7uahcsmv5v8gfgwcxanypw0lantcush7jppt99fskz6vcv
   - path_regex: ansible/inventory/group_vars/.*\.sops\.ya?ml$
     age: age1h5hafnt22aqn7uahcsmv5v8gfgwcxanypw0lantcush7jppt99fskz6vcv
+  # Talos cluster secrets bundle (CA keys + join tokens), generated once by
+  # the talos role and reused so the cluster PKI never rotates underneath
+  # running nodes.
+  - path_regex: ansible/roles/talos/files/.*\.sops\.ya?ml$
+    age: age1h5hafnt22aqn7uahcsmv5v8gfgwcxanypw0lantcush7jppt99fskz6vcv
   - path_regex: opentofu/.*\.sops\.ya?ml$
     age: age1h5hafnt22aqn7uahcsmv5v8gfgwcxanypw0lantcush7jppt99fskz6vcv
   # Per-resource secrets files (dotenv format; the Makefile

@@ -1,0 +1,6 @@
+# Never commit cluster credentials. The Talos bootstrap writes these into
+# ansible/.talos/; if any get copied here during day-2 work, keep them out
+# of history.
+kubeconfig
+talosconfig
+*.kubeconfig
