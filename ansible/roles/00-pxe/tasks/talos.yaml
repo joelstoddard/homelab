@@ -20,6 +20,21 @@
     mode: "0644"
   when: talos_pxe_hosts | length > 0
 
+- name: Download the pftf/RPi4 EDK2 UEFI firmware archive.
+  ansible.builtin.get_url:
+    url: "{{ edk2_rpi4_url }}"
+    dest: "{{ role_path }}/files/tftp/RPi4_UEFI_Firmware_{{ edk2_rpi4_version }}.zip"
+    mode: "0644"
+  when: talos_pxe_hosts | length > 0
+
+- name: Unpack the EDK2 firmware tree into the TFTP root.
+  ansible.builtin.unarchive:
+    src: "{{ role_path }}/files/tftp/RPi4_UEFI_Firmware_{{ edk2_rpi4_version }}.zip"
+    dest: "{{ role_path }}/files/tftp/"
+    remote_src: true
+    creates: "{{ role_path }}/files/tftp/RPI_EFI.fd"
+  when: talos_pxe_hosts | length > 0
+
 - name: Ensure the Talos asset directory exists.
   ansible.builtin.file:
     path: "{{ role_path }}/files/http/talos/{{ talos_version }}"

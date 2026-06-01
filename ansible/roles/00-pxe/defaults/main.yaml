@@ -30,12 +30,20 @@ ipxe_sha256: ""  # leave empty to skip checksum; set to pinned hash for producti
 
 # arm64 iPXE chainloader (for the Raspberry Pis netbooting Talos). Only
 # downloaded when there are talos-platform hosts in the pxe group.
-# snp.efi is the UEFI Simple-Network-Protocol build the Pi firmware /
-# u-boot hands off to. See docs/talos-bootstrap.md for the Pi netboot
-# prerequisites (the rpi firmware + u-boot must be present for the Pi to
-# reach this chainloader at all).
+# snp.efi is the UEFI Simple-Network-Protocol build that the EDK2 UEFI
+# firmware (below) hands off to once it has done arm64 UEFI PXE. See
+# docs/talos-bootstrap.md for the Pi netboot prerequisites.
 ipxe_arm64_url: "https://boot.ipxe.org/arm64-efi/snp.efi"
 ipxe_arm64_sha256: ""
+
+# pftf/RPi4 EDK2 UEFI firmware. A Pi 4 cannot load an EFI app
+# (ipxe-arm64.efi) directly from its EEPROM — it must first EEPROM-netboot
+# this UEFI layer, which then does standard arm64 UEFI PXE (client-arch 11)
+# and fetches our iPXE. Unpacked into the dnsmasq TFTP root; only when there
+# are talos PXE hosts. (Requires `unzip` on the operator for unarchive.)
+edk2_rpi4_version: "v1.52"
+edk2_rpi4_url: >-
+  https://github.com/pftf/RPi4/releases/download/{{ edk2_rpi4_version }}/RPi4_UEFI_Firmware_{{ edk2_rpi4_version }}.zip
 
 # Talos netboot assets (arm64, served over HTTP to the Pis).
 #
