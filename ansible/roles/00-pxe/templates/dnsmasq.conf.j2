@@ -18,10 +18,19 @@ dhcp-option=3,{{ ansible_default_ipv4.gateway }}
 dhcp-match=set:efi-x86_64,option:client-arch,7
 dhcp-match=set:efi-x86_64,option:client-arch,9
 
-# Match UEFI arm64 PXE clients (client-arch 11 == ARM64 EFI) — the Pis
-# netbooting Talos. dnsmasq has no symbolic name for this arch, so the
+# Match UEFI arm64 PXE clients (client-arch 11 == ARM64 EFI) — the Pis once
+# EDK2 UEFI is running. dnsmasq has no symbolic name for this arch, so the
 # pxe-service below uses the numeric type.
 dhcp-match=set:efi-arm64,option:client-arch,11
+
+# Match the bare Pi 4 EEPROM netboot — the FIRST round, before EDK2. The Pi
+# firmware is not yet a UEFI client and identifies via the "PXEClient:Arch:
+# 00000" vendor class; it TFTPs the EDK2 firmware tree (config.txt, start4.elf,
+# RPI_EFI.fd) from the TFTP root. PROVISIONAL: confirm the exact vendorclass/
+# arch this Pi firmware sends from `docker logs files-dnsmasq-1` (log-dhcp) on
+# the canary and correct this if needed — Pi-4 native netboot in proxy mode is
+# the main unknown (see plan R1).
+dhcp-vendorclass=set:rpi-fw,PXEClient:Arch:00000
 
 # Detect iPXE clients (they identify via DHCP user-class option).
 dhcp-userclass=set:ipxe,iPXE
@@ -31,6 +40,9 @@ dhcp-userclass=set:ipxe,iPXE
 # x86_64 (the NUCs) and arm64 (the Pis) get arch-matched builds.
 pxe-service=tag:efi-x86_64,tag:!ipxe,X86-64_EFI,"Boot iPXE",ipxe.efi
 pxe-service=tag:efi-arm64,tag:!ipxe,11,"Boot iPXE (arm64)",ipxe-arm64.efi
+# Bare Pi 4 EEPROM netboot → point it at the TFTP server; it then fetches the
+# EDK2 firmware tree (config.txt → RPI_EFI.fd) from the root. PROVISIONAL (R1).
+pxe-service=tag:rpi-fw,tag:!ipxe,0,"Raspberry Pi 4 EEPROM netboot"
 # Stage 2: iPXE-already-running clients — send them the per-host HTTP script
 # (iPXE expands ${mac:hexhyp} to its booting NIC's MAC at fetch time). The
 # script is arch-agnostic: each host's script was rendered for its OS.
