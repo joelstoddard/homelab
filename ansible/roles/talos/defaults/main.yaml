@@ -75,11 +75,13 @@ talos_install_disk: "/dev/sda"
 
 # --- Image Factory schematic (arm64 Pis) --------------------------------
 # The arm64 Pis need a Talos installer built with the rpi overlay
-# (siderolabs/sbc-raspberrypi). Set this to your Talos Image Factory
-# schematic ID and config.yaml wires it into each Pi's talosImageURL.
-# Empty = use the default installer (correct for the x86 VMs; NOT
-# sufficient on a bare Pi). See the runbook's Pi prerequisites.
-talos_pi_schematic_id: ""
+# (siderolabs/sbc-raspberrypi). config.yaml wires this into each Pi's
+# talosImageURL. The 00-pxe netboot kernel/initramfs MUST be generated from
+# the SAME schematic (see 00-pxe defaults) so the netbooted Talos and the
+# on-disk installer agree. Empty would fall back to the default installer
+# (correct for the x86 VMs; NOT sufficient on a bare Pi).
+# Value below = the plain sbc-raspberrypi overlay (rpi_generic), no extras.
+talos_pi_schematic_id: "ee21ef4a5ef808a9b7484cc0dda0f25075021691c8c09a276591eedb638ea1f9"
 
 # --- Local build/output paths -------------------------------------------
 # talhelper inputs + outputs land here on the operator workstation.
