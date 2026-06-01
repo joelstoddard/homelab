@@ -43,19 +43,20 @@ ipxe_arm64_sha256: ""
 # role_path: .../ansible/roles/00-pxe, so ../../../ is the repo root) — bump
 # it there, not here.
 #
-# NOTE: the asset URLs below point at the vanilla siderolabs release kernel
-# + initramfs. A Raspberry Pi will only netboot Talos when the rpi overlay
-# (siderolabs/sbc-raspberrypi) firmware/u-boot is in place — for a fully
-# self-contained Pi netboot, generate arm64 assets from the Talos Image
-# Factory with that overlay and override these two URLs. The runbook walks
-# through it.
+# The asset URLs point at the Talos Image Factory build for the plain
+# sbc-raspberrypi overlay (rpi_generic). talos_pi_schematic_id MUST match the
+# talos role's talos_pi_schematic_id so the netbooted kernel/initramfs and the
+# on-disk installer (talosImageURL) are the SAME build — a bare Pi will not
+# netboot the vanilla siderolabs arm64 assets.
 talos_version: >-
   {{ lookup('file', role_path ~ '/../../../versions.env')
      | regex_findall('^TALOS_VERSION=(.+)$', multiline=True) | first | trim }}
+# Image Factory schematic for the arm64 Pis (plain sbc-raspberrypi overlay).
+talos_pi_schematic_id: "ee21ef4a5ef808a9b7484cc0dda0f25075021691c8c09a276591eedb638ea1f9"
 talos_arm64_kernel_url: >-
-  https://github.com/siderolabs/talos/releases/download/{{ talos_version }}/kernel-arm64
+  https://factory.talos.dev/image/{{ talos_pi_schematic_id }}/{{ talos_version }}/kernel-arm64
 talos_arm64_initramfs_url: >-
-  https://github.com/siderolabs/talos/releases/download/{{ talos_version }}/initramfs-arm64.xz
+  https://factory.talos.dev/image/{{ talos_pi_schematic_id }}/{{ talos_version }}/initramfs-arm64.xz
 
 # Kernel cmdline for the Talos netboot (maintenance mode — no talos.config,
 # so the node waits for `talosctl apply-config` from the talos role).
