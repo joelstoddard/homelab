@@ -71,6 +71,12 @@ talos_arm64_initramfs_url: >-
 talos_kernel_cmdline: >-
   talos.platform=metal console=tty1 console=ttyS0,115200n8 init_on_alloc=1 slab_nomerge pti=on
 
+# Pi hosts (NetBox inventory names, capitalized e.g. "Buran") currently being
+# (re)provisioned. For each, the talos task renders <mac>.install.ipxe so the
+# dispatcher netboots Talos maintenance; for all others it ensures that file is
+# ABSENT so they boot their local disk. Empty = steady state (no installs).
+talos_pi_provision_hosts: []
+
 # Debian netinstall artifacts.
 # These pin the version we PXE-boot. Bump together when upgrading.
 debian_version: "trixie"

@@ -56,7 +56,7 @@
     mode: "0644"
   when: talos_pxe_hosts | length > 0
 
-- name: Render per-host Talos iPXE script.
+- name: Render the per-host Talos iPXE dispatcher (always).
   ansible.builtin.template:
     src: host-talos.ipxe.j2
     dest: "{{ role_path }}/files/http/boot/{{ hostvars[item]['mac_address'] | lower | replace(':', '-') }}.ipxe"
@@ -65,3 +65,24 @@
   vars:
     target_hostname: "{{ item }}"
     mac_address: "{{ hostvars[item]['mac_address'] }}"
+
+# The install marker (<mac>.install.ipxe) is what makes the dispatcher netboot
+# Talos. Render it only for hosts currently being (re)provisioned, and ensure
+# it is ABSENT for everyone else so a provisioned Pi boots its local disk.
+- name: Render the Talos install marker for hosts being provisioned.
+  ansible.builtin.template:
+    src: host-talos-install.ipxe.j2
+    dest: "{{ role_path }}/files/http/boot/{{ hostvars[item]['mac_address'] | lower | replace(':', '-') }}.install.ipxe"
+    mode: "0644"
+  loop: "{{ talos_pxe_hosts }}"
+  when: item in talos_pi_provision_hosts
+  vars:
+    target_hostname: "{{ item }}"
+    mac_address: "{{ hostvars[item]['mac_address'] }}"
+
+- name: Remove the Talos install marker for hosts not being provisioned.
+  ansible.builtin.file:
+    path: "{{ role_path }}/files/http/boot/{{ hostvars[item]['mac_address'] | lower | replace(':', '-') }}.install.ipxe"
+    state: absent
+  loop: "{{ talos_pxe_hosts }}"
+  when: item not in talos_pi_provision_hosts
