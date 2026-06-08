@@ -45,7 +45,7 @@ resource "proxmox_virtual_environment_container" "this" {
 
     ip_config {
       ipv4 {
-        address = var.static_ipv4_cidr
+        address = var.static_ipv4_cidr != null ? var.static_ipv4_cidr : "dhcp"
         gateway = var.ipv4_gateway
       }
     }
@@ -56,6 +56,7 @@ resource "proxmox_virtual_environment_container" "this" {
   }
 
   features {
-    nesting = false
+    nesting = var.nesting
+    keyctl  = var.keyctl
   }
 }
