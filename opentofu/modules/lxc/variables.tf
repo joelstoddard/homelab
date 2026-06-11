@@ -75,13 +75,15 @@ variable "network_bridge" {
 }
 
 variable "static_ipv4_cidr" {
-  description = "Static IPv4 in CIDR form, e.g. \"192.168.1.2/24\"."
+  description = "Static IPv4 in CIDR form, e.g. \"192.168.1.2/24\". Null for DHCP."
   type        = string
+  default     = null
 }
 
 variable "ipv4_gateway" {
-  description = "IPv4 default gateway for the container."
+  description = "IPv4 default gateway. Required when static_ipv4_cidr is set."
   type        = string
+  default     = null
 }
 
 variable "ssh_public_keys" {
@@ -99,6 +101,18 @@ variable "start_on_boot" {
   description = "Auto-start the container on Proxmox boot."
   type        = bool
   default     = true
+}
+
+variable "nesting" {
+  description = "Enable LXC nesting feature (required for systemd, Tailscale, etc.)."
+  type        = bool
+  default     = false
+}
+
+variable "keyctl" {
+  description = "Enable LXC keyctl feature."
+  type        = bool
+  default     = false
 }
 
 variable "tls_verify" {

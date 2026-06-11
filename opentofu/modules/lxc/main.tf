@@ -45,7 +45,7 @@ resource "proxmox_virtual_environment_container" "this" {
 
     ip_config {
       ipv4 {
-        address = var.static_ipv4_cidr
+        address = var.static_ipv4_cidr != null ? var.static_ipv4_cidr : "dhcp"
         gateway = var.ipv4_gateway
       }
     }
@@ -56,6 +56,15 @@ resource "proxmox_virtual_environment_container" "this" {
   }
 
   features {
-    nesting = false
+    nesting = var.nesting
+    keyctl  = var.keyctl
+  }
+
+  # Provisioners modify containers out-of-band (pct set --dev0, --features,
+  # stop/start cycles). The resulting drift in features, initialization, and
+  # other fields causes empty-update 500s or 403s on refresh. Ignore all
+  # post-creation changes; to update a container, taint and recreate.
+  lifecycle {
+    ignore_changes = all
   }
 }

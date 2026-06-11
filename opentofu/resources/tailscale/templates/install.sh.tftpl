@@ -1,0 +1,39 @@
+#!/bin/bash
+set -euo pipefail
+export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+
+# Wait up to ~2 min for any apt locks from the standard template's
+# first-boot self-configuration to clear.
+APT_LOCK_WAIT_MAX=60
+i=0
+while fuser /var/lib/apt/lists/lock >/dev/null 2>&1 \
+   || fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1; do
+    sleep 2
+    i=$((i + 1))
+    if [ "$i" -ge "$APT_LOCK_WAIT_MAX" ]; then
+        echo "apt locks still held after $((APT_LOCK_WAIT_MAX * 2))s; aborting." >&2
+        exit 1
+    fi
+done
+
+export DEBIAN_FRONTEND=noninteractive
+apt-get update -y
+apt-get install -y --no-install-recommends curl ca-certificates iptables
+
+# ---------- Tailscale ----------
+curl -fsSL https://tailscale.com/install.sh | sh
+
+# ---------- IP forwarding (required for subnet routing) ----------
+cat > /etc/sysctl.d/99-tailscale.conf <<'SYSCTL'
+net.ipv4.ip_forward = 1
+net.ipv6.conf.all.forwarding = 1
+SYSCTL
+sysctl --system
+
+# ---------- Start tailscaled ----------
+systemctl enable --now tailscaled
+
+# Wait for the tailscaled socket rather than a fixed sleep.
+echo "Waiting for tailscaled socket..."
+timeout 30 bash -c 'until [ -S /var/run/tailscale/tailscaled.sock ]; do sleep 1; done'
+echo "tailscaled ready."
