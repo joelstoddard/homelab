@@ -29,7 +29,7 @@
     - network
   tasks:
     - name: Render configs (secrets bundle, base configs, per-node patches).
-      ansible.builtin.include_role:
+      ansible.builtin.import_role:
         name: talos
         tasks_from: config
       tags: [config]
@@ -45,7 +45,7 @@
   order: sorted
   tasks:
     - name: Push this node's config.
-      ansible.builtin.include_role:
+      ansible.builtin.import_role:
         name: talos
         tasks_from: apply
       tags: [apply]
@@ -56,13 +56,13 @@
   gather_facts: false
   tasks:
     - name: Bootstrap the control plane.
-      ansible.builtin.include_role:
+      ansible.builtin.import_role:
         name: talos
         tasks_from: bootstrap
       tags: [bootstrap]
 
     - name: Retrieve the kubeconfig.
-      ansible.builtin.include_role:
+      ansible.builtin.import_role:
         name: talos
         tasks_from: kubeconfig
       tags: [kubeconfig]
