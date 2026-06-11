@@ -14,17 +14,37 @@
 # README); re-running this play after install will (harmlessly) fail the
 # already-secured nodes, which the runbook calls out.
 #
-# IP assumption: nodes in maintenance mode get their address from the LAN
-# DHCP server. This relies on MAC-keyed DHCP reservations so the
-# maintenance IP matches the NetBox primary IP. If your DHCP hands out
-# dynamic leases instead, discover the live IP (talosctl/nmap) and pass it
-# via -e talos_node_ip=<ip> --limit <host>.
+# Maintenance-mode addressing: nodes get a transient DHCP lease (no
+# reservations needed — the lease is just a rendezvous address). Each node
+# is found by ARP-scanning the LAN for its NetBox MAC; the machine config
+# being applied pins it to its NetBox primary IP from first installed boot.
+# Falls back to ansible_host when the MAC isn't seen (e.g. already
+# installed and static at its NetBox IP). Override per node with
+# -e talos_node_ip=<ip> --limit <host>.
 
-- name: "Apply Talos config to {{ inventory_hostname }} ({{ talos_node_ip | default(ansible_host) }})."
+- name: Scan the LAN once for maintenance-mode nodes (ARP, by MAC).
+  ansible.builtin.command:
+    cmd: arp-scan --localnet --retry=2
+  become: true
+  run_once: true
+  register: talos_arp_scan
+  changed_when: false
+  check_mode: false
+
+- name: "Resolve {{ inventory_hostname }}'s maintenance IP (NetBox MAC → live lease)."
+  ansible.builtin.set_fact:
+    talos_maintenance_ip: >-
+      {{ (talos_arp_scan.stdout_lines
+          | select('search', mac_address | default('') | lower)
+          | map('split') | map('first') | list | first)
+         | default(ansible_host, true) }}
+  when: talos_node_ip is not defined
+
+- name: "Apply Talos config to {{ inventory_hostname }} ({{ talos_node_ip | default(talos_maintenance_ip) | default(ansible_host) }})."
   ansible.builtin.command:
     cmd: >-
       {{ talosctl_bin }} apply-config --insecure
-      --nodes {{ talos_node_ip | default(ansible_host) }}
+      --nodes {{ talos_node_ip | default(talos_maintenance_ip) | default(ansible_host) }}
       --file {{ talos_clusterconfig_dir }}/{{ talos_cluster_name }}-{{ inventory_hostname }}.yaml
   register: talos_apply
   changed_when: talos_apply.rc == 0
