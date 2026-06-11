@@ -41,10 +41,15 @@ talos_vip: "192.168.1.100"
 talos_vip_netbox_tag: "talos-vip"
 talos_cluster_endpoint: "https://{{ talos_vip }}:6443"
 
-# Interface the VIP attaches to. Talos names the first NIC eth0 on both
-# the virtio VMs and the Pis. Override per-environment if predictable
-# naming differs.
-talos_primary_interface: "eth0"
+# Node addressing is static, from NetBox (primary IP + MAC-keyed
+# deviceSelector — interface NAMES are not used: Talos v1.9's systemd-udevd
+# renames the Pi NIC eth0→end0, and virtio VMs get enp* names, so name-based
+# config silently never applies). Prefix length and gateway are taken from
+# the operator's own LAN facts at render time — the operator sits on the
+# same L2 segment as every node. Override per-environment if rendering from
+# a machine that is NOT on the cluster LAN.
+talos_network_prefixlen: "{{ ansible_default_ipv4.prefix | default(24) }}"
+talos_network_gateway: "{{ ansible_default_ipv4.gateway | default('192.168.1.1') }}"
 
 # --- Node roles ---------------------------------------------------------
 # Control-plane membership is DERIVED FROM NETBOX in config.yaml: any host

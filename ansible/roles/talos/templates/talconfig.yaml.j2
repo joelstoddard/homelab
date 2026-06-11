@@ -30,9 +30,28 @@ nodes:
     # arm64 Pi: installer built from the rpi-overlay Image Factory schematic.
     talosImageURL: factory.talos.dev/installer/{{ talos_pi_schematic_id }}
 {%   endif %}
+{#
+      Static addressing from NetBox: the node's identity is its NetBox MAC
+      (deviceSelector — immune to kernel/udev interface renames like the
+      v1.9 eth0→end0 switch on the Pis), its address the NetBox primary IP.
+      Prefix length + gateway come from the operator's own LAN facts at
+      render time (same L2 segment as every node). Maintenance mode still
+      DHCPs (transient rendezvous, discovered by MAC); this static config
+      takes over from first installed boot.
+#}
     networkInterfaces:
-      - interface: {{ talos_primary_interface }}
-        dhcp: true
+{%   set mac = hostvars[item].mac_address | default('') %}
+      - deviceSelector:
+{%   if mac %}
+          hardwareAddr: "{{ mac | lower }}"
+{%   else %}
+          physical: true   {# no MAC in NetBox: match the single physical NIC #}
+{%   endif %}
+        addresses:
+          - {{ hostvars[item].ansible_host }}/{{ talos_network_prefixlen }}
+        routes:
+          - network: 0.0.0.0/0
+            gateway: {{ talos_network_gateway }}
 {%   if is_cp %}
         vip:
           ip: {{ talos_vip }}
