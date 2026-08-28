@@ -51,8 +51,8 @@ check-secrets:
 	@sops -d --extract '["proxmox_endpoint"]' $(OPENTOFU_SECRETS) >/dev/null
 	@sops -d --extract '["lan_gateway"]'      $(OPENTOFU_SECRETS) >/dev/null
 	@# Per-resource secrets — each resources/<dir>/secrets.env (if present)
-	@# is a SOPS-encrypted dotenv with `export TF_VAR_*=…` lines scoped to
-	@# that single resource. Verify each decrypts cleanly. The Makefile
+	@# is a SOPS-encrypted dotenv with `TF_VAR_*=…` lines scoped to that
+	@# single resource. Verify each decrypts cleanly. The Makefile
 	@# eval-sources them at apply time (see `define run_tofu`).
 	@for d in $(RESOURCE_DIRS); do \
 		if [ -f $$d/secrets.env ]; then \
@@ -68,6 +68,15 @@ provider-mirror:
 build: check-secrets provider-mirror
 
 # Run `tofu $(1) $(2)` in every resource dir with shared env exported once.
+#
+# Per-resource secrets.env files are eval-sourced under `set -a`: an eval'd
+# bare `FOO=bar` sets a shell variable, not an exported one, so tofu — a child
+# process — would never see it. Without this, a required TF_VAR errors out and
+# a defaulted one silently falls back to its default.
+#
+# Each dir runs in a subshell so one resource's secrets can't leak into the
+# next one's tofu run; the shared TF_VARs above are exported before the loop
+# and so are inherited by every subshell.
 define run_tofu
 	@set -e; \
 	if [ -z "$(strip $(RESOURCE_DIRS))" ]; then \
@@ -83,10 +92,12 @@ define run_tofu
 	export TF_VAR_netbox_token="$$NETBOX_TOKEN"; \
 	for d in $(RESOURCE_DIRS); do \
 		echo ">> tofu $(1) in $$d"; \
-		if [ -f $$d/secrets.env ]; then \
-			eval "$$(sops -d $$d/secrets.env)"; \
-		fi; \
-		tofu -chdir=$$d $(1) $(2) || exit $$?; \
+		( \
+			if [ -f $$d/secrets.env ]; then \
+				set -a; eval "$$(sops -d $$d/secrets.env)"; set +a; \
+			fi; \
+			tofu -chdir=$$d $(1) $(2) \
+		) || exit $$?; \
 	done
 endef
 
