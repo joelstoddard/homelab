@@ -1,14 +1,4 @@
-# Clients placed exclusively (and only) in this group bypass all
-# adlist-driven blocking. See ./README.md for the group-membership
-# caveat: a client also in "Default" will still be blocked by
-# Default-group lists.
-resource "pihole_group" "exclusions" {
-  name        = "Exclusions"
-  description = "Clients in this group bypass all ad-blocking."
-  enabled     = true
-
-  depends_on = [null_resource.pihole_ready]
-}
+# Adlists. Groups live in ./groups.tf, clients in ./clients.tf.
 
 resource "pihole_list" "block" {
   for_each = toset(var.pihole_adlists)

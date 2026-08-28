@@ -84,6 +84,20 @@ variable "pihole_template_file_name" {
   default     = "debian-12-standard_12.12-1_amd64.tar.zst"
 }
 
+variable "pihole_groups" {
+  description = "Pi-hole groups to manage, keyed by group name with the group's description as the value. Not secret — group names are policy, not inventory, so these stay in git. \"Default\" is Pi-hole's built-in group (ID 0) and must not be listed; clients reference it by name regardless."
+  type        = map(string)
+
+  default = {
+    Exclusions = "Clients in this group bypass all ad-blocking."
+  }
+
+  validation {
+    condition     = !contains(keys(var.pihole_groups), "Default")
+    error_message = "\"Default\" is Pi-hole's built-in group (ID 0) and cannot be managed as a resource — declaring it would hand OpenTofu the power to destroy it and orphan every unassigned client. Remove it from pihole_groups; clients may still name it in their groups list."
+  }
+}
+
 variable "pihole_adlists" {
   description = "Adlist URLs to seed into Pi-hole's Default group. Defaults to the set extracted from teleporter backup 2026-05-10."
   type        = list(string)
