@@ -84,6 +84,70 @@ variable "pihole_template_file_name" {
   default     = "debian-12-standard_12.12-1_amd64.tar.zst"
 }
 
+variable "pihole_groups" {
+  description = "Pi-hole groups to manage, keyed by group name with the group's description as the value. Not secret — group names are policy, not inventory, so these stay in git. \"Default\" is Pi-hole's built-in group (ID 0) and must not be listed; clients reference it by name regardless."
+  type        = map(string)
+
+  default = {
+    Exclusions = "Clients in this group bypass all ad-blocking."
+  }
+
+  validation {
+    condition     = !contains(keys(var.pihole_groups), "Default")
+    error_message = "\"Default\" is Pi-hole's built-in group (ID 0) and cannot be managed as a resource — declaring it would hand OpenTofu the power to destroy it and orphan every unassigned client. Remove it from pihole_groups; clients may still name it in their groups list."
+  }
+}
+
+variable "pihole_clients" {
+  description = <<-EOT
+    Pi-hole clients keyed by device name, which is surfaced as the client's
+    comment in the Pi-hole UI. Resource-scoped and secret in full: on a public
+    repo a client list is a household device inventory, so names and MACs alike
+    live in this directory's SOPS-encrypted secrets.env and reach OpenTofu via
+    TF_VAR_pihole_clients. Nothing about the client set enters git.
+
+    `mac` is six colon-separated hex octets. `groups` names must resolve through
+    local.group_ids — either "Default" or a key of var.pihole_groups — and
+    defaults to Exclusions, the whole reason a client gets declared here.
+
+    Defaults to empty so `make lint` and `make check` pass on a checkout whose
+    secrets.env has not been populated yet.
+  EOT
+
+  type = map(object({
+    mac    = string
+    groups = optional(list(string), ["Exclusions"])
+  }))
+
+  default   = {}
+  sensitive = true
+
+  validation {
+    condition = alltrue([
+      for client in values(var.pihole_clients) :
+      can(regex("^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$", client.mac))
+    ])
+    error_message = "Every pihole_clients entry needs a `mac` of six colon-separated hex octets (e.g. \"aa:bb:cc:dd:ee:ff\"). The offending value is withheld here because the variable is sensitive — inspect it with `sops opentofu/resources/pihole/secrets.env`."
+  }
+
+  validation {
+    condition = alltrue([
+      for client in values(var.pihole_clients) : length(client.groups) > 0
+    ])
+    error_message = "Every pihole_clients entry needs at least one group. An empty list would leave the client registered but ungrouped, which Pi-hole treats as Default anyway — say so explicitly."
+  }
+
+  validation {
+    condition = alltrue([
+      for client in values(var.pihole_clients) : alltrue([
+        for name in client.groups :
+        contains(concat(["Default"], keys(var.pihole_groups)), name)
+      ])
+    ])
+    error_message = "A pihole_clients entry names a group that does not exist. Group names must be \"Default\" or a key of var.pihole_groups; without this check the failure surfaces as an opaque local.group_ids index error."
+  }
+}
+
 variable "pihole_adlists" {
   description = "Adlist URLs to seed into Pi-hole's Default group. Defaults to the set extracted from teleporter backup 2026-05-10."
   type        = list(string)
