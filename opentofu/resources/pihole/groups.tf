@@ -23,3 +23,14 @@ moved {
   from = pihole_group.exclusions
   to   = pihole_group.managed["Exclusions"]
 }
+
+locals {
+  # pihole_client.groups takes numeric group IDs, not names, so callers
+  # can't reference a group by the name they declared it under. Map the
+  # two: "Default" is Pi-hole's built-in 0, everything else is computed
+  # after the group is applied.
+  group_ids = merge(
+    { Default = 0 },
+    { for name, group in pihole_group.managed : name => group.id },
+  )
+}
