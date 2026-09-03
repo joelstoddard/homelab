@@ -1,0 +1,20 @@
+# Rendered by Ansible, wrapped by mkimage into /boot/uboot.scr. Fetched and
+# run by every Pi that dnsmasq let netboot (talos_pi_provision_hosts), so it
+# is deliberately host-agnostic: all of them boot the same Talos maintenance
+# image and get their identity later from `talosctl apply-config`.
+#
+# Any failure returns to bootcmd, which resets the Pi; it then re-DHCPs and
+# either retries (still listed) or falls through to USB (no longer listed).
+echo === homelab: netboot Talos {{ talos_version }} (arm64) into maintenance mode ===
+echo MAC ${ethaddr}
+setenv serverip {{ pxe_server_ip }}
+# Explicit, non-overlapping load addresses: the kernel is ~77 MB flat and the
+# initramfs ~65 MB, far larger than the board defaults allow for.
+setenv kernel_addr_r 0x10000000
+setenv ramdisk_addr_r 0x18000000
+wget ${kernel_addr_r} /talos/{{ talos_version }}/vmlinuz-arm64.raw
+wget ${ramdisk_addr_r} /talos/{{ talos_version }}/initramfs-arm64.xz
+setenv bootargs "{{ talos_kernel_cmdline }}"
+# ${filesize} is the last wget's size (the initramfs); ${fdt_addr} is the
+# firmware-supplied device tree, set by u-boot's rpi board code.
+booti ${kernel_addr_r} ${ramdisk_addr_r}:${filesize} ${fdt_addr}
