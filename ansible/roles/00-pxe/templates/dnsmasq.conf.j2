@@ -18,27 +18,30 @@ dhcp-option=3,{{ ansible_default_ipv4.gateway }}
 dhcp-match=set:efi-x86_64,option:client-arch,7
 dhcp-match=set:efi-x86_64,option:client-arch,9
 
-# Match UEFI arm64 PXE clients (client-arch 11 == ARM64 EFI) — the Pis
-# netbooting Talos. dnsmasq has no symbolic name for this arch, so the
-# pxe-service below uses the numeric type.
-dhcp-match=set:efi-arm64,option:client-arch,11
+# Match the Raspberry Pi 4 EEPROM netboot. The Pi firmware is not a UEFI
+# client: it sends client-arch 0 (vendor class PXEClient:Arch:00000:UNDI:002001)
+# and then TFTPs config.txt -> u-boot.bin from the TFTP root.
+dhcp-match=set:rpi-fw,option:client-arch,0
 
 # Detect iPXE clients (they identify via DHCP user-class option).
 dhcp-userclass=set:ipxe,iPXE
 
 {% if dhcp_proxy %}
-# Stage 1: non-iPXE PXE clients (firmware ROM) — send the iPXE chainloader.
-# x86_64 (the NUCs) and arm64 (the Pis) get arch-matched builds.
+# Stage 1: non-iPXE x86_64 PXE clients (the NUCs' firmware ROM) — send the
+# iPXE chainloader.
 pxe-service=tag:efi-x86_64,tag:!ipxe,X86-64_EFI,"Boot iPXE",ipxe.efi
-pxe-service=tag:efi-arm64,tag:!ipxe,11,"Boot iPXE (arm64)",ipxe-arm64.efi
+# Raspberry Pi firmware — offered network boot ONLY while the Pi is in
+# talos_pi_provision_hosts (tag:provision, set below). The menu text is a
+# literal the firmware requires; the trailing address is the TFTP server it
+# then fetches config.txt and u-boot.bin from.
+pxe-service=tag:provision,0,"Raspberry Pi Boot",{{ pxe_server_ip }}
 # Stage 2: iPXE-already-running clients — send them the per-host HTTP script
-# (iPXE expands ${mac:hexhyp} to its booting NIC's MAC at fetch time). The
-# script is arch-agnostic: each host's script was rendered for its OS.
+# (iPXE expands ${mac:hexhyp} to its booting NIC's MAC at fetch time).
 dhcp-boot=tag:ipxe,http://{{ pxe_server_ip }}/boot/${mac:hexhyp}.ipxe
 {% else %}
-# In authoritative mode, set boot file directly per stage.
+# In authoritative mode, set boot file directly per stage. (The Raspberry Pi
+# path is only wired for proxy mode.)
 dhcp-boot=tag:efi-x86_64,tag:!ipxe,ipxe.efi
-dhcp-boot=tag:efi-arm64,tag:!ipxe,ipxe-arm64.efi
 dhcp-boot=tag:ipxe,http://{{ pxe_server_ip }}/boot/${mac:hexhyp}.ipxe
 {% endif %}
 
@@ -48,7 +51,18 @@ dhcp-mac=set:known,{{ hostvars[host]['mac_address'] }}
 {% endfor %}
 dhcp-ignore=tag:!known
 
-# TFTP serves only ipxe.efi from /var/tftp.
+# Pis currently being (re)provisioned (talos_pi_provision_hosts). Only these
+# are offered network boot — see the pxe-service above.
+{% for host in talos_pi_provision_hosts %}
+dhcp-mac=set:provision,{{ hostvars[host]['mac_address'] }}
+{% endfor %}
+# Every other Pi firmware gets NO reply at all, so its network attempt fails
+# cleanly and EEPROM BOOT_ORDER 0xf42 falls through to USB -> the local disk.
+# That fall-through is how a provisioned Pi boots its installed OS; u-boot
+# never runs on it, and the PXE server is not a boot dependency.
+dhcp-ignore=tag:rpi-fw,tag:!provision
+
+# TFTP root: ipxe.efi (x86) and config.txt + u-boot.bin (Raspberry Pi).
 enable-tftp
 tftp-root=/var/tftp
 

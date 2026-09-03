@@ -63,6 +63,14 @@ talos_arm64_initramfs_url: >-
 talos_kernel_cmdline: >-
   talos.platform=metal console=tty1 console=ttyS0,115200n8 init_on_alloc=1 slab_nomerge pti=on
 
+# Pi hosts (NetBox inventory names, capitalized e.g. "Buran") currently being
+# (re)provisioned. Only these are offered network boot by dnsmasq (tag
+# `provision`); every other Pi's firmware is ignored and falls through to its
+# USB disk. Empty = steady state: every Pi boots its installed OS.
+#   make apply-pxe LIMIT=localhost EXTRA_VARS='talos_pi_provision_hosts=["Buran"]'
+# (JSON list — the Makefile passes --extra-vars verbatim.)
+talos_pi_provision_hosts: []
+
 # Debian netinstall artifacts.
 # These pin the version we PXE-boot. Bump together when upgrading.
 debian_version: "trixie"
