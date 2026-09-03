@@ -128,6 +128,18 @@
     mode: "0644"
   when: talos_pxe_hosts | length > 0
 
+# The Image Factory arm64 kernel is an EFI zboot PE, which u-boot's booti
+# rejects; unwrap it once per version. initramfs-arm64.xz is served as-is
+# (despite the name it is zstd, and the Talos kernel handles that).
+- name: Unwrap the zboot kernel into a flat Image for u-boot's booti.
+  ansible.builtin.command:
+    cmd: >-
+      {{ role_path }}/files/unwrap-zboot.sh
+      {{ role_path }}/files/http/talos/{{ talos_version }}/vmlinuz-arm64
+      {{ role_path }}/files/http/talos/{{ talos_version }}/vmlinuz-arm64.raw
+    creates: "{{ role_path }}/files/http/talos/{{ talos_version }}/vmlinuz-arm64.raw"
+  when: talos_pxe_hosts | length > 0
+
 - name: Render per-host Talos iPXE script.
   ansible.builtin.template:
     src: host-talos.ipxe.j2
