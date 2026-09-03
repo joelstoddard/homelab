@@ -9,8 +9,11 @@
 # usage: unwrap-zboot.sh <kernel-zboot> <out-image>
 set -eu
 
+[ $# -eq 2 ] || { echo "usage: unwrap-zboot.sh <kernel-zboot> <out-image>" >&2; exit 2; }
 in=$1
 out=$2
+
+[ -r "$in" ] || { echo "unwrap-zboot: cannot read $in" >&2; exit 1; }
 
 [ "$(dd if="$in" bs=1 skip=4 count=4 2>/dev/null)" = "zimg" ] \
   || { echo "unwrap-zboot: $in is not an EFI zboot image" >&2; exit 1; }
@@ -31,6 +34,8 @@ tail -c +"$((off + 1))" "$in" | head -c "$size" | zstd -d -q -f -o "$tmp"
 [ "$(dd if="$tmp" bs=1 skip=56 count=4 2>/dev/null)" = "ARMd" ] \
   || { echo "unwrap-zboot: decompressed payload lacks the arm64 Image magic" >&2; exit 1; }
 
+# mktemp creates 0600; the file is served over HTTP, so match the role's 0644.
+chmod 644 "$tmp"
 mv "$tmp" "$out"
 trap - EXIT
 echo "unwrap-zboot: wrote $out ($(wc -c < "$out" | tr -d ' ') bytes)"
