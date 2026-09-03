@@ -25,16 +25,16 @@
     nl: "\n"   # double-quoted YAML scalar = a real newline for join() below
   tasks:
     - name: Read the Pi model
-      ansible.builtin.command: cat /proc/device-tree/model
+      ansible.builtin.slurp:
+        src: /proc/device-tree/model
       register: pi_model
-      changed_when: false
       check_mode: false
 
     - name: Refuse anything that is not a Pi 4
       ansible.builtin.assert:
-        that: "'Raspberry Pi 4' in pi_model.stdout"
+        that: "'Raspberry Pi 4' in (pi_model.content | b64decode)"
         fail_msg: >-
-          {{ inventory_hostname }} is '{{ pi_model.stdout }}', not a Pi 4 —
+          {{ inventory_hostname }} is '{{ pi_model.content | b64decode | trim }}', not a Pi 4 —
           refusing to touch the EEPROM.
 
     - name: Read the current EEPROM config
