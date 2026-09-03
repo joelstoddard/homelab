@@ -1,0 +1,81 @@
+---
+# One-time cutover: flip a Raspberry Pi 4's bootloader EEPROM to
+# BOOT_ORDER=0xf42 (read right-to-left: network, then USB, then restart).
+# From then on the 00-pxe dnsmasq decides per boot whether the Pi netboots
+# Talos (it is in talos_pi_provision_hosts) or falls through to its USB disk.
+#
+# Runs against the Pi's CURRENT OS over SSH (it needs rpi-eeprom-config), so
+# it is used once per Pi before the first Talos install — and again only for
+# replacement hardware. The existing OS stays intact on /dev/sda, so a failed
+# netboot falls back to USB and SSH is retained.
+#
+# Default does NOT reboot — it only stages the EEPROM change (flashed by the
+# firmware on the next boot). Reboot when the PXE side is ready:
+#
+#   make check-pi-eeprom LIMIT=Buran
+#   make apply-pi-eeprom LIMIT=Buran
+#   make apply-pi-eeprom LIMIT=Buran EXTRA_VARS='pi_reboot=true'
+- name: Flip Raspberry Pi 4 EEPROM to network-first boot
+  hosts: pis
+  become: true
+  gather_facts: false
+  vars:
+    target_boot_order: "0xf42"   # read right-to-left: network, then USB, then restart
+    pi_reboot: false
+    nl: "\n"   # double-quoted YAML scalar = a real newline for join() below
+  tasks:
+    - name: Read the Pi model
+      ansible.builtin.command: cat /proc/device-tree/model
+      register: pi_model
+      changed_when: false
+      check_mode: false
+
+    - name: Refuse anything that is not a Pi 4
+      ansible.builtin.assert:
+        that: "'Raspberry Pi 4' in pi_model.stdout"
+        fail_msg: >-
+          {{ inventory_hostname }} is '{{ pi_model.stdout }}', not a Pi 4 —
+          refusing to touch the EEPROM.
+
+    - name: Read the current EEPROM config
+      ansible.builtin.command: rpi-eeprom-config
+      register: eeprom_current
+      changed_when: false
+      check_mode: false
+
+    - name: Compose the desired EEPROM config (replace/append BOOT_ORDER)
+      ansible.builtin.set_fact:
+        eeprom_desired: >-
+          {{ ((eeprom_current.stdout_lines | reject('match', '^BOOT_ORDER=') | list)
+              + ['BOOT_ORDER=' ~ target_boot_order]) | join(nl) }}
+
+    - name: Stage the desired config on the host
+      ansible.builtin.copy:
+        content: "{{ eeprom_desired }}\n"
+        dest: /tmp/pieeprom-desired.conf
+        mode: "0600"
+      when: ('BOOT_ORDER=' ~ target_boot_order) not in eeprom_current.stdout
+
+    - name: Apply the EEPROM config (flashes on next reboot)
+      ansible.builtin.command: rpi-eeprom-config --apply /tmp/pieeprom-desired.conf
+      register: eeprom_apply
+      changed_when: eeprom_apply.rc == 0
+      when: ('BOOT_ORDER=' ~ target_boot_order) not in eeprom_current.stdout
+
+    - name: Report what happened
+      ansible.builtin.debug:
+        msg: >-
+          {{ inventory_hostname }}:
+          {{ 'BOOT_ORDER already ' ~ target_boot_order ~ ' — no change'
+             if ('BOOT_ORDER=' ~ target_boot_order) in eeprom_current.stdout
+             else 'staged BOOT_ORDER=' ~ target_boot_order ~ ' (flashes on next reboot)' }}
+
+    # The reboot module waits for SSH to return; on a SUCCESSFUL cutover this Pi
+    # becomes Talos (no SSH) and never returns, so we fire-and-forget instead
+    # and observe out-of-band (talosctl / console). Off by default.
+    - name: Reboot into the netboot path (fire-and-forget)
+      ansible.builtin.shell: "sleep 2 && systemctl reboot"
+      async: 1
+      poll: 0
+      changed_when: true
+      when: pi_reboot | bool

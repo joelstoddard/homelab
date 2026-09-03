@@ -28,6 +28,8 @@ help:
 	@echo "  check		- Perform a dry run."
 	@echo "  apply-pxe 	- Run playbooks (pre-boot)."
 	@echo "  apply    	- Run playbooks."
+	@echo "  check-pi-eeprom	- Dry run the Pi EEPROM netboot cutover."
+	@echo "  apply-pi-eeprom	- Flip a Pi's EEPROM to network-first boot."
 	@echo "  check-talos	- Dry run the Talos bootstrap."
 	@echo "  apply-talos	- Bootstrap the Talos cluster (talosctl, local conn)."
 	@echo "  ping     	- Ping hosts."
@@ -78,6 +80,21 @@ apply-pxe:
 	$(VENV)/bin/ansible-playbook pxe.yaml \
 		$(if $(LIMIT),--limit=$(LIMIT)) \
 		$(if $(TAGS),--tags=$(TAGS)) \
+		$(if $(VERBOSITY),-$(VERBOSITY)) \
+		$(if $(EXTRA_VARS),--extra-vars='$(EXTRA_VARS)')
+
+# Raspberry Pi EEPROM cutover (one-time per Pi; see playbooks/pi-eeprom-netboot.yaml)
+.PHONY: check-pi-eeprom
+check-pi-eeprom:
+	$(VENV)/bin/ansible-playbook playbooks/pi-eeprom-netboot.yaml --check --diff \
+		$(if $(LIMIT),--limit=$(LIMIT)) \
+		$(if $(VERBOSITY),-$(VERBOSITY)) \
+		$(if $(EXTRA_VARS),--extra-vars='$(EXTRA_VARS)')
+
+.PHONY: apply-pi-eeprom
+apply-pi-eeprom:
+	$(VENV)/bin/ansible-playbook playbooks/pi-eeprom-netboot.yaml \
+		$(if $(LIMIT),--limit=$(LIMIT)) \
 		$(if $(VERBOSITY),-$(VERBOSITY)) \
 		$(if $(EXTRA_VARS),--extra-vars='$(EXTRA_VARS)')
 
