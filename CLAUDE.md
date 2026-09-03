@@ -58,8 +58,9 @@ Roles split into two layers:
 Current implementation:
 
 - `00-pxe` — PXE server. Runs dnsmasq (DHCP-proxy + TFTP: the x86 `ipxe.efi`
-  chainloader for the NUCs; `config.txt` + a purpose-built `u-boot.bin` for the
-  Pis, offered only to hosts in `talos_pi_provision_hosts`) and Caddy (HTTP for
+  chainloader for the NUCs; the Pi 4 boot firmware, `config.txt` and a
+  purpose-built `u-boot.bin` for the Pis, offered only to hosts in
+  `talos_pi_provision_hosts`) and Caddy (HTTP for
   kernels, initrds, per-host iPXE scripts, preseeds, the shared u-boot
   dispatcher `boot/uboot.scr` and the Talos assets) in Docker. Per-OS
   dispatchers under `tasks/`: `proxmox.yaml` (Debian netinstall) and

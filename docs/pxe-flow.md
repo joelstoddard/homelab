@@ -210,7 +210,7 @@ the network first and falls back to USB on failure. The role leans on both:
 ```
 firmware DHCP (client-arch 0)
  ├─ MAC in talos_pi_provision_hosts → dnsmasq "Raspberry Pi Boot"
- │    TFTP config.txt → u-boot.bin (built on the operator, bootcmd baked)
+ │    TFTP start4.elf → config.txt → u-boot.bin (+ fixup4.dat, DTB)
  │    u-boot: dhcp → wget /boot/uboot.scr → wget kernel + initramfs → booti
  │    → Talos maintenance mode → talos role installs to /dev/sda
  └─ otherwise → dnsmasq ignores it → firmware times out → USB → local disk
@@ -218,7 +218,9 @@ firmware DHCP (client-arch 0)
 
 Relevant pieces in `roles/00-pxe`: `templates/dnsmasq.conf.j2` (the
 `provision` gate), `templates/uboot-fragment.config.j2` + the build tasks
-in `tasks/talos.yaml` (u-boot), `files/unwrap-zboot.sh` (the Image Factory
+in `tasks/talos.yaml` (u-boot), the pinned Raspberry Pi firmware files
+(`rpi_firmware_*` defaults, staged by `tasks/talos.yaml`),
+`files/unwrap-zboot.sh` (the Image Factory
 kernel is an EFI zboot PE that `booti` rejects), `templates/uboot.cmd.j2`
 (the shared dispatcher). A failed netboot ends in `reset`, so a Pi that has
 been removed from the list recovers on its own; a Pi stuck from an older

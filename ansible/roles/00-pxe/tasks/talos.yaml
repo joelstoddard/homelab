@@ -93,6 +93,14 @@
       operator IP drift). Remove {{ uboot_build_dir }}/.built-* and re-run.
   when: talos_pxe_hosts | length > 0 and not ansible_check_mode
 
+- name: Stage the Raspberry Pi 4 boot firmware into the TFTP root.
+  ansible.builtin.get_url:
+    url: "{{ rpi_firmware_base_url }}/{{ item }}"
+    dest: "{{ role_path }}/files/tftp/{{ item }}"
+    mode: "0644"
+  loop: "{{ rpi_firmware_files }}"
+  when: talos_pxe_hosts | length > 0
+
 - name: Render the Pi firmware config.txt (hands off to u-boot).
   ansible.builtin.template:
     src: rpi-config.txt.j2
