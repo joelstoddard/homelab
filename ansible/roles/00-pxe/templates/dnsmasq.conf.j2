@@ -20,7 +20,7 @@ dhcp-match=set:efi-x86_64,option:client-arch,9
 
 # Match the Raspberry Pi 4 EEPROM netboot. The Pi firmware is not a UEFI
 # client: it sends client-arch 0 (vendor class PXEClient:Arch:00000:UNDI:002001)
-# and then TFTPs config.txt -> u-boot.bin from the TFTP root.
+# and then TFTPs start4.elf -> config.txt -> u-boot.bin (plus fixup4.dat and the DTB) from the TFTP root.
 dhcp-match=set:rpi-fw,option:client-arch,0
 
 # Detect iPXE clients (they identify via DHCP user-class option).
@@ -62,7 +62,7 @@ dhcp-mac=set:provision,{{ hostvars[host]['mac_address'] }}
 # never runs on it, and the PXE server is not a boot dependency.
 dhcp-ignore=tag:rpi-fw,tag:!provision
 
-# TFTP root: ipxe.efi (x86) and config.txt + u-boot.bin (Raspberry Pi).
+# TFTP root: ipxe.efi (x86); start4.elf, fixup4.dat, the Pi 4 DTB, config.txt and u-boot.bin (Raspberry Pi).
 enable-tftp
 tftp-root=/var/tftp
 

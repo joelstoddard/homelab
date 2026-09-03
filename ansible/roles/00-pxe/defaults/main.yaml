@@ -37,6 +37,17 @@ uboot_defconfig: "rpi_arm64_defconfig"
 uboot_cross_compile: "aarch64-linux-gnu-"
 uboot_build_dir: "{{ role_path }}/files/build/u-boot"
 
+# Raspberry Pi 4 boot firmware, served over TFTP alongside u-boot. The EEPROM
+# netboot fetches start4.elf first; it reads config.txt, loads fixup4.dat and
+# the board DTB (which u-boot needs — it is where ${fdt_addr} comes from),
+# then the kernel= file. Pinned to a raspberrypi/firmware release tag.
+rpi_firmware_version: "1.20260521"
+rpi_firmware_base_url: "https://github.com/raspberrypi/firmware/raw/{{ rpi_firmware_version }}/boot"
+rpi_firmware_files:
+  - start4.elf
+  - fixup4.dat
+  - bcm2711-rpi-4-b.dtb
+
 # Debian packages the Pi netboot path needs on the operator: the u-boot
 # cross-build, mkimage (u-boot-tools) for the dispatcher script, zstd for
 # unwrapping the Talos kernel. Installed with become.
