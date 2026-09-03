@@ -228,21 +228,21 @@ configuration recovers with a power-cycle.
 
 ## Extending to a new OS
 
-The seams to extend (e.g. to Talos):
+The seams to extend (e.g. to TrueNAS):
 
-1. Add a `talos` platform in NetBox and tag the target devices.
-   `keyed_groups` picks it up as group `talos` automatically.
-2. Add `roles/00-pxe/tasks/talos.yaml`, with per-host artifact rendering
-   parallel to `proxmox.yaml`.
-3. Wire it in: append to `roles/00-pxe/tasks/main.yaml:8-13` —
-   `import_tasks: talos.yaml` gated on `groups['talos'] | length > 0`.
-4. Add `roles/talos/tasks/<phase>.yaml` files for the post-install
+1. Add a `truenas` platform in NetBox and tag the target devices.
+   `keyed_groups` picks it up as group `truenas` automatically.
+2. Add `roles/00-pxe/tasks/truenas.yaml`, with per-host artifact rendering
+   parallel to `proxmox.yaml` and `talos.yaml`.
+3. Wire it in: append to the imports in `roles/00-pxe/tasks/main.yaml` —
+   `import_tasks: truenas.yaml` gated on `groups['truenas'] | length > 0`.
+4. Add `roles/truenas/tasks/<phase>.yaml` files for the post-install
    conversion phase. Wire them in via
    `roles/02-preflights/tasks/main.yaml` — guard with
-   `'talos' in group_names`.
+   `'truenas' in group_names`.
 
 The numbered orchestrators (`00-pxe`, `02-preflights`) stay OS-agnostic;
-the OS-named libraries (`talos/`) carry the per-platform work.
+the OS-named libraries (`proxmox/`, `talos/`, `truenas/`) carry the per-platform work.
 
 ## Common failure modes
 
