@@ -24,6 +24,39 @@ pxe_server_ip: "{{ ansible_default_ipv4.address }}"
 # Almost always true; leave as-is unless we replace the LAN's DHCP server.
 dhcp_proxy: true
 
+# Raspberry Pi netboot bootloader. The Pi 4 firmware can netboot a Linux
+# kernel — not an EFI app — so the Pis get a purpose-built u-boot whose baked
+# boot command DHCPs, fetches /boot/uboot.scr from this PXE server over HTTP
+# and runs it. Built on the operator from the pinned upstream tag with the
+# Kconfig fragment in templates/uboot-fragment.config.j2, and rebuilt whenever
+# the version, the fragment or pxe_server_ip changes. Only when there are
+# talos PXE hosts (the Pis).
+uboot_version: "v2025.01"
+uboot_repo: "https://source.denx.de/u-boot/u-boot.git"
+uboot_defconfig: "rpi_arm64_defconfig"
+uboot_cross_compile: "aarch64-linux-gnu-"
+uboot_build_dir: "{{ role_path }}/files/build/u-boot"
+
+# Debian packages the Pi netboot path needs on the operator: the u-boot
+# cross-build, mkimage (u-boot-tools) for the dispatcher script, zstd for
+# unwrapping the Talos kernel. Installed with become.
+pi_netboot_packages:
+  - bc
+  - bison
+  - build-essential
+  - device-tree-compiler
+  - flex
+  - gcc-aarch64-linux-gnu
+  - git
+  - libgnutls28-dev
+  - libssl-dev
+  - python3-dev
+  - python3-setuptools
+  - swig
+  - u-boot-tools
+  - uuid-dev
+  - zstd
+
 # iPXE chainloader (TFTP-served, the only file the NIC's PXE ROM fetches).
 ipxe_url: "https://boot.ipxe.org/x86_64-efi/ipxe.efi"
 ipxe_sha256: ""  # leave empty to skip checksum; set to pinned hash for production
