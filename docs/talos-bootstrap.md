@@ -137,7 +137,7 @@ only to the Pis in `talos_pi_provision_hosts`:
 ```bash
 # Flag the Pi(s) to (re)install, then reboot them (SSH while on Ubuntu,
 # `talosctl reboot` once on Talos, or a power-cycle).
-make -C ansible apply-pxe LIMIT=localhost EXTRA_VARS='talos_pi_provision_hosts=["Buran"]'
+make -C ansible apply-pxe LIMIT=localhost EXTRA_VARS='{"talos_pi_provision_hosts": ["Buran"]}'
 ssh admin@<buran-ip> sudo reboot
 ```
 
@@ -150,7 +150,7 @@ telemetry, as the Pis have no serial console). Once the node is installed
 ignores it and it boots Talos from the SSD:
 
 ```bash
-make -C ansible apply-pxe LIMIT=localhost EXTRA_VARS='talos_pi_provision_hosts=[]'
+make -C ansible apply-pxe LIMIT=localhost EXTRA_VARS='{"talos_pi_provision_hosts": []}'
 ```
 
 > `LIMIT=localhost` runs only the PXE-server play. Without it `pxe.yaml`
