@@ -32,9 +32,10 @@ dhcp-userclass=set:ipxe,iPXE
 pxe-service=tag:efi-x86_64,tag:!ipxe,X86-64_EFI,"Boot iPXE",ipxe.efi
 # Raspberry Pi firmware — offered network boot ONLY while the Pi is in
 # talos_pi_provision_hosts (tag:provision, set below). The menu text is a
-# literal the firmware requires; the trailing address is the TFTP server it
-# then fetches config.txt and u-boot.bin from.
-pxe-service=tag:provision,0,"Raspberry Pi Boot",{{ pxe_server_ip }}
+# literal the firmware looks for; in proxy mode dnsmasq advertises its own
+# address as the TFTP server, so no server field is needed (a third field
+# would be parsed as a boot-file basename, not an address).
+pxe-service=tag:provision,0,"Raspberry Pi Boot"
 # Stage 2: iPXE-already-running clients — send them the per-host HTTP script
 # (iPXE expands ${mac:hexhyp} to its booting NIC's MAC at fetch time).
 dhcp-boot=tag:ipxe,http://{{ pxe_server_ip }}/boot/${mac:hexhyp}.ipxe
