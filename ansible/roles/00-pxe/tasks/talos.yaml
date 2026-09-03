@@ -12,6 +12,93 @@
   ansible.builtin.set_fact:
     talos_pxe_hosts: "{{ groups['pxe'] | intersect(groups['talos'] | default([])) }}"
 
+- name: Install the Pi netboot build tooling.
+  ansible.builtin.apt:
+    name: "{{ pi_netboot_packages }}"
+    state: present
+  become: true
+  when: talos_pxe_hosts | length > 0
+
+- name: Ensure the operator-local build directory exists.
+  ansible.builtin.file:
+    path: "{{ role_path }}/files/build"
+    state: directory
+    mode: "0755"
+  when: talos_pxe_hosts | length > 0
+
+- name: "Fetch u-boot {{ uboot_version }}."
+  ansible.builtin.git:
+    repo: "{{ uboot_repo }}"
+    dest: "{{ uboot_build_dir }}"
+    version: "{{ uboot_version }}"
+    depth: 1
+  when: talos_pxe_hosts | length > 0
+
+- name: Render the u-boot Kconfig fragment.
+  ansible.builtin.template:
+    src: uboot-fragment.config.j2
+    dest: "{{ uboot_build_dir }}/homelab.config"
+    mode: "0644"
+  when: talos_pxe_hosts | length > 0
+
+# The stamp name encodes what the binary was built from, so a version bump,
+# a fragment edit or an operator IP change all invalidate it automatically.
+- name: Derive the u-boot build stamp.
+  ansible.builtin.set_fact:
+    uboot_stamp: >-
+      {{ uboot_build_dir }}/.built-{{ ((uboot_version ~ lookup('template', 'uboot-fragment.config.j2'))
+                                        | hash('sha256'))[:12] }}
+  when: talos_pxe_hosts | length > 0
+
+# No native module drives a make build; `creates:` keeps this idempotent.
+- name: Build u-boot (only when the stamp for this version + fragment is missing).
+  ansible.builtin.shell:
+    cmd: >-
+      make {{ uboot_defconfig }}
+      && scripts/kconfig/merge_config.sh -m .config homelab.config
+      && make olddefconfig
+      && make -j{{ ansible_processor_vcpus | default(2) }}
+      && touch {{ uboot_stamp }}
+    chdir: "{{ uboot_build_dir }}"
+    creates: "{{ uboot_stamp }}"
+  environment:
+    CROSS_COMPILE: "{{ uboot_cross_compile }}"
+  when: talos_pxe_hosts | length > 0
+
+- name: Install u-boot.bin into the TFTP root.
+  ansible.builtin.copy:
+    src: "{{ uboot_build_dir }}/u-boot.bin"
+    dest: "{{ role_path }}/files/tftp/u-boot.bin"
+    remote_src: true
+    mode: "0644"
+  when: talos_pxe_hosts | length > 0 and not ansible_check_mode
+
+# The default env is stored as plain strings in the binary, so the boot
+# command can be verified without running it.
+- name: Read the baked environment back out of u-boot.bin.
+  ansible.builtin.command:
+    cmd: "strings {{ role_path }}/files/tftp/u-boot.bin"
+  register: uboot_strings
+  changed_when: false
+  when: talos_pxe_hosts | length > 0 and not ansible_check_mode
+
+- name: Verify u-boot.bin carries this PXE server's boot command and no preboot.
+  ansible.builtin.assert:
+    that:
+      - uboot_strings.stdout is search('^bootcmd=.*serverip ' ~ (pxe_server_ip | regex_escape) ~ ';', multiline=True)
+      - uboot_strings.stdout is not search('^preboot=', multiline=True)
+    fail_msg: >-
+      tftp/u-boot.bin was not built from the current fragment (stale binary or
+      operator IP drift). Remove {{ uboot_build_dir }}/.built-* and re-run.
+  when: talos_pxe_hosts | length > 0 and not ansible_check_mode
+
+- name: Render the Pi firmware config.txt (hands off to u-boot).
+  ansible.builtin.template:
+    src: rpi-config.txt.j2
+    dest: "{{ role_path }}/files/tftp/config.txt"
+    mode: "0644"
+  when: talos_pxe_hosts | length > 0
+
 - name: Download the arm64 iPXE chainloader.
   ansible.builtin.get_url:
     url: "{{ ipxe_arm64_url }}"

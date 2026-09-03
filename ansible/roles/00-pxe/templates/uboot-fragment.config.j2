@@ -1,0 +1,20 @@
+# Rendered by Ansible — Kconfig fragment merged over {{ uboot_defconfig }}
+# (u-boot {{ uboot_version }}). Any change here changes the build stamp and
+# triggers a rebuild on the next apply.
+
+# The stock rpi_arm64 preboot is "pci enum; usb start", which hangs on the
+# Pis' UAS SSD adapters. Netboot never needs USB, so drop preboot entirely.
+# CONFIG_USE_PREBOOT is not set
+
+# No serial console on the Pis: never drop to the prompt, just run bootcmd.
+CONFIG_BOOTDELAY=-2
+
+# HTTP fetch of the dispatcher and the Talos assets.
+CONFIG_PROT_TCP=y
+CONFIG_CMD_WGET=y
+
+# The whole netboot in one line. `autoload no` stops dhcp doing its own TFTP
+# fetch; the script (uboot.scr) does the real work; a failure anywhere ends in
+# reset, so the Pi re-DHCPs — and by then the dnsmasq gate may send it to USB.
+CONFIG_USE_BOOTCOMMAND=y
+CONFIG_BOOTCOMMAND="setenv autoload no; dhcp; setenv serverip {{ pxe_server_ip }}; wget ${scriptaddr} /boot/uboot.scr; source ${scriptaddr}; reset"
