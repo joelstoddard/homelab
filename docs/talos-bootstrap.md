@@ -141,9 +141,9 @@ make -C ansible apply-pxe LIMIT=localhost EXTRA_VARS='{"talos_pi_provision_hosts
 ssh admin@<buran-ip> sudo reboot
 ```
 
-The Pi's firmware TFTPs `config.txt` → `u-boot.bin`; u-boot fetches
-`/boot/uboot.scr` over HTTP, then the kernel and initramfs, and `booti`s
-into maintenance mode. Follow along with `docker logs -f files-dnsmasq-1`
+The Pi's firmware TFTPs `start4.elf` → `config.txt` → `u-boot.bin` (plus
+`fixup4.dat` and the board DTB); u-boot fetches `/boot/uboot.scr` over HTTP,
+then the kernel and initramfs, and `booti`s into maintenance mode. Follow along with `docker logs -f files-dnsmasq-1`
 (DHCP/TFTP) and `docker logs -f files-caddy-1` (HTTP fetches — the only
 telemetry, as the Pis have no serial console). Once the node is installed
 (Step 3), take it out of the list and re-apply; on its next boot dnsmasq
