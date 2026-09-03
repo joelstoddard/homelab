@@ -76,47 +76,43 @@ is a worker. All Pis boot from a USB→NVMe SSD (Prerequisite 4), so etcd on
 
    Confirm grouping: `ansible-inventory -i ansible/inventory --graph talos`
    should list all 20 nodes.
-3. **DHCP reservations.** dnsmasq runs in proxy mode (it does not assign
-   IPs). The `talos` role addresses nodes at the NetBox primary IP, so the
-   LAN DHCP server must hand each MAC its matching reserved address — or
-   maintenance-mode IPs won't line up. (Override per node with
-   `-e talos_node_ip=<ip> --limit <host>` if you must.)
+3. **No DHCP reservations needed.** dnsmasq runs in proxy mode (it does not
+   assign IPs), so a node in maintenance mode has whatever lease the LAN's
+   DHCP server gave it. The `talos` role finds it by ARP-scanning for the
+   node's NetBox MAC, and the generated machine config pins the node to its
+   NetBox IP via a MAC `deviceSelector` on install. (Override the maintenance
+   address per node with `-e talos_node_ip=<ip> --limit <host>` if needed.)
 4. **All Raspberry Pis boot from a USB→NVMe SSD**, not the SD card. etcd
    and the kubelet are write-heavy; SD cards wear out and are slow. The
    role installs Talos to `/dev/sda` (where the USB SSD enumerates) on
    every node. Attach the SSD before netbooting.
 
-5. **Raspberry Pi boot firmware (one-time, per Pi).** Unlike the x86 VMs
-   (which UEFI-netboot or boot the ISO out of the box), a Raspberry Pi
-   needs firmware on its boot media before it can TFTP-netboot at all, and
-   Talos on the Pi needs the `siderolabs/sbc-raspberrypi` overlay. Do this
-   once per Pi, then the PXE flow in Step 2 takes over on every subsequent
-   boot:
+5. **Raspberry Pi bootloader EEPROM (one-time, per Pi).** A Pi 4 netboots a
+   kernel, not an EFI application, so the `00-pxe` role serves it a
+   purpose-built u-boot over TFTP; the Pi only needs its EEPROM told to try
+   the network first:
 
-   1. **Build an arm64 Talos image with the rpi overlay** from the
-      [Talos Image Factory](https://factory.talos.dev/). Select board
-      *Raspberry Pi Generic* (overlay `siderolabs/sbc-raspberrypi`) for
-      your Talos version; note the **schematic ID** it gives you.
-   2. **Flash the SD card** with that image
-      (`talos-<schematic>-metal-arm64.raw.xz` → SD). This lands the rpi
-      firmware + u-boot. Boot the Pi once so u-boot is in place.
-   3. **Enable netboot** in u-boot/`config.txt` (or program the Pi
-      bootloader EEPROM to prefer network boot) so the next boot chains to
-      our arm64 iPXE (`ipxe-arm64.efi`) over TFTP.
-   4. **Point the role's netboot kernel/initramfs at the SAME schematic**
-      so the netbooted Talos matches the firmware: override in
-      `ansible/roles/00-pxe/defaults/main.yaml`
-      ```yaml
-      talos_arm64_kernel_url: "https://factory.talos.dev/image/<schematic>/{{ talos_version }}/kernel-arm64"
-      talos_arm64_initramfs_url: "https://factory.talos.dev/image/<schematic>/{{ talos_version }}/initramfs-arm64.xz"
-      ```
-      (The committed defaults point at the vanilla siderolabs release
-      assets, which are correct for generic arm64 UEFI but not sufficient
-      on a bare Pi.)
+   ```bash
+   make -C ansible check-pi-eeprom LIMIT=<Pi>     # dry run
+   make -C ansible apply-pi-eeprom LIMIT=<Pi>     # stages BOOT_ORDER=0xf42
+   ```
+
+   `0xf42` reads right-to-left: network, then USB, then restart. The change
+   is flashed by the firmware on the next boot; the current OS stays on the
+   USB SSD as the fallback, so nothing is lost if netboot fails. From then
+   on **dnsmasq decides per boot**: a Pi listed in `talos_pi_provision_hosts`
+   is offered network boot and lands in Talos maintenance mode; any other Pi
+   is ignored, times out, and boots whatever is on its disk. The PXE server
+   is therefore never a boot dependency for the cluster.
+
+   The netbooted kernel/initramfs and the on-disk installer must be the same
+   Image Factory build: `talos_pi_schematic_id` (sbc-raspberrypi overlay) is
+   set identically in `roles/00-pxe/defaults` and `roles/talos/defaults`.
 
    References: Talos
-   [single-board computers / rpi_generic](https://www.talos.dev/latest/talos-guides/install/single-board-computers/rpi_generic/)
-   and [bare-metal PXE](https://www.talos.dev/latest/talos-guides/install/bare-metal-platforms/pxe/).
+   [single-board computers / rpi_generic](https://www.talos.dev/latest/talos-guides/install/single-board-computers/rpi_generic/),
+   Raspberry Pi
+   [bootloader configuration / BOOT_ORDER](https://www.raspberrypi.com/documentation/computers/raspberry-pi.html#BOOT_ORDER).
 
 ## Step 1 — boot the VMs (OpenTofu)
 
@@ -133,19 +129,32 @@ make -C opentofu apply        # download ISO, create/boot the 12 VMs
 
 ## Step 2 — netboot the Pis (Ansible PXE)
 
-The `00-pxe` role serves an arm64 iPXE chainloader and the Talos
-kernel/initramfs, and renders a per-Pi iPXE script that boots Talos into
-maintenance mode. dnsmasq arch-matches x86 (the NUCs, client-arch 7/9) vs
-arm64 (the Pis, client-arch 11).
+The `00-pxe` role builds a netboot u-boot for the Pis, stages the Talos
+arm64 kernel (unwrapped from its EFI zboot container) and initramfs, and
+renders one shared u-boot dispatcher. dnsmasq offers "Raspberry Pi Boot"
+only to the Pis in `talos_pi_provision_hosts`:
 
 ```bash
-make -C ansible apply-pxe     # starts the PXE stack + WOL; Pis netboot Talos
+# Flag the Pi(s) to (re)install, then reboot them (SSH while on Ubuntu,
+# `talosctl reboot` once on Talos, or a power-cycle).
+make -C ansible apply-pxe LIMIT=localhost EXTRA_VARS='talos_pi_provision_hosts=["Buran"]'
+ssh admin@<buran-ip> sudo reboot
 ```
 
-> **Raspberry Pi netboot depends on the one-time firmware setup** in
-> Prerequisite 4 above. Without the rpi overlay firmware + u-boot netboot
-> config (and matching Image Factory kernel/initramfs URLs), a bare Pi
-> won't reach our iPXE chainloader. The x86 VMs need none of this.
+The Pi's firmware TFTPs `config.txt` → `u-boot.bin`; u-boot fetches
+`/boot/uboot.scr` over HTTP, then the kernel and initramfs, and `booti`s
+into maintenance mode. Follow along with `docker logs -f files-dnsmasq-1`
+(DHCP/TFTP) and `docker logs -f files-caddy-1` (HTTP fetches — the only
+telemetry, as the Pis have no serial console). Once the node is installed
+(Step 3), take it out of the list and re-apply; on its next boot dnsmasq
+ignores it and it boots Talos from the SSD:
+
+```bash
+make -C ansible apply-pxe LIMIT=localhost EXTRA_VARS='talos_pi_provision_hosts=[]'
+```
+
+> `LIMIT=localhost` runs only the PXE-server play. Without it `pxe.yaml`
+> also tries to Wake-on-LAN every PXE host — Pis cannot be woken that way.
 
 Watch a node land in maintenance mode:
 `talosctl -n <ip> --insecure dmesg | tail` (or the Proxmox/Pi console).

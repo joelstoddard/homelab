@@ -201,6 +201,29 @@ See `architecture.md` for what `main.yaml` does, and
 `ansible/roles/proxmox/tasks/{debian-to-pve,cluster,api-token}.yaml` for
 the per-OS dispatch.
 
+## Raspberry Pi (Talos) path
+
+The Pis do not go through iPXE. A Pi 4's firmware can netboot a Linux
+kernel but not an EFI application, and its EEPROM `BOOT_ORDER=0xf42` tries
+the network first and falls back to USB on failure. The role leans on both:
+
+```
+firmware DHCP (client-arch 0)
+ ├─ MAC in talos_pi_provision_hosts → dnsmasq "Raspberry Pi Boot"
+ │    TFTP config.txt → u-boot.bin (built on the operator, bootcmd baked)
+ │    u-boot: dhcp → wget /boot/uboot.scr → wget kernel + initramfs → booti
+ │    → Talos maintenance mode → talos role installs to /dev/sda
+ └─ otherwise → dnsmasq ignores it → firmware times out → USB → local disk
+```
+
+Relevant pieces in `roles/00-pxe`: `templates/dnsmasq.conf.j2` (the
+`provision` gate), `templates/uboot-fragment.config.j2` + the build tasks
+in `tasks/talos.yaml` (u-boot), `files/unwrap-zboot.sh` (the Image Factory
+kernel is an EFI zboot PE that `booti` rejects), `templates/uboot.cmd.j2`
+(the shared dispatcher). A failed netboot ends in `reset`, so a Pi that has
+been removed from the list recovers on its own; a Pi stuck from an older
+configuration recovers with a power-cycle.
+
 ## Extending to a new OS
 
 The seams to extend (e.g. to Talos):

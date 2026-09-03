@@ -41,7 +41,7 @@ The root `Makefile` delegates to subdirectory Makefiles; currently `ansible/` an
 
 Two stages, two playbook entry points:
 
-- **`pxe.yaml`** — provisions baremetal by network-booting onto target hosts via iPXE chainload. Targets `hosts: pxe` (devices tagged `pxe` in NetBox). Per-OS group membership (`proxmox` and `talos` now, planned `truenas`) is derived from NetBox `platform.slug` and drives the boot path: Proxmox hosts get a Debian netinstall + per-host preseed; Talos hosts (the arm64 Pis) get an arm64 iPXE chainloader + Talos kernel/initramfs that netboots into maintenance mode.
+- **`pxe.yaml`** — provisions baremetal by network-booting target hosts (iPXE chainload for x86, u-boot for the Pis). Targets `hosts: pxe` (devices tagged `pxe` in NetBox). Per-OS group membership (`proxmox` and `talos` now, planned `truenas`) is derived from NetBox `platform.slug` and drives the boot path: Proxmox hosts get a Debian netinstall + per-host preseed; Talos hosts (the arm64 Pis) get a purpose-built u-boot over TFTP that fetches the Talos kernel/initramfs over HTTP and boots into maintenance mode — offered only to Pis listed in `talos_pi_provision_hosts`; every other Pi is ignored by dnsmasq and falls through to its local disk.
 - **`playbooks/main.yaml`** — runs against PXE-installed hosts via the `02-preflights` orchestrator. Targets `hosts: all` over SSH with `become`; the orchestrator dispatches per-OS work via `'<group>' in group_names` guards (currently `proxmox`; TrueNAS later).
 - **`playbooks/talos.yaml`** — bootstraps the Kubernetes cluster. Targets `hosts: talos` but runs `connection: local`, driving nodes over the Talos API (`talosctl`) because Talos nodes have no SSH or Python. This is why the Talos lifecycle is its own play rather than a branch of `02-preflights`. Dispatches the `talos` library's `config`/`apply`/`bootstrap`/`kubeconfig` tasks.
 
@@ -57,12 +57,14 @@ Roles split into two layers:
 
 Current implementation:
 
-- `00-pxe` — PXE server. Runs dnsmasq (DHCP-proxy + TFTP for the x86 `ipxe.efi`
-  and arm64 `ipxe-arm64.efi` chainloaders, arch-matched via DHCP client-arch)
-  and Caddy (HTTP for kernels, initrds, per-host iPXE scripts, preseeds, Talos
-  assets) in Docker. Per-OS dispatchers under `tasks/`: `proxmox.yaml` (Debian
-  netinstall) and `talos.yaml` (arm64 Pi netboot into Talos maintenance mode);
-  future `truenas.yaml`.
+- `00-pxe` — PXE server. Runs dnsmasq (DHCP-proxy + TFTP: the x86 `ipxe.efi`
+  chainloader for the NUCs; `config.txt` + a purpose-built `u-boot.bin` for the
+  Pis, offered only to hosts in `talos_pi_provision_hosts`) and Caddy (HTTP for
+  kernels, initrds, per-host iPXE scripts, preseeds, the shared u-boot
+  dispatcher `boot/uboot.scr` and the Talos assets) in Docker. Per-OS
+  dispatchers under `tasks/`: `proxmox.yaml` (Debian netinstall) and
+  `talos.yaml` (builds u-boot on the operator, unwraps the Talos arm64 zboot
+  kernel, renders the dispatcher); future `truenas.yaml`.
 - `01-wake-on-lan` — Sends WOL magic packets at the end of `pxe.yaml` to bring
   up sleeping target hosts.
 - `02-preflights` — OS-agnostic orchestrator. Currently dispatches the
