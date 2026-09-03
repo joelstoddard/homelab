@@ -10,6 +10,8 @@ echo MAC ${ethaddr}
 setenv serverip {{ pxe_server_ip }}
 # Explicit, non-overlapping load addresses: the kernel is ~77 MB flat and the
 # initramfs ~65 MB, far larger than the board defaults allow for.
+# Headroom: 128 MB between them; the kernel's in-memory size (text + BSS)
+# exceeds its file size, so re-check if a Talos bump grows the Image past ~100 MB.
 setenv kernel_addr_r 0x10000000
 setenv ramdisk_addr_r 0x18000000
 wget ${kernel_addr_r} /talos/{{ talos_version }}/vmlinuz-arm64.raw
