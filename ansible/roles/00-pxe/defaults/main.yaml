@@ -61,15 +61,6 @@ pi_netboot_packages:
 ipxe_url: "https://boot.ipxe.org/x86_64-efi/ipxe.efi"
 ipxe_sha256: ""  # leave empty to skip checksum; set to pinned hash for production
 
-# arm64 iPXE chainloader (for the Raspberry Pis netbooting Talos). Only
-# downloaded when there are talos-platform hosts in the pxe group.
-# snp.efi is the UEFI Simple-Network-Protocol build the Pi firmware /
-# u-boot hands off to. See docs/talos-bootstrap.md for the Pi netboot
-# prerequisites (the rpi firmware + u-boot must be present for the Pi to
-# reach this chainloader at all).
-ipxe_arm64_url: "https://boot.ipxe.org/arm64-efi/snp.efi"
-ipxe_arm64_sha256: ""
-
 # Talos netboot assets (arm64, served over HTTP to the Pis).
 #
 # talos_version is single-sourced from repo-root versions.env (read via

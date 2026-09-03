@@ -1,8 +1,9 @@
 ---
 # Per-OS task file: Talos path (arm64 Raspberry Pi netboot). Runs after
 # common.yaml, only when there are talos-platform hosts that are also
-# PXE-managed (the Pis). Hosts: localhost — renders per-host artifacts for
-# each Pi in groups['pxe'] ∩ groups['talos'].
+# PXE-managed (the Pis). Hosts: localhost — builds u-boot, stages the Talos
+# assets and renders the shared dispatcher for the Pis in groups['pxe'] ∩
+# groups['talos'].
 #
 # The x86 VMs do NOT come through here: they boot the Talos ISO that
 # OpenTofu attaches to their CD-ROM. This path is exclusively the arm64
@@ -99,14 +100,6 @@
     mode: "0644"
   when: talos_pxe_hosts | length > 0
 
-- name: Download the arm64 iPXE chainloader.
-  ansible.builtin.get_url:
-    url: "{{ ipxe_arm64_url }}"
-    dest: "{{ role_path }}/files/tftp/ipxe-arm64.efi"
-    checksum: "{{ ('sha256:' ~ ipxe_arm64_sha256) if ipxe_arm64_sha256 else omit }}"
-    mode: "0644"
-  when: talos_pxe_hosts | length > 0
-
 - name: Ensure the Talos asset directory exists.
   ansible.builtin.file:
     path: "{{ role_path }}/files/http/talos/{{ talos_version }}"
@@ -140,12 +133,40 @@
     creates: "{{ role_path }}/files/http/talos/{{ talos_version }}/vmlinuz-arm64.raw"
   when: talos_pxe_hosts | length > 0
 
-- name: Render per-host Talos iPXE script.
+- name: Render the u-boot dispatcher script source.
   ansible.builtin.template:
-    src: host-talos.ipxe.j2
-    dest: "{{ role_path }}/files/http/boot/{{ hostvars[item]['mac_address'] | lower | replace(':', '-') }}.ipxe"
+    src: uboot.cmd.j2
+    dest: "{{ role_path }}/files/build/uboot.cmd"
     mode: "0644"
-  loop: "{{ talos_pxe_hosts }}"
-  vars:
-    target_hostname: "{{ item }}"
-    mac_address: "{{ hostvars[item]['mac_address'] }}"
+  when: talos_pxe_hosts | length > 0
+
+# SOURCE_DATE_EPOCH pins the header timestamp so the image only changes when
+# its content does, and the copy below reports `changed` honestly.
+- name: Wrap the dispatcher in a u-boot script image.
+  ansible.builtin.command:
+    cmd: >-
+      mkimage -A arm64 -O linux -T script -C none -n "homelab Pi netboot"
+      -d {{ role_path }}/files/build/uboot.cmd {{ role_path }}/files/build/uboot.scr
+  environment:
+    SOURCE_DATE_EPOCH: "0"
+  changed_when: false
+  when: talos_pxe_hosts | length > 0 and not ansible_check_mode
+
+- name: Publish the dispatcher to /boot/uboot.scr.
+  ansible.builtin.copy:
+    src: "{{ role_path }}/files/build/uboot.scr"
+    dest: "{{ role_path }}/files/http/boot/uboot.scr"
+    remote_src: true
+    mode: "0644"
+  when: talos_pxe_hosts | length > 0 and not ansible_check_mode
+
+# Earlier designs rendered a per-Pi iPXE script; nothing requests them now.
+# `item` is a [host, suffix] pair from the product() below.
+- name: Remove retired per-Pi iPXE scripts.
+  ansible.builtin.file:
+    path: "{{ role_path }}/files/http/boot/{{ hostvars[item[0]]['mac_address'] | lower | replace(':', '-') }}{{ item[1] }}"
+    state: absent
+  loop: "{{ talos_pxe_hosts | product(['.ipxe', '.install.ipxe']) | list }}"
+  loop_control:
+    label: "{{ item[0] }}{{ item[1] }}"
+  when: talos_pxe_hosts | length > 0
