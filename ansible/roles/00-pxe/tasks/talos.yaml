@@ -17,6 +17,8 @@
   ansible.builtin.apt:
     name: "{{ pi_netboot_packages }}"
     state: present
+    update_cache: true
+    cache_valid_time: 3600
   become: true
   when: talos_pxe_hosts | length > 0
 
@@ -170,6 +172,7 @@
 
 # Earlier designs rendered a per-Pi iPXE script; nothing requests them now.
 # `item` is a [host, suffix] pair from the product() below.
+# One-time migration: delete this task once every Pi has been provisioned via u-boot.
 - name: Remove retired per-Pi iPXE scripts.
   ansible.builtin.file:
     path: "{{ role_path }}/files/http/boot/{{ hostvars[item[0]]['mac_address'] | lower | replace(':', '-') }}{{ item[1] }}"
