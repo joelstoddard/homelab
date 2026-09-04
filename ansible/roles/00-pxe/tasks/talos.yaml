@@ -120,19 +120,37 @@
     mode: "0755"
   when: talos_pxe_hosts | length > 0
 
+# Image Factory assets are immutable for a given schematic + version (the
+# directory is versioned), so download each one once. Without a checksum,
+# get_url re-contacts the URL on every run and re-downloads unless the server
+# honours If-Modified-Since — the factory does not — so gate on presence
+# instead. The factory also builds assets lazily on first request, which can
+# exceed get_url's 10 s default timeout.
+- name: Check which Talos arm64 assets are already staged.
+  ansible.builtin.stat:
+    path: "{{ role_path }}/files/http/talos/{{ talos_version }}/{{ item }}"
+    get_checksum: false
+  loop:
+    - vmlinuz-arm64
+    - initramfs-arm64.xz
+  register: talos_asset_stat
+  when: talos_pxe_hosts | length > 0
+
 - name: Download Talos arm64 kernel.
   ansible.builtin.get_url:
     url: "{{ talos_arm64_kernel_url }}"
     dest: "{{ role_path }}/files/http/talos/{{ talos_version }}/vmlinuz-arm64"
     mode: "0644"
-  when: talos_pxe_hosts | length > 0
+    timeout: 120
+  when: talos_pxe_hosts | length > 0 and not talos_asset_stat.results[0].stat.exists
 
 - name: Download Talos arm64 initramfs.
   ansible.builtin.get_url:
     url: "{{ talos_arm64_initramfs_url }}"
     dest: "{{ role_path }}/files/http/talos/{{ talos_version }}/initramfs-arm64.xz"
     mode: "0644"
-  when: talos_pxe_hosts | length > 0
+    timeout: 120
+  when: talos_pxe_hosts | length > 0 and not talos_asset_stat.results[1].stat.exists
 
 # The Image Factory arm64 kernel is an EFI zboot PE, which u-boot's booti
 # rejects; unwrap it once per version. initramfs-arm64.xz is served as-is
