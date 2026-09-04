@@ -116,6 +116,19 @@
   vars:
     pi_cutover_maintenance_timeout: 420   # firmware timeout + TFTP + HTTP + boot
   tasks:
+    # The reboot is fire-and-forget, so the old OS is still answering ARP at
+    # its old address for a few seconds. Wait for its SSH to vanish first, or
+    # the scan below resolves the MAC to the old lease and probes the wrong
+    # host (seen on the first batch).
+    - name: Wait for each target's old OS to go down.
+      ansible.builtin.wait_for:
+        host: "{{ hostvars[item].ansible_host }}"
+        port: 22
+        state: stopped
+        timeout: 120
+      loop: "{{ pi_cutover_hosts }}"
+      when: not ansible_check_mode
+
     - name: Wait for each target's MAC to appear on the LAN.
       ansible.builtin.command:
         cmd: arp-scan --localnet --retry=2
@@ -142,11 +155,13 @@
       loop: "{{ pi_cutover_hosts }}"
       when: not ansible_check_mode
 
+    # A u-boot wget occasionally fails and `reset` retries the whole netboot
+    # (~60 s), so allow for one retry on top of the normal ~80 s.
     - name: Wait for the Talos API (maintenance mode) on each target.
       ansible.builtin.wait_for:
         host: "{{ cutover_maintenance_ips[item] }}"
         port: 50000
-        timeout: 180
+        timeout: 300
       loop: "{{ pi_cutover_hosts }}"
       when: not ansible_check_mode
 
