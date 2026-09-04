@@ -102,8 +102,8 @@ talos_kernel_cmdline: >-
 # (re)provisioned. Only these are offered network boot by dnsmasq (tag
 # `provision`); every other Pi's firmware is ignored and falls through to its
 # USB disk. Empty = steady state: every Pi boots its installed OS.
-#   make apply-pxe LIMIT=localhost EXTRA_VARS='{"talos_pi_provision_hosts": ["Buran"]}'
-#   make apply-pxe LIMIT=localhost EXTRA_VARS='{"talos_pi_provision_hosts": []}'
+#   make apply-pxe TAGS=pxe-server EXTRA_VARS='{"talos_pi_provision_hosts": ["Buran"]}'
+#   make apply-pxe TAGS=pxe-server EXTRA_VARS='{"talos_pi_provision_hosts": []}'
 # (Must be the JSON-object form: Ansible parses key=value extra-vars as
 # strings, so key=["Buran"] would arrive as text and trip the assert.)
 talos_pi_provision_hosts: []

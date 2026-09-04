@@ -137,7 +137,7 @@ only to the Pis in `talos_pi_provision_hosts`:
 ```bash
 # Flag the Pi(s) to (re)install, then reboot them (SSH while on Ubuntu,
 # `talosctl reboot` once on Talos, or a power-cycle).
-make -C ansible apply-pxe LIMIT=localhost EXTRA_VARS='{"talos_pi_provision_hosts": ["Buran"]}'
+make -C ansible apply-pxe TAGS=pxe-server EXTRA_VARS='{"talos_pi_provision_hosts": ["Buran"]}'
 ssh admin@<buran-ip> sudo reboot
 ```
 
@@ -150,11 +150,14 @@ telemetry, as the Pis have no serial console). Once the node is installed
 ignores it and it boots Talos from the SSD:
 
 ```bash
-make -C ansible apply-pxe LIMIT=localhost EXTRA_VARS='{"talos_pi_provision_hosts": []}'
+make -C ansible apply-pxe TAGS=pxe-server EXTRA_VARS='{"talos_pi_provision_hosts": []}'
 ```
 
-> `LIMIT=localhost` runs only the PXE-server play. Without it `pxe.yaml`
-> also tries to Wake-on-LAN every PXE host — Pis cannot be woken that way.
+> `TAGS=pxe-server` runs only the PXE-server plays. Without it `pxe.yaml`
+> also tries to Wake-on-LAN every PXE host and waits for it to reboot — Pis
+> cannot be woken that way. (Don't use `LIMIT=localhost` for this: it skips
+> the play that loads each NUC's SOPS `root_password`, and the preseed render
+> then fails.)
 
 Watch a node land in maintenance mode:
 `talosctl -n <ip> --insecure dmesg | tail` (or the Proxmox/Pi console).
