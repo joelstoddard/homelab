@@ -1,0 +1,250 @@
+---
+# Cut one or more Raspberry Pi 4s over from their current OS to Talos, end to
+# end: EEPROM → netboot into Talos maintenance → install to /dev/sda → boot
+# Talos from disk. Encodes the ordering that keeps every step recoverable —
+# see docs/netbooting-pis.md for the boot chain, the gates and what each log
+# shows.
+#
+# Targets are passed as a JSON list of NetBox inventory names (NOT --limit:
+# the localhost plays and the SOPS loader must see every host):
+#
+#   make check-pi-cutover EXTRA_VARS='{"pi_cutover_hosts": ["Zond", "Mir"]}'
+#   make apply-pi-cutover EXTRA_VARS='{"pi_cutover_hosts": ["Zond", "Mir"]}'
+#
+# The gate is CLOSED before any config is applied (play 6 before play 8), so
+# a Pi that finishes installing falls through to its disk on the very next
+# boot instead of being offered netboot again. A Pi whose install fails
+# reboots into the same fall-through: to retry, run this playbook again.
+#
+# This is a one-way trip for the current OS: apply-config wipes /dev/sda.
+# Once a Pi is on Talos it has no SSH, so re-running against it stops at
+# play 1 — re-provisioning a Talos node is a different (talosctl) flow.
+
+# ---------------------------------------------------------------------------
+# 0. Refuse to run without targets (an empty list would silently no-op).
+# ---------------------------------------------------------------------------
+- name: Check the cutover targets were given.
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tasks:
+    - name: Require pi_cutover_hosts.
+      ansible.builtin.assert:
+        that:
+          - pi_cutover_hosts is defined
+          - pi_cutover_hosts | length > 0
+        fail_msg: >-
+          Pass the targets as a JSON list:
+          make apply-pi-cutover EXTRA_VARS='{"pi_cutover_hosts": ["Zond", "Mir"]}'
+
+# ---------------------------------------------------------------------------
+# 1. Sanity + EEPROM (over SSH, on the Pi's current OS).
+# ---------------------------------------------------------------------------
+- name: Stage network-first boot on the target Pis.
+  hosts: "{{ (pi_cutover_hosts | default(['no-cutover-targets'])) | join(',') }}"
+  become: true
+  gather_facts: false
+  vars:
+    target_boot_order: "0xf42"   # read right-to-left: network, then USB, then restart
+    nl: "\n"
+  pre_tasks:
+    - name: Refuse targets that are not PXE-managed Talos Pis.
+      ansible.builtin.assert:
+        that:
+          - inventory_hostname in groups['pis']
+          - inventory_hostname in groups['pxe']
+          - inventory_hostname in (groups['talos'] | default([]))
+        fail_msg: >-
+          {{ inventory_hostname }} must be in the pis, pxe and talos groups
+          (NetBox device_type pi-*, tag pxe, platform talos).
+  tasks:
+    - name: Stage BOOT_ORDER on the EEPROM (flashed on the reboot below).
+      ansible.builtin.import_tasks: tasks/pi-eeprom-stage.yaml
+
+# ---------------------------------------------------------------------------
+# 2. The PXE server needs every NUC's SOPS root_password to re-render the
+#    Debian preseeds it also owns — same loader play as pxe.yaml.
+# ---------------------------------------------------------------------------
+- name: Load per-host SOPS vars onto each PXE target.
+  hosts: pxe
+  gather_facts: false
+  connection: local
+  tasks:
+    - name: Load SOPS-encrypted host vars (lowercase filename)
+      community.sops.load_vars:
+        file: "{{ host_vars_file }}"
+      vars:
+        host_vars_file: "{{ inventory_dir }}/host_vars/{{ inventory_hostname | lower }}.sops.yaml"
+      when: host_vars_file is file
+      no_log: true
+
+# ---------------------------------------------------------------------------
+# 3. Open the gate: dnsmasq offers netboot to the targets only.
+# ---------------------------------------------------------------------------
+- name: Open the netboot gate for the targets.
+  hosts: localhost
+  connection: local
+  gather_facts: true
+  force_handlers: true
+  vars:
+    talos_pi_provision_hosts: "{{ pi_cutover_hosts }}"
+  roles:
+    - 00-pxe
+
+# ---------------------------------------------------------------------------
+# 4. Reboot the targets. Fire-and-forget: they come back as Talos (no SSH).
+# ---------------------------------------------------------------------------
+- name: Reboot the targets into netboot.
+  hosts: "{{ (pi_cutover_hosts | default(['no-cutover-targets'])) | join(',') }}"
+  become: true
+  gather_facts: false
+  tasks:
+    - name: Reboot (fire-and-forget)
+      ansible.builtin.shell: "sleep 2 && systemctl reboot"
+      async: 1
+      poll: 0
+      changed_when: true
+
+# ---------------------------------------------------------------------------
+# 5. Wait until every target is in Talos maintenance mode. A netbooted node
+#    holds a transient DHCP lease, so find it by MAC (ARP) and probe apid.
+# ---------------------------------------------------------------------------
+- name: Wait for the targets to reach Talos maintenance mode.
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    pi_cutover_maintenance_timeout: 420   # firmware timeout + TFTP + HTTP + boot
+  tasks:
+    - name: Wait for each target's MAC to appear on the LAN.
+      ansible.builtin.command:
+        cmd: arp-scan --localnet --retry=2
+      become: true
+      register: cutover_arp
+      changed_when: false
+      check_mode: false
+      retries: "{{ (pi_cutover_maintenance_timeout / 10) | int }}"
+      delay: 10
+      until: >-
+        pi_cutover_hosts
+        | map('extract', hostvars, 'mac_address') | map('lower')
+        | reject('in', cutover_arp.stdout | lower)
+        | list | length == 0
+      when: not ansible_check_mode
+
+    - name: Resolve each target's maintenance IP (NetBox MAC → live lease).
+      ansible.builtin.set_fact:
+        cutover_maintenance_ips: >-
+          {{ cutover_maintenance_ips | default({})
+             | combine({item: (cutover_arp.stdout_lines
+                               | select('search', hostvars[item].mac_address | lower)
+                               | map('split') | map('first') | list | first)}) }}
+      loop: "{{ pi_cutover_hosts }}"
+      when: not ansible_check_mode
+
+    - name: Wait for the Talos API (maintenance mode) on each target.
+      ansible.builtin.wait_for:
+        host: "{{ cutover_maintenance_ips[item] }}"
+        port: 50000
+        timeout: 180
+      loop: "{{ pi_cutover_hosts }}"
+      when: not ansible_check_mode
+
+    - name: Report where each target is waiting.
+      ansible.builtin.debug:
+        msg: "{{ item }} in maintenance at {{ cutover_maintenance_ips[item] }} (MAC {{ hostvars[item].mac_address }})"
+      loop: "{{ pi_cutover_hosts }}"
+      when: not ansible_check_mode
+
+# ---------------------------------------------------------------------------
+# 6. Close the gate BEFORE installing: the post-install reboot must fall
+#    through to the disk, not be offered netboot again. Only affects the next
+#    boot, so the maintenance nodes are untouched.
+# ---------------------------------------------------------------------------
+- name: Close the netboot gate.
+  hosts: localhost
+  connection: local
+  gather_facts: true
+  force_handlers: true
+  vars:
+    talos_pi_provision_hosts: []
+  roles:
+    - 00-pxe
+
+# ---------------------------------------------------------------------------
+# 7 + 8. Generate configs (picks up any talconfig change, e.g. the USB quirk)
+#        and push each target's config. The talos role finds the node by MAC.
+# ---------------------------------------------------------------------------
+- name: Generate Talos machine configs.
+  hosts: localhost
+  connection: local
+  gather_facts: true
+  gather_subset:
+    - "!all"
+    - "!min"
+    - network
+  tasks:
+    - name: Render configs.
+      ansible.builtin.import_role:
+        name: talos
+        tasks_from: config
+
+- name: Apply Talos config to the targets (installs to /dev/sda).
+  hosts: "{{ (pi_cutover_hosts | default(['no-cutover-targets'])) | join(',') }}"
+  connection: local
+  gather_facts: false
+  order: sorted
+  tasks:
+    # Skipped wholesale in check mode: the role's follow-up reads the
+    # apply-config result, which a skipped command never produces.
+    - name: Push this node's config.
+      ansible.builtin.import_role:
+        name: talos
+        tasks_from: apply
+      when: not ansible_check_mode
+
+# ---------------------------------------------------------------------------
+# 9. Wait for Talos to boot from disk at each target's NetBox IP. A worker's
+#    apid cannot come up until the control plane exists, so the signal is:
+#    the host answers at its static NetBox address AND port 22 is closed
+#    (its old OS is gone).
+# ---------------------------------------------------------------------------
+- name: Wait for the targets to boot Talos from disk.
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    pi_cutover_install_timeout: 600
+  tasks:
+    - name: Wait for each target to answer at its NetBox IP.
+      ansible.builtin.command:
+        cmd: "ping -c 1 -W 2 {{ hostvars[item].ansible_host }}"
+      register: cutover_ping
+      changed_when: false
+      check_mode: false
+      retries: "{{ (pi_cutover_install_timeout / 10) | int }}"
+      delay: 10
+      until: cutover_ping.rc == 0
+      loop: "{{ pi_cutover_hosts }}"
+      when: not ansible_check_mode
+
+    # Give a freshly rebooted host a moment, then insist SSH stays closed —
+    # an open port 22 here means it fell back to its old OS.
+    - name: Confirm the old OS is gone (port 22 stays closed).
+      ansible.builtin.wait_for:
+        host: "{{ hostvars[item].ansible_host }}"
+        port: 22
+        state: stopped
+        delay: 15
+        timeout: 30
+      loop: "{{ pi_cutover_hosts }}"
+      when: not ansible_check_mode
+
+    - name: Cutover result.
+      ansible.builtin.debug:
+        msg: >-
+          {{ item }} is running Talos from disk at {{ hostvars[item].ansible_host }}.
+          apid stays closed until the control plane is bootstrapped (workers get
+          their certificate from trustd); that is expected.
+      loop: "{{ pi_cutover_hosts }}"
+      when: not ansible_check_mode

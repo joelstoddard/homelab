@@ -1,0 +1,56 @@
+---
+# Stage BOOT_ORDER on a Raspberry Pi 4's bootloader EEPROM (flashed by the
+# firmware on the next reboot). Shared by pi-eeprom-netboot.yaml (stage only)
+# and pi-cutover.yaml (stage, then drive the whole netboot → install flow).
+#
+# Runs on the Pi's CURRENT OS over SSH with become — it needs
+# rpi-eeprom-config, so it only applies before the first Talos install (and
+# again for replacement hardware). Idempotent: no-op once BOOT_ORDER matches.
+#
+# Expects: target_boot_order (e.g. "0xf42"), nl ("\n").
+
+- name: Read the Pi model
+  ansible.builtin.slurp:
+    src: /proc/device-tree/model
+  register: pi_model
+  check_mode: false
+
+- name: Refuse anything that is not a Pi 4
+  ansible.builtin.assert:
+    that: "'Raspberry Pi 4' in (pi_model.content | b64decode)"
+    fail_msg: >-
+      {{ inventory_hostname }} is '{{ pi_model.content | b64decode | trim }}', not a Pi 4 —
+      refusing to touch the EEPROM.
+
+- name: Read the current EEPROM config
+  ansible.builtin.command: rpi-eeprom-config
+  register: eeprom_current
+  changed_when: false
+  check_mode: false
+
+- name: Compose the desired EEPROM config (replace/append BOOT_ORDER)
+  ansible.builtin.set_fact:
+    eeprom_desired: >-
+      {{ ((eeprom_current.stdout_lines | reject('match', '^BOOT_ORDER=') | list)
+          + ['BOOT_ORDER=' ~ target_boot_order]) | join(nl) }}
+
+- name: Stage the desired config on the host
+  ansible.builtin.copy:
+    content: "{{ eeprom_desired }}\n"
+    dest: /tmp/pieeprom-desired.conf
+    mode: "0600"
+  when: ('BOOT_ORDER=' ~ target_boot_order) not in eeprom_current.stdout
+
+- name: Apply the EEPROM config (flashes on next reboot)
+  ansible.builtin.command: rpi-eeprom-config --apply /tmp/pieeprom-desired.conf
+  register: eeprom_apply
+  changed_when: eeprom_apply.rc == 0
+  when: ('BOOT_ORDER=' ~ target_boot_order) not in eeprom_current.stdout
+
+- name: Report what happened
+  ansible.builtin.debug:
+    msg: >-
+      {{ inventory_hostname }}:
+      {{ 'BOOT_ORDER already ' ~ target_boot_order ~ ' — no change'
+         if ('BOOT_ORDER=' ~ target_boot_order) in eeprom_current.stdout
+         else 'staged BOOT_ORDER=' ~ target_boot_order ~ ' (flashes on next reboot)' }}

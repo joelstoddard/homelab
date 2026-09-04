@@ -30,6 +30,8 @@ help:
 	@echo "  apply    	- Run playbooks."
 	@echo "  check-pi-eeprom	- Dry run the Pi EEPROM netboot cutover."
 	@echo "  apply-pi-eeprom	- Flip a Pi's EEPROM to network-first boot."
+	@echo "  check-pi-cutover	- Dry run a Pi → Talos cutover (EXTRA_VARS pi_cutover_hosts)."
+	@echo "  apply-pi-cutover	- Cut Pis over to Talos end to end (EXTRA_VARS pi_cutover_hosts)."
 	@echo "  check-talos	- Dry run the Talos bootstrap."
 	@echo "  apply-talos	- Bootstrap the Talos cluster (talosctl, local conn)."
 	@echo "  ping     	- Ping hosts."
@@ -95,6 +97,22 @@ check-pi-eeprom:
 apply-pi-eeprom:
 	$(VENV)/bin/ansible-playbook playbooks/pi-eeprom-netboot.yaml \
 		$(if $(LIMIT),--limit=$(LIMIT)) \
+		$(if $(VERBOSITY),-$(VERBOSITY)) \
+		$(if $(EXTRA_VARS),--extra-vars='$(EXTRA_VARS)')
+
+# Raspberry Pi → Talos cutover, end to end (EEPROM → netboot → install → disk
+# boot). Targets go in EXTRA_VARS as a JSON list, not LIMIT — see
+# playbooks/pi-cutover.yaml and docs/netbooting-pis.md:
+#   make apply-pi-cutover EXTRA_VARS='{"pi_cutover_hosts": ["Zond", "Mir"]}'
+.PHONY: check-pi-cutover
+check-pi-cutover:
+	$(VENV)/bin/ansible-playbook playbooks/pi-cutover.yaml --check --diff \
+		$(if $(VERBOSITY),-$(VERBOSITY)) \
+		$(if $(EXTRA_VARS),--extra-vars='$(EXTRA_VARS)')
+
+.PHONY: apply-pi-cutover
+apply-pi-cutover:
+	$(VENV)/bin/ansible-playbook playbooks/pi-cutover.yaml \
 		$(if $(VERBOSITY),-$(VERBOSITY)) \
 		$(if $(EXTRA_VARS),--extra-vars='$(EXTRA_VARS)')
 
