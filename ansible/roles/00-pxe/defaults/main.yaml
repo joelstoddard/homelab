@@ -93,10 +93,21 @@ talos_arm64_kernel_url: >-
 talos_arm64_initramfs_url: >-
   https://factory.talos.dev/image/{{ talos_pi_schematic_id }}/{{ talos_version }}/initramfs-arm64.xz
 
+# The Pis' USB→NVMe enclosures carry a Realtek RTL9210 bridge. On an upstream
+# kernel (Talos) UAS bulk writes to it kill the Pi 4's VL805 xHCI controller
+# ("Host System Error … HC died") — the disk vanishes mid-install. Ubuntu on
+# the same disks is fine only because the downstream Raspberry Pi kernel
+# carries VL805 workarounds. Force the bridge onto plain usb-storage (`u`).
+# MUST match the talos role's talos_pi_usb_storage_quirks, which puts the same
+# quirk into the installed system's kernel args. Empty disables it.
+talos_pi_usb_storage_quirks: "0bda:9210:u"
+
 # Kernel cmdline for the Talos netboot (maintenance mode — no talos.config,
-# so the node waits for `talosctl apply-config` from the talos role).
+# so the node waits for `talosctl apply-config` from the talos role). The
+# installer runs on THIS kernel, so the USB quirk above has to be here too.
 talos_kernel_cmdline: >-
   talos.platform=metal console=tty1 console=ttyS0,115200n8 init_on_alloc=1 slab_nomerge pti=on
+  {{- (' usb-storage.quirks=' ~ talos_pi_usb_storage_quirks) if talos_pi_usb_storage_quirks else '' }}
 
 # Pi hosts (NetBox inventory names, capitalized e.g. "Buran") currently being
 # (re)provisioned. Only these are offered network boot by dnsmasq (tag
