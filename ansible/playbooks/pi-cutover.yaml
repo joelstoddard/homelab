@@ -231,6 +231,23 @@
   vars:
     pi_cutover_install_timeout: 600
   tasks:
+    # apply-config gives the maintenance node its static NetBox address within
+    # seconds — long before the install finishes — so "answers at its IP" on
+    # its own proves nothing (seen on the first batch). Wait for the address to
+    # DROP (the post-install reboot), then for it to come back.
+    - name: Wait for each target's post-install reboot (its address drops).
+      ansible.builtin.command:
+        cmd: "ping -c 1 -W 2 {{ hostvars[item].ansible_host }}"
+      register: cutover_down
+      changed_when: false
+      failed_when: false
+      check_mode: false
+      retries: "{{ (pi_cutover_install_timeout / 10) | int }}"
+      delay: 10
+      until: cutover_down.rc != 0
+      loop: "{{ pi_cutover_hosts }}"
+      when: not ansible_check_mode
+
     - name: Wait for each target to answer at its NetBox IP.
       ansible.builtin.command:
         cmd: "ping -c 1 -W 2 {{ hostvars[item].ansible_host }}"
