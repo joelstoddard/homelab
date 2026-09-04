@@ -88,6 +88,15 @@ talos_install_disk: "/dev/sda"
 # Value below = the plain sbc-raspberrypi overlay (rpi_generic), no extras.
 talos_pi_schematic_id: "ee21ef4a5ef808a9b7484cc0dda0f25075021691c8c09a276591eedb638ea1f9"
 
+# --- USB storage quirk (arm64 Pis) ---------------------------------------
+# The Pis' USB→NVMe enclosures carry a Realtek RTL9210 bridge; under UAS on an
+# upstream kernel it kills the Pi 4's xHCI controller mid-write (see the
+# 00-pxe defaults for the full story). Written into each Pi's
+# machine.install.extraKernelArgs so the installed system boots with the
+# bridge on plain usb-storage. MUST match 00-pxe's talos_pi_usb_storage_quirks
+# (the netboot/installer kernel). Empty disables it.
+talos_pi_usb_storage_quirks: "0bda:9210:u"
+
 # --- Local build/output paths -------------------------------------------
 # talhelper inputs + outputs land here on the operator workstation.
 # Git-ignored (see repo-root .gitignore) — they contain cluster secrets.

@@ -87,6 +87,17 @@ is a worker. All Pis boot from a USB→NVMe SSD (Prerequisite 4), so etcd on
    role installs Talos to `/dev/sda` (where the USB SSD enumerates) on
    every node. Attach the SSD before netbooting.
 
+   The enclosures' Realtek RTL9210 bridge is a known hazard on upstream
+   kernels: driven by UAS, sustained writes kill the Pi 4's xHCI controller
+   ("Host System Error … HC died") and the disk disappears mid-install.
+   Ubuntu survives only because the downstream Raspberry Pi kernel carries
+   VL805 workarounds. Both roles therefore pass
+   `usb-storage.quirks=0bda:9210:u` (`talos_pi_usb_storage_quirks`, kept
+   identical in `00-pxe` and `talos` defaults): the netboot cmdline for the
+   installer, and `machine.install.extraKernelArgs` for the installed
+   system. A different enclosure needs its own `VID:PID:u`, or an empty
+   value if it behaves under UAS.
+
 5. **Raspberry Pi bootloader EEPROM (one-time, per Pi).** A Pi 4 netboots a
    kernel, not an EFI application, so the `00-pxe` role serves it a
    purpose-built u-boot over TFTP; the Pi only needs its EEPROM told to try

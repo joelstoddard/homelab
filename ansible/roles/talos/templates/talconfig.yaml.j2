@@ -30,6 +30,16 @@ nodes:
     # arm64 Pi: installer built from the rpi-overlay Image Factory schematic.
     talosImageURL: factory.talos.dev/installer/{{ talos_pi_schematic_id }}
 {%   endif %}
+{%   if is_pi and talos_pi_usb_storage_quirks | length > 0 %}
+    # arm64 Pi: keep the USB→NVMe bridge off UAS on the installed system too
+    # (the netboot cmdline carries the same quirk for the installer).
+    patches:
+      - |-
+        machine:
+          install:
+            extraKernelArgs:
+              - usb-storage.quirks={{ talos_pi_usb_storage_quirks }}
+{%   endif %}
 {#
       Static addressing from NetBox: the node's identity is its NetBox MAC
       (deviceSelector — immune to kernel/udev interface renames like the
