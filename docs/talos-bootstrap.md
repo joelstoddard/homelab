@@ -11,7 +11,7 @@ the same config/bootstrap flow:
 | Class | Boot route | Who drives it |
 | --- | --- | --- |
 | VMs (amd64) | Talos **ISO** on the CD-ROM, disk-first boot order | OpenTofu (`opentofu/`) |
-| Pis (arm64) | **PXE netboot** of the Talos kernel/initramfs | Ansible `00-pxe` role |
+| Pis (arm64) | **u-boot netboot** — dnsmasq offers boot only to Pis being provisioned; u-boot fetches the Talos kernel/initramfs over HTTP ([netbooting-pis.md](./netbooting-pis.md)) | Ansible `00-pxe` role |
 | both | `talosctl apply-config` → `bootstrap` → `kubeconfig` | Ansible `talos` role (`playbooks/talos.yaml`) |
 
 Both routes land each node in **Talos maintenance mode** (running from
@@ -143,7 +143,16 @@ make -C opentofu apply        # download ISO, create/boot the 12 VMs
 The `00-pxe` role builds a netboot u-boot for the Pis, stages the Talos
 arm64 kernel (unwrapped from its EFI zboot container) and initramfs, and
 renders one shared u-boot dispatcher. dnsmasq offers "Raspberry Pi Boot"
-only to the Pis in `talos_pi_provision_hosts`:
+only to the Pis in `talos_pi_provision_hosts`. The whole cutover — EEPROM,
+gate, reboot, install, disk boot — is one command per batch:
+
+```bash
+make -C ansible apply-pi-cutover EXTRA_VARS='{"pi_cutover_hosts": ["Zond", "Mir"]}'
+```
+
+[netbooting-pis.md](./netbooting-pis.md) has the boot chain hop by hop and
+the troubleshooting guide. The manual equivalent, if you want to watch each
+step:
 
 ```bash
 # Flag the Pi(s) to (re)install, then reboot them (SSH while on Ubuntu,
