@@ -54,6 +54,9 @@
   when: talos_pxe_hosts | length > 0
 
 # No native module drives a make build; `creates:` keeps this idempotent.
+# With `creates:` set, shell DOES run in check mode (to report would-change)
+# and validates `chdir` first — which fails on a first --check because the
+# clone above was only would-change. Skip it in check mode like its siblings.
 - name: Build u-boot (only when the stamp for this version + fragment is missing).
   ansible.builtin.shell:
     cmd: >-
@@ -66,7 +69,7 @@
     creates: "{{ uboot_stamp }}"
   environment:
     CROSS_COMPILE: "{{ uboot_cross_compile }}"
-  when: talos_pxe_hosts | length > 0
+  when: talos_pxe_hosts | length > 0 and not ansible_check_mode
 
 - name: Install u-boot.bin into the TFTP root.
   ansible.builtin.copy:
