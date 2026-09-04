@@ -24,6 +24,12 @@
   hosts: localhost
   tags: [pxe-server]
   connection: local
+  # dnsmasq reads its config through a single-file Docker bind mount, which
+  # keeps pointing at the OLD inode after Ansible's atomic template write until
+  # the container restarts. If a later task fails, a notified restart would be
+  # dropped and dnsmasq would silently keep serving the stale config — so
+  # always flush handlers, even on failure.
+  force_handlers: true
   # Facts needed: ansible_default_ipv4.{network,netmask,gateway,address}
   gather_facts: true
   roles:

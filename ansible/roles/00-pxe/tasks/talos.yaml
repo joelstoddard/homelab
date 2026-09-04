@@ -29,12 +29,16 @@
     mode: "0755"
   when: talos_pxe_hosts | length > 0
 
+# The version is a pinned tag, so once cloned there is nothing to fetch:
+# update=false keeps the operator's apply working when source.denx.de is slow
+# or unreachable (a transient failure here once dropped the dnsmasq restart).
 - name: "Fetch u-boot {{ uboot_version }}."
   ansible.builtin.git:
     repo: "{{ uboot_repo }}"
     dest: "{{ uboot_build_dir }}"
     version: "{{ uboot_version }}"
     depth: 1
+    update: false
   when: talos_pxe_hosts | length > 0
 
 - name: Render the u-boot Kconfig fragment.
