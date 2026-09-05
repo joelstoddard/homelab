@@ -81,3 +81,9 @@ variable "description" {
   type        = string
   default     = "Empty-shell Proxmox VM, managed by OpenTofu. Installer media attaches separately."
 }
+
+variable "iso_file_id" {
+  description = "Proxmox file ID of an installer ISO to attach to the CD-ROM (e.g. the Talos ISO from modules/talos-image). When set, the VM is started and boots disk-first with the ISO as fallback. null leaves an empty, stopped shell."
+  type        = string
+  default     = null
+}

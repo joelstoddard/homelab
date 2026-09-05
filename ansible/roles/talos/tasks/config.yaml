@@ -1,0 +1,115 @@
+---
+# Resolve NetBox-sourced cluster facts, generate/reuse the talhelper
+# secret bundle, render talconfig.yaml, and run `talhelper genconfig`.
+#
+# Runs on the operator workstation (the playbooks/talos.yaml localhost
+# play). Talos nodes have no SSH/Python, so nothing here touches a node —
+# apply.yaml ships the generated configs over the Talos API.
+
+- name: Ensure the build + role-files directories exist.
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    mode: "0700"
+  loop:
+    - "{{ talos_build_dir }}"
+    - "{{ talos_talsecret_sops | dirname }}"
+
+# --- NetBox-sourced facts (the source of truth) ------------------------
+# Control-plane membership: any talos host carrying the controlplane tag.
+# The inventory plugin exposes NetBox tags as a flat hostvar list.
+- name: Derive control-plane membership from the NetBox tag.
+  ansible.builtin.set_fact:
+    talos_controlplane_hosts: "{{ _derived }}"
+  vars:
+    _derived: >-
+      {{ groups['talos'] | default([]) | map('extract', hostvars)
+         | selectattr('tags', 'defined')
+         | selectattr('tags', 'contains', talos_controlplane_netbox_tag)
+         | map(attribute='inventory_hostname') | list }}
+  when: _derived | length > 0
+
+# VIP: the NetBox IP tagged talos_vip_netbox_tag. The lookup runs in its
+# own block so an unreachable NetBox lands in the rescue (records → []) and
+# we fall back to the default literal, instead of aborting the run. The
+# materialized fact also keeps the lookup OUT of the next task's `when:`,
+# where a templating error would not be caught by ignore_errors.
+- name: Look up the control-plane VIP from NetBox.
+  block:
+    - name: Query NetBox for the VIP-tagged IP.
+      ansible.builtin.set_fact:
+        _vip_records: >-
+          {{ lookup('netbox.netbox.nb_lookup', 'ip-addresses',
+                    api_endpoint=lookup('ansible.builtin.env', 'NETBOX_API'),
+                    token=lookup('ansible.builtin.env', 'NETBOX_TOKEN'),
+                    api_filter='tag=' ~ talos_vip_netbox_tag) }}
+  rescue:
+    - name: NetBox unreachable — fall back to the default VIP literal.
+      ansible.builtin.set_fact:
+        _vip_records: []
+
+- name: Use the NetBox VIP when one is tagged (else keep the default).
+  ansible.builtin.set_fact:
+    talos_vip: "{{ _vip_addr }}"
+  vars:
+    _vip_addr: >-
+      {{ (_vip_records | map(attribute='value.address') | list | first | default('')).split('/') | first }}
+  when: _vip_addr | length > 0
+
+- name: Report the resolved cluster facts.
+  ansible.builtin.debug:
+    msg:
+      - "VIP / endpoint: {{ talos_vip }} ({{ talos_cluster_endpoint }})"
+      - "Control plane ({{ talos_controlplane_hosts | length }}): {{ talos_controlplane_hosts | join(', ') }}"
+      - "Workers ({{ (groups['talos'] | default([]) | difference(talos_controlplane_hosts)) | length }}): {{ groups['talos'] | default([]) | difference(talos_controlplane_hosts) | join(', ') }}"
+
+# --- talhelper secret bundle: reuse if committed, else generate + persist
+- name: Check for the committed (SOPS-encrypted) talsecret bundle.
+  ansible.builtin.stat:
+    path: "{{ talos_talsecret_sops }}"
+  register: talos_talsecret_committed
+
+- name: Generate a fresh talhelper secret bundle (first run only).
+  ansible.builtin.command:
+    cmd: "{{ talhelper_bin }} gensecret"
+  register: talos_gensecret
+  changed_when: true
+  no_log: true
+  when: not talos_talsecret_committed.stat.exists
+
+- name: Stage the plaintext bundle at the .sops.yaml path.
+  # sops picks its creation rule from the file path, and the rule keys on
+  # the .sops.yaml suffix — so write the plaintext there, then encrypt in
+  # place. talhelper auto-decrypts it again at genconfig time.
+  ansible.builtin.copy:
+    content: "{{ talos_gensecret.stdout }}\n"
+    dest: "{{ talos_talsecret_sops }}"
+    mode: "0600"
+  no_log: true
+  when: not talos_talsecret_committed.stat.exists
+
+- name: Encrypt the talsecret bundle in place.
+  ansible.builtin.command:
+    cmd: "{{ sops_bin }} -e -i {{ talos_talsecret_sops }}"
+  changed_when: true
+  when: not talos_talsecret_committed.stat.exists
+
+# --- Render talconfig.yaml + generate per-node machine configs ---------
+- name: Render talconfig.yaml from NetBox/inventory.
+  ansible.builtin.template:
+    src: talconfig.yaml.j2
+    dest: "{{ talos_talconfig }}"
+    mode: "0600"
+
+- name: Generate per-node machine configs with talhelper.
+  ansible.builtin.command:
+    cmd: >-
+      {{ talhelper_bin }} genconfig
+      --config-file {{ talos_talconfig }}
+      --secret-file {{ talos_talsecret_sops }}
+      --out-dir {{ talos_clusterconfig_dir }}
+  changed_when: true
+
+- name: Report the generated configs.
+  ansible.builtin.debug:
+    msg: "talhelper wrote per-node configs + talosconfig to {{ talos_clusterconfig_dir }}"

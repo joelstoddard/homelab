@@ -1,0 +1,122 @@
+---
+# Talos OS-library defaults.
+#
+# Cluster identity lives here (not in inventory/group_vars/talos.yaml,
+# as proxmox's does in group_vars/proxmox.yaml) on purpose: the Talos
+# bootstrap play (playbooks/talos.yaml) generates configs and bootstraps
+# etcd from a `hosts: localhost` play, because Talos nodes have no SSH or
+# Python and cannot be targeted directly. localhost is not in the `talos`
+# inventory group, so it never loads group_vars/talos.yaml — role
+# defaults are the one place every talos play (localhost and per-node)
+# reliably sees these values.
+#
+# Config generation is delegated to talhelper: config.yaml renders a
+# talconfig.yaml from NetBox/inventory (NetBox stays the source of truth),
+# talhelper turns it into per-node machine configs. The values below that
+# can come from NetBox (the VIP, control-plane membership) are resolved at
+# runtime in config.yaml; the literals here are only fallbacks for when
+# NetBox isn't populated yet.
+
+# --- Versions -----------------------------------------------------------
+# Single-sourced from repo-root versions.env (read via role_path so it
+# resolves no matter which playbook includes the role). Bump the version
+# THERE — never inline it here. role_path is .../ansible/roles/talos, so
+# ../../../ is the repo root. talhelper reads these from talconfig.yaml.
+talos_version: >-
+  {{ lookup('file', role_path ~ '/../../../versions.env')
+     | regex_findall('^TALOS_VERSION=(.+)$', multiline=True) | first | trim }}
+talos_kubernetes_version: >-
+  {{ lookup('file', role_path ~ '/../../../versions.env')
+     | regex_findall('^KUBERNETES_VERSION=(.+)$', multiline=True) | first | trim }}
+
+# --- Cluster identity ---------------------------------------------------
+talos_cluster_name: "homelab"
+
+# Shared control-plane VIP. Talos floats this across the control-plane
+# nodes, so the kube-apiserver endpoint survives any single control-plane
+# node going down. SOURCED FROM NETBOX in config.yaml: the IP tagged
+# `talos_vip_netbox_tag` is looked up via netbox.netbox.nb_lookup. The
+# literal below is only a fallback used when no such IP is tagged.
+talos_vip: "192.168.1.100"
+talos_vip_netbox_tag: "talos-vip"
+talos_cluster_endpoint: "https://{{ talos_vip }}:6443"
+
+# Node addressing is static, from NetBox (primary IP + MAC-keyed
+# deviceSelector — interface NAMES are not used: Talos v1.9's systemd-udevd
+# renames the Pi NIC eth0→end0, and virtio VMs get enp* names, so name-based
+# config silently never applies). Prefix length and gateway are taken from
+# the operator's own LAN facts at render time — the operator sits on the
+# same L2 segment as every node. Override per-environment if rendering from
+# a machine that is NOT on the cluster LAN.
+talos_network_prefixlen: "{{ ansible_default_ipv4.prefix | default(24) }}"
+talos_network_gateway: "{{ ansible_default_ipv4.gateway | default('192.168.1.1') }}"
+
+# --- Node roles ---------------------------------------------------------
+# Control-plane membership is DERIVED FROM NETBOX in config.yaml: any host
+# in groups['talos'] carrying the `talos_controlplane_netbox_tag` tag is a
+# control-plane node, everything else a worker. The static list below is
+# only a fallback for when no host is tagged yet. Designed target: 5
+# members, each on a distinct physical host (the 4 k8s-server VMs + the
+# kosmos Pi) so the etcd/kube-apiserver quorum survives any single host.
+talos_controlplane_netbox_tag: "k8s-controlplane"
+talos_controlplane_hosts:
+  - "k8s-server-01"
+  - "k8s-server-02"
+  - "k8s-server-03"
+  - "k8s-server-04"
+  - "kosmos"
+
+# First control-plane node — `talosctl bootstrap` is issued here exactly
+# once to initialise etcd. Its maintenance-mode IP is the NetBox primary
+# IP (ansible_host).
+talos_bootstrap_host: "{{ talos_controlplane_hosts[0] }}"
+
+# --- Install disk -------------------------------------------------------
+# Uniformly /dev/sda across the fleet: the x86 VMs present their scsi0 disk
+# as /dev/sda, and the Pis boot from a USB→NVMe SSD adapter (a documented
+# prerequisite — see docs/talos-bootstrap.md) which also enumerates as
+# /dev/sda. Override per host only for an oddball node.
+talos_install_disk: "/dev/sda"
+
+# --- Image Factory schematic (arm64 Pis) --------------------------------
+# The arm64 Pis need a Talos installer built with the rpi overlay
+# (siderolabs/sbc-raspberrypi). config.yaml wires this into each Pi's
+# talosImageURL. The 00-pxe netboot kernel/initramfs MUST be generated from
+# the SAME schematic (see 00-pxe defaults) so the netbooted Talos and the
+# on-disk installer agree. Empty would fall back to the default installer
+# (correct for the x86 VMs; NOT sufficient on a bare Pi).
+# Value below = the plain sbc-raspberrypi overlay (rpi_generic), no extras.
+talos_pi_schematic_id: "ee21ef4a5ef808a9b7484cc0dda0f25075021691c8c09a276591eedb638ea1f9"
+
+# --- USB storage quirk (arm64 Pis) ---------------------------------------
+# The Pis' USB→NVMe enclosures carry a Realtek RTL9210 bridge; under UAS on an
+# upstream kernel it kills the Pi 4's xHCI controller mid-write (see the
+# 00-pxe defaults for the full story). Written into each Pi's
+# machine.install.extraKernelArgs so the installed system boots with the
+# bridge on plain usb-storage. MUST match 00-pxe's talos_pi_usb_storage_quirks
+# (the netboot/installer kernel). Empty disables it.
+talos_pi_usb_storage_quirks: "0bda:9210:u"
+
+# --- Local build/output paths -------------------------------------------
+# talhelper inputs + outputs land here on the operator workstation.
+# Git-ignored (see repo-root .gitignore) — they contain cluster secrets.
+# Only the SOPS-encrypted talsecret bundle (below) is committed.
+talos_build_dir: "{{ playbook_dir }}/../.talos"
+talos_talconfig: "{{ talos_build_dir }}/talconfig.yaml"
+talos_clusterconfig_dir: "{{ talos_build_dir }}/clusterconfig"
+talos_talosconfig: "{{ talos_clusterconfig_dir }}/talosconfig"
+
+# Committed, SOPS-encrypted talhelper secret bundle (cluster CA keys +
+# tokens). Generated once on first run, reused thereafter so the PKI never
+# rotates underneath running nodes. Covered by the role-files rule in
+# .sops.yaml; talhelper decrypts it via sops at genconfig time.
+talos_talsecret_sops: "{{ role_path }}/files/talsecret.sops.yaml"
+
+# The cluster kubeconfig is merged into the operator's default kubeconfig
+# (preserving other clusters' contexts), not dropped in the repo.
+talos_kubeconfig_dest: "{{ lookup('ansible.builtin.env', 'HOME') }}/.kube/config"
+
+# Binaries (overridable if not on PATH).
+talhelper_bin: "talhelper"
+talosctl_bin: "talosctl"
+sops_bin: "sops"

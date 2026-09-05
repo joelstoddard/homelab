@@ -1,0 +1,38 @@
+---
+# One-time cutover: flip a Raspberry Pi 4's bootloader EEPROM to
+# BOOT_ORDER=0xf42 (read right-to-left: network, then USB, then restart).
+# From then on the 00-pxe dnsmasq decides per boot whether the Pi netboots
+# Talos (it is in talos_pi_provision_hosts) or falls through to its USB disk.
+#
+# Runs against the Pi's CURRENT OS over SSH (it needs rpi-eeprom-config), so
+# it is used once per Pi before the first Talos install — and again only for
+# replacement hardware. The existing OS stays intact on /dev/sda, so a failed
+# netboot falls back to USB and SSH is retained.
+#
+# Default does NOT reboot — it only stages the EEPROM change (flashed by the
+# firmware on the next boot). Reboot when the PXE side is ready:
+#
+#   make check-pi-eeprom LIMIT=Buran
+#   make apply-pi-eeprom LIMIT=Buran
+#   make apply-pi-eeprom LIMIT=Buran EXTRA_VARS='pi_reboot=true'
+- name: Flip Raspberry Pi 4 EEPROM to network-first boot
+  hosts: pis
+  become: true
+  gather_facts: false
+  vars:
+    target_boot_order: "0xf42"   # read right-to-left: network, then USB, then restart
+    pi_reboot: false
+    nl: "\n"   # double-quoted YAML scalar = a real newline for join() below
+  tasks:
+    - name: Stage BOOT_ORDER on the EEPROM
+      ansible.builtin.import_tasks: tasks/pi-eeprom-stage.yaml
+
+    # The reboot module waits for SSH to return; on a SUCCESSFUL cutover this Pi
+    # becomes Talos (no SSH) and never returns, so we fire-and-forget instead
+    # and observe out-of-band (talosctl / console). Off by default.
+    - name: Reboot into the netboot path (fire-and-forget)
+      ansible.builtin.shell: "sleep 2 && systemctl reboot"
+      async: 1
+      poll: 0
+      changed_when: true
+      when: pi_reboot | bool

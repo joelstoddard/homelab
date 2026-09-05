@@ -72,6 +72,40 @@ curl -fsSL -o "$TOFU_DEB" \
 apt-get install -y "$TOFU_DEB"
 rm -f "$TOFU_DEB"
 
+# talosctl drives Talos config generation, apply, bootstrap, and kubeconfig
+# retrieval (ansible/roles/talos). kubectl talks to the resulting cluster.
+# Neither is packaged for Debian/Ubuntu; pull the upstream release binaries.
+# Versions come from repo-root versions.env — the single source shared with
+# Ansible and OpenTofu. Bump there, not here.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck disable=SC1091
+. "${SCRIPT_DIR}/versions.env"
+TALOSCTL_VERSION="${TALOS_VERSION}"
+KUBECTL_VERSION="${KUBERNETES_VERSION}"
+case "$(dpkg --print-architecture)" in
+    amd64) GOARCH="amd64" ;;
+    arm64) GOARCH="arm64" ;;
+    *) echo "Unsupported arch for talosctl/kubectl: $(dpkg --print-architecture)" >&2; exit 1 ;;
+esac
+
+echo ">> Installing talosctl ${TALOSCTL_VERSION} from upstream release"
+curl -fsSL -o /usr/local/bin/talosctl \
+    "https://github.com/siderolabs/talos/releases/download/${TALOSCTL_VERSION}/talosctl-linux-${GOARCH}"
+chmod +x /usr/local/bin/talosctl
+
+echo ">> Installing kubectl ${KUBECTL_VERSION} from upstream release"
+curl -fsSL -o /usr/local/bin/kubectl \
+    "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/${GOARCH}/kubectl"
+chmod +x /usr/local/bin/kubectl
+
+# talhelper generates the Talos machine configs from talconfig.yaml
+# (ansible/roles/talos). The jpillora redirector resolves the right
+# release asset for this OS/arch; version pinned in versions.env.
+echo ">> Installing talhelper ${TALHELPER_VERSION}"
+curl -fsSL "https://i.jpillora.com/budimanjojo/talhelper@${TALHELPER_VERSION}!" | bash
+install -m 0755 talhelper /usr/local/bin/talhelper 2>/dev/null || true
+rm -f talhelper
+
 echo ">> Installing Docker apt key + repo (${DOCKER_REPO_DISTRO}/${CODENAME})"
 install -m 0755 -d /etc/apt/keyrings
 curl -fsSL "https://download.docker.com/linux/${DOCKER_REPO_DISTRO}/gpg" \
@@ -117,6 +151,9 @@ docker compose version >/dev/null 2>&1 \
     || { echo "  MISSING: docker compose plugin" >&2; fail=1; }
 verify sops
 verify tofu
+verify talosctl version --client
+verify talhelper --version
+verify kubectl version --client
 verify age
 verify python3
 verify git

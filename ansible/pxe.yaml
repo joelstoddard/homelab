@@ -1,6 +1,11 @@
 ---
+# Plays are tagged so the PXE server can be (re)configured without waking
+# anything: `make apply-pxe TAGS=pxe-server` runs plays 1-2 only. (A --limit
+# on localhost does NOT work for that: it skips play 1, so the per-host
+# root_password never reaches the preseed render in play 2.)
 - name: Load per-host SOPS vars onto each PXE target.
   hosts: pxe
+  tags: [pxe-server]
   gather_facts: false
   connection: local
   tasks:
@@ -17,7 +22,14 @@
 
 - name: Start PXE server.
   hosts: localhost
+  tags: [pxe-server]
   connection: local
+  # dnsmasq reads its config through a single-file Docker bind mount, which
+  # keeps pointing at the OLD inode after Ansible's atomic template write until
+  # the container restarts. If a later task fails, a notified restart would be
+  # dropped and dnsmasq would silently keep serving the stale config — so
+  # always flush handlers, even on failure.
+  force_handlers: true
   # Facts needed: ansible_default_ipv4.{network,netmask,gateway,address}
   gather_facts: true
   roles:
@@ -25,6 +37,7 @@
 
 - name: Wake target machines and wait for them to come online.
   hosts: pxe
+  tags: [wol]
   gather_facts: false
   pre_tasks:
     # NetBox inventory hostnames mirror the NetBox device-name field exactly,

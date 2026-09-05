@@ -28,6 +28,12 @@ help:
 	@echo "  check		- Perform a dry run."
 	@echo "  apply-pxe 	- Run playbooks (pre-boot)."
 	@echo "  apply    	- Run playbooks."
+	@echo "  check-pi-eeprom	- Dry run the Pi EEPROM netboot cutover."
+	@echo "  apply-pi-eeprom	- Flip a Pi's EEPROM to network-first boot."
+	@echo "  check-pi-cutover	- Dry run a Pi → Talos cutover (EXTRA_VARS pi_cutover_hosts)."
+	@echo "  apply-pi-cutover	- Cut Pis over to Talos end to end (EXTRA_VARS pi_cutover_hosts)."
+	@echo "  check-talos	- Dry run the Talos bootstrap."
+	@echo "  apply-talos	- Bootstrap the Talos cluster (talosctl, local conn)."
 	@echo "  ping     	- Ping hosts."
 	@echo "  clean    	- Clean temporary files."
 	@echo "  console	- Open a console."
@@ -79,9 +85,60 @@ apply-pxe:
 		$(if $(VERBOSITY),-$(VERBOSITY)) \
 		$(if $(EXTRA_VARS),--extra-vars='$(EXTRA_VARS)')
 
+# Raspberry Pi EEPROM cutover (one-time per Pi; see playbooks/pi-eeprom-netboot.yaml)
+.PHONY: check-pi-eeprom
+check-pi-eeprom:
+	$(VENV)/bin/ansible-playbook playbooks/pi-eeprom-netboot.yaml --check --diff \
+		$(if $(LIMIT),--limit=$(LIMIT)) \
+		$(if $(VERBOSITY),-$(VERBOSITY)) \
+		$(if $(EXTRA_VARS),--extra-vars='$(EXTRA_VARS)')
+
+.PHONY: apply-pi-eeprom
+apply-pi-eeprom:
+	$(VENV)/bin/ansible-playbook playbooks/pi-eeprom-netboot.yaml \
+		$(if $(LIMIT),--limit=$(LIMIT)) \
+		$(if $(VERBOSITY),-$(VERBOSITY)) \
+		$(if $(EXTRA_VARS),--extra-vars='$(EXTRA_VARS)')
+
+# Raspberry Pi → Talos cutover, end to end (EEPROM → netboot → install → disk
+# boot). Targets go in EXTRA_VARS as a JSON list, not LIMIT — see
+# playbooks/pi-cutover.yaml and docs/netbooting-pis.md:
+#   make apply-pi-cutover EXTRA_VARS='{"pi_cutover_hosts": ["Zond", "Mir"]}'
+.PHONY: check-pi-cutover
+check-pi-cutover:
+	$(VENV)/bin/ansible-playbook playbooks/pi-cutover.yaml --check --diff \
+		$(if $(VERBOSITY),-$(VERBOSITY)) \
+		$(if $(EXTRA_VARS),--extra-vars='$(EXTRA_VARS)')
+
+.PHONY: apply-pi-cutover
+apply-pi-cutover:
+	$(VENV)/bin/ansible-playbook playbooks/pi-cutover.yaml \
+		$(if $(VERBOSITY),-$(VERBOSITY)) \
+		$(if $(EXTRA_VARS),--extra-vars='$(EXTRA_VARS)')
+
 .PHONY: apply
 apply:
 	$(VENV)/bin/ansible-playbook playbooks/main.yaml \
+		$(if $(LIMIT),--limit=$(LIMIT)) \
+		$(if $(TAGS),--tags=$(TAGS)) \
+		$(if $(VERBOSITY),-$(VERBOSITY)) \
+		$(if $(EXTRA_VARS),--extra-vars='$(EXTRA_VARS)')
+
+# Talos cluster bootstrap. Runs entirely on the operator workstation
+# (connection: local) and talks to nodes via talosctl — Talos has no SSH.
+# Run AFTER the VMs are booted from the Talos ISO (make -C opentofu apply)
+# and the Pis are netbooted (make apply-pxe). See docs/talos-bootstrap.md.
+.PHONY: check-talos
+check-talos:
+	$(VENV)/bin/ansible-playbook playbooks/talos.yaml --check --diff \
+		$(if $(LIMIT),--limit=$(LIMIT)) \
+		$(if $(TAGS),--tags=$(TAGS)) \
+		$(if $(VERBOSITY),-$(VERBOSITY)) \
+		$(if $(EXTRA_VARS),--extra-vars='$(EXTRA_VARS)')
+
+.PHONY: apply-talos
+apply-talos:
+	$(VENV)/bin/ansible-playbook playbooks/talos.yaml \
 		$(if $(LIMIT),--limit=$(LIMIT)) \
 		$(if $(TAGS),--tags=$(TAGS)) \
 		$(if $(VERBOSITY),-$(VERBOSITY)) \

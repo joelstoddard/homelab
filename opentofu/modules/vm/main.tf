@@ -5,9 +5,15 @@ resource "proxmox_virtual_environment_vm" "vm" {
   description = var.description
   tags        = var.tags
 
-  # Hands off to the Talos thread for boot + start.
-  started = false
-  on_boot = false
+  # Empty shell until an installer ISO is attached. Once var.iso_file_id
+  # is set the VM is started and boots disk-first, falling through to the
+  # ISO only while the disk is blank — so the very first boot lands in
+  # Talos maintenance mode, and every boot after the install reads the
+  # installed system off disk without needing the ISO detached.
+  started = var.iso_file_id != null
+  on_boot = var.iso_file_id != null
+
+  boot_order = var.iso_file_id != null ? ["scsi0", "ide2"] : null
 
   # Talos requires UEFI.
   bios = "ovmf"
@@ -43,10 +49,11 @@ resource "proxmox_virtual_environment_vm" "vm" {
     discard      = "on"
   }
 
-  # Empty CD-ROM slot. Talos thread attaches installer media here.
+  # CD-ROM slot for installer media. Holds the Talos ISO once
+  # var.iso_file_id is set; an empty shell leaves it as "none".
   cdrom {
     interface = "ide2"
-    file_id   = "none"
+    file_id   = var.iso_file_id != null ? var.iso_file_id : "none"
   }
 
   network_device {
