@@ -180,6 +180,24 @@ certificate from `trustd` on the control plane. Port 22 closed confirms the
 old OS is gone; the shipped logs (if enabled) show `loading config from
 STATE`, `assigned address <netbox-ip>`, `kubelet … Health check successful`.
 
+**The cutover playbook times out "waiting for `<old-ip>:50000`" while the
+Pis are demonstrably in maintenance mode.** It located the MAC too early —
+while the old OS was still answering ARP at its old address — and probed
+the wrong host. A fire-and-forget `systemctl reboot` stops `sshd` several
+seconds before the kernel restarts, so "SSH closed" is not "down"; only
+ICMP going dark is. The playbook waits for that now. Recovery for a run
+that failed there: the gate is still open, the Pis are in maintenance —
+close the gate and apply by hand (the manual steps above, from the CLOSE
+step on).
+
+**The playbook (or you) declared "Talos from disk" seconds after
+`apply-config`.** Not possible — `apply-config` gives the maintenance node
+its static NetBox address within seconds, long before the install finishes,
+so "answers at its IP with SSH closed" is true immediately. The proof of a
+disk boot is the address **dropping** (the post-install reboot, also visible
+as `proxy-ignored` in dnsmasq) and then returning. The playbook waits for
+the drop first.
+
 **`apply-talos` fails with "arp-scan: not found" or finds no node.** Install
 `arp-scan` on the operator (it lives in `/usr/sbin`; the task uses `become`,
 so `sudo`'s path finds it). The scan matches the NetBox MAC against live
