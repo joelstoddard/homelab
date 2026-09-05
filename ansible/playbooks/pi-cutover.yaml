@@ -116,16 +116,21 @@
   vars:
     pi_cutover_maintenance_timeout: 420   # firmware timeout + TFTP + HTTP + boot
   tasks:
-    # The reboot is fire-and-forget, so the old OS is still answering ARP at
-    # its old address for a few seconds. Wait for its SSH to vanish first, or
-    # the scan below resolves the MAC to the old lease and probes the wrong
-    # host (seen on the first batch).
-    - name: Wait for each target's old OS to go down.
-      ansible.builtin.wait_for:
-        host: "{{ hostvars[item].ansible_host }}"
-        port: 22
-        state: stopped
-        timeout: 120
+    # The reboot is fire-and-forget, so the old OS keeps answering ARP at its
+    # old address until the kernel actually restarts — sshd stopping is NOT
+    # that moment (both were tried; both resolved the MAC to the old lease and
+    # probed the wrong host). Only ICMP going dark is: after that the MAC is
+    # off the wire until the netbooted system brings it up on a fresh lease.
+    - name: Wait for each target's old OS to go down (stops answering ping).
+      ansible.builtin.command:
+        cmd: "ping -c 1 -W 2 {{ hostvars[item].ansible_host }}"
+      register: cutover_old_down
+      changed_when: false
+      failed_when: false
+      check_mode: false
+      retries: 30
+      delay: 5
+      until: cutover_old_down.rc != 0
       loop: "{{ pi_cutover_hosts }}"
       when: not ansible_check_mode
 
