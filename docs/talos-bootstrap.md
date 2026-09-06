@@ -188,6 +188,10 @@ make -C ansible apply-pxe TAGS=pxe-server EXTRA_VARS='{"talos_pi_provision_hosts
 Watch a node land in maintenance mode:
 `talosctl -n <ip> --insecure dmesg | tail` (or the Proxmox/Pi console).
 
+> **All of Steps 1–3 are one command from the repo root: `make homelab`.**
+> Each stage is a no-op on a healthy fleet, so it is also the way to
+> converge a drifted one. The steps below are the same thing taken apart.
+
 ## Step 3 — configure + bootstrap the cluster (Ansible Talos role)
 
 Once **every** node is in maintenance mode:
@@ -196,6 +200,10 @@ Once **every** node is in maintenance mode:
 make -C ansible check-talos   # dry run
 make -C ansible apply-talos
 ```
+
+Run it with **all** tags (or `TAGS=config,bootstrap,kubeconfig`): the
+`config` step derives the control-plane list and the VIP from NetBox;
+running `bootstrap` alone falls back to the role's literal defaults.
 
 This runs `playbooks/talos.yaml`. Config generation is delegated to
 [talhelper](https://github.com/budimanjojo/talhelper); NetBox stays the
