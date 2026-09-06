@@ -1,33 +1,15 @@
 ---
-# Cut one or more Raspberry Pi 4s over from their current OS to Talos, end to
-# end: EEPROM → netboot into Talos maintenance → install to /dev/sda → boot
-# Talos from disk. Encodes the ordering that keeps every step recoverable —
-# see docs/netbooting-pis.md for the boot chain, the gates and what each log
-# shows.
+# Cut Raspberry Pi 4s over from their current OS to Talos, end to end:
+# EEPROM → netboot into maintenance → install to /dev/sda → boot from disk.
+# One-way for the old OS: apply-config wipes /dev/sda. Pis already on Talos
+# answer no SSH and are skipped, so this is safe to re-run and to run inside
+# `make homelab`. See docs/netbooting-pis.md for the boot chain and gates.
 #
-# Targets default to every Pi (groups['pis']); pass a JSON list of NetBox
-# inventory names to narrow it (NOT --limit: the localhost plays and the SOPS
-# loader must see every host). Pis that no longer answer SSH are already on
-# Talos and are skipped, so `make homelab` can run this on a healthy fleet.
+# Targets default to every Pi; pass NetBox names to narrow (NOT --limit — the
+# localhost/SOPS plays need every host):
 #
-#   make apply-pi-cutover                                              # every Pi still on its old OS
+#   make apply-pi-cutover
 #   make apply-pi-cutover EXTRA_VARS='{"pi_cutover_hosts": ["Zond", "Mir"]}'
-#
-# The gate is CLOSED before any config is applied (play 6 before play 8), so
-# a Pi that finishes installing falls through to its disk on the very next
-# boot instead of being offered netboot again. A Pi whose install fails
-# reboots into the same fall-through: to retry, run this playbook again.
-#
-# This is a one-way trip for the current OS: apply-config wipes /dev/sda.
-# Once a Pi is on Talos it has no SSH and is skipped here — re-provisioning
-# a Talos node is a different (talosctl) flow.
-
-# ---------------------------------------------------------------------------
-# 0. Work out which Pis still need cutting over. Candidates: pi_cutover_hosts
-#    or every Pi. A candidate that answers SSH is on its old OS → pending; one
-#    that does not is already Talos → skipped. The pending set becomes the
-#    dynamic group `pi_cutover_pending` that every later play targets.
-# ---------------------------------------------------------------------------
 - name: Find the Pis that still need cutting over.
   hosts: localhost
   connection: local
@@ -75,9 +57,6 @@
           pending (old OS, will be cut over): {{ groups['pi_cutover_pending'] | default([]) | join(', ') or 'none' }};
           skipped (already Talos, no SSH): {{ pi_cutover_candidates | difference(groups['pi_cutover_pending'] | default([])) | join(', ') or 'none' }}
 
-# ---------------------------------------------------------------------------
-# 1. Sanity + EEPROM (over SSH, on the Pi's current OS).
-# ---------------------------------------------------------------------------
 - name: Stage network-first boot on the target Pis.
   hosts: pi_cutover_pending
   become: true
@@ -89,10 +68,8 @@
     - name: Stage BOOT_ORDER on the EEPROM (flashed on the reboot below).
       ansible.builtin.import_tasks: tasks/pi-eeprom-stage.yaml
 
-# ---------------------------------------------------------------------------
-# 2. The PXE server needs every NUC's SOPS root_password to re-render the
-#    Debian preseeds it also owns — same loader play as pxe.yaml.
-# ---------------------------------------------------------------------------
+# The PXE server re-renders the Debian preseeds it owns, which need each
+# NUC's SOPS root_password — same loader play as pxe.yaml.
 - name: Load per-host SOPS vars onto each PXE target.
   hosts: pxe
   gather_facts: false
@@ -106,9 +83,6 @@
       when: host_vars_file is file
       no_log: true
 
-# ---------------------------------------------------------------------------
-# 3. Open the gate: dnsmasq offers netboot to the targets only.
-# ---------------------------------------------------------------------------
 - name: Open the netboot gate for the targets.
   hosts: localhost
   connection: local
@@ -119,9 +93,6 @@
   roles:
     - 00-pxe
 
-# ---------------------------------------------------------------------------
-# 4. Reboot the targets. Fire-and-forget: they come back as Talos (no SSH).
-# ---------------------------------------------------------------------------
 - name: Reboot the targets into netboot.
   hosts: pi_cutover_pending
   become: true
@@ -133,10 +104,7 @@
       poll: 0
       changed_when: true
 
-# ---------------------------------------------------------------------------
-# 5. Wait until every target is in Talos maintenance mode. A netbooted node
-#    holds a transient DHCP lease, so find it by MAC (ARP) and probe apid.
-# ---------------------------------------------------------------------------
+# A netbooted node holds a transient DHCP lease, so find it by MAC (ARP).
 - name: Wait for the targets to reach Talos maintenance mode.
   hosts: localhost
   connection: local
@@ -204,11 +172,8 @@
       loop: "{{ groups['pi_cutover_pending'] | default([]) }}"
       when: not ansible_check_mode
 
-# ---------------------------------------------------------------------------
-# 6. Close the gate BEFORE installing: the post-install reboot must fall
-#    through to the disk, not be offered netboot again. Only affects the next
-#    boot, so the maintenance nodes are untouched.
-# ---------------------------------------------------------------------------
+# Close BEFORE installing so the post-install reboot falls through to disk
+# instead of being offered netboot again. Only affects the next boot.
 - name: Close the netboot gate.
   hosts: localhost
   connection: local
@@ -219,10 +184,7 @@
   roles:
     - 00-pxe
 
-# ---------------------------------------------------------------------------
-# 7 + 8. Generate configs (picks up any talconfig change, e.g. the USB quirk)
-#        and push each target's config. The talos role finds the node by MAC.
-# ---------------------------------------------------------------------------
+# Regenerate first so any talconfig change (e.g. the USB quirk) is picked up.
 - name: Generate Talos machine configs.
   hosts: localhost
   connection: local
@@ -251,12 +213,9 @@
         tasks_from: apply
       when: not ansible_check_mode
 
-# ---------------------------------------------------------------------------
-# 9. Wait for Talos to boot from disk at each target's NetBox IP. A worker's
-#    apid cannot come up until the control plane exists, so the signal is:
-#    the host answers at its static NetBox address AND port 22 is closed
-#    (its old OS is gone).
-# ---------------------------------------------------------------------------
+# Install-took signal: the host answers at its static NetBox IP AND port 22
+# is closed (old OS gone). A worker's apid stays down until the control plane
+# exists, so it is not part of the signal.
 - name: Wait for the targets to boot Talos from disk.
   hosts: localhost
   connection: local

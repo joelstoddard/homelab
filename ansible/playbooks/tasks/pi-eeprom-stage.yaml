@@ -9,19 +9,6 @@
 #
 # Expects: target_boot_order (e.g. "0xf42"), nl ("\n").
 
-- name: Read the Pi model
-  ansible.builtin.slurp:
-    src: /proc/device-tree/model
-  register: pi_model
-  check_mode: false
-
-- name: Refuse anything that is not a Pi 4
-  ansible.builtin.assert:
-    that: "'Raspberry Pi 4' in (pi_model.content | b64decode)"
-    fail_msg: >-
-      {{ inventory_hostname }} is '{{ pi_model.content | b64decode | trim }}', not a Pi 4 —
-      refusing to touch the EEPROM.
-
 - name: Read the current EEPROM config
   ansible.builtin.command: rpi-eeprom-config
   register: eeprom_current

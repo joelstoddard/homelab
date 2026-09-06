@@ -1,21 +1,9 @@
 ---
-# Talos cluster bootstrap.
+# Talos cluster bootstrap. Runs on the operator workstation
+# (connection: local) and drives nodes over the Talos API — Talos has no SSH
+# or Python. See docs/talos-bootstrap.md for the flow and prerequisites.
 #
-# Unlike playbooks/main.yaml, this does NOT SSH into the targets — Talos
-# Linux runs no SSH daemon and no Python. Every play here runs on the
-# operator workstation (connection: local) and talks to nodes over the
-# Talos API via talosctl. The `talos` role's task files do the work.
-#
-# Prerequisites (see docs/talos-bootstrap.md):
-#   - The 12 VMs and 8 Pis are in NetBox with platform=talos (so they land
-#     in the `talos` inventory group). No DHCP reservations needed: nodes in
-#     maintenance mode are found by ARP-scanning for their NetBox MAC, and
-#     the applied machine config pins each node to its NetBox primary IP.
-#   - VMs booted from the Talos ISO (OpenTofu) and Pis netbooted (00-pxe)
-#     into maintenance mode.
-#   - talosctl + sops on PATH; the age key available to sops.
-#
-# Run: make -C ansible apply-talos   (or ansible-playbook playbooks/talos.yaml)
+# Run: make -C ansible apply-talos
 
 - name: Generate Talos cluster + per-node machine configs.
   hosts: localhost
