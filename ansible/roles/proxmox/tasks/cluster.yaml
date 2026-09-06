@@ -34,6 +34,14 @@
   changed_when: false
   check_mode: false
 
+# Membership first: a node that already carries corosync.conf is in the
+# cluster, and the guest guard below must not fire for it — a healthy joined
+# node with VMs is exactly what a re-run of `make homelab` sees.
+- name: Detect existing corosync configuration.
+  ansible.builtin.stat:
+    path: /etc/pve/corosync.conf
+  register: corosync_conf
+
 - name: Preflight — fail loudly if any guest exists on a follower.
   # Only enforced on followers; pvecm create accepts non-empty leaders,
   # but pvecm add rejects any node that already has guests.
@@ -50,12 +58,8 @@
       {{ preflight_pct.stdout }}
   when:
     - inventory_hostname != proxmox_cluster_leader
+    - not corosync_conf.stat.exists   # already a member: guests are expected, nothing to join
     - (preflight_qm.stdout_lines | length > 1) or (preflight_pct.stdout_lines | length > 1)
-
-- name: Detect existing corosync configuration.
-  ansible.builtin.stat:
-    path: /etc/pve/corosync.conf
-  register: corosync_conf
 
 - name: Load the leader's root password from its SOPS host_vars (followers only).
   # Lookup plugins run on the controller, so the SOPS file decrypts with
