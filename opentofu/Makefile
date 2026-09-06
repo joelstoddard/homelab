@@ -126,10 +126,13 @@ define run_tofu
 	done
 endef
 
+# init is idempotent and quick once providers are cached, so every real
+# target runs it: a fresh operator's `make homelab` must not die on
+# "Required plugins are not installed".
 dev: check-secrets provider-mirror
 	$(call run_tofu,init,)
 
-lint: check-secrets provider-mirror
+lint: dev
 	@set -e; \
 	if [ -z "$(strip $(RESOURCE_DIRS))" ]; then exit 0; fi; \
 	for d in $(RESOURCE_DIRS); do \
@@ -138,10 +141,10 @@ lint: check-secrets provider-mirror
 	done
 	$(call run_tofu,validate,)
 
-check: check-secrets provider-mirror
+check: dev
 	$(call run_tofu,plan,-detailed-exitcode)
 
-apply: check-secrets provider-mirror
+apply: dev
 	$(call run_tofu,apply,-auto-approve)
 
 clean:
