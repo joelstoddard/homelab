@@ -5,10 +5,12 @@
 # see docs/netbooting-pis.md for the boot chain, the gates and what each log
 # shows.
 #
-# Targets are passed as a JSON list of NetBox inventory names (NOT --limit:
-# the localhost plays and the SOPS loader must see every host):
+# Targets default to every Pi (groups['pis']); pass a JSON list of NetBox
+# inventory names to narrow it (NOT --limit: the localhost plays and the SOPS
+# loader must see every host). Pis that no longer answer SSH are already on
+# Talos and are skipped, so `make homelab` can run this on a healthy fleet.
 #
-#   make check-pi-cutover EXTRA_VARS='{"pi_cutover_hosts": ["Zond", "Mir"]}'
+#   make apply-pi-cutover                                              # every Pi still on its old OS
 #   make apply-pi-cutover EXTRA_VARS='{"pi_cutover_hosts": ["Zond", "Mir"]}'
 #
 # The gate is CLOSED before any config is applied (play 6 before play 8), so
@@ -17,46 +19,68 @@
 # reboots into the same fall-through: to retry, run this playbook again.
 #
 # This is a one-way trip for the current OS: apply-config wipes /dev/sda.
-# Once a Pi is on Talos it has no SSH, so re-running against it stops at
-# play 1 — re-provisioning a Talos node is a different (talosctl) flow.
+# Once a Pi is on Talos it has no SSH and is skipped here — re-provisioning
+# a Talos node is a different (talosctl) flow.
 
 # ---------------------------------------------------------------------------
-# 0. Refuse to run without targets (an empty list would silently no-op).
+# 0. Work out which Pis still need cutting over. Candidates: pi_cutover_hosts
+#    or every Pi. A candidate that answers SSH is on its old OS → pending; one
+#    that does not is already Talos → skipped. The pending set becomes the
+#    dynamic group `pi_cutover_pending` that every later play targets.
 # ---------------------------------------------------------------------------
-- name: Check the cutover targets were given.
+- name: Find the Pis that still need cutting over.
   hosts: localhost
   connection: local
   gather_facts: false
+  vars:
+    pi_cutover_candidates: "{{ pi_cutover_hosts | default(groups['pis'] | default([])) }}"
   tasks:
-    - name: Require pi_cutover_hosts.
+    - name: Refuse candidates that are not PXE-managed Talos Pis.
       ansible.builtin.assert:
-        that:
-          - pi_cutover_hosts is defined
-          - pi_cutover_hosts | length > 0
+        that: >-
+          pi_cutover_candidates
+          | difference(groups['pis'] | default([]) | intersect(groups['pxe'] | default([])) | intersect(groups['talos'] | default([])))
+          | length == 0
         fail_msg: >-
-          Pass the targets as a JSON list:
-          make apply-pi-cutover EXTRA_VARS='{"pi_cutover_hosts": ["Zond", "Mir"]}'
+          Not PXE-managed Talos Pis (need NetBox device_type pi-*, tag pxe, platform talos):
+          {{ pi_cutover_candidates
+             | difference(groups['pis'] | default([]) | intersect(groups['pxe'] | default([])) | intersect(groups['talos'] | default([]))) }}
+
+    - name: Probe each candidate for SSH (old OS answers, Talos does not).
+      ansible.builtin.wait_for:
+        host: "{{ hostvars[item].ansible_host }}"
+        port: 22
+        timeout: 5
+      loop: "{{ pi_cutover_candidates }}"
+      register: cutover_ssh_probe
+      ignore_errors: true
+
+    - name: Register the Pis still on their old OS as the pending set.
+      ansible.builtin.add_host:
+        name: "{{ item.item }}"
+        groups: pi_cutover_pending
+      loop: "{{ cutover_ssh_probe.results }}"
+      loop_control:
+        label: "{{ item.item }}"
+      when: item is not failed
+      changed_when: false
+
+    - name: Cutover plan.
+      ansible.builtin.debug:
+        msg: >-
+          pending (old OS, will be cut over): {{ groups['pi_cutover_pending'] | default([]) | join(', ') or 'none' }};
+          skipped (already Talos, no SSH): {{ pi_cutover_candidates | difference(groups['pi_cutover_pending'] | default([])) | join(', ') or 'none' }}
 
 # ---------------------------------------------------------------------------
 # 1. Sanity + EEPROM (over SSH, on the Pi's current OS).
 # ---------------------------------------------------------------------------
 - name: Stage network-first boot on the target Pis.
-  hosts: "{{ (pi_cutover_hosts | default(['no-cutover-targets'])) | join(',') }}"
+  hosts: pi_cutover_pending
   become: true
   gather_facts: false
   vars:
     target_boot_order: "0xf42"   # read right-to-left: network, then USB, then restart
     nl: "\n"
-  pre_tasks:
-    - name: Refuse targets that are not PXE-managed Talos Pis.
-      ansible.builtin.assert:
-        that:
-          - inventory_hostname in groups['pis']
-          - inventory_hostname in groups['pxe']
-          - inventory_hostname in (groups['talos'] | default([]))
-        fail_msg: >-
-          {{ inventory_hostname }} must be in the pis, pxe and talos groups
-          (NetBox device_type pi-*, tag pxe, platform talos).
   tasks:
     - name: Stage BOOT_ORDER on the EEPROM (flashed on the reboot below).
       ansible.builtin.import_tasks: tasks/pi-eeprom-stage.yaml
@@ -87,7 +111,7 @@
   gather_facts: true
   force_handlers: true
   vars:
-    talos_pi_provision_hosts: "{{ pi_cutover_hosts }}"
+    talos_pi_provision_hosts: "{{ groups['pi_cutover_pending'] | default([]) }}"
   roles:
     - 00-pxe
 
@@ -95,7 +119,7 @@
 # 4. Reboot the targets. Fire-and-forget: they come back as Talos (no SSH).
 # ---------------------------------------------------------------------------
 - name: Reboot the targets into netboot.
-  hosts: "{{ (pi_cutover_hosts | default(['no-cutover-targets'])) | join(',') }}"
+  hosts: pi_cutover_pending
   become: true
   gather_facts: false
   tasks:
@@ -131,7 +155,7 @@
       retries: 30
       delay: 5
       until: cutover_old_down.rc != 0
-      loop: "{{ pi_cutover_hosts }}"
+      loop: "{{ groups['pi_cutover_pending'] | default([]) }}"
       when: not ansible_check_mode
 
     - name: Wait for each target's MAC to appear on the LAN.
@@ -144,7 +168,7 @@
       retries: "{{ (pi_cutover_maintenance_timeout / 10) | int }}"
       delay: 10
       until: >-
-        pi_cutover_hosts
+        groups['pi_cutover_pending'] | default([])
         | map('extract', hostvars, 'mac_address') | map('lower')
         | reject('in', cutover_arp.stdout | lower)
         | list | length == 0
@@ -157,7 +181,7 @@
              | combine({item: (cutover_arp.stdout_lines
                                | select('search', hostvars[item].mac_address | lower)
                                | map('split') | map('first') | list | first)}) }}
-      loop: "{{ pi_cutover_hosts }}"
+      loop: "{{ groups['pi_cutover_pending'] | default([]) }}"
       when: not ansible_check_mode
 
     # A u-boot wget occasionally fails and `reset` retries the whole netboot
@@ -167,13 +191,13 @@
         host: "{{ cutover_maintenance_ips[item] }}"
         port: 50000
         timeout: 300
-      loop: "{{ pi_cutover_hosts }}"
+      loop: "{{ groups['pi_cutover_pending'] | default([]) }}"
       when: not ansible_check_mode
 
     - name: Report where each target is waiting.
       ansible.builtin.debug:
         msg: "{{ item }} in maintenance at {{ cutover_maintenance_ips[item] }} (MAC {{ hostvars[item].mac_address }})"
-      loop: "{{ pi_cutover_hosts }}"
+      loop: "{{ groups['pi_cutover_pending'] | default([]) }}"
       when: not ansible_check_mode
 
 # ---------------------------------------------------------------------------
@@ -210,7 +234,7 @@
         tasks_from: config
 
 - name: Apply Talos config to the targets (installs to /dev/sda).
-  hosts: "{{ (pi_cutover_hosts | default(['no-cutover-targets'])) | join(',') }}"
+  hosts: pi_cutover_pending
   connection: local
   gather_facts: false
   order: sorted
@@ -250,7 +274,7 @@
       retries: "{{ (pi_cutover_install_timeout / 10) | int }}"
       delay: 10
       until: cutover_down.rc != 0
-      loop: "{{ pi_cutover_hosts }}"
+      loop: "{{ groups['pi_cutover_pending'] | default([]) }}"
       when: not ansible_check_mode
 
     - name: Wait for each target to answer at its NetBox IP.
@@ -262,7 +286,7 @@
       retries: "{{ (pi_cutover_install_timeout / 10) | int }}"
       delay: 10
       until: cutover_ping.rc == 0
-      loop: "{{ pi_cutover_hosts }}"
+      loop: "{{ groups['pi_cutover_pending'] | default([]) }}"
       when: not ansible_check_mode
 
     # Give a freshly rebooted host a moment, then insist SSH stays closed —
@@ -274,7 +298,7 @@
         state: stopped
         delay: 15
         timeout: 30
-      loop: "{{ pi_cutover_hosts }}"
+      loop: "{{ groups['pi_cutover_pending'] | default([]) }}"
       when: not ansible_check_mode
 
     - name: Cutover result.
@@ -283,5 +307,5 @@
           {{ item }} is running Talos from disk at {{ hostvars[item].ansible_host }}.
           apid stays closed until the control plane is bootstrapped (workers get
           their certificate from trustd); that is expected.
-      loop: "{{ pi_cutover_hosts }}"
+      loop: "{{ groups['pi_cutover_pending'] | default([]) }}"
       when: not ansible_check_mode
