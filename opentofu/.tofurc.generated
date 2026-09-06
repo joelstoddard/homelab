@@ -1,9 +1,0 @@
-provider_installation {
-  filesystem_mirror {
-    path    = "/Users/joel/.local/share/opentofu/plugin-mirror"
-    include = ["registry.terraform.io/dklesev/*"]
-  }
-  direct {
-    exclude = ["registry.terraform.io/dklesev/*"]
-  }
-}
