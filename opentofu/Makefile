@@ -87,6 +87,13 @@ build: check-secrets provider-mirror
 # Each dir runs in a subshell so one resource's secrets can't leak into the
 # next one's tofu run; the shared TF_VARs above are exported before the loop
 # and so are inherited by every subshell.
+#
+# `apply` retries once on the bpg/proxmox provider's "Provider produced
+# inconsistent final plan": when the Talos ISO does not exist yet, the VM
+# attributes that depend on its id are unknown at plan time and the provider
+# rejects its own final plan after creating the ISO. The second apply, with
+# the ISO in state, is clean — observed on all four NUCs. Keeps `make
+# homelab` hands-off on a fresh node.
 define run_tofu
 	@set -e; \
 	if [ -z "$(strip $(RESOURCE_DIRS))" ]; then \
@@ -107,7 +114,14 @@ define run_tofu
 			if [ -f $$d/secrets.env ]; then \
 				set -a; eval "$$(sops -d $$d/secrets.env)"; set +a; \
 			fi; \
-			tofu -chdir=$$d $(1) $(2) \
+			log=$$(mktemp); trap 'rm -f "$$log" "$$log.rc"' EXIT; \
+			{ tofu -chdir=$$d $(1) $(2) 2>&1; echo $$? > "$$log.rc"; } | tee "$$log"; \
+			rc=$$(cat "$$log.rc"); \
+			if [ "$$rc" -ne 0 ] && [ "$(1)" = apply ] && grep -q "inconsistent final plan" "$$log"; then \
+				echo ">> bpg/proxmox planned VM attributes off a not-yet-created ISO id; re-applying $$d once"; \
+				tofu -chdir=$$d $(1) $(2); rc=$$?; \
+			fi; \
+			exit $$rc \
 		) || exit $$?; \
 	done
 endef
