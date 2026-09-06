@@ -1,5 +1,5 @@
 # GNU make required.
-.PHONY: default help build dev lint check apply clean check-secrets provider-mirror
+.PHONY: default help build dev lint check apply clean check-secrets
 
 # LIMIT=<dirname> filters iteration to one resources/<dirname>/.
 LIMIT ?=
@@ -10,8 +10,6 @@ export NETBOX_URL ?= $(NETBOX_API)
 
 ANSIBLE_TOKEN_FILE  := ../ansible/inventory/group_vars/proxmox.sops.yaml
 OPENTOFU_SECRETS    := secrets.sops.yaml
-PLUGIN_MIRROR_ROOT  ?= $(HOME)/.local/share/opentofu/plugin-mirror
-GENERATED_TOFURC    := $(abspath .tofurc.generated)
 # Single source of truth for the Talos version (shared with ansible +
 # install.sh). Sourced in run_tofu and exported as TF_VAR_talos_version.
 VERSIONS_ENV        := $(abspath ../versions.env)
@@ -70,12 +68,7 @@ check-secrets:
 		fi; \
 	done
 
-provider-mirror:
-	@./scripts/ensure-pihole-provider.sh >/dev/null
-	@printf 'provider_installation {\n  filesystem_mirror {\n    path    = "%s"\n    include = ["registry.terraform.io/dklesev/*"]\n  }\n  direct {\n    exclude = ["registry.terraform.io/dklesev/*"]\n  }\n}\n' \
-		"$(PLUGIN_MIRROR_ROOT)" > $(GENERATED_TOFURC)
-
-build: check-secrets provider-mirror
+build: check-secrets
 
 # Run `tofu $(1) $(2)` in every resource dir with shared env exported once.
 #
@@ -100,7 +93,6 @@ define run_tofu
 		echo "no resource dirs under resources/; nothing to do."; \
 		exit 0; \
 	fi; \
-	export TF_CLI_CONFIG_FILE="$(GENERATED_TOFURC)"; \
 	export TF_ENCRYPTION="$$(./scripts/build-tf-encryption.sh)"; \
 	export TF_VAR_proxmox_api_token="$$(sops -d --extract '["proxmox_api_token"]' $(ANSIBLE_TOKEN_FILE))"; \
 	export TF_VAR_proxmox_endpoint="$$(sops -d --extract '["proxmox_endpoint"]' $(OPENTOFU_SECRETS))"; \
@@ -129,7 +121,7 @@ endef
 # init is idempotent and quick once providers are cached, so every real
 # target runs it: a fresh operator's `make homelab` must not die on
 # "Required plugins are not installed".
-dev: check-secrets provider-mirror
+dev: check-secrets
 	$(call run_tofu,init,)
 
 lint: dev
@@ -149,4 +141,3 @@ apply: dev
 
 clean:
 	@for d in $(RESOURCE_DIRS); do rm -rf $$d/.terraform; done
-	@rm -f $(GENERATED_TOFURC)

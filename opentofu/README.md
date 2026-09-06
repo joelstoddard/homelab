@@ -16,23 +16,14 @@ State files are AES-GCM encrypted at rest via OpenTofu's native state encryption
 
 `make bootstrap-secrets` (run from the repo root) lands `secrets.sops.yaml`. Re-running with `--force` rotates the passphrase, which destroys access to existing state — see "Recovery" below.
 
-## Pi-hole provider mirror
+## Providers
 
-The `dklesev/pihole` provider is published on the Terraform registry but not
-the OpenTofu registry. `make build` runs `scripts/ensure-pihole-provider.sh`,
-which downloads the correct binary for the host OS/arch into a local filesystem
-mirror at `~/.local/share/opentofu/plugin-mirror/` (override by setting the
-`PLUGIN_MIRROR_ROOT` environment variable before running `make`). The script is
-idempotent — it exits immediately if the binary already exists.
-
-`make build` also writes a `.tofurc.generated` file in `opentofu/` that
-instructs OpenTofu to use the filesystem mirror for `registry.terraform.io/dklesev/*`
-and never contact the registry for those providers. The file is consumed via
-`TF_CLI_CONFIG_FILE` inside every `run_tofu` invocation. It is git-ignored and
-regenerated on every `make build`.
-
-To upgrade to a new provider version: bump `PIHOLE_PROVIDER_VERSION` in
-`scripts/ensure-pihole-provider.sh`, run `make clean`, then re-run `make build`.
+All providers — including `dklesev/pihole` — install directly from the
+registry with the committed `.terraform.lock.hcl` files verifying them, so
+`make dev` works the same on any operator platform. (An earlier filesystem
+mirror for the Pi-hole provider predates its registry availability and was
+removed: its per-platform `h1:` hashes made a lock file generated on one
+platform fail `init` on another.)
 
 ## Targets
 

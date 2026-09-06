@@ -104,13 +104,10 @@ runs).
 The state encryption key (`TF_ENCRYPTION`) is built by
 `scripts/build-tf-encryption.sh` from the SOPS passphrase.
 
-One extra target: `make provider-mirror`. The `dklesev/pihole` provider
-is published on the Terraform registry but not the OpenTofu registry,
-so the Makefile builds a filesystem mirror under
-`$HOME/.local/share/opentofu/plugin-mirror/` and generates a
-`.tofurc.generated` that points OpenTofu at it for `dklesev/*`. Other
-providers still resolve via direct upstream. `make build` chains the
-mirror step in automatically.
+Every real target (`check`, `apply`, `lint`) depends on `dev`, i.e.
+`tofu init` — idempotent and quick once providers are cached — so a fresh
+operator's `make homelab` never fails on missing plugins. All providers
+install directly from the registry against the committed lock files.
 
 ### `kubernetes/Makefile` / `tailscale/Makefile`
 
