@@ -35,8 +35,10 @@
   roles:
     - 00-pxe
 
+# Only the PXE hosts we reach over SSH: Talos nodes have no SSH (and the Pis
+# cannot be woken by WOL at all — their netboot is driven by pi-cutover.yaml).
 - name: Wake target machines and wait for them to come online.
-  hosts: pxe
+  hosts: pxe:!talos
   tags: [wol]
   gather_facts: false
   pre_tasks:
