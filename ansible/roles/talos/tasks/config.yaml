@@ -36,13 +36,17 @@
 # where a templating error would not be caught by ignore_errors.
 - name: Look up the control-plane VIP from NetBox.
   block:
+    # wantlist=True: with exactly one match nb_lookup returns a bare dict, and
+    # the map() below then silently yields nothing — the first bootstrap ran
+    # on the fallback VIP because of that. A list is a list, whatever the count.
     - name: Query NetBox for the VIP-tagged IP.
       ansible.builtin.set_fact:
         _vip_records: >-
           {{ lookup('netbox.netbox.nb_lookup', 'ip-addresses',
                     api_endpoint=lookup('ansible.builtin.env', 'NETBOX_API'),
                     token=lookup('ansible.builtin.env', 'NETBOX_TOKEN'),
-                    api_filter='tag=' ~ talos_vip_netbox_tag) }}
+                    api_filter='tag=' ~ talos_vip_netbox_tag,
+                    wantlist=True) }}
   rescue:
     - name: NetBox unreachable — fall back to the default VIP literal.
       ansible.builtin.set_fact:
