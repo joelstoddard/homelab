@@ -56,7 +56,9 @@ make -C ansible apply-pi-cutover EXTRA_VARS='{"pi_cutover_hosts": ["Zond", "Mir"
 
 Targets are a **JSON list**, not `LIMIT` — the localhost plays and the SOPS
 loader must see every host. (`key=[...]` would arrive as a string; the
-object form is required.)
+object form is required.) With no targets given, every Pi is a candidate;
+Pis that no longer answer SSH are already on Talos and are skipped — which
+is what lets `make homelab` run this stage on a healthy fleet.
 
 Order for the fleet: workers first, the control-plane Pi (`kosmos`) last,
 then `make apply-talos TAGS=bootstrap,kubeconfig` once **all** control-plane

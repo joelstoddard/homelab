@@ -15,7 +15,7 @@ is the canonical entry point: from an empty disk (well, a Linux operator
 workstation) to a running fleet. Internally it expands to:
 
 ```
-make homelab → check-env install ansible opentofu kubernetes
+make homelab → check-env install ansible opentofu talos kubernetes
 ```
 
 (See `Makefile:69`.) The dependency list is also the execution order —
@@ -24,8 +24,19 @@ make runs prerequisites left-to-right, and the file declares
 
 Today, `tailscale/Makefile` and `kubernetes/Makefile` don't exist yet;
 those targets short-circuit with a notice (see "Subdir absence" below).
-So `make homelab` runs `check-env` → `install.sh` → `make -C ansible` →
-`make -C opentofu`.
+So `make homelab` runs `check-env` → `install.sh` → `make -C ansible`
+(PXE server, NUCs Debian → Proxmox) → `make -C opentofu` (LXCs, the 12 k8s
+VMs booted from the Talos ISO) → `make -C ansible apply-pi-cutover` +
+`apply-talos` (Pis to Talos, every node configured, etcd bootstrapped,
+kubeconfig merged). The `talos` stage comes after `opentofu` because the
+bootstrap's health check waits for all 20 nodes.
+
+Every stage is a no-op on a healthy fleet: the WOL role leaves hosts that
+already answer SSH alone, `pi-cutover` skips Pis that no longer have SSH
+(they are Talos), `apply-talos` tolerates installed nodes and an
+already-bootstrapped etcd, and `tofu apply` plans no changes. That is the
+test of the chain — `make homelab` on the running homelab should finish
+without rebooting or reinstalling anything.
 
 ## Top-level targets
 
