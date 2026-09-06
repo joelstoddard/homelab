@@ -46,6 +46,9 @@
           {{ pi_cutover_candidates
              | difference(groups['pis'] | default([]) | intersect(groups['pxe'] | default([])) | intersect(groups['talos'] | default([]))) }}
 
+    # check_mode: false — the probe is read-only and the pending set must be
+    # right in a dry run too (a skipped probe is "not failed" and would mark
+    # every Pi pending).
     - name: Probe each candidate for SSH (old OS answers, Talos does not).
       ansible.builtin.wait_for:
         host: "{{ hostvars[item].ansible_host }}"
@@ -54,6 +57,7 @@
       loop: "{{ pi_cutover_candidates }}"
       register: cutover_ssh_probe
       ignore_errors: true
+      check_mode: false
 
     - name: Register the Pis still on their old OS as the pending set.
       ansible.builtin.add_host:

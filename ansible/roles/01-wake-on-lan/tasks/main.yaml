@@ -13,6 +13,7 @@
   delegate_to: localhost
   register: wol_ssh_probe
   ignore_errors: true
+  check_mode: false   # read-only; a dry run must see the real answer too
 
 - name: Send Wake-on-LAN magic packet.
   community.general.wakeonlan:
