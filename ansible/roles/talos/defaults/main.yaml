@@ -64,7 +64,7 @@ talos_controlplane_hosts:
   - "k8s-server-02"
   - "k8s-server-03"
   - "k8s-server-04"
-  - "kosmos"
+  - "Kosmos"   # NetBox device names are capitalised — this must match the inventory hostname
 
 # First control-plane node — `talosctl bootstrap` is issued here exactly
 # once to initialise etcd. Its maintenance-mode IP is the NetBox primary
