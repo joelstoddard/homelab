@@ -1,5 +1,5 @@
 .POSIX:
-.PHONY: help homelab install bootstrap-secrets ansible opentofu kubernetes \
+.PHONY: help homelab install bootstrap-secrets ansible opentofu kubernetes kubeconfig \
         build dev lint check clean check-env
 .NOTPARALLEL:
 
@@ -51,6 +51,7 @@ help:
 	@echo "  build             - Set up dev environments in subdirs."
 	@echo "  dev               - Install / refresh dependencies."
 	@echo "  lint              - Lint everything."
+	@echo "  kubeconfig        - Merge the cluster context into ~/.kube/config (OPERATOR_SSH=user@host)."
 	@echo "  check             - Dry-run everything."
 	@echo "  clean             - Clean caches and retry files."
 	@echo
@@ -122,6 +123,10 @@ dev:
 
 lint:
 	$(MAKE) -C ansible lint
+
+# Merge the Talos cluster's kube context into this machine's ~/.kube/config.
+kubeconfig:
+	$(MAKE) -C ansible kubeconfig
 
 check: check-env
 	$(MAKE) -C ansible check-pxe

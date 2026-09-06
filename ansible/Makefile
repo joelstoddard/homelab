@@ -34,6 +34,7 @@ help:
 	@echo "  apply-pi-cutover	- Cut Pis over to Talos end to end (EXTRA_VARS pi_cutover_hosts)."
 	@echo "  check-talos	- Dry run the Talos bootstrap."
 	@echo "  apply-talos	- Bootstrap the Talos cluster (talosctl, local conn)."
+	@echo "  kubeconfig	- Merge the cluster context into this machine's ~/.kube/config (OPERATOR_SSH=user@host)."
 	@echo "  ping     	- Ping hosts."
 	@echo "  clean    	- Clean temporary files."
 	@echo "  console	- Open a console."
@@ -143,6 +144,24 @@ apply-talos:
 		$(if $(TAGS),--tags=$(TAGS)) \
 		$(if $(VERBOSITY),-$(VERBOSITY)) \
 		$(if $(EXTRA_VARS),--extra-vars='$(EXTRA_VARS)')
+
+# Pull the cluster's kube context off the operator (where apply-talos merged
+# it) into THIS machine's ~/.kube/config. Non-destructive: existing contexts
+# win on any clash and the current context is left alone. Needs only kubectl
+# here and SSH to the operator.
+#   make kubeconfig OPERATOR_SSH=joel@operator.example.com
+OPERATOR_SSH ?=
+KUBE_CONTEXT ?= admin@homelab
+.PHONY: kubeconfig
+kubeconfig:
+	@[ -n "$(OPERATOR_SSH)" ] || { echo "OPERATOR_SSH=user@host must be set." >&2; exit 1; }
+	@set -e; tmp=$$(mktemp); trap 'rm -f "$$tmp" "$$tmp.merged"' EXIT; \
+	ssh $(OPERATOR_SSH) 'kubectl config view --raw --minify --flatten --context $(KUBE_CONTEXT)' > "$$tmp"; \
+	mkdir -p "$$HOME/.kube"; \
+	if [ -f "$$HOME/.kube/config" ]; then cp -p "$$HOME/.kube/config" "$$HOME/.kube/config.bak.$$(date +%Y%m%d%H%M%S)"; fi; \
+	KUBECONFIG="$$HOME/.kube/config:$$tmp" kubectl config view --raw --flatten > "$$tmp.merged"; \
+	install -m 600 "$$tmp.merged" "$$HOME/.kube/config"; \
+	echo "merged context $(KUBE_CONTEXT) into $$HOME/.kube/config (backup alongside). Try: kubectl --context $(KUBE_CONTEXT) get nodes"
 
 # Ping all hosts
 .PHONY: ping

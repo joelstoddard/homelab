@@ -215,6 +215,16 @@ source of truth (the role renders talhelper's `talconfig.yaml` from it):
 4. **kubeconfig** (localhost, once) — merges the cluster context into your
    `~/.kube/config` (other clusters' contexts are preserved).
 
+From any other machine with `kubectl` and SSH to the operator (your
+workstation, say), pull the same context into your own `~/.kube/config`
+without installing Talos tooling — existing contexts win on a clash and
+your current context is left alone:
+
+```bash
+make kubeconfig OPERATOR_SSH=<user>@<operator>
+kubectl --context admin@homelab get nodes
+```
+
 ```bash
 kubectl --context admin@homelab get nodes
 ```
