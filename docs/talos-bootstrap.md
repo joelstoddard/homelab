@@ -138,6 +138,12 @@ make -C opentofu check        # review the plan
 make -C opentofu apply        # download ISO, create/boot the 12 VMs
 ```
 
+> The first `apply` on a node that has no Talos ISO yet fails with the
+> bpg/proxmox provider's *"Provider produced inconsistent final plan"*: the
+> VM attributes depend on the ISO's id, which is only known once the ISO
+> resource exists. The ISO does get created; run `apply` a second time and
+> the VM changes go through cleanly. Scope runs with `LIMIT=<nuc>`.
+
 ## Step 2 — netboot the Pis (Ansible PXE)
 
 The `00-pxe` role builds a netboot u-boot for the Pis, stages the Talos

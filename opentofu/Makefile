@@ -4,6 +4,10 @@
 # LIMIT=<dirname> filters iteration to one resources/<dirname>/.
 LIMIT ?=
 
+# The Ansible inventory plugin reads NETBOX_API; this Makefile historically
+# read NETBOX_URL. Accept either so one env file serves both toolchains.
+export NETBOX_URL ?= $(NETBOX_API)
+
 ANSIBLE_TOKEN_FILE  := ../ansible/inventory/group_vars/proxmox.sops.yaml
 OPENTOFU_SECRETS    := secrets.sops.yaml
 PLUGIN_MIRROR_ROOT  ?= $(HOME)/.local/share/opentofu/plugin-mirror
@@ -50,7 +54,7 @@ check-secrets:
 		echo "missing $(VERSIONS_ENV) (the Talos version source of truth)." >&2; \
 		exit 1; }
 	@[ -n "$$NETBOX_URL" ] && [ -n "$$NETBOX_TOKEN" ] || { \
-		echo "NETBOX_URL and NETBOX_TOKEN must be exported (e.g. 'set -a; . ~/.config/netbox/env; set +a')." >&2; \
+		echo "NETBOX_API (or NETBOX_URL) and NETBOX_TOKEN must be exported (e.g. 'set -a; . ~/.config/netbox/env; set +a')." >&2; \
 		exit 1; }
 	@sops -d --extract '["proxmox_api_token"]' $(ANSIBLE_TOKEN_FILE) >/dev/null
 	@sops -d --extract '["state_encryption_passphrase"]' $(OPENTOFU_SECRETS) >/dev/null
