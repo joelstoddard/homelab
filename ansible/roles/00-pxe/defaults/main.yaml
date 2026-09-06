@@ -24,9 +24,100 @@ pxe_server_ip: "{{ ansible_default_ipv4.address }}"
 # Almost always true; leave as-is unless we replace the LAN's DHCP server.
 dhcp_proxy: true
 
+# Raspberry Pi netboot bootloader. The Pi 4 firmware can netboot a Linux
+# kernel — not an EFI app — so the Pis get a purpose-built u-boot whose baked
+# boot command DHCPs, fetches /boot/uboot.scr from this PXE server over HTTP
+# and runs it. Built on the operator from the pinned upstream tag with the
+# Kconfig fragment in templates/uboot-fragment.config.j2, and rebuilt whenever
+# the version, the fragment or pxe_server_ip changes. Only when there are
+# talos PXE hosts (the Pis).
+uboot_version: "v2025.01"
+uboot_repo: "https://source.denx.de/u-boot/u-boot.git"
+uboot_defconfig: "rpi_arm64_defconfig"
+uboot_cross_compile: "aarch64-linux-gnu-"
+uboot_build_dir: "{{ role_path }}/files/build/u-boot"
+
+# Raspberry Pi 4 boot firmware, served over TFTP alongside u-boot. The EEPROM
+# netboot fetches start4.elf first; it reads config.txt, loads fixup4.dat and
+# the board DTB (which u-boot needs — it is where ${fdt_addr} comes from),
+# then the kernel= file. Pinned to a raspberrypi/firmware release tag.
+rpi_firmware_version: "1.20260521"
+rpi_firmware_base_url: "https://github.com/raspberrypi/firmware/raw/{{ rpi_firmware_version }}/boot"
+rpi_firmware_files:
+  - start4.elf
+  - fixup4.dat
+  - bcm2711-rpi-4-b.dtb
+
+# Debian packages the Pi netboot path needs on the operator: the u-boot
+# cross-build, mkimage (u-boot-tools) for the dispatcher script, zstd for
+# unwrapping the Talos kernel. Installed with become.
+pi_netboot_packages:
+  - bc
+  - bison
+  - build-essential
+  - device-tree-compiler
+  - flex
+  - gcc-aarch64-linux-gnu
+  - git
+  - libgnutls28-dev
+  - libssl-dev
+  - python3-dev
+  - python3-setuptools
+  - swig
+  - u-boot-tools
+  - uuid-dev
+  - zstd
+
 # iPXE chainloader (TFTP-served, the only file the NIC's PXE ROM fetches).
 ipxe_url: "https://boot.ipxe.org/x86_64-efi/ipxe.efi"
 ipxe_sha256: ""  # leave empty to skip checksum; set to pinned hash for production
+
+# Talos netboot assets (arm64, served over HTTP to the Pis).
+#
+# talos_version is single-sourced from repo-root versions.env (read via
+# role_path: .../ansible/roles/00-pxe, so ../../../ is the repo root) — bump
+# it there, not here.
+#
+# The asset URLs point at the Talos Image Factory build for the plain
+# sbc-raspberrypi overlay (rpi_generic). talos_pi_schematic_id MUST match the
+# talos role's talos_pi_schematic_id so the netbooted kernel/initramfs and the
+# on-disk installer (talosImageURL) are the SAME build — a bare Pi will not
+# netboot the vanilla siderolabs arm64 assets.
+talos_version: >-
+  {{ lookup('file', role_path ~ '/../../../versions.env')
+     | regex_findall('^TALOS_VERSION=(.+)$', multiline=True) | first | trim }}
+# Image Factory schematic for the arm64 Pis (plain sbc-raspberrypi overlay).
+talos_pi_schematic_id: "ee21ef4a5ef808a9b7484cc0dda0f25075021691c8c09a276591eedb638ea1f9"
+talos_arm64_kernel_url: >-
+  https://factory.talos.dev/image/{{ talos_pi_schematic_id }}/{{ talos_version }}/kernel-arm64
+talos_arm64_initramfs_url: >-
+  https://factory.talos.dev/image/{{ talos_pi_schematic_id }}/{{ talos_version }}/initramfs-arm64.xz
+
+# The Pis' USB→NVMe enclosures carry a Realtek RTL9210 bridge. On an upstream
+# kernel (Talos) UAS bulk writes to it kill the Pi 4's VL805 xHCI controller
+# ("Host System Error … HC died") — the disk vanishes mid-install. Ubuntu on
+# the same disks is fine only because the downstream Raspberry Pi kernel
+# carries VL805 workarounds. Force the bridge onto plain usb-storage (`u`).
+# MUST match the talos role's talos_pi_usb_storage_quirks, which puts the same
+# quirk into the installed system's kernel args. Empty disables it.
+talos_pi_usb_storage_quirks: "0bda:9210:u"
+
+# Kernel cmdline for the Talos netboot (maintenance mode — no talos.config,
+# so the node waits for `talosctl apply-config` from the talos role). The
+# installer runs on THIS kernel, so the USB quirk above has to be here too.
+talos_kernel_cmdline: >-
+  talos.platform=metal console=tty1 console=ttyS0,115200n8 init_on_alloc=1 slab_nomerge pti=on
+  {{- (' usb-storage.quirks=' ~ talos_pi_usb_storage_quirks) if talos_pi_usb_storage_quirks else '' }}
+
+# Pi hosts (NetBox inventory names, capitalized e.g. "Buran") currently being
+# (re)provisioned. Only these are offered network boot by dnsmasq (tag
+# `provision`); every other Pi's firmware is ignored and falls through to its
+# USB disk. Empty = steady state: every Pi boots its installed OS.
+#   make apply-pxe TAGS=pxe-server EXTRA_VARS='{"talos_pi_provision_hosts": ["Buran"]}'
+#   make apply-pxe TAGS=pxe-server EXTRA_VARS='{"talos_pi_provision_hosts": []}'
+# (Must be the JSON-object form: Ansible parses key=value extra-vars as
+# strings, so key=["Buran"] would arrive as text and trip the assert.)
+talos_pi_provision_hosts: []
 
 # Debian netinstall artifacts.
 # These pin the version we PXE-boot. Bump together when upgrading.

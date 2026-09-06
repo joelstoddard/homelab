@@ -1,6 +1,10 @@
 ---
+# The PXE-installed hosts we manage over SSH — today the Proxmox NUCs. Talos
+# nodes (the Pis and the k8s VMs) have no SSH or Python and are driven over the
+# Talos API by playbooks/talos.yaml instead; `all` would also sweep in every
+# LXC/VM NetBox knows about.
 - name: Apply post-install configuration to PXE-installed hosts.
-  hosts: all
+  hosts: pxe:!talos
   gather_facts: true
   become: true
   pre_tasks:

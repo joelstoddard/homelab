@@ -1,0 +1,208 @@
+---
+# Per-OS task file: Talos path (arm64 Raspberry Pi netboot). Runs after
+# common.yaml, only when there are talos-platform hosts that are also
+# PXE-managed (the Pis). Hosts: localhost — builds u-boot, stages the Talos
+# assets and renders the shared dispatcher for the Pis in groups['pxe'] ∩
+# groups['talos'].
+#
+# The x86 VMs do NOT come through here: they boot the Talos ISO that
+# OpenTofu attaches to their CD-ROM. This path is exclusively the arm64
+# netboot for the Pis.
+
+- name: Compute the set of PXE-managed Talos hosts (the Pis).
+  ansible.builtin.set_fact:
+    talos_pxe_hosts: "{{ groups['pxe'] | intersect(groups['talos'] | default([])) }}"
+
+- name: Install the Pi netboot build tooling.
+  ansible.builtin.apt:
+    name: "{{ pi_netboot_packages }}"
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+  become: true
+  when: talos_pxe_hosts | length > 0
+
+- name: Ensure the operator-local build directory exists.
+  ansible.builtin.file:
+    path: "{{ role_path }}/files/build"
+    state: directory
+    mode: "0755"
+  when: talos_pxe_hosts | length > 0
+
+# The version is a pinned tag, so once cloned there is nothing to fetch:
+# update=false keeps the operator's apply working when source.denx.de is slow
+# or unreachable (a transient failure here once dropped the dnsmasq restart).
+- name: "Fetch u-boot {{ uboot_version }}."
+  ansible.builtin.git:
+    repo: "{{ uboot_repo }}"
+    dest: "{{ uboot_build_dir }}"
+    version: "{{ uboot_version }}"
+    depth: 1
+    update: false
+  when: talos_pxe_hosts | length > 0
+
+- name: Render the u-boot Kconfig fragment.
+  ansible.builtin.template:
+    src: uboot-fragment.config.j2
+    dest: "{{ uboot_build_dir }}/homelab.config"
+    mode: "0644"
+  when: talos_pxe_hosts | length > 0
+
+# The stamp name encodes what the binary was built from, so a version bump,
+# a fragment edit or an operator IP change all invalidate it automatically.
+- name: Derive the u-boot build stamp.
+  ansible.builtin.set_fact:
+    uboot_stamp: >-
+      {{ uboot_build_dir }}/.built-{{ ((uboot_version ~ lookup('template', 'uboot-fragment.config.j2'))
+                                        | hash('sha256'))[:12] }}
+  when: talos_pxe_hosts | length > 0
+
+# No native module drives a make build; `creates:` keeps this idempotent.
+# With `creates:` set, shell DOES run in check mode (to report would-change)
+# and validates `chdir` first — which fails on a first --check because the
+# clone above was only would-change. Skip it in check mode like its siblings.
+- name: Build u-boot (only when the stamp for this version + fragment is missing).
+  ansible.builtin.shell:
+    cmd: >-
+      make {{ uboot_defconfig }}
+      && scripts/kconfig/merge_config.sh -m .config homelab.config
+      && make olddefconfig
+      && make -j{{ ansible_processor_vcpus | default(2) }}
+      && touch {{ uboot_stamp }}
+    chdir: "{{ uboot_build_dir }}"
+    creates: "{{ uboot_stamp }}"
+  environment:
+    CROSS_COMPILE: "{{ uboot_cross_compile }}"
+  when: talos_pxe_hosts | length > 0 and not ansible_check_mode
+
+- name: Install u-boot.bin into the TFTP root.
+  ansible.builtin.copy:
+    src: "{{ uboot_build_dir }}/u-boot.bin"
+    dest: "{{ role_path }}/files/tftp/u-boot.bin"
+    remote_src: true
+    mode: "0644"
+  when: talos_pxe_hosts | length > 0 and not ansible_check_mode
+
+# The default env is stored as plain strings in the binary, so the boot
+# command can be verified without running it.
+- name: Read the baked environment back out of u-boot.bin.
+  ansible.builtin.command:
+    cmd: "strings {{ role_path }}/files/tftp/u-boot.bin"
+  register: uboot_strings
+  changed_when: false
+  when: talos_pxe_hosts | length > 0 and not ansible_check_mode
+
+- name: Verify u-boot.bin carries this PXE server's boot command and no preboot.
+  ansible.builtin.assert:
+    that:
+      - uboot_strings.stdout is search('^bootcmd=.*serverip ' ~ (pxe_server_ip | regex_escape) ~ ';', multiline=True)
+      - uboot_strings.stdout is not search('^preboot=', multiline=True)
+    fail_msg: >-
+      tftp/u-boot.bin was not built from the current fragment (stale binary or
+      operator IP drift). Remove {{ uboot_build_dir }}/.built-* and re-run.
+  when: talos_pxe_hosts | length > 0 and not ansible_check_mode
+
+- name: Stage the Raspberry Pi 4 boot firmware into the TFTP root.
+  ansible.builtin.get_url:
+    url: "{{ rpi_firmware_base_url }}/{{ item }}"
+    dest: "{{ role_path }}/files/tftp/{{ item }}"
+    mode: "0644"
+  loop: "{{ rpi_firmware_files }}"
+  when: talos_pxe_hosts | length > 0
+
+- name: Render the Pi firmware config.txt (hands off to u-boot).
+  ansible.builtin.template:
+    src: rpi-config.txt.j2
+    dest: "{{ role_path }}/files/tftp/config.txt"
+    mode: "0644"
+  when: talos_pxe_hosts | length > 0
+
+- name: Ensure the Talos asset directory exists.
+  ansible.builtin.file:
+    path: "{{ role_path }}/files/http/talos/{{ talos_version }}"
+    state: directory
+    mode: "0755"
+  when: talos_pxe_hosts | length > 0
+
+# Image Factory assets are immutable for a given schematic + version (the
+# directory is versioned), so download each one once. Without a checksum,
+# get_url re-contacts the URL on every run and re-downloads unless the server
+# honours If-Modified-Since — the factory does not — so gate on presence
+# instead. The factory also builds assets lazily on first request, which can
+# exceed get_url's 10 s default timeout.
+- name: Check which Talos arm64 assets are already staged.
+  ansible.builtin.stat:
+    path: "{{ role_path }}/files/http/talos/{{ talos_version }}/{{ item }}"
+    get_checksum: false
+  loop:
+    - vmlinuz-arm64
+    - initramfs-arm64.xz
+  register: talos_asset_stat
+  when: talos_pxe_hosts | length > 0
+
+- name: Download Talos arm64 kernel.
+  ansible.builtin.get_url:
+    url: "{{ talos_arm64_kernel_url }}"
+    dest: "{{ role_path }}/files/http/talos/{{ talos_version }}/vmlinuz-arm64"
+    mode: "0644"
+    timeout: 120
+  when: talos_pxe_hosts | length > 0 and not talos_asset_stat.results[0].stat.exists
+
+- name: Download Talos arm64 initramfs.
+  ansible.builtin.get_url:
+    url: "{{ talos_arm64_initramfs_url }}"
+    dest: "{{ role_path }}/files/http/talos/{{ talos_version }}/initramfs-arm64.xz"
+    mode: "0644"
+    timeout: 120
+  when: talos_pxe_hosts | length > 0 and not talos_asset_stat.results[1].stat.exists
+
+# The Image Factory arm64 kernel is an EFI zboot PE, which u-boot's booti
+# rejects; unwrap it once per version. initramfs-arm64.xz is served as-is
+# (despite the name it is zstd, and the Talos kernel handles that).
+- name: Unwrap the zboot kernel into a flat Image for u-boot's booti.
+  ansible.builtin.command:
+    cmd: >-
+      {{ role_path }}/files/unwrap-zboot.sh
+      {{ role_path }}/files/http/talos/{{ talos_version }}/vmlinuz-arm64
+      {{ role_path }}/files/http/talos/{{ talos_version }}/vmlinuz-arm64.raw
+    creates: "{{ role_path }}/files/http/talos/{{ talos_version }}/vmlinuz-arm64.raw"
+  when: talos_pxe_hosts | length > 0
+
+- name: Render the u-boot dispatcher script source.
+  ansible.builtin.template:
+    src: uboot.cmd.j2
+    dest: "{{ role_path }}/files/build/uboot.cmd"
+    mode: "0644"
+  when: talos_pxe_hosts | length > 0
+
+# SOURCE_DATE_EPOCH pins the header timestamp so the image only changes when
+# its content does, and the copy below reports `changed` honestly.
+- name: Wrap the dispatcher in a u-boot script image.
+  ansible.builtin.command:
+    cmd: >-
+      mkimage -A arm64 -O linux -T script -C none -n "homelab Pi netboot"
+      -d {{ role_path }}/files/build/uboot.cmd {{ role_path }}/files/build/uboot.scr
+  environment:
+    SOURCE_DATE_EPOCH: "0"
+  changed_when: false
+  when: talos_pxe_hosts | length > 0 and not ansible_check_mode
+
+- name: Publish the dispatcher to /boot/uboot.scr.
+  ansible.builtin.copy:
+    src: "{{ role_path }}/files/build/uboot.scr"
+    dest: "{{ role_path }}/files/http/boot/uboot.scr"
+    remote_src: true
+    mode: "0644"
+  when: talos_pxe_hosts | length > 0 and not ansible_check_mode
+
+# Earlier designs rendered a per-Pi iPXE script; nothing requests them now.
+# `item` is a [host, suffix] pair from the product() below.
+# One-time migration: delete this task once every Pi has been provisioned via u-boot.
+- name: Remove retired per-Pi iPXE scripts.
+  ansible.builtin.file:
+    path: "{{ role_path }}/files/http/boot/{{ hostvars[item[0]]['mac_address'] | lower | replace(':', '-') }}{{ item[1] }}"
+    state: absent
+  loop: "{{ talos_pxe_hosts | product(['.ipxe', '.install.ipxe']) | list }}"
+  loop_control:
+    label: "{{ item[0] }}{{ item[1] }}"
+  when: talos_pxe_hosts | length > 0

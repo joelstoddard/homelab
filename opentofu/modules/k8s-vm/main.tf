@@ -14,7 +14,8 @@ locals {
   is_server = startswith(var.vm_name, "k8s-server-")
   idx       = tonumber(substr(var.vm_name, length(var.vm_name) - 2, 2))
 
-  # Convention enforced by .claude/scripts/seed-netbox-k8s-vms.py:
+  # NetBox is the source of truth; these are the conventions the records
+  # must follow (set when modelling the VM in NetBox):
   #   servers: vm_id = 100 + N, mac = 52:54:00:00:01:NN
   #   agents:  vm_id = 200 + N, mac = 52:54:00:00:02:NN
   vm_id    = local.is_server ? (100 + local.idx) : (200 + local.idx)
@@ -29,7 +30,7 @@ locals {
 check "netbox_consistency" {
   assert {
     condition     = local.nb_vm != null
-    error_message = "NetBox has no VM named '${var.vm_name}'. Run .claude/scripts/seed-netbox-k8s-vms.py."
+    error_message = "NetBox has no VM named '${var.vm_name}'. Model it in NetBox first: platform=talos, assigned to the matching NUC, tags k8s + k8s-server/k8s-agent, vm_id/MAC per the convention above."
   }
 
   assert {
@@ -53,7 +54,8 @@ module "vm" {
   disk_datastore_id = var.disk_datastore_id
   network_bridge    = var.network_bridge
   mac_address       = local.mac
+  iso_file_id       = var.iso_file_id
 
   tags        = ["k8s", local.role_tag]
-  description = "k8s ${local.is_server ? "control-plane" : "worker"} node, managed by OpenTofu. Empty shell; Talos installer attaches separately."
+  description = "k8s ${local.is_server ? "control-plane" : "worker"} node, managed by OpenTofu.${var.iso_file_id == null ? " Empty shell; Talos installer attaches separately." : " Boots the Talos ISO into maintenance mode."}"
 }

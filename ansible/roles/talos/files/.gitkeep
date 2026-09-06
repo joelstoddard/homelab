@@ -1,0 +1,2 @@
+# Holds the SOPS-encrypted talhelper secret bundle (talsecret.sops.yaml),
+# generated on first run of the talos role and committed thereafter.

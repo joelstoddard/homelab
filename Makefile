@@ -1,5 +1,5 @@
 .POSIX:
-.PHONY: help homelab install bootstrap-secrets ansible opentofu kubernetes \
+.PHONY: help homelab install bootstrap-secrets ansible opentofu talos kubernetes kubeconfig \
         build dev lint check clean check-env
 .NOTPARALLEL:
 
@@ -40,17 +40,19 @@ help:
 	@echo "Homelab orchestration."
 	@echo
 	@echo "Top-level targets:"
-	@echo "  homelab           - One command: install -> ansible -> opentofu -> kubernetes."
+	@echo "  homelab           - One command: install -> ansible -> opentofu -> talos -> kubernetes."
 	@echo "  install           - Host prerequisites via install.sh (idempotent, needs sudo)."
 	@echo "  bootstrap-secrets - Interactively write the operator's age key + NetBox env."
 	@echo "  ansible           - PXE-install hosts, then convert Debian -> Proxmox."
-	@echo "  opentofu          - (when subdir lands) Provision VMs/LXCs via OpenTofu."
-	@echo "  kubernetes        - (when subdir lands) k3s install + Flux bootstrap."
+	@echo "  opentofu          - Provision Proxmox guests (LXCs, k8s VMs on the Talos ISO) via OpenTofu."
+	@echo "  talos             - Cut the Pis over to Talos, configure every node, bootstrap etcd, merge kubeconfig."
+	@echo "  kubernetes        - (when subdir lands) Flux bootstrap + workloads."
 	@echo
 	@echo "Dev / maintenance:"
 	@echo "  build             - Set up dev environments in subdirs."
 	@echo "  dev               - Install / refresh dependencies."
 	@echo "  lint              - Lint everything."
+	@echo "  kubeconfig        - Merge the cluster context into ~/.kube/config (OPERATOR_SSH=user@host)."
 	@echo "  check             - Dry-run everything."
 	@echo "  clean             - Clean caches and retry files."
 	@echo
@@ -66,7 +68,13 @@ bootstrap-secrets:
 # Canonical "empty disk to running services" target. Each step is
 # idempotent — re-running on a healthy fleet should be a no-op that
 # exercises every role's idempotency guarantees.
-homelab: check-env install ansible opentofu kubernetes
+#
+#   ansible   PXE server up; NUCs netbooted Debian → Proxmox (SSH-managed hosts).
+#   opentofu  Proxmox guests: LXCs, the 12 k8s VMs booted from the Talos ISO.
+#   talos     Pis cut over to Talos; every node configured; etcd bootstrapped;
+#             kubeconfig merged. Needs both stages above: the health check at
+#             the end waits for all 20 nodes.
+homelab: check-env install ansible opentofu talos kubernetes
 
 # install.sh is idempotent and cheap to re-run; we invoke it every
 # time rather than gating on a sentinel, which keeps the chain
@@ -77,16 +85,22 @@ install:
 ansible:
 	$(MAKE) -C ansible
 
-# opentofu/ and kubernetes/ subdir Makefiles don't exist yet. Skip
-# with a notice so the chain keeps working; adding either Makefile in
-# a future thread auto-extends `make homelab` without touching this
-# file.
+# kubernetes/ has no Makefile yet. Skip with a notice so the chain keeps
+# working; adding one auto-extends `make homelab` without touching this
+# file. (opentofu/ keeps the same guard for symmetry.)
 opentofu:
 	@if [ -f opentofu/Makefile ]; then \
 		$(MAKE) -C opentofu; \
 	else \
 		echo ">> opentofu/ Makefile not present; skipping."; \
 	fi
+
+# The Talos cluster. pi-cutover skips Pis that are already on Talos (no
+# SSH); apply-talos tolerates installed nodes and an already-bootstrapped
+# etcd — so this stage is a fast no-op on a healthy fleet.
+talos:
+	$(MAKE) -C ansible apply-pi-cutover
+	$(MAKE) -C ansible apply-talos
 
 kubernetes:
 	@if [ -f kubernetes/Makefile ]; then \
@@ -123,10 +137,16 @@ dev:
 lint:
 	$(MAKE) -C ansible lint
 
+# Merge the Talos cluster's kube context into this machine's ~/.kube/config.
+kubeconfig:
+	$(MAKE) -C ansible kubeconfig
+
 check: check-env
 	$(MAKE) -C ansible check-pxe
 	$(MAKE) -C ansible check
 	$(MAKE) -C opentofu check
+	$(MAKE) -C ansible check-pi-cutover
+	$(MAKE) -C ansible check-talos
 
 clean:
 	$(MAKE) -C ansible clean

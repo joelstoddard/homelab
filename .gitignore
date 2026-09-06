@@ -1,6 +1,12 @@
 **/.venv
 .DS_Store
 
+# Talos role build output: generated per-node machine configs, the fetched
+# kubeconfig + talosconfig. These carry cluster admin credentials. The
+# only committed Talos secret is the SOPS-encrypted bundle at
+# ansible/roles/talos/files/talsecret.sops.yaml.
+ansible/.talos/
+
 # Operator-local Claude Code state: handoff drafts, scratch specs,
 # session-private notes. Not for shared history.
 .claude/

@@ -1,0 +1,56 @@
+---
+# Talos cluster bootstrap. Runs on the operator workstation
+# (connection: local) and drives nodes over the Talos API — Talos has no SSH
+# or Python. See docs/talos-bootstrap.md for the flow and prerequisites.
+#
+# Run: make -C ansible apply-talos
+
+- name: Generate Talos cluster + per-node machine configs.
+  hosts: localhost
+  connection: local
+  # Network facts only: talos_network_prefixlen/_gateway default to the
+  # operator's own LAN facts (ansible_default_ipv4) at render time.
+  gather_facts: true
+  gather_subset:
+    - "!all"
+    - "!min"
+    - network
+  tasks:
+    - name: Render configs (secrets bundle, base configs, per-node patches).
+      ansible.builtin.import_role:
+        name: talos
+        tasks_from: config
+      tags: [config]
+
+- name: Apply machine configs to nodes in maintenance mode.
+  hosts: talos
+  connection: local
+  gather_facts: false
+  # Deterministic, legible ordering in the log. Apply order is not
+  # load-bearing: etcd is bootstrapped separately (next play) and Talos
+  # workers retry the API until the control plane is up, so a worker whose
+  # config lands first simply waits.
+  order: sorted
+  tasks:
+    - name: Push this node's config.
+      ansible.builtin.import_role:
+        name: talos
+        tasks_from: apply
+      tags: [apply]
+
+- name: Bootstrap etcd and fetch cluster credentials.
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tasks:
+    - name: Bootstrap the control plane.
+      ansible.builtin.import_role:
+        name: talos
+        tasks_from: bootstrap
+      tags: [bootstrap]
+
+    - name: Retrieve the kubeconfig.
+      ansible.builtin.import_role:
+        name: talos
+        tasks_from: kubeconfig
+      tags: [kubeconfig]

@@ -28,6 +28,13 @@ help:
 	@echo "  check		- Perform a dry run."
 	@echo "  apply-pxe 	- Run playbooks (pre-boot)."
 	@echo "  apply    	- Run playbooks."
+	@echo "  check-pi-eeprom	- Dry run the Pi EEPROM netboot cutover."
+	@echo "  apply-pi-eeprom	- Flip a Pi's EEPROM to network-first boot."
+	@echo "  check-pi-cutover	- Dry run a Pi → Talos cutover (EXTRA_VARS pi_cutover_hosts)."
+	@echo "  apply-pi-cutover	- Cut Pis over to Talos end to end (EXTRA_VARS pi_cutover_hosts)."
+	@echo "  check-talos	- Dry run the Talos bootstrap."
+	@echo "  apply-talos	- Bootstrap the Talos cluster (talosctl, local conn)."
+	@echo "  kubeconfig	- Merge the cluster context into this machine's ~/.kube/config (OPERATOR_SSH=user@host)."
 	@echo "  ping     	- Ping hosts."
 	@echo "  clean    	- Clean temporary files."
 	@echo "  console	- Open a console."
@@ -79,6 +86,37 @@ apply-pxe:
 		$(if $(VERBOSITY),-$(VERBOSITY)) \
 		$(if $(EXTRA_VARS),--extra-vars='$(EXTRA_VARS)')
 
+# Raspberry Pi EEPROM cutover (one-time per Pi; see playbooks/pi-eeprom-netboot.yaml)
+.PHONY: check-pi-eeprom
+check-pi-eeprom:
+	$(VENV)/bin/ansible-playbook playbooks/pi-eeprom-netboot.yaml --check --diff \
+		$(if $(LIMIT),--limit=$(LIMIT)) \
+		$(if $(VERBOSITY),-$(VERBOSITY)) \
+		$(if $(EXTRA_VARS),--extra-vars='$(EXTRA_VARS)')
+
+.PHONY: apply-pi-eeprom
+apply-pi-eeprom:
+	$(VENV)/bin/ansible-playbook playbooks/pi-eeprom-netboot.yaml \
+		$(if $(LIMIT),--limit=$(LIMIT)) \
+		$(if $(VERBOSITY),-$(VERBOSITY)) \
+		$(if $(EXTRA_VARS),--extra-vars='$(EXTRA_VARS)')
+
+# Raspberry Pi → Talos cutover, end to end (EEPROM → netboot → install → disk
+# boot). Targets go in EXTRA_VARS as a JSON list, not LIMIT — see
+# playbooks/pi-cutover.yaml and docs/netbooting-pis.md:
+#   make apply-pi-cutover EXTRA_VARS='{"pi_cutover_hosts": ["Zond", "Mir"]}'
+.PHONY: check-pi-cutover
+check-pi-cutover:
+	$(VENV)/bin/ansible-playbook playbooks/pi-cutover.yaml --check --diff \
+		$(if $(VERBOSITY),-$(VERBOSITY)) \
+		$(if $(EXTRA_VARS),--extra-vars='$(EXTRA_VARS)')
+
+.PHONY: apply-pi-cutover
+apply-pi-cutover:
+	$(VENV)/bin/ansible-playbook playbooks/pi-cutover.yaml \
+		$(if $(VERBOSITY),-$(VERBOSITY)) \
+		$(if $(EXTRA_VARS),--extra-vars='$(EXTRA_VARS)')
+
 .PHONY: apply
 apply:
 	$(VENV)/bin/ansible-playbook playbooks/main.yaml \
@@ -86,6 +124,44 @@ apply:
 		$(if $(TAGS),--tags=$(TAGS)) \
 		$(if $(VERBOSITY),-$(VERBOSITY)) \
 		$(if $(EXTRA_VARS),--extra-vars='$(EXTRA_VARS)')
+
+# Talos cluster bootstrap. Runs entirely on the operator workstation
+# (connection: local) and talks to nodes via talosctl — Talos has no SSH.
+# Run AFTER the VMs are booted from the Talos ISO (make -C opentofu apply)
+# and the Pis are netbooted (make apply-pxe). See docs/talos-bootstrap.md.
+.PHONY: check-talos
+check-talos:
+	$(VENV)/bin/ansible-playbook playbooks/talos.yaml --check --diff \
+		$(if $(LIMIT),--limit=$(LIMIT)) \
+		$(if $(TAGS),--tags=$(TAGS)) \
+		$(if $(VERBOSITY),-$(VERBOSITY)) \
+		$(if $(EXTRA_VARS),--extra-vars='$(EXTRA_VARS)')
+
+.PHONY: apply-talos
+apply-talos:
+	$(VENV)/bin/ansible-playbook playbooks/talos.yaml \
+		$(if $(LIMIT),--limit=$(LIMIT)) \
+		$(if $(TAGS),--tags=$(TAGS)) \
+		$(if $(VERBOSITY),-$(VERBOSITY)) \
+		$(if $(EXTRA_VARS),--extra-vars='$(EXTRA_VARS)')
+
+# Pull the cluster's kube context off the operator (where apply-talos merged
+# it) into THIS machine's ~/.kube/config. Non-destructive: existing contexts
+# win on any clash and the current context is left alone. Needs only kubectl
+# here and SSH to the operator.
+#   make kubeconfig OPERATOR_SSH=joel@operator.example.com
+OPERATOR_SSH ?=
+KUBE_CONTEXT ?= admin@homelab
+.PHONY: kubeconfig
+kubeconfig:
+	@[ -n "$(OPERATOR_SSH)" ] || { echo "OPERATOR_SSH=user@host must be set." >&2; exit 1; }
+	@set -e; tmp=$$(mktemp); trap 'rm -f "$$tmp" "$$tmp.merged"' EXIT; \
+	ssh $(OPERATOR_SSH) 'kubectl config view --raw --minify --flatten --context $(KUBE_CONTEXT)' > "$$tmp"; \
+	mkdir -p "$$HOME/.kube"; \
+	if [ -f "$$HOME/.kube/config" ]; then cp -p "$$HOME/.kube/config" "$$HOME/.kube/config.bak.$$(date +%Y%m%d%H%M%S)"; fi; \
+	KUBECONFIG="$$HOME/.kube/config:$$tmp" kubectl config view --raw --flatten > "$$tmp.merged"; \
+	install -m 600 "$$tmp.merged" "$$HOME/.kube/config"; \
+	echo "merged context $(KUBE_CONTEXT) into $$HOME/.kube/config (backup alongside). Try: kubectl --context $(KUBE_CONTEXT) get nodes"
 
 # Ping all hosts
 .PHONY: ping

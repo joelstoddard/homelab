@@ -1,0 +1,6 @@
+# Rendered by Ansible — served over TFTP to netbooting Raspberry Pi 4s.
+# The firmware loads u-boot as if it were a kernel; u-boot's baked boot
+# command then fetches /boot/uboot.scr over HTTP from the PXE server.
+arm_64bit=1
+enable_uart=1
+kernel=u-boot.bin

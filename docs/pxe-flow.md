@@ -201,23 +201,48 @@ See `architecture.md` for what `main.yaml` does, and
 `ansible/roles/proxmox/tasks/{debian-to-pve,cluster,api-token}.yaml` for
 the per-OS dispatch.
 
+## Raspberry Pi (Talos) path
+
+The Pis do not go through iPXE. A Pi 4's firmware can netboot a Linux
+kernel but not an EFI application, and its EEPROM `BOOT_ORDER=0xf42` tries
+the network first and falls back to USB on failure. The role leans on both:
+
+```
+firmware DHCP (client-arch 0)
+ ├─ MAC in talos_pi_provision_hosts → dnsmasq "Raspberry Pi Boot"
+ │    TFTP start4.elf → config.txt → u-boot.bin (+ fixup4.dat, DTB)
+ │    u-boot: dhcp → wget /boot/uboot.scr → wget kernel + initramfs → booti
+ │    → Talos maintenance mode → talos role installs to /dev/sda
+ └─ otherwise → dnsmasq ignores it → firmware times out → USB → local disk
+```
+
+Relevant pieces in `roles/00-pxe`: `templates/dnsmasq.conf.j2` (the
+`provision` gate), `templates/uboot-fragment.config.j2` + the build tasks
+in `tasks/talos.yaml` (u-boot), the pinned Raspberry Pi firmware files
+(`rpi_firmware_*` defaults, staged by `tasks/talos.yaml`),
+`files/unwrap-zboot.sh` (the Image Factory
+kernel is an EFI zboot PE that `booti` rejects), `templates/uboot.cmd.j2`
+(the shared dispatcher). A failed netboot ends in `reset`, so a Pi that has
+been removed from the list recovers on its own; a Pi stuck from an older
+configuration recovers with a power-cycle.
+
 ## Extending to a new OS
 
-The seams to extend (e.g. to Talos):
+The seams to extend (e.g. to TrueNAS):
 
-1. Add a `talos` platform in NetBox and tag the target devices.
-   `keyed_groups` picks it up as group `talos` automatically.
-2. Add `roles/00-pxe/tasks/talos.yaml`, with per-host artifact rendering
-   parallel to `proxmox.yaml`.
-3. Wire it in: append to `roles/00-pxe/tasks/main.yaml:8-13` —
-   `import_tasks: talos.yaml` gated on `groups['talos'] | length > 0`.
-4. Add `roles/talos/tasks/<phase>.yaml` files for the post-install
+1. Add a `truenas` platform in NetBox and tag the target devices.
+   `keyed_groups` picks it up as group `truenas` automatically.
+2. Add `roles/00-pxe/tasks/truenas.yaml`, with per-host artifact rendering
+   parallel to `proxmox.yaml` and `talos.yaml`.
+3. Wire it in: append to the imports in `roles/00-pxe/tasks/main.yaml` —
+   `import_tasks: truenas.yaml` gated on `groups['truenas'] | length > 0`.
+4. Add `roles/truenas/tasks/<phase>.yaml` files for the post-install
    conversion phase. Wire them in via
    `roles/02-preflights/tasks/main.yaml` — guard with
-   `'talos' in group_names`.
+   `'truenas' in group_names`.
 
 The numbered orchestrators (`00-pxe`, `02-preflights`) stay OS-agnostic;
-the OS-named libraries (`talos/`) carry the per-platform work.
+the OS-named libraries (`proxmox/`, `talos/`, `truenas/`) carry the per-platform work.
 
 ## Common failure modes
 

@@ -2,6 +2,20 @@
 # Role entry. Runs the OS-agnostic common phase, then includes the
 # per-OS task file for each PXE-managed group present in inventory.
 
+# A typo here would silently render an empty provision list and leave the Pi
+# booting its disk; fail loudly instead.
+- name: Refuse unknown names in talos_pi_provision_hosts.
+  ansible.builtin.assert:
+    that: >-
+      talos_pi_provision_hosts
+      | difference((groups['pxe'] | default([])) | intersect(groups['talos'] | default([])))
+      | length == 0
+    fail_msg: >-
+      talos_pi_provision_hosts contains names that are not PXE-managed Talos
+      hosts: {{ talos_pi_provision_hosts
+                | difference((groups['pxe'] | default([])) | intersect(groups['talos'] | default([]))) }}.
+      Use NetBox inventory names exactly (e.g. "Buran").
+
 - name: Common PXE infrastructure (dnsmasq + Caddy + iPXE).
   ansible.builtin.import_tasks: common.yaml
 
@@ -9,5 +23,10 @@
   ansible.builtin.import_tasks: proxmox.yaml
   when: groups['proxmox'] is defined and groups['proxmox'] | length > 0
 
-# Future: include talos.yaml when groups['talos'] is populated.
+- name: Configure Talos PXE path (arm64 Raspberry Pi netboot).
+  ansible.builtin.import_tasks: talos.yaml
+  when: >-
+    groups['talos'] is defined
+    and (groups['pxe'] | intersect(groups['talos'])) | length > 0
+
 # Future: include truenas.yaml when groups['truenas'] is populated.
