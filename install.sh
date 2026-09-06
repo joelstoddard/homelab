@@ -41,10 +41,11 @@ echo ">> Updating apt cache"
 apt-get update
 
 echo ">> Installing base tooling (curl, ca-certificates, gnupg, python3-venv, git, make, rsync)"
+# arp-scan: the talos role finds maintenance-mode nodes by MAC on the LAN.
 apt-get install -y \
     ca-certificates curl gnupg \
     python3 python3-pip python3-venv \
-    git make rsync
+    git make rsync arp-scan
 
 # age + sops decrypt the per-host secrets under
 # ansible/inventory/host_vars/*.sops.yaml at apply time, via the
