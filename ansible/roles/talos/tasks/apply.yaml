@@ -54,6 +54,12 @@
     talos_apply.rc != 0
     and 'certificate required' not in (talos_apply.stderr | default(''))
     and 'connection refused' not in (talos_apply.stderr | default(''))
+  # An installed node closing the insecure connection occasionally surfaces
+  # as `write: broken pipe` instead of `certificate required`. With no
+  # `until`, Ansible retries only while failed_when holds, so the recognised
+  # outcomes still return immediately and only a dropped socket is retried.
+  retries: 3
+  delay: 2
 
 - name: "Note: {{ inventory_hostname }} is already past maintenance mode (config previously applied)."
   ansible.builtin.debug:
