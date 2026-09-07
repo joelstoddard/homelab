@@ -57,14 +57,10 @@ nodes:
 {%   endif %}
 {% endfor %}
 
-# Make the VIP valid for the API server's serving cert.
+# Make the VIP valid for the control-plane Talos API (apid) certs. Talos adds
+# the endpoint host to the kube-apiserver cert by itself. (A talhelper field,
+# not a JSON6902 patch: talhelper emits multi-document configs from Talos 1.12
+# on, and those do not support JSON6902.)
 controlPlane:
-  patches:
-    - |-
-      - op: add
-        path: /machine/certSANs/-
-        value: {{ talos_vip }}
-    - |-
-      - op: add
-        path: /cluster/apiServer/certSANs/-
-        value: {{ talos_vip }}
+  certSANs:
+    - {{ talos_vip }}
