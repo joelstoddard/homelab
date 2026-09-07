@@ -41,6 +41,13 @@ cgroup:
     enabled: false
   hostRoot: /sys/fs/cgroup
 
+# A values change rewrites cilium-config, but by default nothing restarts the
+# agents to read it (Flux's first values-only upgrade left them on the old
+# config). Roll them, and the operator, whenever the ConfigMap changes.
+rollOutCiliumPods: true
+operator:
+  rollOutPods: true
+
 # LB-IPAM is on by default; L2 announcements make the IPs it hands out
 # reachable: one worker per Service answers ARP for them. Pool and policy
 # live in kubernetes/cilium-lb/.

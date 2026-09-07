@@ -129,7 +129,11 @@ Consequences for day-2 work:
 
 - **Change Cilium through git only.** Edit `values.yaml` or bump
   `CILIUM_VERSION` + the OCIRepository tag together (`make lint` enforces
-  it); Flux rolls it out. The seed never re-runs on an existing release, so
+  it); Flux rolls it out: the values ConfigMap carries
+  `reconcile.fluxcd.io/watch: Enabled` (helm-controller only reacts to
+  labelled ConfigMaps — otherwise the 1h interval) and `rollOutCiliumPods`
+  restarts the agents on a config change (the chart default leaves them on
+  the old config). The seed never re-runs on an existing release, so
   `apply-talos` cannot undo a Flux-driven change.
 - `wait: true` on the `cilium` Kustomization: a layer with
   `dependsOn: cilium` starts only once the Cilium CRDs exist and the agents
