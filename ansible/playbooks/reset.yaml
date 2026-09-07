@@ -1,0 +1,170 @@
+---
+# Wipe Talos nodes back to maintenance mode so `make talos` can reinstall
+# them — the rebuild path for version bumps and lost cluster secrets. Not
+# part of `make homelab`, and there is no default target list: this destroys
+# the cluster state on every node you name. See docs/talos-bootstrap.md
+# "Rebuild / bumping versions".
+#
+#   make apply-reset EXTRA_VARS='{"reset_hosts": ["Zond", "k8s-agent-01"]}'
+#   make apply-reset EXTRA_VARS='{"reset_hosts": "all"}'
+#
+# Same choreography as pi-cutover.yaml: open the netboot gate for the Pis
+# (which also fetches the netboot assets for the current versions.env),
+# reset, wait for every node to reappear in maintenance mode on a fresh DHCP
+# lease (found by MAC), then close the gate BEFORE the reinstall so the
+# post-install reboot falls through to disk.
+- name: Resolve the reset targets.
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    reset_candidates: "{{ groups['talos'] | default([]) if reset_hosts == 'all' else reset_hosts }}"
+  tasks:
+    - name: Require an explicit target list.
+      ansible.builtin.assert:
+        that: reset_hosts is defined
+        fail_msg: >-
+          reset_hosts is required — a JSON list of NetBox names, or "all":
+          make apply-reset EXTRA_VARS='{"reset_hosts": ["Zond"]}'
+
+    - name: Refuse an empty list or targets that are not Talos nodes.
+      ansible.builtin.assert:
+        that:
+          - reset_candidates | length > 0
+          - reset_candidates | difference(groups['talos'] | default([])) | length == 0
+        fail_msg: >-
+          Not Talos nodes (NetBox platform talos):
+          {{ reset_candidates | difference(groups['talos'] | default([])) }}
+
+    - name: Register the targets.
+      ansible.builtin.add_host:
+        name: "{{ item }}"
+        groups: reset_pending
+      loop: "{{ reset_candidates }}"
+      changed_when: false
+
+    - name: Reset plan.
+      ansible.builtin.debug:
+        msg: "wiping to maintenance mode: {{ groups['reset_pending'] | join(', ') }}"
+
+# The PXE server re-renders the Debian preseeds it owns, which need each
+# NUC's SOPS root_password — same loader play as pxe.yaml.
+- name: Load per-host SOPS vars onto each PXE target.
+  hosts: pxe
+  gather_facts: false
+  connection: local
+  tasks:
+    - name: Load SOPS-encrypted host vars (lowercase filename)
+      community.sops.load_vars:
+        file: "{{ host_vars_file }}"
+      vars:
+        host_vars_file: "{{ inventory_dir }}/host_vars/{{ inventory_hostname | lower }}.sops.yaml"
+      when: host_vars_file is file
+      no_log: true
+
+- name: Open the netboot gate for the Pi targets.
+  hosts: localhost
+  connection: local
+  gather_facts: true
+  force_handlers: true
+  vars:
+    talos_pi_provision_hosts: "{{ groups['reset_pending'] | intersect(groups['pis'] | default([])) }}"
+  roles:
+    - 00-pxe
+
+- name: Reset the targets.
+  hosts: reset_pending
+  connection: local
+  gather_facts: false
+  order: sorted
+  tasks:
+    - name: Wipe this node.
+      ansible.builtin.import_role:
+        name: talos
+        tasks_from: reset
+
+# A rebooted node holds a transient DHCP lease, so find it by MAC (ARP).
+- name: Wait for the targets to reach Talos maintenance mode.
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    reset_maintenance_timeout: 420   # Pi: firmware timeout + TFTP + HTTP + boot
+  tasks:
+    # The node keeps answering at its static address until the kernel
+    # actually restarts; only ICMP going dark marks the reboot.
+    - name: Wait for each target to go down (stops answering ping).
+      ansible.builtin.command:
+        cmd: "ping -c 1 -W 2 {{ hostvars[item].ansible_host }}"
+      register: reset_down
+      changed_when: false
+      failed_when: false
+      check_mode: false
+      retries: 30
+      delay: 5
+      until: reset_down.rc != 0
+      loop: "{{ groups['reset_pending'] }}"
+      when: not ansible_check_mode
+
+    - name: Wait for each target's MAC to appear on the LAN.
+      ansible.builtin.command:
+        cmd: arp-scan --localnet --retry=2
+      become: true
+      register: reset_arp
+      changed_when: false
+      check_mode: false
+      retries: "{{ (reset_maintenance_timeout / 10) | int }}"
+      delay: 10
+      until: >-
+        groups['reset_pending']
+        | map('extract', hostvars, 'mac_address') | map('lower')
+        | reject('in', reset_arp.stdout | lower)
+        | list | length == 0
+      when: not ansible_check_mode
+
+    - name: Resolve each target's maintenance IP (NetBox MAC → live lease).
+      ansible.builtin.set_fact:
+        reset_maintenance_ips: >-
+          {{ reset_maintenance_ips | default({})
+             | combine({item: (reset_arp.stdout_lines
+                               | select('search', hostvars[item].mac_address | lower)
+                               | map('split') | map('first') | list | first)}) }}
+      loop: "{{ groups['reset_pending'] }}"
+      when: not ansible_check_mode
+
+    - name: Wait for the Talos API (maintenance mode) on each target.
+      ansible.builtin.wait_for:
+        host: "{{ reset_maintenance_ips[item] }}"
+        port: 50000
+        timeout: 300
+      loop: "{{ groups['reset_pending'] }}"
+      when: not ansible_check_mode
+
+    - name: Report where each target is waiting.
+      ansible.builtin.debug:
+        msg: "{{ item }} in maintenance at {{ reset_maintenance_ips[item] }} (MAC {{ hostvars[item].mac_address }})"
+      loop: "{{ groups['reset_pending'] }}"
+      when: not ansible_check_mode
+
+# Close BEFORE reinstalling so the post-install reboot falls through to disk
+# instead of being offered netboot again. Only affects the next boot.
+- name: Close the netboot gate.
+  hosts: localhost
+  connection: local
+  gather_facts: true
+  force_handlers: true
+  vars:
+    talos_pi_provision_hosts: []
+  roles:
+    - 00-pxe
+
+- name: Next step.
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tasks:
+    - name: Reinstall hint.
+      ansible.builtin.debug:
+        msg: >-
+          {{ groups['reset_pending'] | length }} node(s) in maintenance mode.
+          Reinstall with `make talos` (or `make homelab`) from the repo root.

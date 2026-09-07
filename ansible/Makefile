@@ -34,6 +34,8 @@ help:
 	@echo "  apply-pi-cutover	- Cut Pis over to Talos end to end (EXTRA_VARS pi_cutover_hosts)."
 	@echo "  check-talos	- Dry run the Talos bootstrap."
 	@echo "  apply-talos	- Bootstrap the Talos cluster (talosctl, local conn)."
+	@echo "  check-reset	- Dry run a Talos node wipe (EXTRA_VARS reset_hosts)."
+	@echo "  apply-reset	- Wipe Talos nodes back to maintenance mode for a reinstall (EXTRA_VARS reset_hosts)."
 	@echo "  kubeconfig	- Merge the cluster context into this machine's ~/.kube/config (OPERATOR_SSH=user@host)."
 	@echo "  ping     	- Ping hosts."
 	@echo "  clean    	- Clean temporary files."
@@ -114,6 +116,23 @@ check-pi-cutover:
 .PHONY: apply-pi-cutover
 apply-pi-cutover:
 	$(VENV)/bin/ansible-playbook playbooks/pi-cutover.yaml \
+		$(if $(VERBOSITY),-$(VERBOSITY)) \
+		$(if $(EXTRA_VARS),--extra-vars='$(EXTRA_VARS)')
+
+# Wipe Talos nodes back to maintenance mode for a reinstall (version bumps,
+# lost cluster secrets). Destructive and deliberately NOT in `make homelab`;
+# reset_hosts is required — see playbooks/reset.yaml and docs/talos-bootstrap.md:
+#   make apply-reset EXTRA_VARS='{"reset_hosts": ["Zond"]}'
+#   make apply-reset EXTRA_VARS='{"reset_hosts": "all"}'
+.PHONY: check-reset
+check-reset:
+	$(VENV)/bin/ansible-playbook playbooks/reset.yaml --check --diff \
+		$(if $(VERBOSITY),-$(VERBOSITY)) \
+		$(if $(EXTRA_VARS),--extra-vars='$(EXTRA_VARS)')
+
+.PHONY: apply-reset
+apply-reset:
+	$(VENV)/bin/ansible-playbook playbooks/reset.yaml \
 		$(if $(VERBOSITY),-$(VERBOSITY)) \
 		$(if $(EXTRA_VARS),--extra-vars='$(EXTRA_VARS)')
 
