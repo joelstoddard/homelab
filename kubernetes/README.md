@@ -133,7 +133,7 @@ Consequences for day-2 work:
   through the rebuild path (`docs/talos-bootstrap.md`, "Rebuild").
 
 ```bash
-flux --context homelab get ks,hr -A                       # cilium Ready
+flux --context homelab get all -A                         # cilium Ready
 helm --kube-context homelab -n kube-system history cilium # rev 1 seed, rev 2 Flux
 kubectl --context homelab -n kube-system exec ds/cilium -c cilium-agent -- cilium-dbg status --brief
 ```
