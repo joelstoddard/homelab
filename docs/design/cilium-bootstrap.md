@@ -30,12 +30,23 @@ Two repo facts constrain where the seed can go:
 `playbooks/talos.yaml`'s last play runs `bootstrap` → `kubeconfig` → `cni` →
 `health`.
 
-`cni.yaml` polls `kubernetes.core.helm_info` until the kube-apiserver answers
-on the VIP, then `kubernetes.core.helm` installs release `cilium` into
-`kube-system` from `oci://quay.io/cilium/charts/cilium` — **only if the
-release does not exist**. `kubernetes/cilium/app/helmrelease.yaml` declares
-the same release name and namespace, so helm-controller's first reconcile
-finds the seeded release and takes it over as an upgrade.
+`cni.yaml` waits for the kube-apiserver to listen on the VIP, checks the
+release with `kubernetes.core.helm_info`, then `kubernetes.core.helm` installs
+release `cilium` into `kube-system` from `oci://quay.io/cilium/charts/cilium`
+— **only if the release does not exist**.
+`kubernetes/cilium/app/helmrelease.yaml` declares the same release name and
+namespace, so helm-controller's first reconcile finds the seeded release and
+takes it over as an upgrade (revision 2).
+
+That upgrade rolls every Cilium pod once. Same chart, same values — but with
+`spec.chartRef` → `OCIRepository`, Flux records the chart version as
+`<version>+<digest[0:12]>` (so a re-pushed tag still triggers a release), and
+Cilium stamps `helm.sh/chart: cilium-<version>` on every pod template. Seed
+and Flux therefore never render the same label, and each seed → adopt cycle
+restarts the CNI once. Accepted: it only happens on a fresh bootstrap, when
+nothing else is running yet. Switching to `HelmRepository` + `spec.chart`
+(chart version taken from `Chart.yaml`, no digest) would make adoption a true
+no-op — do that if the restart ever matters.
 
 The seed is one-shot, not `state: present` re-asserted every run. Once Flux
 has moved the release on (a bumped version, changed values), a re-run of
@@ -87,5 +98,6 @@ and agents Ready" — the LB-IPAM pool needs exactly that.
   health` has no "ignore NotReady nodes" switch, so the role would have to
   hand off an unhealthy cluster and the wait would split across two stages.
 - **`HelmRepository` + `spec.chart`** instead of `OCIRepository` +
-  `chartRef`. Equivalent, but the OCI chart is what the Ansible module pulls
-  too, and it leaves no `helm repo add` state anywhere.
+  `chartRef`. Would avoid the one-time restart on adoption (see above), but
+  `chartRef` is Flux's current idiom for OCI charts and the restart only hits
+  an empty cluster. Revisit if that changes.

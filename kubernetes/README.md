@@ -111,8 +111,12 @@ IP until a CNI runs. So the `talos` role seeds it: right after
 `talosctl bootstrap`, `tasks/cni.yaml` runs `helm install cilium` into
 `kube-system` from `cilium/app/values.yaml` at `CILIUM_VERSION` — once, only
 if the release is absent. `cilium/app/helmrelease.yaml` names the same
-release, so helm-controller adopts it on its first reconcile (revision 2,
-no diff) and owns it from then on. Rationale and rejected alternatives:
+release, so helm-controller adopts it on its first reconcile (revision 2)
+and owns it from then on. That adoption rolls every Cilium pod once: Flux
+suffixes an OCIRepository chart's version with the artifact digest, which
+changes the `helm.sh/chart` pod label the seed rendered. Fine on a fresh
+cluster; the design doc covers the alternative if it ever matters.
+Rationale and rejected alternatives:
 [`docs/design/cilium-bootstrap.md`](../docs/design/cilium-bootstrap.md).
 
 Consequences for day-2 work:
