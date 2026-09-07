@@ -299,7 +299,7 @@ SSH). `make -C ansible apply-reset` is the missing step. From the operator:
 sudo ./install.sh                              # talosctl / kubectl / talhelper at the new versions
 
 # 2. Prove the config generates before touching a node.
-make -C ansible check-talos TAGS=config        # renders ansible/.talos/talconfig.yaml
+make -C ansible apply-talos TAGS=config        # renders ansible/.talos/ — touches no node (--check would skip the write)
 talhelper validate talconfig ansible/.talos/talconfig.yaml
 talosctl validate --mode metal -c ansible/.talos/clusterconfig/homelab-<host>.yaml
 

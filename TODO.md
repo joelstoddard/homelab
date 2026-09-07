@@ -25,6 +25,11 @@
     - [ ] MariaDB
 - [-] Configure VMs
     - [x] Kubernetes (k8s-vm modules boot the Talos ISO into maintenance mode)
+    - [ ] Right-size VM memory: a 16 GB NUC carries 4 + 8 + 8 GB of Talos VMs
+          (plus the 8 GB operator on one of them, no swap). Rumba OOM-killed the
+          operator during the 2026-09-07 Cilium rebuild; stopgap was
+          `qm set 901 --balloon 2048`. Fix the sizing in NetBox (k8s-vm reads
+          it) and/or give the VMs balloon minimums in `modules/vm`.
 
 ## Raspberry Pis
 - [x] Bootstrap with TalOS (arm64 PXE netboot via 00-pxe `talos.yaml`)
