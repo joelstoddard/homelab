@@ -68,7 +68,7 @@
   gather_facts: true
   force_handlers: true
   vars:
-    talos_pi_provision_hosts: "{{ groups['reset_pending'] | intersect(groups['pis'] | default([])) }}"
+    talos_pi_provision_hosts: "{{ talos_pi_netboot_steady_state | union(groups['reset_pending'] | intersect(groups['pis'] | default([]))) }}"
   roles:
     - 00-pxe
 
@@ -146,15 +146,16 @@
       loop: "{{ groups['reset_pending'] }}"
       when: not ansible_check_mode
 
-# Close BEFORE reinstalling so the post-install reboot falls through to disk
-# instead of being offered netboot again. Only affects the next boot.
+# Return the gate to its steady state BEFORE reinstalling: with an empty
+# steady state the post-install reboot falls through to disk instead of
+# netbooting again. See docs/design/pi-netboot-steady-state.md.
 - name: Close the netboot gate.
   hosts: localhost
   connection: local
   gather_facts: true
   force_handlers: true
   vars:
-    talos_pi_provision_hosts: []
+    talos_pi_provision_hosts: "{{ talos_pi_netboot_steady_state }}"
   roles:
     - 00-pxe
 
