@@ -42,7 +42,7 @@
           (docs/design/pi-netboot-steady-state.md) so the Pis boot from
           disk again. Adjacent minor, so the VMs can go in place: `talosctl
           upgrade` + `upgrade-k8s` — the `playbooks/upgrade.yaml` placeholder
-- [ ] Bootstrap Flux (kubernetes/ GitOps layer, SOPS-at-runtime)
+- [x] Bootstrap Flux (kubernetes/ GitOps layer, SOPS-at-runtime)
 
 ## Post-cluster (deferred — get the cluster up first)
 - [ ] Cilium CNI + Cilium LB-IPAM/L2 over `load_balancer_ip_pool`

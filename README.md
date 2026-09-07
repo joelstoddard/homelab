@@ -11,7 +11,7 @@ This project can be broken down into layers, each owned by a top-level directory
 | Active  | Bare metal         | `ansible/`    | PXE-installs OSs.                                                                             |
 | Active  | LXC & VMs          | `opentofu/`   | Provisions K3S control-plane + worker VMs, HA Database LXCs, DNS LXCs, etc. |
 | Planned | Networking         | `tailscale/`  | Provisions ACLs for Tailscale nodes & routes.                                                 |
-| Planned | Workloads          | `kubernetes/` | Configures & Provisions Flux CD-managed Helm releases + Kustomize manifests.                  |
+| Active  | Workloads          | `kubernetes/` | Bootstraps Flux CD, which then reconciles this directory (Kustomize manifests, Helm releases). |
 
 ## Quick start
 
@@ -51,8 +51,7 @@ make homelab
 4. **`make -C tailscale`**
 5. **`make -C kubernetes`**
 
-Steps 4 and 5 skip silently while their Makefiles don't exist yet, so today
-`make homelab` runs steps 1, 2 and 3.
+Step 4 skips with a notice while `tailscale/Makefile` doesn't exist yet.
 
 Per-stage flags pass through: `make ansible LIMIT=tango TAGS=proxmox`.
 
