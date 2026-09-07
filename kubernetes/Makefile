@@ -50,7 +50,9 @@ build:
 # The header is the only place the generated file records its version;
 # a versions.env bump without `make generate` fails here. Likewise the Cilium
 # OCIRepository tag: the talos role seeds from CILIUM_VERSION and Flux must
-# converge on the same chart, not upgrade or roll it back on adoption.
+# converge on the same chart, not upgrade or roll it back on adoption (the
+# adoption still restarts the pods once — Flux's digest-suffixed chart
+# version changes a label — see docs/design/cilium-bootstrap.md).
 #
 # The root build only reaches each layer's Flux Kustomization CR; the
 # manifests it points at (*/app) are built separately.

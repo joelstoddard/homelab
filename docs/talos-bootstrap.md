@@ -279,8 +279,9 @@ make -C kubernetes
 installs Flux CD from the committed manifests and points it at this repo's
 `main`; from then on [`kubernetes/`](../kubernetes/) is reconciled by Flux.
 Its first reconcile adopts the Cilium release Step 3 seeded (same name,
-same values — a no-op upgrade); LoadBalancer pool and workloads follow as
-further layers. Part of `make homelab`; see the
+same values; expect one rolling restart of the Cilium pods as Flux re-labels
+them with its digest-suffixed chart version); LoadBalancer pool and workloads
+follow as further layers. Part of `make homelab`; see the
 [`kubernetes/README.md`](../kubernetes/README.md).
 
 ## Rebuild / bumping versions
