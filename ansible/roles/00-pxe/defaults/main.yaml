@@ -78,16 +78,16 @@ ipxe_sha256: ""  # leave empty to skip checksum; set to pinned hash for producti
 # role_path: .../ansible/roles/00-pxe, so ../../../ is the repo root) — bump
 # it there, not here.
 #
-# The asset URLs point at the Talos Image Factory build for the plain
-# sbc-raspberrypi overlay (rpi_generic). talos_pi_schematic_id MUST match the
-# talos role's talos_pi_schematic_id so the netbooted kernel/initramfs and the
-# on-disk installer (talosImageURL) are the SAME build — a bare Pi will not
-# netboot the vanilla siderolabs arm64 assets.
+# The asset URLs point at the Talos Image Factory build for the
+# sbc-raspberrypi overlay (rpi_generic) + the USB quirk below.
+# talos_pi_schematic_id MUST match the talos role's talos_pi_schematic_id so
+# the netbooted kernel/initramfs and the on-disk installer (talosImageURL)
+# are the SAME build. See docs/design/talos-image-schematics.md.
 talos_version: >-
   {{ lookup('file', role_path ~ '/../../../versions.env')
      | regex_findall('^TALOS_VERSION=(.+)$', multiline=True) | first | trim }}
-# Image Factory schematic for the arm64 Pis (plain sbc-raspberrypi overlay).
-talos_pi_schematic_id: "ee21ef4a5ef808a9b7484cc0dda0f25075021691c8c09a276591eedb638ea1f9"
+# Image Factory schematic for the arm64 Pis (rpi overlay + USB quirk).
+talos_pi_schematic_id: "ee122db4a1f0297d03367f978772ffd3c8319060bf3d38ee57990d6b90a00a25"
 talos_arm64_kernel_url: >-
   https://factory.talos.dev/image/{{ talos_pi_schematic_id }}/{{ talos_version }}/kernel-arm64
 talos_arm64_initramfs_url: >-
@@ -98,8 +98,8 @@ talos_arm64_initramfs_url: >-
 # ("Host System Error … HC died") — the disk vanishes mid-install. Ubuntu on
 # the same disks is fine only because the downstream Raspberry Pi kernel
 # carries VL805 workarounds. Force the bridge onto plain usb-storage (`u`).
-# MUST match the talos role's talos_pi_usb_storage_quirks, which puts the same
-# quirk into the installed system's kernel args. Empty disables it.
+# MUST match the extraKernelArgs baked into talos_pi_schematic_id, which gives
+# the installed system the same quirk. Empty disables it.
 talos_pi_usb_storage_quirks: "0bda:9210:u"
 
 # Kernel cmdline for the Talos netboot (maintenance mode — no talos.config,
