@@ -7,6 +7,10 @@
 # so it must target exactly one node and only on a fresh cluster. We make
 # it safe to re-run by treating an "already bootstrapped"/"already exists"
 # response as success rather than failure.
+#
+# This returns as soon as etcd is told to bootstrap. The health wait is
+# health.yaml, run last: nodes cannot go Ready until cni.yaml has seeded the
+# CNI, and that needs the kubeconfig first.
 
 - name: Resolve the bootstrap node's IP.
   ansible.builtin.set_fact:
@@ -35,14 +39,3 @@
   until: >-
     talos_bootstrap.rc == 0
     or 'already' in (talos_bootstrap.stderr | default('') | lower)
-
-- name: Wait for the control plane to converge (etcd + kube-apiserver).
-  ansible.builtin.command:
-    cmd: >-
-      {{ talosctl_bin }} --talosconfig {{ talos_talosconfig }}
-      health --wait-timeout 10m
-      --nodes {{ talos_bootstrap_ip }} --endpoints {{ talos_bootstrap_ip }}
-      --control-plane-nodes {{ talos_controlplane_hosts | map('extract', hostvars, 'ansible_host') | join(',') }}
-      --worker-nodes {{ (groups['talos'] | difference(talos_controlplane_hosts)) | map('extract', hostvars, 'ansible_host') | join(',') }}
-  register: talos_health
-  changed_when: false

@@ -1,0 +1,46 @@
+---
+# Seed Cilium once, right after etcd is bootstrapped and the kubeconfig has
+# been merged, and before health.yaml. The machine config ships no CNI, so
+# nothing schedules — Flux included — until this has run; afterwards Flux
+# (kubernetes/cilium/) declares the same release and owns it. Rationale:
+# docs/design/cilium-bootstrap.md.
+#
+# Deliberately not `state: present` re-asserted every run: once Flux has
+# moved the release on, a re-run from an older checkout must not roll it
+# back. If the release exists — seeded or Flux-managed — nothing happens.
+
+# Right after bootstrap the kube-apiserver takes a minute or two to come up
+# behind the VIP (the kubeconfig's server). A port wait keeps a permanent
+# helm failure below from hiding behind a long retry loop.
+- name: Wait for the kube-apiserver to listen on the VIP.
+  ansible.builtin.wait_for:
+    host: "{{ talos_vip }}"
+    port: 6443
+    timeout: 600
+
+# Short retry only for the gap between the port opening and the apiserver
+# actually serving.
+- name: Check whether the Cilium release exists.
+  kubernetes.core.helm_info:
+    binary_path: "{{ helm_bin }}"
+    kubeconfig: "{{ talos_kubeconfig_dest }}"
+    context: "{{ talos_cluster_name }}"
+    release_name: "{{ cilium_release_name }}"
+    release_namespace: "{{ cilium_release_namespace }}"
+  register: cilium_release
+  retries: 12
+  delay: 10
+  until: cilium_release is succeeded
+
+- name: Seed Cilium {{ cilium_version }} (one-shot; Flux owns it afterwards).
+  kubernetes.core.helm:
+    binary_path: "{{ helm_bin }}"
+    kubeconfig: "{{ talos_kubeconfig_dest }}"
+    context: "{{ talos_cluster_name }}"
+    release_name: "{{ cilium_release_name }}"
+    release_namespace: "{{ cilium_release_namespace }}"
+    chart_ref: "{{ cilium_chart }}"
+    chart_version: "{{ cilium_version }}"
+    values_files:
+      - "{{ cilium_values_file }}"
+  when: not (cilium_release.status | default({}))
