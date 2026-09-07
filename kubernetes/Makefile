@@ -4,7 +4,7 @@
 
 # Same default as ansible/Makefile's kubeconfig target. The operator's
 # ~/.kube/config may hold unrelated contexts, so never rely on current-context.
-KUBE_CONTEXT ?= admin@homelab
+KUBE_CONTEXT ?= homelab
 KUBECTL      := kubectl --context $(KUBE_CONTEXT)
 
 # Default matches the root Makefile so a standalone `make -C kubernetes`

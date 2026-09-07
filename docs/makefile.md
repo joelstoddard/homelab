@@ -115,7 +115,7 @@ install directly from the registry against the committed lock files.
 ### `kubernetes/Makefile`
 
 Installs Flux CD from the committed manifests and hands the cluster over
-to it. Default target `apply` = `build` (kubectl, the `admin@homelab`
+to it. Default target `apply` = `build` (kubectl, the `homelab`
 context, a non-empty `$SOPS_AGE_KEY_FILE`, `FLUX_VERSION`) → `lint`
 (offline: `gotk-components.yaml` header matches `versions.env`,
 `kubectl kustomize .` builds) → `components` (server-side apply, wait for

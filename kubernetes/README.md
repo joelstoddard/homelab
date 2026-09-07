@@ -40,7 +40,7 @@ ordering) rather than by growing the root tree — see "Adding workloads".
 
 | Input | Where | Why |
 | --- | --- | --- |
-| kube context `admin@homelab` | `~/.kube/config` (merged by `make -C ansible kubeconfig`) | Every `kubectl` call pins `--context`; the operator's kubeconfig may hold unrelated clusters. |
+| kube context `homelab` | `~/.kube/config` (merged by `make -C ansible kubeconfig`) | Every `kubectl` call pins `--context`; the operator's kubeconfig may hold unrelated clusters. |
 | Age private key | `$SOPS_AGE_KEY_FILE` (default `~/.config/sops/age/keys.txt`) | Lands in-cluster as the `sops-age` Secret so kustomize-controller can decrypt `*.sops.yaml`. |
 | `FLUX_VERSION` | repo-root `versions.env` | Pins `gotk-components.yaml`; `make lint` refuses a mismatch. |
 
@@ -79,8 +79,8 @@ validation before), `lint` (offline: version header + `kubectl kustomize`),
 
 ```bash
 make -C kubernetes status
-flux --context admin@homelab check
-kubectl --context admin@homelab -n flux-system get kustomization flux-system \
+flux --context homelab check
+kubectl --context homelab -n flux-system get kustomization flux-system \
   -o jsonpath='{.status.conditions[?(@.type=="Ready")].message}'
 ```
 

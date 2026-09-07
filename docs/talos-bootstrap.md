@@ -239,7 +239,7 @@ your current context is left alone:
 
 ```bash
 make kubeconfig OPERATOR_SSH=<user>@<operator>
-kubectl --context admin@homelab get nodes
+kubectl --context homelab get nodes
 ```
 
 > `apply-config --insecure` only works in maintenance mode. Re-running
