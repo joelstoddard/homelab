@@ -1,0 +1,27 @@
+# One pool, every Service of type LoadBalancer draws from it (no
+# serviceSelector). The bounds are the NetBox IP range reserved for it — LAN
+# addresses, so the spec is SOPS-encrypted and Flux decrypts it in-cluster.
+# Always edit with `sops kubernetes/cilium-lb/app/pool.sops.yaml`.
+apiVersion: cilium.io/v2
+kind: CiliumLoadBalancerIPPool
+metadata:
+    name: lan
+spec:
+    blocks:
+        - start: ENC[AES256_GCM,data:SFsqinRZc/6SsQ==,iv:GaUl8onG/B9di9oYPCcr8kRjX1XTNV6VodzzibllsRY=,tag:0n7+8NljzsUyasb3BFIlTQ==,type:str]
+          stop: ENC[AES256_GCM,data:mZ5umtwuogtn+g==,iv:rKDqdPclCwFVoX3terHIugIjxZsYMGFLq869evlLdV4=,tag:vqBMygr3kES7ZBZclpaEGg==,type:str]
+sops:
+    age:
+        - recipient: age1h5hafnt22aqn7uahcsmv5v8gfgwcxanypw0lantcush7jppt99fskz6vcv
+          enc: |
+            -----BEGIN AGE ENCRYPTED FILE-----
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBaTzI1MTB6cWdCQUxKVnkr
+            cWlvV3FqWlovaHJqR1U0ZUdMbnFidFlib1VBCmpnN211YStZeWV3cGRZVnMvLzJE
+            S3BrS0JNVHZ0MDF3c2RvN2UxeXhIZkEKLS0tIGpLNDBxdFJMd1pDcWNVaVNWcWFn
+            SHBIQWp4bWlGZ3lkcXljaVFReDY2aW8K/A7gbk/JgkpbTNGhjDcWpdGydKBcZVYt
+            tQ/XmJdLnela/M+1ADMMN3aSFX79mFA4oSymaxsrBn7CsLsDc9Kpeg==
+            -----END AGE ENCRYPTED FILE-----
+    lastmodified: "2026-09-07T20:18:51Z"
+    mac: ENC[AES256_GCM,data:G0tLZ4eoPH8v8rcEJAN/Rv4E0fEWZnJxxjDc7DDWxQdFCUbcCOy8uOV0yBbAFhvsRpYCcLUBqzDtcn9TlRei0lr1R1gx/9W3qqFuDtRN56/vsu7Ydj8OJ+EHOLJlyZAsy38NfK1ryINm0/F6S2nzNlHtnMC6c2jYcuFgjOn+nwA=,iv:cYviSMLyRCOOgdKszR9/GZYrZxZgxiTFA4h+SDQHuc8=,tag:lDjdU0cqb0GA37uDsZVeXg==,type:str]
+    encrypted_regex: ^(data|stringData|spec)$
+    version: 3.12.2

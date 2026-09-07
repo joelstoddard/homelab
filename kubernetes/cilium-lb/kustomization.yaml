@@ -1,9 +1,4 @@
-# The Flux Kustomization CR plus the one Secret it substitutes from. The
-# Secret has to be applied by the root flux-system Kustomization: a
-# Kustomization cannot read `substituteFrom` values out of a Secret it has
-# not applied yet, so putting it under app/ would deadlock the first reconcile.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
   - ks.yaml
-  - vars.sops.yaml

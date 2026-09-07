@@ -53,7 +53,7 @@
 - [x] Cilium CNI, kube-proxy-free (`talos` role seeds, Flux owns —
       `docs/design/cilium-bootstrap.md`)
 - [x] Cilium LB-IPAM/L2 (`kubernetes/cilium-lb/`, pool = NetBox IP range
-      reserved for it, bounds in a SOPS Secret)
+      reserved for it, the pool CR's spec SOPS-encrypted)
 - [ ] Renovate for automated version-bump PRs
 - [ ] Pin all tool versions (talosctl/kubectl/talhelper/flux) — likely nix flakes
 

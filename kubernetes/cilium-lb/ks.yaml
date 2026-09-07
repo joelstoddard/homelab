@@ -1,8 +1,7 @@
 # LB-IPAM pool + L2 announcement policy. `dependsOn: cilium` (wait: true
 # there) means the Cilium CRDs are registered and the agents Ready before
-# this applies. The pool bounds are LAN addresses, so they come from the
-# SOPS-encrypted Secret cilium-lb-vars via postBuild substitution instead of
-# sitting in plaintext in a public repo.
+# this applies. The pool CR is SOPS-encrypted (its spec is LAN addresses, kept
+# out of a public repo), hence the decryption block.
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:
@@ -17,7 +16,7 @@ spec:
   sourceRef:
     kind: GitRepository
     name: flux-system
-  postBuild:
-    substituteFrom:
-      - kind: Secret
-        name: cilium-lb-vars
+  decryption:
+    provider: sops
+    secretRef:
+      name: sops-age
