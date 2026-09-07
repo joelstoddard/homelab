@@ -170,7 +170,7 @@ apply-talos:
 # here and SSH to the operator.
 #   make kubeconfig OPERATOR_SSH=joel@operator.example.com
 OPERATOR_SSH ?=
-KUBE_CONTEXT ?= admin@homelab
+KUBE_CONTEXT ?= homelab
 .PHONY: kubeconfig
 kubeconfig:
 	@[ -n "$(OPERATOR_SSH)" ] || { echo "OPERATOR_SSH=user@host must be set." >&2; exit 1; }
