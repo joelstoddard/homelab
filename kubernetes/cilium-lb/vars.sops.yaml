@@ -1,0 +1,28 @@
+# Bounds of the LB-IPAM pool: the NetBox IP range reserved for Cilium
+# (start/end, bare addresses). Read by kubernetes/cilium-lb/ks.yaml via
+# postBuild.substituteFrom; not secret, but LAN detail kept out of the public
+# repo. Always edit with `sops kubernetes/cilium-lb/vars.sops.yaml`.
+apiVersion: v1
+kind: Secret
+metadata:
+    name: cilium-lb-vars
+    namespace: flux-system
+type: Opaque
+stringData:
+    LB_POOL_START: ENC[AES256_GCM,data:m400tyDDBUN+dg==,iv:DzqQ7B8QBRKWTlDMovd8wFoGITMdg+LUxu8PsSGUFSQ=,tag:bq6i0a+Eu4kAUaS/z29CYQ==,type:str]
+    LB_POOL_STOP: ENC[AES256_GCM,data:Tgos1fFKDGLi9Q==,iv:RWwygUyrGyReezYn8AHXWpLtjTMrgbUk+RwnyDQJVcg=,tag:c43ITLGUWAduanUCYq1FlA==,type:str]
+sops:
+    age:
+        - recipient: age1h5hafnt22aqn7uahcsmv5v8gfgwcxanypw0lantcush7jppt99fskz6vcv
+          enc: |
+            -----BEGIN AGE ENCRYPTED FILE-----
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBMRTR2QTBQNnkydTN0eG1z
+            STlsOElxRkVHYVNuU1hvVVZmTDRHSERsR1ZBCjZtQ1huU2NkdDNiRmZkR0x5QWlS
+            alhiTVNmeWIwM3RKdkxtMTl5WUJOSDQKLS0tIEZXUnAra0tZS045bmpvdmxNell3
+            US83SS9wdThseWkzVDF2OUNhcEJZWlEKwQhhRu48Fe+9UFcqGCqBtdkmU9DfMw2U
+            jP/S+QUTSgiN2xBdjHHHE9TMcTPZyJfA3e3VM/KTrd19Kzmm8J8+hw==
+            -----END AGE ENCRYPTED FILE-----
+    lastmodified: "2026-09-07T19:54:21Z"
+    mac: ENC[AES256_GCM,data:xi3E4LJelrG9tAGjQ2a9tAVLip3hOqjRtzJ1tUWRolp3ZOVrOF76d8NH7uM/fjvpywP47LOr7CvGh0JYW2AJGATH0OZa7+K/WOx6MLuFv6MJxq+0oRUsDiJL0SmoTU+urBe8XKUarwJG0iln1FDuXaY/kvdgZkRA3tVdLAuINIA=,iv:Qaie/0QvxJKEBh1s3/X80CkKOp+xhXtP+GwWbVtaoZE=,tag:JH/1pqk9O+BKKKPZ4dN0LQ==,type:str]
+    encrypted_regex: ^(data|stringData)$
+    version: 3.12.2

@@ -1,0 +1,13 @@
+# Announce every LoadBalancer IP from the workers; the control planes are
+# tainted and carry no workloads. No `interfaces` filter: VMs and Pis name
+# their NIC differently and Cilium's auto-detected device is the LAN one on both.
+apiVersion: cilium.io/v2alpha1
+kind: CiliumL2AnnouncementPolicy
+metadata:
+  name: lan
+spec:
+  loadBalancerIPs: true
+  nodeSelector:
+    matchExpressions:
+      - key: node-role.kubernetes.io/control-plane
+        operator: DoesNotExist

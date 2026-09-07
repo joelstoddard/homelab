@@ -52,9 +52,8 @@
 ## Post-cluster (deferred — get the cluster up first)
 - [x] Cilium CNI, kube-proxy-free (`talos` role seeds, Flux owns —
       `docs/design/cilium-bootstrap.md`)
-- [ ] Cilium LB-IPAM/L2 over `load_balancer_ip_pool` (`dependsOn: cilium`;
-      the k3s-era pool in `group_vars/k3s-cluster.yaml` needs re-reserving in
-      NetBox first)
+- [x] Cilium LB-IPAM/L2 (`kubernetes/cilium-lb/`, pool = NetBox IP range
+      reserved for it, bounds in a SOPS Secret)
 - [ ] Renovate for automated version-bump PRs
 - [ ] Pin all tool versions (talosctl/kubectl/talhelper/flux) — likely nix flakes
 

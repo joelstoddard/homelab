@@ -57,9 +57,11 @@ One values file, one version pin:
 
 - `kubernetes/cilium/app/values.yaml` is passed to `helm install` by the
   role and wrapped in a ConfigMap (`configMapGenerator`, no hash suffix) for
-  the HelmRelease's `valuesFrom`. It holds only what Talos prescribes:
+  the HelmRelease's `valuesFrom`. It holds what Talos prescribes —
   `ipam.mode: kubernetes`, kube-proxy replacement against KubePrism
-  (`localhost:7445`), the agent capability lists, and no cgroup remount.
+  (`localhost:7445`), the agent capability lists, no cgroup remount — plus
+  `l2announcements.enabled` for the `kubernetes/cilium-lb/` layer. The seed
+  carries that too, so adoption is still a values no-op.
 - `CILIUM_VERSION` in repo-root `versions.env` (no `v` — the chart tags carry
   none). The role reads it with the `versions.env` lookup; the Flux
   `OCIRepository` pins the same tag literally; `make -C kubernetes lint`

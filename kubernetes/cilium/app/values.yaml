@@ -1,8 +1,8 @@
 # Cilium Helm values — read by two consumers, keep them in this one file:
 #   - ansible/roles/talos/tasks/cni.yaml   (one-shot seed: helm install -f)
 #   - kustomization.yaml here              (ConfigMap for the HelmRelease)
-# Only what Talos prescribes (docs.siderolabs.com, "Deploying Cilium CNI");
-# see docs/design/cilium-bootstrap.md.
+# What Talos prescribes (docs.siderolabs.com, "Deploying Cilium CNI") plus L2
+# announcements for the cilium-lb layer; see docs/design/cilium-bootstrap.md.
 
 # Talos' kube-controller-manager allocates a podCIDR per node; use it.
 ipam:
@@ -40,3 +40,9 @@ cgroup:
   autoMount:
     enabled: false
   hostRoot: /sys/fs/cgroup
+
+# LB-IPAM is on by default; L2 announcements make the IPs it hands out
+# reachable: one worker per Service answers ARP for them. Pool and policy
+# live in kubernetes/cilium-lb/.
+l2announcements:
+  enabled: true
