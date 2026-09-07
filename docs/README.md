@@ -15,6 +15,7 @@ the mental model from scratch.
 | [netbooting-pis.md](./netbooting-pis.md) | The Raspberry Pi 4 → Talos path hop by hop: EEPROM, the dnsmasq gate, u-boot, the install, Talos from disk — with the cutover playbook and every failure seen so far. | Cutting a Pi over, or a Pi that won't netboot / won't install / came back on the wrong OS. |
 | [talos-bootstrap.md](./talos-bootstrap.md) | Bringing up the Kubernetes cluster: VM ISO boot (OpenTofu) + Pi arm64 netboot (PXE), then `talosctl` config/bootstrap/kubeconfig via the `talos` role. | Bootstrapping or rebuilding the cluster, or debugging a node stuck in maintenance mode. |
 | [makefile.md](./makefile.md) | Root → subdir `make` chain, variable passthrough (`LIMIT`/`TAGS`/`EXTRA_VARS`), how planned subdirs auto-extend the chain. | Adding a new layer, or wondering why `make homelab` did/didn't do a thing. |
+| [design/](./design/) | Why a non-obvious mechanism is the way it is — one doc per concept (Pi netboot steady state, Talos image schematics, Cilium bootstrap), cited from the code that depends on it. | Before changing something that looks odd on purpose. |
 
 ## Conventions
 
@@ -29,8 +30,9 @@ the mental model from scratch.
 
 ## Not in here
 
-- **Plans and design notes** live under `.claude/plans/` and `.claude/specs/`
-  (gitignored globally — see `~/.config/git/ignore`). Don't add them to `docs/`.
+- **Plans and specs** live under `.claude/` and are not committed; a plan is
+  spent once executed. The decisions that come out of one are committed as a
+  [`design/`](./design/) doc.
 - **The AI assistant guidance** lives in [`CLAUDE.md`](../CLAUDE.md). It
   duplicates some architecture detail by design, but it's the spec for
   Claude's behaviour, not for human readers.

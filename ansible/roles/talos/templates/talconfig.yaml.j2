@@ -14,9 +14,17 @@ talosVersion: {{ talos_version }}
 kubernetesVersion: {{ talos_kubernetes_version }}
 endpoint: {{ talos_cluster_endpoint }}
 
-# Keep Talos' default CNI (flannel) + kube-proxy so the cluster comes up
-# self-contained. Swapping to Cilium is a kubernetes/ (Flux) follow-up;
-# set `cniConfig.name: none` here when that lands.
+# No flannel, no kube-proxy: Cilium is the CNI and the service datapath. The
+# role seeds it right after bootstrap (tasks/cni.yaml) and Flux owns it from
+# then on (kubernetes/cilium/) — docs/design/cilium-bootstrap.md. KubePrism
+# keeps its default (:7445); Cilium's kube-proxy replacement points at it.
+cniConfig:
+  name: none
+patches:
+  - |-
+    cluster:
+      proxy:
+        disabled: true
 
 nodes:
 {% for item in groups['talos'] | default([]) %}

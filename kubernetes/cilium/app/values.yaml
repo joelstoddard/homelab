@@ -1,0 +1,42 @@
+# Cilium Helm values — read by two consumers, keep them in this one file:
+#   - ansible/roles/talos/tasks/cni.yaml   (one-shot seed: helm install -f)
+#   - kustomization.yaml here              (ConfigMap for the HelmRelease)
+# Only what Talos prescribes (docs.siderolabs.com, "Deploying Cilium CNI");
+# see docs/design/cilium-bootstrap.md.
+
+# Talos' kube-controller-manager allocates a podCIDR per node; use it.
+ipam:
+  mode: kubernetes
+
+# kube-proxy is disabled in the machine config (cluster.proxy.disabled), so
+# Cilium is the service datapath. It reaches the apiserver through KubePrism,
+# Talos' per-node balancer on localhost:7445, not through the VIP.
+kubeProxyReplacement: true
+k8sServiceHost: localhost
+k8sServicePort: 7445
+
+# Talos has no SYS_MODULE to give: drop it from the agent's default set.
+securityContext:
+  capabilities:
+    ciliumAgent:
+      - CHOWN
+      - KILL
+      - NET_ADMIN
+      - NET_RAW
+      - IPC_LOCK
+      - SYS_ADMIN
+      - SYS_RESOURCE
+      - DAC_OVERRIDE
+      - FOWNER
+      - SETGID
+      - SETUID
+    cleanCiliumState:
+      - NET_ADMIN
+      - SYS_ADMIN
+      - SYS_RESOURCE
+
+# Talos already mounts cgroupv2 at /sys/fs/cgroup; don't let Cilium remount it.
+cgroup:
+  autoMount:
+    enabled: false
+  hostRoot: /sys/fs/cgroup

@@ -21,13 +21,17 @@
 # Single-sourced from repo-root versions.env (read via role_path so it
 # resolves no matter which playbook includes the role). Bump the version
 # THERE — never inline it here. role_path is .../ansible/roles/talos, so
-# ../../../ is the repo root. talhelper reads these from talconfig.yaml.
+# ../../../ is the repo root. talhelper reads the first two from
+# talconfig.yaml; cilium_version is the chart the CNI seed installs.
 talos_version: >-
   {{ lookup('file', role_path ~ '/../../../versions.env')
      | regex_findall('^TALOS_VERSION=(.+)$', multiline=True) | first | trim }}
 talos_kubernetes_version: >-
   {{ lookup('file', role_path ~ '/../../../versions.env')
      | regex_findall('^KUBERNETES_VERSION=(.+)$', multiline=True) | first | trim }}
+cilium_version: >-
+  {{ lookup('file', role_path ~ '/../../../versions.env')
+     | regex_findall('^CILIUM_VERSION=(.+)$', multiline=True) | first | trim }}
 
 # --- Cluster identity ---------------------------------------------------
 talos_cluster_name: "homelab"
@@ -108,7 +112,19 @@ talos_talsecret_sops: "{{ role_path }}/files/talsecret.sops.yaml"
 # (preserving other clusters' contexts), not dropped in the repo.
 talos_kubeconfig_dest: "{{ lookup('ansible.builtin.env', 'HOME') }}/.kube/config"
 
+# --- CNI seed -----------------------------------------------------------
+# The machine config ships no CNI (talconfig.yaml.j2: cniConfig none, proxy
+# disabled), so tasks/cni.yaml installs Cilium once, right after bootstrap;
+# kubernetes/cilium/ (Flux) declares the same release and owns it from then
+# on. The values file is Flux's copy, read in place so the two can never
+# drift. See docs/design/cilium-bootstrap.md.
+cilium_chart: "oci://quay.io/cilium/charts/cilium"
+cilium_release_name: "cilium"
+cilium_release_namespace: "kube-system"
+cilium_values_file: "{{ role_path }}/../../../kubernetes/cilium/app/values.yaml"
+
 # Binaries (overridable if not on PATH).
 talhelper_bin: "talhelper"
 talosctl_bin: "talosctl"
 sops_bin: "sops"
+helm_bin: "helm"

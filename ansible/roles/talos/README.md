@@ -22,8 +22,13 @@ maintenance-mode IPs (the NetBox primary IP, surfaced as `ansible_host`).
 |---------------|----------------------|--------------|
 | `config`      | `localhost` (once)   | Resolve NetBox facts (VIP, control-plane membership), generate/reuse the SOPS-encrypted talhelper secret bundle, render `talconfig.yaml`, run `talhelper genconfig` → `ansible/.talos/clusterconfig/`. |
 | `apply`       | per `talos` host     | `talosctl apply-config --insecure` of that node's generated config to a node in maintenance mode. One-shot bootstrap step. |
-| `bootstrap`   | `localhost` (once)   | `talosctl bootstrap` etcd on the first control-plane node, then wait for health. |
+| `bootstrap`   | `localhost` (once)   | `talosctl bootstrap` etcd on the first control-plane node. |
 | `kubeconfig`  | `localhost` (once)   | Merge the cluster context into `~/.kube/config`. |
+| `cni`         | `localhost` (once)   | `helm install` Cilium (`kubernetes/cilium/app/values.yaml`, `CILIUM_VERSION`) — only if the release is absent; Flux owns it afterwards. The machine config ships no CNI, so nothing schedules before this. |
+| `health`      | `localhost` (once)   | `talosctl health` until every node is Ready. Last, because Ready needs the CNI. |
+
+The order of the last four is load-bearing; see
+`docs/design/cilium-bootstrap.md`.
 
 ## NetBox as the source of truth
 

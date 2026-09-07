@@ -1,0 +1,7 @@
+# Only the Flux Kustomization CR lives at this level; what it applies is in
+# app/. Keeping them apart stops the root flux-system Kustomization from
+# applying the HelmRelease itself (docs/design/cilium-bootstrap.md).
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ks.yaml

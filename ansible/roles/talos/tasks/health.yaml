@@ -1,0 +1,21 @@
+---
+# Wait for the whole cluster to converge. Runs once, last in the
+# playbooks/talos.yaml localhost play: `talosctl health` asserts every node is
+# Ready, which needs the CNI that cni.yaml seeds, which needs the kubeconfig
+# — so this cannot sit inside bootstrap.yaml. The kube-proxy assertion is
+# skipped by talosctl when the DaemonSet is absent (cluster.proxy.disabled).
+
+- name: Resolve the bootstrap node's IP.
+  ansible.builtin.set_fact:
+    talos_bootstrap_ip: "{{ hostvars[talos_bootstrap_host].ansible_host }}"
+
+- name: Wait for the cluster to converge (etcd, kube-apiserver, every node Ready).
+  ansible.builtin.command:
+    cmd: >-
+      {{ talosctl_bin }} --talosconfig {{ talos_talosconfig }}
+      health --wait-timeout 10m
+      --nodes {{ talos_bootstrap_ip }} --endpoints {{ talos_bootstrap_ip }}
+      --control-plane-nodes {{ talos_controlplane_hosts | map('extract', hostvars, 'ansible_host') | join(',') }}
+      --worker-nodes {{ (groups['talos'] | difference(talos_controlplane_hosts)) | map('extract', hostvars, 'ansible_host') | join(',') }}
+  register: talos_health
+  changed_when: false

@@ -89,8 +89,13 @@ Current implementation:
   NetBox/inventory, and runs `talhelper genconfig` into the git-ignored
   `ansible/.talos/clusterconfig/`. Then `apply.yaml`
   (`talosctl apply-config --insecure` per node in maintenance mode),
-  `bootstrap.yaml` (`talosctl bootstrap` etcd on the first control-plane node +
-  health wait), and `kubeconfig.yaml` (merge into `~/.kube/config`). Cluster
+  `bootstrap.yaml` (`talosctl bootstrap` etcd on the first control-plane
+  node), `kubeconfig.yaml` (merge into `~/.kube/config`), `cni.yaml` (the
+  machine config ships no CNI — `cniConfig: none`, kube-proxy disabled — so
+  this `helm install`s Cilium from `kubernetes/cilium/app/values.yaml` at
+  `CILIUM_VERSION`, once, only if the release is absent; Flux owns it after
+  that) and `health.yaml` (`talosctl health`, last, because Ready needs the
+  CNI). That order is load-bearing: `docs/design/cilium-bootstrap.md`. Cluster
   identity lives in `roles/talos/defaults/main.yaml` (fallbacks for the
   NetBox-derived values), not in a group_vars file, because the `localhost`
   config/bootstrap plays are not members of the `talos` inventory group.
@@ -131,10 +136,16 @@ reconciling `./kubernetes` with `prune: true` and SOPS decryption. The path
 includes `flux-system/`, so Flux manages itself after merge. Declarative
 install, not `flux bootstrap` (which pushes to `main` and needs a write
 token). New layers are Flux `Kustomization` CRs listed in the root
-`kubernetes/kustomization.yaml`; Kubernetes Secrets are `*.sops.yaml` with only
-`data`/`stringData` encrypted (`.sops.yaml` rule). Never
+`kubernetes/kustomization.yaml`, each pointing at its own `<layer>/app/`;
+Kubernetes Secrets are `*.sops.yaml` with only `data`/`stringData` encrypted
+(`.sops.yaml` rule). The first layer is `cilium/`: an `OCIRepository` +
+`HelmRelease` that adopts the release the `talos` role seeded (same name,
+namespace and `values.yaml`; the OCIRepository tag must equal
+`CILIUM_VERSION` — `make -C kubernetes lint` enforces it). Change Cilium via
+git only; the seed never re-runs on an existing release. Never
 `kubectl delete kustomization flux-system` — prune would remove Flux itself;
-use `flux uninstall`. See `kubernetes/README.md`.
+use `flux uninstall`. Pruning `cilium/` removes the CNI. See
+`kubernetes/README.md`.
 
 ### Infrastructure Hosts
 
@@ -149,7 +160,7 @@ fallback schema for environments without NetBox.
 
 ## Key Conventions
 
-- Ansible collections are pinned in `ansible/requirements.yaml`; Python deps in `ansible/requirements.txt`.
+- Ansible collections are pinned in `ansible/collections/requirements.yaml`; Python deps in `ansible/requirements.txt`.
 - Group vars in `ansible/inventory/group_vars/` (inventory-adjacent so they load for every playbook) — default SSH user is `admin` with key-based auth, overridden to `root` for the `proxmox` group during the Debian → Proxmox conversion phase.
 - Jinja2 templates in role `templates/` dirs generate per-host configs (iPXE scripts, Debian preseeds, dnsmasq).
 - Commit messages follow `type: Description` format (e.g., `chore: Add PXELINUX...`).
@@ -164,7 +175,9 @@ fallback schema for environments without NetBox.
   defaults are fallbacks. The control plane is 5 nodes, one per physical host
   (the 4 `k8s-server` VMs + the `kosmos` Pi), so the quorum survives any single
   host failure.
-- The Talos/Kubernetes version has a single source of truth in repo-root
-  `versions.env`. Every consumer reads it: the `talos` and `00-pxe` role
-  defaults (file lookup via `role_path`), `opentofu/Makefile` (sourced →
-  `TF_VAR_talos_version`), and `install.sh` (sourced). Bump it there only.
+- The Talos/Kubernetes/Flux/Cilium versions have a single source of truth in
+  repo-root `versions.env`. Every consumer reads it: the `talos` and `00-pxe`
+  role defaults (file lookup via `role_path`), `opentofu/Makefile` (sourced →
+  `TF_VAR_talos_version`), `kubernetes/Makefile` (sourced → lint drift guards
+  against `gotk-components.yaml` and the Cilium `OCIRepository` tag), and
+  `install.sh` (sourced). Bump it there only.

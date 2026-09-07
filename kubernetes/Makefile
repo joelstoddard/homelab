@@ -11,10 +11,13 @@ KUBECTL      := kubectl --context $(KUBE_CONTEXT)
 # finds the same key `make homelab` would.
 SOPS_AGE_KEY_FILE ?= $(HOME)/.config/sops/age/keys.txt
 
-# Single source of truth for the Flux version (shared with install.sh).
-VERSIONS_ENV := $(abspath ../versions.env)
-FLUX_VERSION := $(shell . $(VERSIONS_ENV) && echo $$FLUX_VERSION)
-COMPONENTS   := flux-system/gotk-components.yaml
+# Single source of truth for the Flux and Cilium versions (shared with
+# install.sh and the talos role respectively).
+VERSIONS_ENV   := $(abspath ../versions.env)
+FLUX_VERSION   := $(shell . $(VERSIONS_ENV) && echo $$FLUX_VERSION)
+CILIUM_VERSION := $(shell . $(VERSIONS_ENV) && echo $$CILIUM_VERSION)
+COMPONENTS     := flux-system/gotk-components.yaml
+CILIUM_SOURCE  := cilium/app/ocirepository.yaml
 
 default: apply
 
@@ -22,18 +25,20 @@ help:
 	@echo "Flux CD bootstrap."
 	@echo
 	@echo "Targets:"
-	@echo "  build     - Verify kubectl, the kube context, the age key and FLUX_VERSION."
-	@echo "  lint      - gotk-components.yaml matches FLUX_VERSION; kubectl kustomize builds. Offline."
+	@echo "  build     - Verify kubectl, the kube context, the age key and the versions.env pins."
+	@echo "  lint      - gotk-components.yaml matches FLUX_VERSION, the Cilium OCIRepository matches"
+	@echo "              CILIUM_VERSION; kubectl kustomize builds the root and every */app. Offline."
 	@echo "  check     - Server-side dry run of flux-system/ (client-side before the first install)."
 	@echo "  apply     - components -> sops-age secret -> sync. Idempotent. Default."
 	@echo "  generate  - Regenerate gotk-components.yaml from FLUX_VERSION (needs the flux CLI)."
 	@echo "  status    - flux get all -A + pods."
 	@echo
-	@echo "KUBE_CONTEXT=$(KUBE_CONTEXT)  SOPS_AGE_KEY_FILE=$(SOPS_AGE_KEY_FILE)  FLUX_VERSION=$(FLUX_VERSION)"
+	@echo "KUBE_CONTEXT=$(KUBE_CONTEXT)  SOPS_AGE_KEY_FILE=$(SOPS_AGE_KEY_FILE)  FLUX_VERSION=$(FLUX_VERSION)  CILIUM_VERSION=$(CILIUM_VERSION)"
 
 build:
 	@command -v kubectl >/dev/null 2>&1 || { echo "kubectl not installed; run install.sh." >&2; exit 1; }
 	@[ -n "$(FLUX_VERSION)" ] || { echo "FLUX_VERSION missing from $(VERSIONS_ENV)." >&2; exit 1; }
+	@[ -n "$(CILIUM_VERSION)" ] || { echo "CILIUM_VERSION missing from $(VERSIONS_ENV)." >&2; exit 1; }
 	@[ -s "$(SOPS_AGE_KEY_FILE)" ] || { \
 		echo "SOPS_AGE_KEY_FILE ($(SOPS_AGE_KEY_FILE)) is missing or empty." >&2; \
 		echo "run 'make bootstrap-secrets' from repo root, or export SOPS_AGE_KEY_FILE." >&2; \
@@ -43,14 +48,24 @@ build:
 		exit 1; }
 
 # The header is the only place the generated file records its version;
-# a versions.env bump without `make generate` fails here.
+# a versions.env bump without `make generate` fails here. Likewise the Cilium
+# OCIRepository tag: the talos role seeds from CILIUM_VERSION and Flux must
+# converge on the same chart, not upgrade or roll it back on adoption.
+#
+# The root build only reaches each layer's Flux Kustomization CR; the
+# manifests it points at (*/app) are built separately.
 lint:
 	@grep -q '^# Flux Version: $(FLUX_VERSION)$$' $(COMPONENTS) || { \
 		echo "$(COMPONENTS) is not at $(FLUX_VERSION); run 'make generate'." >&2; \
 		exit 1; }
 	@echo ">> $(COMPONENTS) at $(FLUX_VERSION)"
+	@grep -q '^    tag: "$(CILIUM_VERSION)"$$' $(CILIUM_SOURCE) || { \
+		echo "$(CILIUM_SOURCE) is not at $(CILIUM_VERSION); bump versions.env and the tag together." >&2; \
+		exit 1; }
+	@echo ">> $(CILIUM_SOURCE) at $(CILIUM_VERSION)"
 	@kubectl kustomize . >/dev/null
 	@echo ">> kubectl kustomize . builds"
+	@for d in */app; do kubectl kustomize $$d >/dev/null && echo ">> kubectl kustomize $$d builds" || exit 1; done
 
 # Only flux-system/ is dry-run: SOPS-encrypted Secrets elsewhere fail a
 # server dry run (top-level `sops:` field, non-base64 values). Before the

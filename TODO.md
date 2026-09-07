@@ -25,6 +25,11 @@
     - [ ] MariaDB
 - [-] Configure VMs
     - [x] Kubernetes (k8s-vm modules boot the Talos ISO into maintenance mode)
+    - [ ] Right-size VM memory: a 16 GB NUC carries 4 + 8 + 8 GB of Talos VMs
+          (plus the 8 GB operator on one of them, no swap). Rumba OOM-killed the
+          operator during the 2026-09-07 Cilium rebuild; stopgap was
+          `qm set 901 --balloon 2048`. Fix the sizing in NetBox (k8s-vm reads
+          it) and/or give the VMs balloon minimums in `modules/vm`.
 
 ## Raspberry Pis
 - [x] Bootstrap with TalOS (arm64 PXE netboot via 00-pxe `talos.yaml`)
@@ -45,7 +50,11 @@
 - [x] Bootstrap Flux (kubernetes/ GitOps layer, SOPS-at-runtime)
 
 ## Post-cluster (deferred — get the cluster up first)
-- [ ] Cilium CNI + Cilium LB-IPAM/L2 over `load_balancer_ip_pool`
+- [x] Cilium CNI, kube-proxy-free (`talos` role seeds, Flux owns —
+      `docs/design/cilium-bootstrap.md`)
+- [ ] Cilium LB-IPAM/L2 over `load_balancer_ip_pool` (`dependsOn: cilium`;
+      the k3s-era pool in `group_vars/k3s-cluster.yaml` needs re-reserving in
+      NetBox first)
 - [ ] Renovate for automated version-bump PRs
 - [ ] Pin all tool versions (talosctl/kubectl/talhelper/flux) — likely nix flakes
 

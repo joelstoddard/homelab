@@ -12,11 +12,12 @@ the same config/bootstrap flow:
 | --- | --- | --- |
 | VMs (amd64) | Talos **ISO** on the CD-ROM, disk-first boot order | OpenTofu (`opentofu/`) |
 | Pis (arm64) | **u-boot netboot** — dnsmasq offers boot only to Pis being provisioned; u-boot fetches the Talos kernel/initramfs over HTTP ([netbooting-pis.md](./netbooting-pis.md)) | Ansible `00-pxe` role |
-| both | `talosctl apply-config` → `bootstrap` → `kubeconfig` | Ansible `talos` role (`playbooks/talos.yaml`) |
+| both | `talosctl apply-config` → `bootstrap` → `kubeconfig` → seed Cilium → `health` | Ansible `talos` role (`playbooks/talos.yaml`) |
 
 Both routes land each node in **Talos maintenance mode** (running from
 RAM, no config, waiting on the API). The `talos` role then pushes machine
-configs, bootstraps etcd, and pulls the kubeconfig.
+configs, bootstraps etcd, pulls the kubeconfig, seeds the CNI and waits for
+every node to be Ready.
 
 > Talos nodes run no SSH and no Python. The `talos` role therefore runs
 > from the operator workstation (`connection: local`) and talks to nodes
@@ -31,10 +32,11 @@ reads that file:
 
 | Consumer | How it reads `versions.env` |
 | --- | --- |
-| `ansible/roles/talos/defaults` | `lookup('file', …)` via `role_path` |
+| `ansible/roles/talos/defaults` | `lookup('file', …)` via `role_path` (Talos, Kubernetes, and the Cilium chart it seeds) |
 | `ansible/roles/00-pxe/defaults` | `lookup('file', …)` via `role_path` |
 | `opentofu/` | `Makefile` sources it → `TF_VAR_talos_version` |
-| `install.sh` | sources it → `talosctl`, `kubectl` + `talhelper` versions |
+| `kubernetes/` | `Makefile` sources it → `FLUX_VERSION` / `CILIUM_VERSION` drift guards in `lint` |
+| `install.sh` | sources it → `talosctl`, `kubectl`, `flux` + `talhelper` versions |
 
 Bumping a version changes nothing on running nodes — see
 [Rebuild / bumping versions](#rebuild--bumping-versions).
@@ -58,7 +60,7 @@ is a worker. All Pis boot from a USB→NVMe SSD (Prerequisite 4), so etcd on
 ## Prerequisites
 
 1. **Workstation tooling.** `sudo ./install.sh` (installs `talosctl`,
-   `kubectl`, `tofu`, `sops`, `age`, Docker, …). Then
+   `kubectl`, `helm`, `tofu`, `sops`, `age`, Docker, …). Then
    `make build` and `make bootstrap-secrets` per [setup.md](./setup.md).
 2. **NetBox records (the source of truth).** Both OpenTofu and the Ansible
    inventory read NetBox; model the cluster there:
@@ -210,9 +212,10 @@ make -C ansible check-talos   # dry run
 make -C ansible apply-talos
 ```
 
-Run it with **all** tags (or `TAGS=config,bootstrap,kubeconfig`): the
-`config` step derives the control-plane list and the VIP from NetBox;
-running `bootstrap` alone falls back to the role's literal defaults.
+Run it with **all** tags (or `TAGS=config,bootstrap,kubeconfig,cni,health`):
+the `config` step derives the control-plane list and the VIP from NetBox;
+running `bootstrap`, `cni` or `health` alone falls back to the role's
+literal defaults.
 
 This runs `playbooks/talos.yaml`. Config generation is delegated to
 [talhelper](https://github.com/budimanjojo/talhelper); NetBox stays the
@@ -228,9 +231,17 @@ source of truth (the role renders talhelper's `talconfig.yaml` from it):
    node's generated config to its maintenance IP. Nodes install to disk
    and reboot into secured mode.
 3. **bootstrap** (localhost, once) — `talosctl bootstrap` etcd on the
-   first control-plane node, then waits for health.
+   first control-plane node.
 4. **kubeconfig** (localhost, once) — merges the cluster context into your
    `~/.kube/config` (other clusters' contexts are preserved).
+5. **cni** (localhost, once) — the machine config ships no CNI (no flannel,
+   no kube-proxy), so nothing can schedule yet. `helm install` seeds Cilium
+   into `kube-system` from `kubernetes/cilium/app/values.yaml` at
+   `CILIUM_VERSION` — only if the release is absent. Flux adopts and owns
+   it afterwards (`kubernetes/cilium/`); this step never touches an existing
+   release. Why this shape: [`design/cilium-bootstrap.md`](./design/cilium-bootstrap.md).
+6. **health** (localhost, once) — `talosctl health` until etcd, the
+   apiserver and every node are Ready. Last, because Ready needs the CNI.
 
 From any other machine with `kubectl` and SSH to the operator (your
 workstation, say), pull the same context into your own `~/.kube/config`
@@ -266,8 +277,10 @@ make -C kubernetes
 ```
 
 installs Flux CD from the committed manifests and points it at this repo's
-`main`; from then on [`kubernetes/`](../kubernetes/) is reconciled by Flux
-(CNI/LoadBalancer, then workloads). Part of `make homelab`; see the
+`main`; from then on [`kubernetes/`](../kubernetes/) is reconciled by Flux.
+Its first reconcile adopts the Cilium release Step 3 seeded (same name,
+same values — a no-op upgrade); LoadBalancer pool and workloads follow as
+further layers. Part of `make homelab`; see the
 [`kubernetes/README.md`](../kubernetes/README.md).
 
 ## Rebuild / bumping versions
@@ -286,7 +299,7 @@ SSH). `make -C ansible apply-reset` is the missing step. From the operator:
 sudo ./install.sh                              # talosctl / kubectl / talhelper at the new versions
 
 # 2. Prove the config generates before touching a node.
-make -C ansible check-talos TAGS=config        # renders ansible/.talos/talconfig.yaml
+make -C ansible apply-talos TAGS=config        # renders ansible/.talos/ — touches no node (--check would skip the write)
 talhelper validate talconfig ansible/.talos/talconfig.yaml
 talosctl validate --mode metal -c ansible/.talos/clusterconfig/homelab-<host>.yaml
 
@@ -321,6 +334,12 @@ after the wipe (stale OVMF boot entry), recreate that one VM with
 - **A node won't leave maintenance mode.** Check it actually received its
   reserved DHCP IP and that `ansible/.talos/clusterconfig/homelab-<host>.yaml`
   exists; re-apply just that host with `--limit <host>`.
+- **Nodes stay `NotReady` after bootstrap.** No CNI: check
+  `kubectl -n kube-system get ds cilium`. If it is missing the seed did not
+  run (helm not installed? `kube-system` release absent?) — re-run
+  `make -C ansible apply-talos TAGS=config,cni,health`. If it exists but its
+  pods crash, `kubectl -n kube-system logs ds/cilium -c cilium-agent`; the
+  usual culprit is a values change that Talos rejects (capabilities, cgroup).
 - **etcd unhealthy after bootstrap.** Confirm the control-plane VIP is free
   on the LAN and not handed out by DHCP, and that every control-plane
   node's config carries it (talhelper writes it from the `talos-vip`
