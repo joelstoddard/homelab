@@ -146,7 +146,7 @@ merge lands on `main`. `make -C kubernetes` afterwards is still a no-op.
   `spec.deletionPolicy: Orphan` on the `flux-system` Kustomization would
   guard against the accidental delete — not added by default.
 - **Hand edits to the `GitRepository` / `Kustomization` are reverted** within
-  the 10 m interval by self-management. `flux suspend kustomization
+  a minute by self-management. `flux suspend kustomization
   flux-system` sticks: a suspended Kustomization never reconciles, so nothing
   re-applies the git version over it.
 - **`sops-age` is not in git.** It is created by the Makefile from the
