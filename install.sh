@@ -106,6 +106,16 @@ echo ">> Installing flux ${FLUX_VERSION} from upstream release"
 curl -fsSL "https://github.com/fluxcd/flux2/releases/download/${FLUX_VERSION}/flux_${FLUX_VERSION#v}_linux_${GOARCH}.tar.gz" \
     | tar -xz -C /usr/local/bin flux
 
+# helm seeds Cilium once, right after `talosctl bootstrap` (ansible/roles/talos
+# tasks/cni.yaml) — Flux owns it afterwards, see docs/design/cilium-bootstrap.md.
+# Pinned here like sops/tofu: nothing else consumes the version. Helm 4 needs
+# kubernetes.core >= 6.5.0 (ansible/collections/requirements.yaml). The tarball
+# nests the binary under linux-<arch>/.
+HELM_VERSION="v4.2.4"
+echo ">> Installing helm ${HELM_VERSION} from upstream release"
+curl -fsSL "https://get.helm.sh/helm-${HELM_VERSION}-linux-${GOARCH}.tar.gz" \
+    | tar -xz -C /usr/local/bin --strip-components=1 "linux-${GOARCH}/helm"
+
 # talhelper generates the Talos machine configs from talconfig.yaml
 # (ansible/roles/talos). The jpillora redirector resolves the right
 # release asset for this OS/arch; version pinned in versions.env.
@@ -163,6 +173,7 @@ verify talosctl version --client
 verify talhelper --version
 verify kubectl version --client
 verify flux --version
+verify helm version
 verify age
 verify python3
 verify git

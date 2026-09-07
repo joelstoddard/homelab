@@ -8,7 +8,10 @@ collections:
   - name: ansible.posix
   - name: community.general
   - name: community.docker
+  # The talos role seeds Cilium with the helm modules; 6.5.0 is the first
+  # release that speaks Helm 4 (install.sh's HELM_VERSION).
   - name: kubernetes.core
+    version: ">=6.5.0"
   - name: netbox.netbox
   - name: community.sops
   # techno-tim/k3s-ansible isn't packaged as a Galaxy collection (no galaxy.yml),
