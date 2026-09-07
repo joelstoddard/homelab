@@ -9,6 +9,12 @@ maintenance mode (RAM) → install. Ignored → the firmware times out → USB �
 whatever is on the disk. The PXE server is never a boot dependency for the
 cluster; it is only the path *into* a (re)install.
 
+> **Temporary exception (Talos 1.13):** the gate's steady state is currently
+> *every* Talos Pi, because no current Talos release boots these Pi 4s from
+> USB. A netbooted Pi loads its config from the installed disk and runs
+> normally, but the PXE server is a boot dependency until this is reverted.
+> See [`design/pi-netboot-steady-state.md`](design/pi-netboot-steady-state.md).
+
 Everything below was exercised on real hardware during the first cutover.
 
 ## Boot order, hop by hop
@@ -164,10 +170,10 @@ kernel, kills the Pi 4's xHCI controller under the installer's write load.
 Ubuntu survives on identical hardware only because the downstream Raspberry
 Pi kernel carries VL805 workarounds (`xhci quirks 0x000e2000…` vs `0x0`).
 Fix in place: `usb-storage.quirks=0bda:9210:u` on the netboot cmdline
-(`talos_pi_usb_storage_quirks` in the `00-pxe` defaults) **and** in
-`machine.install.extraKernelArgs` (same var in the `talos` role). A
-different enclosure needs its own `VID:PID` — `lsusb` on the Pi while it
-still runs Linux.
+(`talos_pi_usb_storage_quirks` in the `00-pxe` defaults) **and** baked into
+the Pi Image Factory schematic (`talos_pi_schematic_id`, identical in both
+roles — see `docs/design/talos-image-schematics.md`). A different enclosure
+needs its own `VID:PID` — `lsusb` on the Pi while it still runs Linux.
 
 **Install succeeded, Pi came back in maintenance mode instead of on disk.**
 It was still in the provision list when it rebooted. Close the gate

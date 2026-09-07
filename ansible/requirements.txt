@@ -32,7 +32,9 @@ platformdirs==4.3.7
 pluggy==1.5.0
 pycparser==2.22
 Pygments==2.19.1
-# netbox.netbox.nb_inventory imports pytz directly; not pulled transitively.
+# netbox.netbox.nb_lookup needs pynetbox and nb_inventory imports pytz
+# directly; neither is pulled transitively.
+pynetbox==7.4.1
 pytz==2025.2
 PyYAML==6.0.2
 referencing==0.36.2

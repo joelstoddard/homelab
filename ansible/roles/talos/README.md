@@ -48,8 +48,9 @@ inventory group. Key knobs:
 
 - `talos_version` / `talos_kubernetes_version` — single-sourced from
   repo-root `versions.env`.
-- `talos_pi_schematic_id` — Talos Image Factory schematic (rpi overlay)
-  for the arm64 Pis.
+- `talos_schematic_id` / `talos_pi_schematic_id` — Talos Image Factory
+  schematics behind every node's installer (x86 VMs / arm64 Pis; the Pi one
+  bakes in the USB-storage quirk). See `docs/design/talos-image-schematics.md`.
 - `talos_install_disk` — `/dev/sda` fleet-wide (VM scsi0 and the Pis'
   USB→NVMe SSD both enumerate there).
 
@@ -72,5 +73,9 @@ talosctl --talosconfig ansible/.talos/clusterconfig/talosconfig \
   apply-config --nodes <ip> \
   --file ansible/.talos/clusterconfig/homelab-<host>.yaml
 ```
+
+To reinstall a node (version bump, rebuild), `reset.yaml` wipes it back to
+maintenance mode — `make -C ansible apply-reset EXTRA_VARS='{"reset_hosts": [...]}'`
+via `playbooks/reset.yaml`, which also works the Pi netboot gate.
 
 See `docs/talos-bootstrap.md` for the end-to-end runbook.

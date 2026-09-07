@@ -1,0 +1,41 @@
+---
+# Wipe a running Talos node back to maintenance mode so `apply` can
+# reinstall it. Invoked from playbooks/reset.yaml with connection: local,
+# one iteration per node (see docs/talos-bootstrap.md "Rebuild / bumping
+# versions").
+#
+# The call goes straight to the node (--endpoints = the node itself): the
+# control-plane nodes are usually being reset in the same run, and a call
+# proxied through one of them dies with it. --wipe-mode all clears every
+# partition, so the next boot falls through to netboot (Pis) or the ISO
+# (VMs) instead of the installed system.
+
+# check_mode: false — the probe is read-only and the skip below reads its rc.
+- name: "Probe {{ inventory_hostname }}'s secured Talos API."
+  ansible.builtin.command:
+    cmd: >-
+      {{ talosctl_bin }} --talosconfig {{ talos_talosconfig }}
+      version --short --nodes {{ ansible_host }} --endpoints {{ ansible_host }}
+  register: talos_reset_probe
+  changed_when: false
+  failed_when: false
+  check_mode: false
+
+# --wait=false: talosctl's own progress tracking outlives the API it tracks
+# (the node reboots into maintenance mode) and sits until its 30 m timeout.
+# The playbook waits for the node to come back by other means.
+- name: "Reset {{ inventory_hostname }} ({{ ansible_host }}): wipe every partition and reboot."
+  ansible.builtin.command:
+    cmd: >-
+      {{ talosctl_bin }} --talosconfig {{ talos_talosconfig }}
+      reset --nodes {{ ansible_host }} --endpoints {{ ansible_host }}
+      --graceful=false --reboot --wipe-mode all --wait=false
+  changed_when: true
+  when: talos_reset_probe.rc == 0
+
+# A node already back in maintenance mode (or powered off) refuses the
+# secured API, so a re-run skips it instead of failing.
+- name: "Note: {{ inventory_hostname }} does not answer the secured API. Skipping."
+  ansible.builtin.debug:
+    msg: "{{ talos_reset_probe.stderr | default('') | trim | default('no response', true) }}"
+  when: talos_reset_probe.rc != 0

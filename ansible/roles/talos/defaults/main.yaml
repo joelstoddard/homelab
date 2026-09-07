@@ -78,24 +78,16 @@ talos_bootstrap_host: "{{ talos_controlplane_hosts[0] }}"
 # /dev/sda. Override per host only for an oddball node.
 talos_install_disk: "/dev/sda"
 
-# --- Image Factory schematic (arm64 Pis) --------------------------------
-# The arm64 Pis need a Talos installer built with the rpi overlay
-# (siderolabs/sbc-raspberrypi). config.yaml wires this into each Pi's
-# talosImageURL. The 00-pxe netboot kernel/initramfs MUST be generated from
-# the SAME schematic (see 00-pxe defaults) so the netbooted Talos and the
-# on-disk installer agree. Empty would fall back to the default installer
-# (correct for the x86 VMs; NOT sufficient on a bare Pi).
-# Value below = the plain sbc-raspberrypi overlay (rpi_generic), no extras.
-talos_pi_schematic_id: "ee21ef4a5ef808a9b7484cc0dda0f25075021691c8c09a276591eedb638ea1f9"
-
-# --- USB storage quirk (arm64 Pis) ---------------------------------------
-# The Pis' USB→NVMe enclosures carry a Realtek RTL9210 bridge; under UAS on an
-# upstream kernel it kills the Pi 4's xHCI controller mid-write (see the
-# 00-pxe defaults for the full story). Written into each Pi's
-# machine.install.extraKernelArgs so the installed system boots with the
-# bridge on plain usb-storage. MUST match 00-pxe's talos_pi_usb_storage_quirks
-# (the netboot/installer kernel). Empty disables it.
-talos_pi_usb_storage_quirks: "0bda:9210:u"
+# --- Image Factory schematics -------------------------------------------
+# From Talos 1.14 installers come only from the Image Factory, so every
+# node's talosImageURL names a schematic. See docs/design/talos-image-schematics.md.
+#
+# x86 VMs: `customization: {}` — the same build as the metal-amd64.iso that
+# opentofu boots them from.
+talos_schematic_id: "376567988ad370138ad8b2698212367b8edcb69b5fd68c80be1f2ec7d603b4ba"
+# arm64 Pis: rpi overlay + `usb-storage.quirks=0bda:9210:u` baked into the
+# UKI cmdline. MUST match 00-pxe's talos_pi_schematic_id (the netboot kernel).
+talos_pi_schematic_id: "ee122db4a1f0297d03367f978772ffd3c8319060bf3d38ee57990d6b90a00a25"
 
 # --- Local build/output paths -------------------------------------------
 # talhelper inputs + outputs land here on the operator workstation.

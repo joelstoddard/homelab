@@ -89,7 +89,7 @@
   gather_facts: true
   force_handlers: true
   vars:
-    talos_pi_provision_hosts: "{{ groups['pi_cutover_pending'] | default([]) }}"
+    talos_pi_provision_hosts: "{{ talos_pi_netboot_steady_state | union(groups['pi_cutover_pending'] | default([])) }}"
   roles:
     - 00-pxe
 
@@ -172,15 +172,16 @@
       loop: "{{ groups['pi_cutover_pending'] | default([]) }}"
       when: not ansible_check_mode
 
-# Close BEFORE installing so the post-install reboot falls through to disk
-# instead of being offered netboot again. Only affects the next boot.
+# Return the gate to its steady state BEFORE installing: with an empty steady
+# state the post-install reboot falls through to disk instead of netbooting
+# again. Only affects the next boot. See docs/design/pi-netboot-steady-state.md.
 - name: Close the netboot gate.
   hosts: localhost
   connection: local
   gather_facts: true
   force_handlers: true
   vars:
-    talos_pi_provision_hosts: []
+    talos_pi_provision_hosts: "{{ talos_pi_netboot_steady_state }}"
   roles:
     - 00-pxe
 

@@ -26,20 +26,9 @@ nodes:
     ipAddress: {{ hostvars[item].ansible_host }}
     controlPlane: {{ is_cp | lower }}
     installDisk: {{ talos_install_disk }}
-{%   if is_pi and talos_pi_schematic_id | length > 0 %}
-    # arm64 Pi: installer built from the rpi-overlay Image Factory schematic.
-    talosImageURL: factory.talos.dev/installer/{{ talos_pi_schematic_id }}
-{%   endif %}
-{%   if is_pi and talos_pi_usb_storage_quirks | length > 0 %}
-    # arm64 Pi: keep the USB→NVMe bridge off UAS on the installed system too
-    # (the netboot cmdline carries the same quirk for the installer).
-    patches:
-      - |-
-        machine:
-          install:
-            extraKernelArgs:
-              - usb-storage.quirks={{ talos_pi_usb_storage_quirks }}
-{%   endif %}
+    # Image Factory installer; talhelper appends :{{ talos_version }}. The Pi
+    # schematic carries the USB quirk (a UKI cmdline is fixed at build time).
+    talosImageURL: factory.talos.dev/installer/{{ talos_pi_schematic_id if is_pi else talos_schematic_id }}
 {#
       Static addressing from NetBox: the node's identity is its NetBox MAC
       (deviceSelector — immune to kernel/udev interface renames like the
@@ -68,14 +57,10 @@ nodes:
 {%   endif %}
 {% endfor %}
 
-# Make the VIP valid for the API server's serving cert.
+# Make the VIP valid for the control-plane Talos API (apid) certs. Talos adds
+# the endpoint host to the kube-apiserver cert by itself. (A talhelper field,
+# not a JSON6902 patch: talhelper emits multi-document configs from Talos 1.12
+# on, and those do not support JSON6902.)
 controlPlane:
-  patches:
-    - |-
-      - op: add
-        path: /machine/certSANs/-
-        value: {{ talos_vip }}
-    - |-
-      - op: add
-        path: /cluster/apiServer/certSANs/-
-        value: {{ talos_vip }}
+  certSANs:
+    - {{ talos_vip }}

@@ -34,7 +34,10 @@ reads that file:
 | `ansible/roles/talos/defaults` | `lookup('file', …)` via `role_path` |
 | `ansible/roles/00-pxe/defaults` | `lookup('file', …)` via `role_path` |
 | `opentofu/` | `Makefile` sources it → `TF_VAR_talos_version` |
-| `install.sh` | sources it → `talosctl` + `kubectl` versions |
+| `install.sh` | sources it → `talosctl`, `kubectl` + `talhelper` versions |
+
+Bumping a version changes nothing on running nodes — see
+[Rebuild / bumping versions](#rebuild--bumping-versions).
 
 ## Topology (control plane = 5, one per physical host)
 
@@ -91,12 +94,13 @@ is a worker. All Pis boot from a USB→NVMe SSD (Prerequisite 4), so etcd on
    kernels: driven by UAS, sustained writes kill the Pi 4's xHCI controller
    ("Host System Error … HC died") and the disk disappears mid-install.
    Ubuntu survives only because the downstream Raspberry Pi kernel carries
-   VL805 workarounds. Both roles therefore pass
-   `usb-storage.quirks=0bda:9210:u` (`talos_pi_usb_storage_quirks`, kept
-   identical in `00-pxe` and `talos` defaults): the netboot cmdline for the
-   installer, and `machine.install.extraKernelArgs` for the installed
-   system. A different enclosure needs its own `VID:PID:u`, or an empty
-   value if it behaves under UAS.
+   VL805 workarounds. The quirk `usb-storage.quirks=0bda:9210:u` is
+   therefore applied twice: on the netboot cmdline for the installer
+   (`talos_pi_usb_storage_quirks` in `00-pxe`), and baked into the Pi
+   Image Factory schematic for the installed system (a Talos ≥ 1.10 install
+   boots a UKI whose cmdline is fixed at build time). A different enclosure
+   needs its own `VID:PID:u` in both places — see
+   [`docs/design/talos-image-schematics.md`](design/talos-image-schematics.md).
 
 5. **Raspberry Pi bootloader EEPROM (one-time, per Pi).** A Pi 4 netboots a
    kernel, not an EFI application, so the `00-pxe` role serves it a
@@ -114,11 +118,16 @@ is a worker. All Pis boot from a USB→NVMe SSD (Prerequisite 4), so etcd on
    on **dnsmasq decides per boot**: a Pi listed in `talos_pi_provision_hosts`
    is offered network boot and lands in Talos maintenance mode; any other Pi
    is ignored, times out, and boots whatever is on its disk. The PXE server
-   is therefore never a boot dependency for the cluster.
+   is therefore never a boot dependency for the cluster — except while the
+   temporary Talos 1.13 steady state is in effect, see
+   [`design/pi-netboot-steady-state.md`](design/pi-netboot-steady-state.md).
 
    The netbooted kernel/initramfs and the on-disk installer must be the same
-   Image Factory build: `talos_pi_schematic_id` (sbc-raspberrypi overlay) is
-   set identically in `roles/00-pxe/defaults` and `roles/talos/defaults`.
+   Image Factory build: `talos_pi_schematic_id` (sbc-raspberrypi overlay +
+   the USB quirk) is set identically in `roles/00-pxe/defaults` and
+   `roles/talos/defaults`. The x86 VMs install from a schematic too
+   (`talos_schematic_id`) — from Talos 1.14 installers come only through
+   the Image Factory.
 
    References: Talos
    [single-board computers / rpi_generic](https://www.talos.dev/latest/talos-guides/install/single-board-computers/rpi_generic/),
@@ -233,10 +242,6 @@ make kubeconfig OPERATOR_SSH=<user>@<operator>
 kubectl --context admin@homelab get nodes
 ```
 
-```bash
-kubectl --context admin@homelab get nodes
-```
-
 > `apply-config --insecure` only works in maintenance mode. Re-running
 > `apply-talos` against already-installed nodes will (harmlessly) report
 > them as past maintenance mode and skip them. For day-2 config changes,
@@ -249,7 +254,7 @@ kubectl --context admin@homelab get nodes
 
 > **talhelper integration is untested in CI** (no NetBox/talhelper in the
 > sandbox it was written in). Before the first real run, validate locally:
-> `talhelper validate talconfig --config-file ansible/.talos/talconfig.yaml`
+> `talhelper validate talconfig ansible/.talos/talconfig.yaml`
 > after a `--check` pass renders it.
 
 ## Step 4 — workloads
@@ -257,16 +262,59 @@ kubectl --context admin@homelab get nodes
 Cluster up, kubeconfig in hand → see [`kubernetes/`](../kubernetes/) for
 the planned Flux CD GitOps layer (CNI/LoadBalancer, then workloads).
 
+## Rebuild / bumping versions
+
+Talos only tests upgrades between adjacent minors and Kubernetes moves one
+minor at a time, so a cluster that has fallen several releases behind is
+quicker to **reinstall** than to walk forward — and while it carries no
+workloads, that costs nothing. The pipeline reinstalls a node only from
+maintenance mode, and nothing in `make homelab` puts an installed node back
+there (`apply-config --insecure` is refused, `pi-cutover` skips Pis without
+SSH). `make -C ansible apply-reset` is the missing step. From the operator:
+
+```bash
+# 1. versions.env: TALOS_VERSION, KUBERNETES_VERSION (check the Talos
+#    support matrix — each Talos minor supports a window of k8s minors).
+sudo ./install.sh                              # talosctl / kubectl / talhelper at the new versions
+
+# 2. Prove the config generates before touching a node.
+make -C ansible check-talos TAGS=config        # renders ansible/.talos/talconfig.yaml
+talhelper validate talconfig ansible/.talos/talconfig.yaml
+talosctl validate --mode metal -c ansible/.talos/clusterconfig/homelab-<host>.yaml
+
+# 3. New ISO on every NUC. Replaces the ISO resource and re-points each VM's
+#    CD-ROM in place — the VMs keep running the installed system for now.
+make -C opentofu check && make -C opentofu apply
+
+# 4. Wipe. Opens the Pi netboot gate (fetching the new netboot assets),
+#    resets every node with --wipe-mode all, waits for all of them to
+#    reappear in maintenance mode, closes the gate.
+make -C ansible apply-reset EXTRA_VARS='{"reset_hosts": "all"}'
+
+# 5. Reinstall: same as a first build. The talsecret bundle is reused, so
+#    the cluster CA and your kubeconfig/talosconfig survive.
+make homelab
+```
+
+A subset works the same way (`"reset_hosts": ["Zond", "k8s-agent-01"]`);
+for the whole fleet the control plane goes down with everything else, so
+expect a full etcd bootstrap. Commit the refreshed `opentofu/resources/*/`
+state files afterwards. If a VM lands at the UEFI shell instead of the ISO
+after the wipe (stale OVMF boot entry), recreate that one VM with
+`tofu apply -replace=module.<vm>.module.vm.proxmox_virtual_environment_vm.vm`
+— `vm_id`/MAC are derived, so nothing else changes.
+
 ## Recovery
 
 - **Lost `ansible/roles/talos/files/talsecret.sops.yaml`.** The cluster CA
   and join tokens are gone; you cannot add nodes or regenerate matching
-  configs. Recovery is a cluster rebuild: wipe the nodes (re-enter
-  maintenance mode), delete `ansible/.talos/`, and re-run from Step 1.
+  configs. Recovery is a cluster rebuild: `make -C ansible apply-reset`
+  every node (see above), delete `ansible/.talos/`, and re-run from Step 1.
 - **A node won't leave maintenance mode.** Check it actually received its
   reserved DHCP IP and that `ansible/.talos/clusterconfig/homelab-<host>.yaml`
   exists; re-apply just that host with `--limit <host>`.
 - **etcd unhealthy after bootstrap.** Confirm the control-plane VIP is free
   on the LAN and not handed out by DHCP, and that every control-plane
   node's config carries it (talhelper writes it from the `talos-vip`
-  NetBox IP / the `controlPlane.patches` in `talconfig.yaml`).
+  NetBox IP into `controlPlane.certSANs` in
+  `talconfig.yaml`).

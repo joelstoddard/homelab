@@ -78,16 +78,16 @@ ipxe_sha256: ""  # leave empty to skip checksum; set to pinned hash for producti
 # role_path: .../ansible/roles/00-pxe, so ../../../ is the repo root) — bump
 # it there, not here.
 #
-# The asset URLs point at the Talos Image Factory build for the plain
-# sbc-raspberrypi overlay (rpi_generic). talos_pi_schematic_id MUST match the
-# talos role's talos_pi_schematic_id so the netbooted kernel/initramfs and the
-# on-disk installer (talosImageURL) are the SAME build — a bare Pi will not
-# netboot the vanilla siderolabs arm64 assets.
+# The asset URLs point at the Talos Image Factory build for the
+# sbc-raspberrypi overlay (rpi_generic) + the USB quirk below.
+# talos_pi_schematic_id MUST match the talos role's talos_pi_schematic_id so
+# the netbooted kernel/initramfs and the on-disk installer (talosImageURL)
+# are the SAME build. See docs/design/talos-image-schematics.md.
 talos_version: >-
   {{ lookup('file', role_path ~ '/../../../versions.env')
      | regex_findall('^TALOS_VERSION=(.+)$', multiline=True) | first | trim }}
-# Image Factory schematic for the arm64 Pis (plain sbc-raspberrypi overlay).
-talos_pi_schematic_id: "ee21ef4a5ef808a9b7484cc0dda0f25075021691c8c09a276591eedb638ea1f9"
+# Image Factory schematic for the arm64 Pis (rpi overlay + USB quirk).
+talos_pi_schematic_id: "ee122db4a1f0297d03367f978772ffd3c8319060bf3d38ee57990d6b90a00a25"
 talos_arm64_kernel_url: >-
   https://factory.talos.dev/image/{{ talos_pi_schematic_id }}/{{ talos_version }}/kernel-arm64
 talos_arm64_initramfs_url: >-
@@ -98,8 +98,8 @@ talos_arm64_initramfs_url: >-
 # ("Host System Error … HC died") — the disk vanishes mid-install. Ubuntu on
 # the same disks is fine only because the downstream Raspberry Pi kernel
 # carries VL805 workarounds. Force the bridge onto plain usb-storage (`u`).
-# MUST match the talos role's talos_pi_usb_storage_quirks, which puts the same
-# quirk into the installed system's kernel args. Empty disables it.
+# MUST match the extraKernelArgs baked into talos_pi_schematic_id, which gives
+# the installed system the same quirk. Empty disables it.
 talos_pi_usb_storage_quirks: "0bda:9210:u"
 
 # Kernel cmdline for the Talos netboot (maintenance mode — no talos.config,
@@ -109,15 +109,21 @@ talos_kernel_cmdline: >-
   talos.platform=metal console=tty1 console=ttyS0,115200n8 init_on_alloc=1 slab_nomerge pti=on
   {{- (' usb-storage.quirks=' ~ talos_pi_usb_storage_quirks) if talos_pi_usb_storage_quirks else '' }}
 
-# Pi hosts (NetBox inventory names, capitalized e.g. "Buran") currently being
-# (re)provisioned. Only these are offered network boot by dnsmasq (tag
-# `provision`); every other Pi's firmware is ignored and falls through to its
-# USB disk. Empty = steady state: every Pi boots its installed OS.
+# Pi hosts (NetBox inventory names, capitalized e.g. "Buran") offered network
+# boot by dnsmasq (tag `provision`); every other Pi's firmware is ignored and
+# falls through to its USB disk.
+#
+# Steady state. TEMPORARY: every Talos Pi netboots on every boot, because no
+# current Talos release boots these Pi 4s from USB (revert to [] when Talos
+# 1.14.x fixes siderolabs/talos#14260). See docs/design/pi-netboot-steady-state.md.
+talos_pi_netboot_steady_state: >-
+  {{ groups['pis'] | default([])
+     | intersect(groups['pxe'] | default([])) | intersect(groups['talos'] | default([])) }}
+# The live gate: steady state plus whatever is being (re)provisioned.
 #   make apply-pxe TAGS=pxe-server EXTRA_VARS='{"talos_pi_provision_hosts": ["Buran"]}'
-#   make apply-pxe TAGS=pxe-server EXTRA_VARS='{"talos_pi_provision_hosts": []}'
 # (Must be the JSON-object form: Ansible parses key=value extra-vars as
 # strings, so key=["Buran"] would arrive as text and trip the assert.)
-talos_pi_provision_hosts: []
+talos_pi_provision_hosts: "{{ talos_pi_netboot_steady_state }}"
 
 # Debian netinstall artifacts.
 # These pin the version we PXE-boot. Bump together when upgrading.

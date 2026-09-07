@@ -28,9 +28,11 @@ NETBOX_API     := $(or $(NETBOX_API),$(_NB_FILE_API))
 NETBOX_TOKEN   := $(or $(NETBOX_TOKEN),$(_NB_FILE_TOKEN))
 endif
 
-# The Ansible NetBox inventory plugin reads NETBOX_API; some bootstrap
-# setups only set NETBOX_URL. Alias it through.
+# The Ansible NetBox inventory plugin reads NETBOX_API; opentofu/Makefile
+# reads NETBOX_URL. Alias both ways: an exported empty NETBOX_URL would
+# shadow the sub-make's own `?=` fallback.
 NETBOX_API := $(or $(NETBOX_API),$(NETBOX_URL))
+NETBOX_URL := $(or $(NETBOX_URL),$(NETBOX_API))
 
 export NETBOX_API NETBOX_TOKEN NETBOX_URL SOPS_AGE_KEY_FILE
 
