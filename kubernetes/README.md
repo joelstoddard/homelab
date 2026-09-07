@@ -12,8 +12,8 @@ install that gets Flux running in the first place.
 - [x] Flux CD bootstrap — this directory, `make -C kubernetes`
 - [x] CNI — Cilium, kube-proxy-free (`cilium/`; seeded by the `talos` role,
       owned by Flux — see "Cilium")
-- [ ] LoadBalancer (Cilium LB-IPAM/L2 over the `load_balancer_ip_pool`
-      reserved in `ansible/inventory/group_vars/k3s-cluster.yaml`)
+- [x] LoadBalancer — Cilium LB-IPAM + L2 announcements (`cilium-lb/`, the
+      pool CR is SOPS-encrypted — see "Cilium LB")
 - [ ] Storage, ingress, workloads
 
 ## Layout
@@ -26,14 +26,20 @@ kubernetes/
 │   ├── kustomization.yaml
 │   ├── gotk-components.yaml      # `flux install --export`; generated, DO NOT EDIT
 │   └── gotk-sync.yaml            # GitRepository + Kustomization pointing at this repo
-└── cilium/
+├── cilium/
+│   ├── kustomization.yaml
+│   ├── ks.yaml                   # Flux Kustomization "cilium" -> ./kubernetes/cilium/app
+│   └── app/
+│       ├── kustomization.yaml    # namespace kube-system; values.yaml -> ConfigMap
+│       ├── ocirepository.yaml    # oci://quay.io/cilium/charts/cilium, tag = CILIUM_VERSION
+│       ├── helmrelease.yaml      # release "cilium", chartRef -> the OCIRepository
+│       └── values.yaml           # shared with ansible/roles/talos/tasks/cni.yaml
+└── cilium-lb/
     ├── kustomization.yaml
-    ├── ks.yaml                   # Flux Kustomization "cilium" -> ./kubernetes/cilium/app
+    ├── ks.yaml                   # Flux Kustomization "cilium-lb", dependsOn cilium, sops decryption
     └── app/
-        ├── kustomization.yaml    # namespace kube-system; values.yaml -> ConfigMap
-        ├── ocirepository.yaml    # oci://quay.io/cilium/charts/cilium, tag = CILIUM_VERSION
-        ├── helmrelease.yaml      # release "cilium", chartRef -> the OCIRepository
-        └── values.yaml           # shared with ansible/roles/talos/tasks/cni.yaml
+        ├── pool.sops.yaml        # CiliumLoadBalancerIPPool "lan"; spec (the LAN bounds) encrypted
+        └── l2-policy.yaml        # CiliumL2AnnouncementPolicy "lan", workers only
 ```
 
 `flux-system/gotk-sync.yaml` declares a `GitRepository` for this repo
@@ -133,9 +139,38 @@ Consequences for day-2 work:
   through the rebuild path (`docs/talos-bootstrap.md`, "Rebuild").
 
 ```bash
-flux --context homelab get ks,hr -A                       # cilium Ready
+flux --context homelab get all -A                         # cilium Ready
 helm --kube-context homelab -n kube-system history cilium # rev 1 seed, rev 2 Flux
 kubectl --context homelab -n kube-system exec ds/cilium -c cilium-agent -- cilium-dbg status --brief
+```
+
+## Cilium LB
+
+`cilium-lb/` gives `Service` type `LoadBalancer` an address: LB-IPAM (on by
+default) allocates from the `CiliumLoadBalancerIPPool` `lan`, and the
+`CiliumL2AnnouncementPolicy` `lan` has one worker per Service answer ARP for
+it on the LAN (`l2announcements.enabled` in `cilium/app/values.yaml`; control
+planes are excluded, they carry no workloads). No BGP, no `interfaces`
+filter — Cilium's auto-detected device is the LAN NIC on both VMs and Pis.
+
+The pool bounds are the NetBox IP range reserved for it — LAN addresses,
+which this public repo does not carry in plaintext. So `pool.sops.yaml` is
+SOPS-encrypted like a Secret would be, `spec` instead of `data`: the keys
+stay readable, the values are `ENC[...]`, and kustomize-controller decrypts
+the whole document before applying (it decrypts any resource carrying a
+`sops.mac` field, not just Secrets — the `cilium-lb` Kustomization has its
+own `decryption` block for that). To move the pool, change the range in
+NetBox and then `sops cilium-lb/app/pool.sops.yaml`.
+
+Two Cilium caveats: L2 mode is incompatible with `externalTrafficPolicy:
+Local` (the IP may be announced from a node without a pod), and each
+announced Service costs the agents `1 / leaseRenewDeadline` = 0.2 QPS against
+the apiserver — raise `k8sClientRateLimit` in `values.yaml` before the
+Service count nears 50.
+
+```bash
+kubectl --context homelab get ciliumloadbalancerippools,ciliuml2announcementpolicies
+kubectl --context homelab -n kube-system get leases | grep cilium-l2announce   # one per announced Service
 ```
 
 ## Adding workloads
@@ -143,7 +178,9 @@ kubectl --context homelab -n kube-system exec ds/cilium -c cilium-agent -- ciliu
 1. Create a directory under `kubernetes/` holding a Flux `Kustomization` CR
    (namespace `flux-system`, `sourceRef` `GitRepository/flux-system`,
    `path` pointing at the manifests, `prune: true`, `dependsOn` any layer it
-   needs first, `decryption` block if it carries Secrets).
+   needs first, `decryption` block if it carries `*.sops.yaml`). LAN values
+   that are not secrets but must stay out of the public repo go the
+   `cilium-lb/` way: SOPS-encrypt the resource's `spec`.
 2. List the directory in `kubernetes/kustomization.yaml`.
 3. `make -C kubernetes lint`, PR, merge. Flux picks it up within the
    `GitRepository` interval (1 m) and reconciles it.
@@ -154,8 +191,10 @@ notification or image-automation wiring. Add those when a consumer exists.
 ## Secrets
 
 Kubernetes `Secret`s live next to their workload as `*.sops.yaml`. The
-repo-root `.sops.yaml` rule for `kubernetes/` encrypts only `data` and
-`stringData`, so kustomize can still read `apiVersion`/`kind`/`metadata`.
+repo-root `.sops.yaml` rule for `kubernetes/` encrypts only `data`,
+`stringData` and `spec` (the last for non-Secret resources whose values are
+LAN addresses, see "Cilium LB"), so kustomize can still read
+`apiVersion`/`kind`/`metadata`.
 Decryption happens in-cluster: the Kustomization's `decryption.secretRef`
 points at `sops-age`, the same Age key the operator uses locally.
 

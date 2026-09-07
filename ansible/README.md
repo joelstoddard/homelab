@@ -165,7 +165,6 @@ ansible/
       nucs.yaml              # disk_device for NUC device-types
       pis.yaml               # disk_device for Pi device-types
       proxmox.yaml           # ansible_user=root for the conversion phase
-      k3s-cluster.yaml       # K3s control-plane endpoint + LB pool
     *.yaml.example           # static inventory bootstrap fallback
     README.md                # inventory mechanics
     host_vars/

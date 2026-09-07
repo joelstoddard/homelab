@@ -138,11 +138,15 @@ install, not `flux bootstrap` (which pushes to `main` and needs a write
 token). New layers are Flux `Kustomization` CRs listed in the root
 `kubernetes/kustomization.yaml`, each pointing at its own `<layer>/app/`;
 Kubernetes Secrets are `*.sops.yaml` with only `data`/`stringData` encrypted
-(`.sops.yaml` rule). The first layer is `cilium/`: an `OCIRepository` +
+(`.sops.yaml` rule; `spec` too, for CRs whose values are LAN addresses). The first layer is `cilium/`: an `OCIRepository` +
 `HelmRelease` that adopts the release the `talos` role seeded (same name,
 namespace and `values.yaml`; the OCIRepository tag must equal
 `CILIUM_VERSION` — `make -C kubernetes lint` enforces it). Change Cilium via
-git only; the seed never re-runs on an existing release. Never
+git only; the seed never re-runs on an existing release. `cilium-lb/`
+(`dependsOn: cilium`) is the LB-IPAM pool + L2 announcement policy; the
+pool's bounds are LAN addresses, so `app/pool.sops.yaml` has its `spec`
+SOPS-encrypted (Flux decrypts any resource with a `sops.mac` field), never
+plaintext. Never
 `kubectl delete kustomization flux-system` — prune would remove Flux itself;
 use `flux uninstall`. Pruning `cilium/` removes the CNI. See
 `kubernetes/README.md`.
