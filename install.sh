@@ -99,6 +99,13 @@ curl -fsSL -o /usr/local/bin/kubectl \
     "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/${GOARCH}/kubectl"
 chmod +x /usr/local/bin/kubectl
 
+# flux regenerates kubernetes/flux-system/gotk-components.yaml on version bumps
+# and drives day-2 GitOps operations (kubernetes/Makefile). The release tarball
+# is not v-prefixed and holds a single `flux` binary.
+echo ">> Installing flux ${FLUX_VERSION} from upstream release"
+curl -fsSL "https://github.com/fluxcd/flux2/releases/download/${FLUX_VERSION}/flux_${FLUX_VERSION#v}_linux_${GOARCH}.tar.gz" \
+    | tar -xz -C /usr/local/bin flux
+
 # talhelper generates the Talos machine configs from talconfig.yaml
 # (ansible/roles/talos). The jpillora redirector resolves the right
 # release asset for this OS/arch; version pinned in versions.env.
@@ -155,6 +162,7 @@ verify tofu
 verify talosctl version --client
 verify talhelper --version
 verify kubectl version --client
+verify flux --version
 verify age
 verify python3
 verify git
