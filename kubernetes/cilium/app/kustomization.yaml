@@ -6,11 +6,15 @@ resources:
   - helmrelease.yaml
 # values.yaml is shared with the talos role's one-shot seed (helm install -f);
 # here it becomes the ConfigMap the HelmRelease reads via valuesFrom. No hash
-# suffix so the HelmRelease can name it — helm-controller watches the
-# ConfigMap and reconciles on content changes anyway.
+# suffix so the HelmRelease can name it; instead the watch label makes
+# helm-controller reconcile on content changes — it only watches ConfigMaps
+# carrying it (--watch-configs-label-selector), otherwise a values change
+# waits for the 1h interval.
 configMapGenerator:
   - name: cilium-values
     files:
       - values.yaml
 generatorOptions:
   disableNameSuffixHash: true
+  labels:
+    reconcile.fluxcd.io/watch: Enabled
