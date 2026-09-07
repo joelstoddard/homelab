@@ -9,7 +9,7 @@ The repo is sliced into top-level directories, each a layer with its own
 
 ```
 ┌──────────────────────────────────────────────────────────────────────┐
-│ kubernetes/   (Planned) Talos base + Flux-managed workloads          │
+│ kubernetes/   Flux CD bootstrap + Flux-managed workloads             │
 ├──────────────────────────────────────────────────────────────────────┤
 │ tailscale/    (Planned) ACLs and routes                              │
 ├──────────────────────────────────────────────────────────────────────┤
@@ -93,11 +93,16 @@ plan time.
 Will own ACLs and subnet routes for the Tailnet that bridges the homelab
 to operator workstations.
 
-### kubernetes/ (planned)
+### kubernetes/
 
-Reserved for Flux GitOps once a cluster exists. The directory is
-intentionally empty right now and `make kubernetes` skips with a notice
-(`Makefile:91-96`).
+Flux CD. `make -C kubernetes` installs the committed
+`flux-system/gotk-components.yaml` (the output of `flux install --export`,
+pinned by `FLUX_VERSION` in `versions.env`), lands the operator's Age key
+as the `sops-age` Secret, and applies a `GitRepository` + `Kustomization`
+that reconcile `./kubernetes` from this repo's `main`. The path includes
+`flux-system/`, so Flux manages its own controllers from then on;
+workloads are added as further Flux `Kustomization` CRs. See
+[`kubernetes/README.md`](../kubernetes/README.md).
 
 ## NetBox as source of truth
 
@@ -136,7 +141,7 @@ never uses them.
 
 ## Secrets model
 
-Six encrypted artifacts, three different lifecycles:
+Eight encrypted artifacts, three different lifecycles:
 
 | Path | Encrypted with | Where it lives | Lifecycle |
 | --- | --- | --- | --- |
@@ -146,6 +151,8 @@ Six encrypted artifacts, three different lifecycles:
 | `ansible/inventory/group_vars/proxmox.sops.yaml` | Age (via SOPS) | Committed. Encrypted at rest. | `proxmox_api_token`, minted by the api-token task. |
 | `opentofu/secrets.sops.yaml` | Age (via SOPS) | Committed. Encrypted at rest. | State encryption passphrase, Proxmox endpoint URL, LAN gateway. |
 | `opentofu/resources/<dir>/secrets.env` | Age (via SOPS) | Committed. Encrypted at rest. | Resource-scoped `TF_VAR_*` (e.g. Pi-hole password, static IP). |
+| `kubernetes/**/*.sops.yaml` | Age (via SOPS), `data`/`stringData` only | Committed. Encrypted at rest. | Kubernetes Secrets, decrypted in-cluster by kustomize-controller. |
+| Secret `flux-system/sops-age` | n/a (it *is* the Age private key) | In-cluster only. Never in git. | Created by `make -C kubernetes` from `$SOPS_AGE_KEY_FILE`; what lets Flux decrypt the row above. |
 
 The repo-root `.sops.yaml` defines which Age recipients can decrypt
 which paths. To authorise a new operator, an *existing* recipient (one
@@ -230,7 +237,7 @@ deadlocks). Anything once-bootstrapped *could* migrate inward later.
 | Service | Used for | Why off-lab |
 | --- | --- | --- |
 | **NetBox** | Inventory source of truth for Ansible + OpenTofu. | Required to bootstrap *any* host. If NetBox lived inside the lab it couldn't help bring its own hypervisor up. Currently a managed NetBox Cloud instance. |
-| **GitHub** | Git remote + future Flux source. | Needs to be reachable from a fresh node before that node is configured. Self-hosting Gitea or similar would create the same chicken-and-egg problem as NetBox. |
+| **GitHub** | Git remote + Flux source (`GitRepository/flux-system` polls `main` over anonymous HTTPS). | Needs to be reachable from a fresh node before that node is configured. Self-hosting Gitea or similar would create the same chicken-and-egg problem as NetBox. |
 | **deb.debian.org** | Debian netinstall kernel/initrd + apt packages during PXE install (`00-pxe`) and Proxmox conversion (`proxmox/debian-to-pve`). | Upstream OS provider; not something we'd ever mirror locally for a personal lab. |
 | **download.proxmox.com** | Proxmox VE no-subscription apt repo, used by `proxmox/debian-to-pve.yaml`. | Same as Debian — upstream provider. |
 | **boot.ipxe.org** | iPXE chainloader binary (`ipxe.efi`), downloaded by `00-pxe` once per change. | Upstream binary distribution; alternative is building iPXE ourselves, not worth it. |
@@ -268,7 +275,10 @@ homelab/
 │   ├── secrets.sops.yaml          # shared SOPS secrets (state passphrase, endpoint, gateway)
 │   ├── Makefile                   # check / apply iterating each resources/*/
 │   └── README.md                  # opentofu-specific layout, recovery, provider mirror
-├── kubernetes/                    # (Planned) Flux GitOps; currently empty post-rebuild
+├── kubernetes/                    # Flux CD: bootstrap Makefile + the tree Flux reconciles
+│   ├── flux-system/               # gotk-components.yaml (generated) + gotk-sync.yaml
+│   ├── kustomization.yaml         # root of the flux-system Kustomization
+│   └── Makefile                   # components -> sops-age -> sync
 ├── tailscale/                     # (Planned) Tailnet ACLs and routes
 ├── docs/                          # This tree — long-form documentation
 ├── install.sh                     # Host prerequisites for the operator workstation

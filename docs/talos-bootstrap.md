@@ -257,10 +257,18 @@ kubectl --context admin@homelab get nodes
 > `talhelper validate talconfig ansible/.talos/talconfig.yaml`
 > after a `--check` pass renders it.
 
-## Step 4 — workloads
+## Step 4 — Flux
 
-Cluster up, kubeconfig in hand → see [`kubernetes/`](../kubernetes/) for
-the planned Flux CD GitOps layer (CNI/LoadBalancer, then workloads).
+Cluster up, kubeconfig in hand:
+
+```bash
+make -C kubernetes
+```
+
+installs Flux CD from the committed manifests and points it at this repo's
+`main`; from then on [`kubernetes/`](../kubernetes/) is reconciled by Flux
+(CNI/LoadBalancer, then workloads). Part of `make homelab`; see the
+[`kubernetes/README.md`](../kubernetes/README.md).
 
 ## Rebuild / bumping versions
 

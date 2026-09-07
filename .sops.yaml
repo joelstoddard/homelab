@@ -21,3 +21,10 @@ creation_rules:
   # eval-sources them as `export TF_VAR_*=...` lines).
   - path_regex: opentofu/resources/.*/secrets\.env$
     age: age1h5hafnt22aqn7uahcsmv5v8gfgwcxanypw0lantcush7jppt99fskz6vcv
+  # Kubernetes Secrets under kubernetes/ — decrypted in-cluster by Flux's
+  # kustomize-controller (Kustomization flux-system, secretRef sops-age).
+  # Only data/stringData are encrypted so kustomize can still read
+  # apiVersion/kind/metadata. Always edit with `sops <file>`.
+  - path_regex: kubernetes/.*\.sops\.ya?ml$
+    encrypted_regex: ^(data|stringData)$
+    age: age1h5hafnt22aqn7uahcsmv5v8gfgwcxanypw0lantcush7jppt99fskz6vcv

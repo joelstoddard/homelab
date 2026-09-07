@@ -18,23 +18,26 @@ workstation) to a running fleet. Internally it expands to:
 make homelab → check-env install ansible opentofu talos kubernetes
 ```
 
-(See `Makefile:69`.) The dependency list is also the execution order —
+(See `Makefile:79`.) The dependency list is also the execution order —
 make runs prerequisites left-to-right, and the file declares
 `.NOTPARALLEL:` so the layers never overlap.
 
-Today, `tailscale/Makefile` and `kubernetes/Makefile` don't exist yet;
-those targets short-circuit with a notice (see "Subdir absence" below).
-So `make homelab` runs `check-env` → `install.sh` → `make -C ansible`
-(PXE server, NUCs Debian → Proxmox) → `make -C opentofu` (LXCs, the 12 k8s
-VMs booted from the Talos ISO) → `make -C ansible apply-pi-cutover` +
-`apply-talos` (Pis to Talos, every node configured, etcd bootstrapped,
-kubeconfig merged). The `talos` stage comes after `opentofu` because the
-bootstrap's health check waits for all 20 nodes.
+Today `tailscale/Makefile` doesn't exist yet; that target short-circuits
+with a notice (see "Subdir absence" below). So `make homelab` runs
+`check-env` → `install.sh` → `make -C ansible` (PXE server, NUCs Debian →
+Proxmox) → `make -C opentofu` (LXCs, the 12 k8s VMs booted from the Talos
+ISO) → `make -C ansible apply-pi-cutover` + `apply-talos` (Pis to Talos,
+every node configured, etcd bootstrapped, kubeconfig merged) →
+`make -C kubernetes` (Flux CD installed and pointed at this repo). The
+`talos` stage comes after `opentofu` because the bootstrap's health check
+waits for all 20 nodes; `kubernetes` comes last because it needs the merged
+kubeconfig.
 
 Every stage is a no-op on a healthy fleet: the WOL role leaves hosts that
 already answer SSH alone, `pi-cutover` skips Pis that no longer have SSH
 (they are Talos), `apply-talos` tolerates installed nodes and an
-already-bootstrapped etcd, and `tofu apply` plans no changes. That is the
+already-bootstrapped etcd, `tofu apply` plans no changes, and the Flux
+server-side applies change nothing. That is the
 test of the chain — `make homelab` on the running homelab should finish
 without rebooting or reinstalling anything.
 
@@ -47,9 +50,9 @@ without rebooting or reinstalling anything.
 | `bootstrap-secrets` | `./bootstrap-secrets.sh` | Interactively land the operator's Age key + NetBox env + tofu secrets. |
 | `ansible` | `$(MAKE) -C ansible` | PXE-install + Proxmox conversion. |
 | `opentofu` | `$(MAKE) -C opentofu` (if present) | VM/LXC provisioning. |
-| `kubernetes` | `$(MAKE) -C kubernetes` (if present) | Flux bootstrap (planned). |
+| `kubernetes` | `$(MAKE) -C kubernetes` (if present) | Flux CD bootstrap. |
 | `check-env` | Validate `NETBOX_API`, `NETBOX_TOKEN`, `SOPS_AGE_KEY_FILE`. | Fails fast at the top, before any subdir burns time. |
-| `build` / `dev` / `lint` / `check` / `clean` | Forward to `ansible` (and `opentofu` for `check`). | Dev-loop maintenance. |
+| `build` / `dev` / `lint` / `check` / `clean` | Forward to `ansible`; `lint` and `check` also to `kubernetes`, `check` also to `opentofu`. | Dev-loop maintenance. |
 
 `make help` at the root prints this list — kept in sync with the targets
 themselves.
@@ -109,14 +112,27 @@ Every real target (`check`, `apply`, `lint`) depends on `dev`, i.e.
 operator's `make homelab` never fails on missing plugins. All providers
 install directly from the registry against the committed lock files.
 
-### `kubernetes/Makefile` / `tailscale/Makefile`
+### `kubernetes/Makefile`
 
-Don't exist yet. When they land, the root `Makefile` will automatically
-include them in the chain — see next section.
+Installs Flux CD from the committed manifests and hands the cluster over
+to it. Default target `apply` = `build` (kubectl, the `admin@homelab`
+context, a non-empty `$SOPS_AGE_KEY_FILE`, `FLUX_VERSION`) → `lint`
+(offline: `gotk-components.yaml` header matches `versions.env`,
+`kubectl kustomize .` builds) → `components` (server-side apply, wait for
+CRDs + controllers) → `secret` (the Age key as `flux-system/sops-age`) →
+`sync` (the `GitRepository` + `Kustomization`, wait for Ready). `check`
+is a server dry run once Flux is installed and client-side validation
+before. Every `kubectl` call pins `--context $(KUBE_CONTEXT)`; no NetBox
+env is needed. See [`kubernetes/README.md`](../kubernetes/README.md).
+
+### `tailscale/Makefile`
+
+Doesn't exist yet. When it lands, the root `Makefile` will automatically
+include it in the chain — see next section.
 
 ## Subdir absence: skip with a notice
 
-The opentofu and kubernetes targets at the root (`Makefile:84-96`) check
+The opentofu and kubernetes targets at the root (`Makefile:90-113`) check
 for a Makefile in the subdir and skip with a `>> X/ Makefile not present; skipping.`
 line when absent. This is deliberate:
 
@@ -133,7 +149,8 @@ Why: `make homelab` is meant to be the always-runnable command. Adding a
 new layer is a matter of dropping a `Makefile` into the subdir — no edit
 to the root needed. The chain auto-extends.
 
-(This pattern only applies to the placeholder layers; `ansible/Makefile`
+(`opentofu/` and `kubernetes/` both exist now and keep the guard for
+symmetry with `tailscale/`, the remaining placeholder; `ansible/Makefile`
 always exists and the target unconditionally delegates.)
 
 ## Variable passthrough
@@ -179,14 +196,14 @@ values only apply when the variable is still unset after make imports
 the parent environment (`$(or ...)` pattern, `Makefile:26-28`).
 
 The plugin reads `NETBOX_API`; some bootstrap flows only set
-`NETBOX_URL`. `Makefile:33` aliases `NETBOX_URL → NETBOX_API` so either
+`NETBOX_URL`. `Makefile:31-35` aliases `NETBOX_URL ↔ NETBOX_API` so either
 form works.
 
-The exports at `Makefile:35` push these to every subdir invocation.
+The exports at `Makefile:37` push these to every subdir invocation.
 
 ## `check-env`: fail fast
 
-`make homelab` chains `check-env` first (`Makefile:69`). It does three
+`make homelab` chains `check-env` first (`Makefile:79`). It does three
 existence checks:
 
 - `NETBOX_API` non-empty (with a hint pointing at `make bootstrap-secrets`).

@@ -1,0 +1,7 @@
+# Entry point of the flux-system Kustomization (spec.path ./kubernetes).
+# Every top-level directory Flux reconciles is listed here; flux-system/
+# first so Flux manages its own controllers and sync objects.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - flux-system

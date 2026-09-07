@@ -33,7 +33,7 @@ make clean                        # Stop containers, remove cache/retry files
 
 All make targets accept: `LIMIT=<host>`, `TAGS=<tag>`, `VERBOSITY=-vvv`, `EXTRA_VARS='key=val'`.
 
-The root `Makefile` delegates to subdirectory Makefiles; currently `ansible/` and `opentofu/` exist (tailscale, kubernetes are referenced but not yet present — their targets skip with a notice).
+The root `Makefile` delegates to subdirectory Makefiles; `ansible/`, `opentofu/` and `kubernetes/` exist (tailscale is referenced but not yet present — its target skips with a notice).
 
 ## Architecture
 
@@ -122,9 +122,19 @@ them — NetBox is the source of truth, not a generator script. The
 ### Kubernetes (kubernetes/)
 
 The cluster is bootstrapped by the `talos` role + `playbooks/talos.yaml` (see
-above and `docs/talos-bootstrap.md`). `kubernetes/` itself is planned: Flux CD
-will GitOps-manage workloads off the bootstrap's kubeconfig. Secrets encrypted
-with SOPS + Age.
+above and `docs/talos-bootstrap.md`). `kubernetes/` holds Flux CD:
+`make -C kubernetes` installs the committed `flux-system/gotk-components.yaml`
+(`flux install --export`, pinned by `FLUX_VERSION` in `versions.env`), lands
+the operator's Age key as the `sops-age` Secret, and applies `gotk-sync.yaml`
+— a `GitRepository` for this public repo's `main` plus a `Kustomization`
+reconciling `./kubernetes` with `prune: true` and SOPS decryption. The path
+includes `flux-system/`, so Flux manages itself after merge. Declarative
+install, not `flux bootstrap` (which pushes to `main` and needs a write
+token). New layers are Flux `Kustomization` CRs listed in the root
+`kubernetes/kustomization.yaml`; Kubernetes Secrets are `*.sops.yaml` with only
+`data`/`stringData` encrypted (`.sops.yaml` rule). Never
+`kubectl delete kustomization flux-system` — prune would remove Flux itself;
+use `flux uninstall`. See `kubernetes/README.md`.
 
 ### Infrastructure Hosts
 

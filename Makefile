@@ -48,7 +48,7 @@ help:
 	@echo "  ansible           - PXE-install hosts, then convert Debian -> Proxmox."
 	@echo "  opentofu          - Provision Proxmox guests (LXCs, k8s VMs on the Talos ISO) via OpenTofu."
 	@echo "  talos             - Cut the Pis over to Talos, configure every node, bootstrap etcd, merge kubeconfig."
-	@echo "  kubernetes        - (when subdir lands) Flux bootstrap + workloads."
+	@echo "  kubernetes        - Bootstrap Flux CD (components, sops-age key, self-managing sync)."
 	@echo
 	@echo "Dev / maintenance:"
 	@echo "  build             - Set up dev environments in subdirs."
@@ -87,9 +87,10 @@ install:
 ansible:
 	$(MAKE) -C ansible
 
-# kubernetes/ has no Makefile yet. Skip with a notice so the chain keeps
-# working; adding one auto-extends `make homelab` without touching this
-# file. (opentofu/ keeps the same guard for symmetry.)
+# Placeholder layers skip with a notice so the chain keeps working; a
+# subdir gains a Makefile and `make homelab` extends itself without
+# touching this file. opentofu/ and kubernetes/ both exist now and keep
+# the guard for symmetry with future layers (tailscale/).
 opentofu:
 	@if [ -f opentofu/Makefile ]; then \
 		$(MAKE) -C opentofu; \
@@ -138,6 +139,7 @@ dev:
 
 lint:
 	$(MAKE) -C ansible lint
+	$(MAKE) -C kubernetes lint
 
 # Merge the Talos cluster's kube context into this machine's ~/.kube/config.
 kubeconfig:
@@ -149,6 +151,7 @@ check: check-env
 	$(MAKE) -C opentofu check
 	$(MAKE) -C ansible check-pi-cutover
 	$(MAKE) -C ansible check-talos
+	$(MAKE) -C kubernetes check
 
 clean:
 	$(MAKE) -C ansible clean
