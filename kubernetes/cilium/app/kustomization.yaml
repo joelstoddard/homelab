@@ -1,0 +1,16 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: kube-system
+resources:
+  - ocirepository.yaml
+  - helmrelease.yaml
+# values.yaml is shared with the talos role's one-shot seed (helm install -f);
+# here it becomes the ConfigMap the HelmRelease reads via valuesFrom. No hash
+# suffix so the HelmRelease can name it — helm-controller watches the
+# ConfigMap and reconciles on content changes anyway.
+configMapGenerator:
+  - name: cilium-values
+    files:
+      - values.yaml
+generatorOptions:
+  disableNameSuffixHash: true

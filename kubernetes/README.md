@@ -10,8 +10,10 @@ install that gets Flux running in the first place.
 
 - [x] Cluster bootstrap (Talos) — `ansible/roles/talos` + `playbooks/talos.yaml`
 - [x] Flux CD bootstrap — this directory, `make -C kubernetes`
-- [ ] CNI / LoadBalancer (Cilium over the `load_balancer_ip_pool` reserved in
-      `ansible/inventory/group_vars/k3s-cluster.yaml`)
+- [x] CNI — Cilium, kube-proxy-free (`cilium/`; seeded by the `talos` role,
+      owned by Flux — see "Cilium")
+- [ ] LoadBalancer (Cilium LB-IPAM/L2 over the `load_balancer_ip_pool`
+      reserved in `ansible/inventory/group_vars/k3s-cluster.yaml`)
 - [ ] Storage, ingress, workloads
 
 ## Layout
@@ -20,10 +22,18 @@ install that gets Flux running in the first place.
 kubernetes/
 ├── Makefile                      # bootstrap: components -> sops-age -> sync
 ├── kustomization.yaml            # root of the flux-system Kustomization (spec.path ./kubernetes)
-└── flux-system/
+├── flux-system/
+│   ├── kustomization.yaml
+│   ├── gotk-components.yaml      # `flux install --export`; generated, DO NOT EDIT
+│   └── gotk-sync.yaml            # GitRepository + Kustomization pointing at this repo
+└── cilium/
     ├── kustomization.yaml
-    ├── gotk-components.yaml      # `flux install --export`; generated, DO NOT EDIT
-    └── gotk-sync.yaml            # GitRepository + Kustomization pointing at this repo
+    ├── ks.yaml                   # Flux Kustomization "cilium" -> ./kubernetes/cilium/app
+    └── app/
+        ├── kustomization.yaml    # namespace kube-system; values.yaml -> ConfigMap
+        ├── ocirepository.yaml    # oci://quay.io/cilium/charts/cilium, tag = CILIUM_VERSION
+        ├── helmrelease.yaml      # release "cilium", chartRef -> the OCIRepository
+        └── values.yaml           # shared with ansible/roles/talos/tasks/cni.yaml
 ```
 
 `flux-system/gotk-sync.yaml` declares a `GitRepository` for this repo
@@ -35,6 +45,8 @@ sync objects from the first reconcile on.
 Everything Flux reconciles is listed in the root `kustomization.yaml`. New
 layers are added as further Flux `Kustomization` CRs (with `dependsOn` for
 ordering) rather than by growing the root tree — see "Adding workloads".
+`cilium/` is the first: the root tree applies only `ks.yaml`; that CR applies
+`app/`.
 
 ## Inputs
 
@@ -43,6 +55,7 @@ ordering) rather than by growing the root tree — see "Adding workloads".
 | kube context `homelab` | `~/.kube/config` (merged by `make -C ansible kubeconfig`) | Every `kubectl` call pins `--context`; the operator's kubeconfig may hold unrelated clusters. |
 | Age private key | `$SOPS_AGE_KEY_FILE` (default `~/.config/sops/age/keys.txt`) | Lands in-cluster as the `sops-age` Secret so kustomize-controller can decrypt `*.sops.yaml`. |
 | `FLUX_VERSION` | repo-root `versions.env` | Pins `gotk-components.yaml`; `make lint` refuses a mismatch. |
+| `CILIUM_VERSION` | repo-root `versions.env` | The chart the `talos` role seeds; `make lint` refuses a `cilium/app/ocirepository.yaml` tag that differs. |
 
 ## Bootstrap
 
@@ -72,8 +85,9 @@ conflict. Re-running on a healthy cluster is a no-op (seconds); Flux
 re-asserts git on its next reconcile either way.
 
 Other targets: `check` (server dry run once Flux is installed, client-side
-validation before), `lint` (offline: version header + `kubectl kustomize`),
-`status` (`flux get all -A` + pods), `generate` (see "Upgrading").
+validation before), `lint` (offline: version pins + `kubectl kustomize` of
+the root and every `*/app`), `status` (`flux get all -A` + pods), `generate`
+(see "Upgrading").
 
 ## Verify
 
@@ -89,6 +103,36 @@ the Flux images are multi-arch so any of them may land on an arm64 Pi),
 `flux check` fully green, and the Kustomization `Applied revision:
 main@sha1:…`. `flux check` reports `bootstrapped: false` — expected, the
 install is declarative rather than `flux bootstrap`.
+
+## Cilium
+
+Flux cannot install the CNI — its controllers are pods, and no pod gets an
+IP until a CNI runs. So the `talos` role seeds it: right after
+`talosctl bootstrap`, `tasks/cni.yaml` runs `helm install cilium` into
+`kube-system` from `cilium/app/values.yaml` at `CILIUM_VERSION` — once, only
+if the release is absent. `cilium/app/helmrelease.yaml` names the same
+release, so helm-controller adopts it on its first reconcile (revision 2,
+no diff) and owns it from then on. Rationale and rejected alternatives:
+[`docs/design/cilium-bootstrap.md`](../docs/design/cilium-bootstrap.md).
+
+Consequences for day-2 work:
+
+- **Change Cilium through git only.** Edit `values.yaml` or bump
+  `CILIUM_VERSION` + the OCIRepository tag together (`make lint` enforces
+  it); Flux rolls it out. The seed never re-runs on an existing release, so
+  `apply-talos` cannot undo a Flux-driven change.
+- `wait: true` on the `cilium` Kustomization: a layer with
+  `dependsOn: cilium` starts only once the Cilium CRDs exist and the agents
+  are Ready — what the LB-IPAM pool needs.
+- Machine-config side (`cniConfig.name: none`, `cluster.proxy.disabled`) lives
+  in `ansible/roles/talos/templates/talconfig.yaml.j2` and reaches nodes only
+  through the rebuild path (`docs/talos-bootstrap.md`, "Rebuild").
+
+```bash
+flux --context homelab get ks,hr -A                       # cilium Ready
+helm --kube-context homelab -n kube-system history cilium # rev 1 seed, rev 2 Flux
+kubectl --context homelab -n kube-system exec ds/cilium -c cilium-agent -- cilium-dbg status --brief
+```
 
 ## Adding workloads
 
@@ -145,6 +189,13 @@ merge lands on `main`. `make -C kubernetes` afterwards is still a no-op.
   strips finalizers, removes CRDs and the namespace; workloads stay). Setting
   `spec.deletionPolicy: Orphan` on the `flux-system` Kustomization would
   guard against the accidental delete — not added by default.
+- **Pruning `cilium/` removes the CNI.** Dropping it from the root
+  `kustomization.yaml` on `main`, deleting the `cilium` Kustomization, or
+  removing the HelmRelease uninstalls Cilium: every pod loses networking,
+  Flux's controllers included, so Flux cannot fix it from git. Recovery is
+  the seed path — `make -C ansible apply-talos TAGS=cni,health` — then
+  restart the pods that were running. Same class as the `flux-system`
+  footgun above.
 - **Hand edits to the `GitRepository` / `Kustomization` are reverted** within
   a minute by self-management. `flux suspend kustomization
   flux-system` sticks: a suspended Kustomization never reconciles, so nothing

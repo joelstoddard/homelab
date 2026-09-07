@@ -1,0 +1,16 @@
+# Same release name and namespace as the talos role's seed
+# (`helm install cilium -n kube-system`), so helm-controller adopts that
+# release on its first reconcile instead of failing on existing resources.
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: cilium
+spec:
+  interval: 1h0m0s
+  releaseName: cilium
+  chartRef:
+    kind: OCIRepository
+    name: cilium
+  valuesFrom:
+    - kind: ConfigMap
+      name: cilium-values

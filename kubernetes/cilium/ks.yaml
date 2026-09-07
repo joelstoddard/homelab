@@ -1,0 +1,19 @@
+# Cilium is seeded by the talos role before Flux exists; this Kustomization
+# takes the release over and owns it from then on. `wait: true` so a layer
+# with `dependsOn: cilium` (the LB-IPAM pool) starts only once the Cilium
+# CRDs are registered and the agents are Ready. Pruning this layer removes
+# the CNI — see docs/design/cilium-bootstrap.md.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: cilium
+  namespace: flux-system
+spec:
+  interval: 10m0s
+  path: ./kubernetes/cilium/app
+  prune: true
+  wait: true
+  timeout: 5m0s
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
