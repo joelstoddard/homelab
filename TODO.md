@@ -54,6 +54,11 @@
       `docs/design/cilium-bootstrap.md`)
 - [x] Cilium LB-IPAM/L2 (`kubernetes/cilium-lb/`, pool = NetBox IP range
       reserved for it, the pool CR's spec SOPS-encrypted)
+- [x] Tailscale subnet router + exit node as a Deployment (`kubernetes/tailscale/`,
+      policy in a private repo — `docs/design/tailscale-router.md`)
+    - [ ] Benchmark and tighten the router's resource limits
+    - [ ] Scrape `:9002/metrics` once an observability layer exists
+    - [ ] Un-encrypt bare `10.0.0.0/20` mentions repo-wide (host addresses/ranges stay encrypted)
 - [ ] Renovate for automated version-bump PRs
 - [ ] Pin all tool versions (talosctl/kubectl/talhelper/flux) — likely nix flakes
 

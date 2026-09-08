@@ -11,8 +11,6 @@ The repo is sliced into top-level directories, each a layer with its own
 ┌──────────────────────────────────────────────────────────────────────┐
 │ kubernetes/   Flux CD bootstrap + Flux-managed workloads             │
 ├──────────────────────────────────────────────────────────────────────┤
-│ tailscale/    (Planned) ACLs and routes                              │
-├──────────────────────────────────────────────────────────────────────┤
 │ opentofu/     VMs / LXCs / k8s-VM shells / Pi-hole, on Proxmox       │
 ├──────────────────────────────────────────────────────────────────────┤
 │ ansible/      PXE-install OS, convert to Proxmox, form cluster       │
@@ -88,10 +86,13 @@ also requires `NETBOX_URL` and `NETBOX_TOKEN` to be exported, because
 the `k8s-vm` module reads VM identity (name, MAC, IP) from NetBox at
 plan time.
 
-### tailscale/ (planned)
+### Tailscale
 
-Will own ACLs and subnet routes for the Tailnet that bridges the homelab
-to operator workstations.
+The subnet router / exit node is a Flux layer, `kubernetes/tailscale/`. The
+tailnet policy (ACL grants, `autoApprovers`, tag owners) is code in a separate
+private repo applied by Tailscale's GitOps action — private because it names
+devices; this repo documents only what the router needs from it. See
+`kubernetes/README.md` "Tailscale" and `docs/design/tailscale-router.md`.
 
 ### kubernetes/
 
@@ -209,12 +210,12 @@ Pi-hole) are reserved there; everything else gets a DHCP lease from
 whatever DHCP server is on the LAN (the home router today, not anything
 this repo manages).
 
-### Off-lab connectivity (planned `tailscale/`)
+### Off-lab connectivity
 
-When `tailscale/` lands, the Tailnet will bridge the lab to operator
-workstations — but it'll layer on top of this flat network, not replace
-it. Tailscale will own ACLs for who-can-reach-what across the Tailnet;
-nothing will change about the in-lab L2.
+The tailnet bridges the lab to wherever the operator is, layered on the flat
+LAN rather than replacing it: the `homelab` node advertises the LAN prefix and
+acts as exit node, and the policy repo owns who-can-reach-what. Nothing changes
+about the in-lab L2.
 
 ## Host inventory
 
@@ -279,7 +280,6 @@ homelab/
 │   ├── flux-system/               # gotk-components.yaml (generated) + gotk-sync.yaml
 │   ├── kustomization.yaml         # root of the flux-system Kustomization
 │   └── Makefile                   # components -> sops-age -> sync
-├── tailscale/                     # (Planned) Tailnet ACLs and routes
 ├── docs/                          # This tree — long-form documentation
 ├── install.sh                     # Host prerequisites for the operator workstation
 ├── bootstrap-secrets.sh           # Interactive secret landing (Age key, NetBox env, …)

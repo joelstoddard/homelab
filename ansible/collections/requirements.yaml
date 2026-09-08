@@ -2,7 +2,6 @@
 roles:
   - name: geerlingguy.swap
   - name: robertdebock.fail2ban
-  - name: artis3n.tailscale
 collections:
   - name: ansible.utils
   - name: ansible.posix

@@ -90,7 +90,7 @@ ansible:
 # Placeholder layers skip with a notice so the chain keeps working; a
 # subdir gains a Makefile and `make homelab` extends itself without
 # touching this file. opentofu/ and kubernetes/ both exist now and keep
-# the guard for symmetry with future layers (tailscale/).
+# the guard so a future layer can be added the same way.
 opentofu:
 	@if [ -f opentofu/Makefile ]; then \
 		$(MAKE) -C opentofu; \

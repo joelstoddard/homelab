@@ -10,7 +10,7 @@ This project can be broken down into layers, each owned by a top-level directory
 | ------- | ------------------ | ------------- | --------------------------------------------------------------------------------------------- |
 | Active  | Bare metal         | `ansible/`    | PXE-installs OSs.                                                                             |
 | Active  | LXC & VMs          | `opentofu/`   | Provisions K3S control-plane + worker VMs, HA Database LXCs, DNS LXCs, etc. |
-| Planned | Networking         | `tailscale/`  | Provisions ACLs for Tailscale nodes & routes.                                                 |
+| Active  | Remote access      | `kubernetes/tailscale/` | Tailscale subnet router + exit node as a Deployment; the tailnet policy is a private GitOps repo. |
 | Active  | Workloads          | `kubernetes/` | Bootstraps Flux CD, which then reconciles this directory (Kustomize manifests, Helm releases). |
 
 ## Quick start
@@ -48,10 +48,10 @@ make homelab
 1. **`install.sh`** — operator host prerequisites. Idempotent; re-runs cheaply.
 2. **`make -C ansible`**
 3. **`make -C opentofu`**
-4. **`make -C tailscale`**
-5. **`make -C kubernetes`**
+4. **`make -C kubernetes`**
 
-Step 4 skips with a notice while `tailscale/Makefile` doesn't exist yet.
+The tailnet policy is not part of the chain: it is applied by GitHub Actions
+from the private policy repo (see `kubernetes/README.md`, "Tailscale").
 
 Per-stage flags pass through: `make ansible LIMIT=tango TAGS=proxmox`.
 
