@@ -1,0 +1,95 @@
+# Tailscale subnet router + exit node for the LAN, as the tailnet node
+# "homelab". One replica, one identity: the node key lives in the
+# tailscale-state Secret, so a rescheduled pod is the same node and keeps its
+# approvals. Recreate, never RollingUpdate — two pods on one key would fight.
+# Why a Deployment replaced the LXC: docs/design/tailscale-router.md.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tailscale
+  labels:
+    app.kubernetes.io/name: tailscale
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: tailscale
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: tailscale
+    spec:
+      serviceAccountName: tailscale
+      # Reschedule ~30 s after the node drops, not the 5 min default. The
+      # ReplicaSet replaces a Terminating pod at once, so this is the whole
+      # failover budget.
+      tolerations:
+        - key: node.kubernetes.io/not-ready
+          operator: Exists
+          effect: NoExecute
+          tolerationSeconds: 30
+        - key: node.kubernetes.io/unreachable
+          operator: Exists
+          effect: NoExecute
+          tolerationSeconds: 30
+      initContainers:
+        # Forwarding must be on inside the pod's own netns and /proc/sys is
+        # read-only for unprivileged containers, so only this step is
+        # privileged. Net sysctls are namespaced: the node is untouched.
+        - name: sysctler
+          image: busybox:1.37.0
+          command: ["sh", "-c", "sysctl -w net.ipv4.ip_forward=1 net.ipv6.conf.all.forwarding=1"]
+          securityContext:
+            privileged: true
+      containers:
+        - name: tailscale
+          image: ghcr.io/tailscale/tailscale:v1.102.3
+          env:
+            - name: TS_AUTHKEY
+              valueFrom:
+                secretKeyRef:
+                  name: tailscale-auth
+                  key: TS_AUTHKEY
+            - name: TS_ROUTES
+              value: 10.0.0.0/20
+            - name: TS_HOSTNAME
+              value: homelab
+            # An OAuth secret used as the auth key must request its tags.
+            - name: TS_EXTRA_ARGS
+              value: --advertise-exit-node --advertise-tags=tag:homelab
+            - name: TS_KUBE_SECRET
+              value: tailscale-state
+            - name: TS_AUTH_ONCE
+              value: "true"
+            - name: TS_USERSPACE
+              value: "false"
+            # /healthz and /metrics on TS_LOCAL_ADDR_PORT (default [::]:9002).
+            - name: TS_ENABLE_HEALTH_CHECK
+              value: "true"
+            - name: TS_ENABLE_METRICS
+              value: "true"
+          ports:
+            - name: metrics
+              containerPort: 9002
+          # 200 once the node has a tailnet IP; a wedged tailscaled restarts
+          # instead of silently taking remote access down.
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: metrics
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            failureThreshold: 6
+          securityContext:
+            capabilities:
+              add: ["NET_ADMIN"]
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            # TODO: benchmark (iperf3 through the exit node) and cap just above the peak.
+            limits:
+              cpu: "1"
+              memory: 256Mi

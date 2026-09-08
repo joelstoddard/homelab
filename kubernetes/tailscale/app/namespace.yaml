@@ -1,0 +1,11 @@
+# Talos enforces PodSecurity "baseline" on every namespace by default, which
+# forbids the privileged sysctl init container and NET_ADMIN. Opt this one
+# namespace out; nothing else runs here.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: tailscale
+  labels:
+    pod-security.kubernetes.io/enforce: privileged
+    pod-security.kubernetes.io/audit: privileged
+    pod-security.kubernetes.io/warn: privileged

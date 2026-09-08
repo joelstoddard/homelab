@@ -14,6 +14,9 @@ install that gets Flux running in the first place.
       owned by Flux — see "Cilium")
 - [x] LoadBalancer — Cilium LB-IPAM + L2 announcements (`cilium-lb/`, the
       pool CR is SOPS-encrypted — see "Cilium LB")
+- [x] Remote access — Tailscale subnet router + exit node `homelab`
+      (`tailscale/`; the tailnet policy is a private GitOps repo — see
+      "Tailscale")
 - [ ] Storage, ingress, workloads
 
 ## Layout
@@ -34,12 +37,20 @@ kubernetes/
 │       ├── ocirepository.yaml    # oci://quay.io/cilium/charts/cilium, tag = CILIUM_VERSION
 │       ├── helmrelease.yaml      # release "cilium", chartRef -> the OCIRepository
 │       └── values.yaml           # shared with ansible/roles/talos/tasks/cni.yaml
-└── cilium-lb/
+├── cilium-lb/
+│   ├── kustomization.yaml
+│   ├── ks.yaml                   # Flux Kustomization "cilium-lb", dependsOn cilium, sops decryption
+│   └── app/
+│       ├── pool.sops.yaml        # CiliumLoadBalancerIPPool "lan"; spec (the LAN bounds) encrypted
+│       └── l2-policy.yaml        # CiliumL2AnnouncementPolicy "lan", workers only
+└── tailscale/
     ├── kustomization.yaml
-    ├── ks.yaml                   # Flux Kustomization "cilium-lb", dependsOn cilium, sops decryption
+    ├── ks.yaml                   # Flux Kustomization "tailscale", sops decryption
     └── app/
-        ├── pool.sops.yaml        # CiliumLoadBalancerIPPool "lan"; spec (the LAN bounds) encrypted
-        └── l2-policy.yaml        # CiliumL2AnnouncementPolicy "lan", workers only
+        ├── namespace.yaml        # PodSecurity "privileged" — NET_ADMIN + a privileged sysctl init
+        ├── rbac.yaml             # SA + Role on the tailscale-state Secret
+        ├── secret.sops.yaml      # tailscale-auth: TS_AUTHKEY (OAuth client secret)
+        └── deployment.yaml       # one replica, Recreate, hostname homelab
 ```
 
 `flux-system/gotk-sync.yaml` declares a `GitRepository` for this repo
@@ -175,6 +186,40 @@ Service count nears 50.
 ```bash
 kubectl --context homelab get ciliumloadbalancerippools,ciliuml2announcementpolicies
 kubectl --context homelab -n kube-system get leases | grep cilium-l2announce   # one per announced Service
+```
+
+## Tailscale
+
+`tailscale/` runs the tailnet node `homelab`: a subnet router for the LAN
+prefix and an exit node, as a one-replica Deployment that any worker — NUC VM
+or Pi — can host. It replaced a single LXC on one Proxmox node. Rationale:
+[`docs/design/tailscale-router.md`](../docs/design/tailscale-router.md).
+
+The node key lives in the `tailscale-state` Secret, created by containerboot
+rather than by Flux, so a rescheduled pod is the *same* node and nothing needs
+re-approving. Losing the Secret (deleting the namespace, rebuilding the
+cluster) enrols a fresh `homelab`; delete the stale machine in the console.
+
+The pod authenticates with an OAuth client secret (`auth_keys` scope, tag
+`tag:homelab`, `?ephemeral=false&preauthorized=true` appended — ephemeral is
+the default for these keys and would delete the node when it goes offline) in
+`app/secret.sops.yaml`. The **tailnet policy is not in this repo**: it lives
+in a private repo (deliberately unnamed here) and is applied by Tailscale's
+GitOps action on merge. The router requires from it:
+
+```hujson
+"tagOwners":     { "tag:homelab": ["autogroup:admin"] },
+"autoApprovers": { "routes": { "10.0.0.0/20": ["tag:homelab"] }, "exitNode": ["tag:homelab"] },
+```
+
+plus a grant letting members reach `*` (which includes `autogroup:internet`,
+needed to use the exit node). The tag must exist in the applied policy before
+the OAuth client can carry it.
+
+```bash
+kubectl --context homelab -n tailscale get pods -o wide
+kubectl --context homelab -n tailscale logs deploy/tailscale | tail
+kubectl --context homelab -n tailscale get secret tailscale-state   # exists once enrolled
 ```
 
 ## Adding workloads
