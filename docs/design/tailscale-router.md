@@ -27,15 +27,22 @@ Three constraints shape the design:
 `tailscale-state` Secret (created by containerboot, not in git), so the
 replacement pod *is* `homelab`: approvals, MagicDNS name and clients' exit-node
 selection survive. Tolerations of 30 s for `not-ready`/`unreachable` make a
-dead node a ~1 min gap instead of 5; a Deployment (unlike a StatefulSet)
-replaces a Terminating pod at once. Two replicas with Tailscale's native HA
-would fail the route over in ~15 s but give two identities, and exit-node
-choice does not fail over on clients.
+dead node a ~90 s gap instead of ~5½ min (measured with the node's NIC
+unplugged: `Ready=Unknown` at +56 s, evicted at +87 s, replacement serving at
++93 s); a Deployment (unlike a StatefulSet) replaces a Terminating pod at
+once. A plain node reboot never reaches eviction — a Talos VM is back inside
+the 40 s grace period and the pod restarts in place. Two replicas with
+Tailscale's native HA would fail the route over in ~15 s but give two
+identities, and exit-node choice does not fail over on clients.
 
 **Forwarding via a privileged init container**, not kubelet
 `allowed-unsafe-sysctls`: net sysctls are per-netns, so only the pod is
 affected and no machine-config change (the rebuild path) is needed. The
-namespace opts out of `baseline`; nothing else runs in it.
+namespace opts out of `baseline`; nothing else runs in it. Netfilter is
+forced to nftables (`TS_DEBUG_FIREWALL_MODE`): Tailscale's auto-detection
+picks legacy iptables, whose `filter` table the Talos kernel does not expose,
+and the failure is quiet — the node enrols and is approved, but the subnet
+route's SNAT rules never exist.
 
 **OAuth client secret as the auth key** (`auth_keys` scope, `tag:homelab`,
 `?ephemeral=false&preauthorized=true` — ephemeral is the default for these
@@ -76,5 +83,11 @@ entry pins that.
   Flux's: deleting the namespace deletes the identity.
 - A cluster rebuild enrols a new `homelab`; delete the stale machine in the
   console.
+- Kubernetes only reschedules on node failure. A node that stays `Ready` but
+  cannot run containers (seen once: a power-cut VM whose runtime returned
+  `exec format error` for every freshly unpacked image until its EPHEMERAL
+  partition was wiped) leaves the router in CrashLoopBackOff indefinitely.
+  Closing that gap needs the descheduler's `RemovePodsHavingTooManyRestarts`
+  or similar — tracked in `TODO.md`.
 - Resource limits are a first guess (`1` CPU / `256Mi`); benchmark and tune.
 - `:9002/metrics` is exposed for a future observability layer.
