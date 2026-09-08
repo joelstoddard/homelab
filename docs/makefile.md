@@ -1,7 +1,7 @@
 # Makefile chain
 
 The root `Makefile` is a thin orchestrator that delegates to per-layer
-`Makefile`s under `ansible/`, `opentofu/`, `tailscale/`, `kubernetes/`.
+`Makefile`s under `ansible/`, `opentofu/`, `kubernetes/`.
 This doc explains how the chain composes, how variables propagate, and
 which design choices are load-bearing.
 
@@ -22,8 +22,7 @@ make homelab → check-env install ansible opentofu talos kubernetes
 make runs prerequisites left-to-right, and the file declares
 `.NOTPARALLEL:` so the layers never overlap.
 
-Today `tailscale/Makefile` doesn't exist yet; that target short-circuits
-with a notice (see "Subdir absence" below). So `make homelab` runs
+So `make homelab` runs
 `check-env` → `install.sh` → `make -C ansible` (PXE server, NUCs Debian →
 Proxmox) → `make -C opentofu` (LXCs, the 12 k8s VMs booted from the Talos
 ISO) → `make -C ansible apply-pi-cutover` + `apply-talos` (Pis to Talos,
@@ -125,10 +124,11 @@ is a server dry run once Flux is installed and client-side validation
 before. Every `kubectl` call pins `--context $(KUBE_CONTEXT)`; no NetBox
 env is needed. See [`kubernetes/README.md`](../kubernetes/README.md).
 
-### `tailscale/Makefile`
+### No `tailscale/Makefile`
 
-Doesn't exist yet. When it lands, the root `Makefile` will automatically
-include it in the chain — see next section.
+The tailnet policy is applied by GitHub Actions from the private policy repo,
+not by the operator, so it has no place in `make homelab`. The router itself
+is a Flux layer under `kubernetes/`.
 
 ## Subdir absence: skip with a notice
 
@@ -149,9 +149,9 @@ Why: `make homelab` is meant to be the always-runnable command. Adding a
 new layer is a matter of dropping a `Makefile` into the subdir — no edit
 to the root needed. The chain auto-extends.
 
-(`opentofu/` and `kubernetes/` both exist now and keep the guard for
-symmetry with `tailscale/`, the remaining placeholder; `ansible/Makefile`
-always exists and the target unconditionally delegates.)
+(`opentofu/` and `kubernetes/` both exist now and keep the guard so a
+future layer can be added the same way; `ansible/Makefile` always exists
+and the target unconditionally delegates.)
 
 ## Variable passthrough
 
@@ -233,15 +233,14 @@ Ansible).
 
 ## Adding a new layer
 
-Steps to add e.g. `tailscale/`:
+Steps to add e.g. `truenas/`:
 
-1. Create `tailscale/Makefile` with at minimum a `default:` target
+1. Create `truenas/Makefile` with at minimum a `default:` target
    that's idempotent.
 2. Optionally implement `check`, `lint`, `build`, `dev`, `clean` to plug
    into the root forwarders.
-3. Add `tailscale` to the root's `homelab:` chain. Order matters —
-   tailscale probably goes after `opentofu` (so VMs exist to add to the
-   Tailnet) and before `kubernetes` (so pods can speak Tailscale).
+3. Add `truenas` to the root's `homelab:` chain. Order matters — put it
+   where its inputs already exist.
 4. Add a row to the root `Makefile`'s `help:` output.
 5. Add the new target as a `.PHONY` entry at the top.
 

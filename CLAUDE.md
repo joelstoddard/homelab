@@ -33,7 +33,7 @@ make clean                        # Stop containers, remove cache/retry files
 
 All make targets accept: `LIMIT=<host>`, `TAGS=<tag>`, `VERBOSITY=-vvv`, `EXTRA_VARS='key=val'`.
 
-The root `Makefile` delegates to subdirectory Makefiles; `ansible/`, `opentofu/` and `kubernetes/` exist (tailscale is referenced but not yet present — its target skips with a notice).
+The root `Makefile` delegates to subdirectory Makefiles; `ansible/`, `opentofu/` and `kubernetes/` exist. The tailnet policy is not in the chain (applied by CI from a private repo — see the Kubernetes section).
 
 ## Architecture
 
@@ -146,7 +146,14 @@ git only; the seed never re-runs on an existing release. `cilium-lb/`
 (`dependsOn: cilium`) is the LB-IPAM pool + L2 announcement policy; the
 pool's bounds are LAN addresses, so `app/pool.sops.yaml` has its `spec`
 SOPS-encrypted (Flux decrypts any resource with a `sops.mac` field), never
-plaintext. Never
+plaintext. `tailscale/` is the subnet router / exit node `homelab` as a
+one-replica `Recreate` Deployment (node key in the `tailscale-state` Secret,
+so a rescheduled pod is the same node; namespace labelled PodSecurity
+`privileged` for the sysctl init container + `NET_ADMIN`; auth = OAuth
+client secret in `app/secret.sops.yaml`; `TS_ROUTES` is the plaintext LAN
+prefix). The tailnet policy lives in a private repo (not named in this public
+repo), applied by GitOps; this repo documents only the `tag:homelab`
+interface. See `docs/design/tailscale-router.md`. Never
 `kubectl delete kustomization flux-system` — prune would remove Flux itself;
 use `flux uninstall`. Pruning `cilium/` removes the CNI. See
 `kubernetes/README.md`.
