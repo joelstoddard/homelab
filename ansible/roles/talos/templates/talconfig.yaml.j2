@@ -25,11 +25,27 @@ patches:
     cluster:
       proxy:
         disabled: true
+  # Longhorn keeps its replicas in /var/lib/longhorn on EPHEMERAL, and the
+  # CSI plugin's volume mounts must propagate into the kubelet's mount
+  # namespace (rshared) — docs/design/longhorn.md. Applies without a reboot.
+  - |-
+    machine:
+      kubelet:
+        extraMounts:
+          - destination: /var/lib/longhorn
+            type: bind
+            source: /var/lib/longhorn
+            options:
+              - bind
+              - rshared
+              - rw
 
 nodes:
 {% for item in groups['talos'] | default([]) %}
 {%   set is_cp = item in talos_controlplane_hosts %}
 {%   set is_pi = 'pis' in hostvars[item].group_names %}
+{%   set zone_device = hostvars[item].cluster_device | default(none, true) %}
+{%   set zone = (zone_device.name if zone_device else item) | lower %}
   - hostname: {{ item }}
     ipAddress: {{ hostvars[item].ansible_host }}
     controlPlane: {{ is_cp | lower }}
@@ -37,6 +53,10 @@ nodes:
     # Image Factory installer; talhelper appends :{{ talos_version }}. The Pi
     # schematic carries the USB quirk (a UKI cmdline is fixed at build time).
     talosImageURL: factory.talos.dev/installer/{{ talos_pi_schematic_id if is_pi else talos_schematic_id }}
+    # Failure domain for Longhorn replica placement: the physical host. A VM
+    # reports the NUC NetBox places it on (cluster_device); a Pi is its own.
+    nodeLabels:
+      topology.kubernetes.io/zone: {{ zone }}
 {#
       Static addressing from NetBox: the node's identity is its NetBox MAC
       (deviceSelector — immune to kernel/udev interface renames like the
