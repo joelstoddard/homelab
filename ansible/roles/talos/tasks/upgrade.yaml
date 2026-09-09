@@ -85,6 +85,12 @@
   changed_when: true
   when: talos_upgrade_needed | bool and not (talos_upgrade_is_pi | bool)
 
+# Keyed on Pi membership, not on the netboot gate: while
+# talos_pi_netboot_steady_state covers every Pi the two agree. If the gate
+# ever closes (Talos ≥ 1.14 — docs/design/pi-netboot-steady-state.md
+# "Revert"), a Pi boots its disk again and a reboot no longer upgrades it;
+# the verify step below then fails loudly, and Pis move to the upgrade
+# branch.
 - name: Reboot the Pi into the refreshed netboot image — {{ inventory_hostname }}
   ansible.builtin.command:
     cmd: "{{ talos_upgrade_ctl }} reboot --wait --timeout 15m"
@@ -94,7 +100,7 @@
 - name: Wait until the Kubernetes node is Ready and schedulable — {{ inventory_hostname }}
   ansible.builtin.command:
     cmd: >-
-      kubectl --context {{ talos_cluster_name }} get node {{ inventory_hostname | lower }}
+      {{ kubectl_bin }} --context {{ talos_cluster_name }} get node {{ inventory_hostname | lower }}
       -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}/{.spec.unschedulable}'
   register: talos_upgrade_node
   changed_when: false

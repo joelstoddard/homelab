@@ -2,8 +2,9 @@
 # Wipe Talos nodes back to maintenance mode so `make talos` can reinstall
 # them — the rebuild path for version bumps and lost cluster secrets. Not
 # part of `make homelab`, and there is no default target list: this destroys
-# the cluster state on every node you name. See docs/talos-bootstrap.md
-# "Rebuild / bumping versions".
+# the cluster state on every node you name. With Longhorn installed it also
+# destroys the node's replicas (docs/design/longhorn.md). See
+# docs/talos-bootstrap.md "Rebuild / bumping versions".
 #
 #   make apply-reset EXTRA_VARS='{"reset_hosts": ["Zond", "k8s-agent-01"]}'
 #   make apply-reset EXTRA_VARS='{"reset_hosts": "all"}'

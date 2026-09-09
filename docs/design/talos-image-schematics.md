@@ -64,7 +64,7 @@ registration is idempotent:
 
 ```bash
 curl -X POST --data-binary @schematic.yaml https://factory.talos.dev/schematics
-# {"id":"613e1592…"}
+# {"id":"8f18bdac…"}
 ```
 
 The factory builds assets for a `(schematic, version)` pair lazily on first

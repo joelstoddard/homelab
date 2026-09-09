@@ -23,7 +23,8 @@ USB SSD behind an RTL9210 bridge with UAS disabled). 1 GbE throughout.
   Control planes host nothing: Longhorn tolerates no control-plane taint.
 - **Data path `/var/lib/longhorn` on EPHEMERAL.** No repartitioning, no
   extra VM disks, no Pi reinstall. Longhorn's default 30 % reserve leaves
-  ≈50 GiB per VM and ≈325 GiB per Pi — ≈2.7 TiB raw, ≈900 GiB usable.
+  ≈50 GiB per VM and ≈325 GiB per Pi — ≈2.6 TiB available to Longhorn after
+  the reserve, ≈890 GiB at three replicas.
 - **Failure domain = physical host.** The machine config labels every node
   `topology.kubernetes.io/zone` with the NUC NetBox places a VM on
   (`cluster_device`) or the Pi's own name; `replicaZoneSoftAntiAffinity:
@@ -31,7 +32,7 @@ USB SSD behind an RTL9210 bridge with UAS disabled). 1 GbE throughout.
 - **`dataLocality: best-effort`**: one replica on the pod's node when it has
   a disk, so reads are local. Writes are synchronous to all three, and
   Longhorn places on free space, so the other two usually sit on Pis:
-  **write latency is bounded by Pi USB-storage + 1 GbE.** Measured below.
+  **write latency is bounded by Pi USB-storage + 1 GbE.** Not yet measured.
 - `nodeDownPodDeletionPolicy: delete-both-statefulset-and-deployment-pod` so
   a stateful pod on a dead node fails over instead of staying Terminating.
 - UI stays ClusterIP (no auth): `kubectl -n longhorn-system port-forward
@@ -81,26 +82,37 @@ image references between nodes. Guards:
   OSD plus mons/mgr/MDS on an already-overcommitted VM tier. Its extras
   (CephFS, RGW) are not needed — bulk RWX goes to TrueNAS.
 - **Piraeus/LINSTOR.** Same raw-backing reinstall; niche to run alone.
-- **Replicas on VM workers only.** Faster writes, but the Pis' 3.6 TiB is the
-  pool this is for.
+- **Replicas on VM workers only.** Faster writes, but the worker Pis' ≈3.2 TiB
+  of SSD is the pool this is for.
 - **A dedicated disk per VM (`UserVolumeConfig`).** More moving parts
   (OpenTofu + NetBox modelling) for gigabyte-scale volumes.
 
 ## Measurements
 
-<!-- Task 13 fills this in from fio on a VM-attached volume. -->
+fio numbers from a VM-attached volume land here after the post-merge
+verification: 4k random read/write IOPS and mean latency, and the observed
+replica placement.
 
 ## Failure modes
 
-- **Pi-bound write latency**: known, measured above; escape hatch is disk
-  tags + a `longhorn-fast` StorageClass pinned to VM disks.
+- **Pi-bound write latency**: known; measurement pending above; escape hatch
+  is disk tags + a `longhorn-fast` StorageClass pinned to VM disks.
 - **The PXE server is a boot dependency for Pi upgrades** (steady-state
   consequence): a Pi reboot with the operator down loops until it returns.
 - **A Pi reset wipes its replicas.** Longhorn rebuilds from the other two —
-  degraded, not lost. Never reset two storage nodes at once.
+  degraded, not lost. Never reset two storage nodes at once. `make
+  apply-reset` with `"all"` wipes every replica in the cluster — every
+  volume.
 - **Pruning `kubernetes/longhorn/` uninstalls Longhorn — and its volumes.**
   Longhorn's `deleting-confirmation-flag` (default false) refuses the
   uninstall until set, which is the last line of defence; treat the layer
   like `cilium/`.
 - **A version bump ships a single-arch image**: caught by the check above
   before merge, and by the both-arch gate after.
+- **`apply-upgrade` and volume health.** A VM drain blocks on Longhorn's PDBs
+  while the node holds a volume's last healthy replica (fails at the
+  timeout — safe); a Pi reboot drains nothing and its replicas rebuild
+  afterwards. The roll's gate is node Readiness, not volume health: wait for
+  `volumes.longhorn.io` to be `healthy` between storage nodes. A
+  volume-health gate in the roll is a follow-up once rebuild times are
+  measured.

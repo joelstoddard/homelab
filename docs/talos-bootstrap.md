@@ -297,6 +297,10 @@ make -C ansible apply-upgrade EXTRA_VARS='{"upgrade_hosts": ["k8s-agent-01"]}'  
 make -C ansible apply-upgrade EXTRA_VARS='{"upgrade_hosts": "all"}'
 ```
 
+> The Pi netboot asset refresh republishes the shared `uboot.scr`, so every
+> Pi's *next* boot already uses the new build — the canary above proves the
+> reboot path, not the assets.
+
 `playbooks/upgrade.yaml` regenerates the configs, refreshes the Pi netboot
 assets if a Pi is targeted, then per node — VM workers, worker Pis,
 control-plane VMs, `kosmos`, one at a time — pushes the config over the
@@ -307,6 +311,17 @@ changes), and if the node is not yet on `versions.env`'s build: VMs
 disk — [`design/pi-netboot-steady-state.md`](design/pi-netboot-steady-state.md)).
 Each node must be Ready and the cluster healthy before the next. Re-running
 is a no-op. Budget 3–4 min per node.
+
+**With Longhorn installed** (`kubernetes/longhorn/`), a VM's drain blocks on
+Longhorn's instance-manager PodDisruptionBudgets while the node holds a
+volume's last healthy replica — the roll then fails at the 15 m timeout
+rather than proceeding, which is the safe outcome. A Pi reboot drains
+nothing: its replicas go offline and rebuild afterwards. `talosctl health`
+between nodes checks node Readiness, not volume health, so after each Pi
+wait for `kubectl -n longhorn-system get volumes.longhorn.io` to show every
+volume `healthy` before rolling the next storage node — a fleet-wide `"all"`
+run can otherwise leave a volume with a single healthy replica. Prefer small
+`upgrade_hosts` batches once volumes exist.
 
 Multi-minor jumps still go through the rebuild below — Talos tests upgrades
 between adjacent minors only.
@@ -320,6 +335,11 @@ quicker to **reinstall** than to walk forward (for anything smaller, see
 maintenance mode, and nothing in `make homelab` puts an installed node back
 there (`apply-config --insecure` is refused, `pi-cutover` skips Pis without
 SSH). `make -C ansible apply-reset` is the missing step. From the operator:
+
+**With Longhorn installed, `--wipe-mode all` destroys every replica on the
+wiped nodes** — `"reset_hosts": "all"` deletes every volume in the cluster.
+Back up first and reset storage nodes one at a time; see
+[`design/longhorn.md`](design/longhorn.md) "Failure modes".
 
 ```bash
 # 1. versions.env: TALOS_VERSION, KUBERNETES_VERSION (check the Talos
