@@ -316,7 +316,7 @@ is a no-op. Budget 3–4 min per node.
 Longhorn's instance-manager PodDisruptionBudgets while the node holds a
 volume's last healthy replica — the roll then fails at the 15 m timeout
 rather than proceeding, which is the safe outcome. A Pi reboot drains
-nothing: its replicas go offline and rebuild afterwards. The roll now waits,
+nothing: its replicas go offline and rebuild afterwards. The roll waits,
 after each node, for every volume to leave `degraded`/`faulted` (30 min
 budget) before moving on — no manual watching of
 `kubectl -n longhorn-system get volumes.longhorn.io` required. Prefer small
