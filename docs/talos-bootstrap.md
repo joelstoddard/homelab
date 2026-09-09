@@ -316,11 +316,10 @@ is a no-op. Budget 3–4 min per node.
 Longhorn's instance-manager PodDisruptionBudgets while the node holds a
 volume's last healthy replica — the roll then fails at the 15 m timeout
 rather than proceeding, which is the safe outcome. A Pi reboot drains
-nothing: its replicas go offline and rebuild afterwards. `talosctl health`
-between nodes checks node Readiness, not volume health, so after each Pi
-wait for `kubectl -n longhorn-system get volumes.longhorn.io` to show every
-volume `healthy` before rolling the next storage node — a fleet-wide `"all"`
-run can otherwise leave a volume with a single healthy replica. Prefer small
+nothing: its replicas go offline and rebuild afterwards. The roll now waits,
+after each node, for every volume to leave `degraded`/`faulted` (30 min
+budget) before moving on — no manual watching of
+`kubectl -n longhorn-system get volumes.longhorn.io` required. Prefer small
 `upgrade_hosts` batches once volumes exist.
 
 Multi-minor jumps still go through the rebuild below — Talos tests upgrades
@@ -393,3 +392,14 @@ after the wipe (stale OVMF boot entry), recreate that one VM with
   node's config carries it (talhelper writes it from the `talos-vip`
   NetBox IP into `controlPlane.certSANs` in
   `talconfig.yaml`).
+- **A node returns from a hard power-off (OOM kill, power cut) with
+  `exec format error` or other odd container failures.** containerd's
+  content store can hold blobs that were never fsynced; image digests match
+  a healthy node, so `talosctl image remove` + re-pull just reuses the same
+  bad blob. Wipe EPHEMERAL: `talosctl reset --system-labels-to-wipe
+  EPHEMERAL --graceful --reboot` (STATE and the machine config survive; a
+  control-plane node leaves and rejoins etcd). With Longhorn installed, also
+  re-register the node's stale-`diskUUID` Longhorn disk — see
+  [`design/longhorn.md`](design/longhorn.md) "Failure modes" (the
+  validating webhook may need a retry: "spec and status of disks … are
+  being syncing").

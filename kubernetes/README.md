@@ -248,7 +248,9 @@ Consequences:
 - Machine-config side (extensions, kubelet mount, zone labels) lives in
   `versions.env` + `ansible/roles/talos`; changes reach nodes via
   `make -C ansible apply-upgrade`.
-- Two of three replicas normally live on Pis: expect Pi-class write latency.
+- Pods on VMs measured ~2,000 write IOPS at ~4 ms mean with all three
+  replicas remote; pods on Pis ~900 write IOPS at ~8 ms — numbers in
+  [`docs/design/longhorn.md`](../docs/design/longhorn.md).
 
 ```bash
 flux --context homelab get ks longhorn
