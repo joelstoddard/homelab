@@ -36,6 +36,8 @@ help:
 	@echo "  apply-talos	- Bootstrap the Talos cluster (talosctl, local conn)."
 	@echo "  check-reset	- Dry run a Talos node wipe (EXTRA_VARS reset_hosts)."
 	@echo "  apply-reset	- Wipe Talos nodes back to maintenance mode for a reinstall (EXTRA_VARS reset_hosts)."
+	@echo "  check-upgrade	- Dry run an in-place Talos node upgrade (EXTRA_VARS upgrade_hosts)."
+	@echo "  apply-upgrade	- Roll config + installer image onto running Talos nodes, serially (EXTRA_VARS upgrade_hosts)."
 	@echo "  kubeconfig	- Merge the cluster context into this machine's ~/.kube/config (OPERATOR_SSH=user@host)."
 	@echo "  ping     	- Ping hosts."
 	@echo "  clean    	- Clean temporary files."
@@ -133,6 +135,25 @@ check-reset:
 .PHONY: apply-reset
 apply-reset:
 	$(VENV)/bin/ansible-playbook playbooks/reset.yaml \
+		$(if $(VERBOSITY),-$(VERBOSITY)) \
+		$(if $(EXTRA_VARS),--extra-vars='$(EXTRA_VARS)')
+
+# In-place roll of a config change / new installer image onto RUNNING Talos
+# nodes, one at a time (workers, then control plane). The day-2 counterpart
+# of apply-talos: a same-minor versions.env bump or a schematic change goes
+# through here, a multi-minor jump through apply-reset + apply-talos.
+# upgrade_hosts is required — see playbooks/upgrade.yaml and docs/talos-bootstrap.md:
+#   make apply-upgrade EXTRA_VARS='{"upgrade_hosts": ["k8s-agent-01"]}'
+#   make apply-upgrade EXTRA_VARS='{"upgrade_hosts": "all"}'
+.PHONY: check-upgrade
+check-upgrade:
+	$(VENV)/bin/ansible-playbook playbooks/upgrade.yaml --check --diff \
+		$(if $(VERBOSITY),-$(VERBOSITY)) \
+		$(if $(EXTRA_VARS),--extra-vars='$(EXTRA_VARS)')
+
+.PHONY: apply-upgrade
+apply-upgrade:
+	$(VENV)/bin/ansible-playbook playbooks/upgrade.yaml \
 		$(if $(VERBOSITY),-$(VERBOSITY)) \
 		$(if $(EXTRA_VARS),--extra-vars='$(EXTRA_VARS)')
 

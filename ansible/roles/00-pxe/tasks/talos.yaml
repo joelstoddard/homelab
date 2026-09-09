@@ -122,6 +122,9 @@
     path: "{{ role_path }}/files/http/talos/{{ talos_pi_asset_dir }}"
     state: directory
     mode: "0755"
+  # Creating an empty directory is harmless in --check and lets the asset
+  # checks below run instead of failing on a schematic-keyed dir that's new.
+  check_mode: false
   when: talos_pxe_hosts | length > 0
 
 # Image Factory assets are immutable for a given schematic + version (the
