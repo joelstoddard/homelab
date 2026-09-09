@@ -1,0 +1,22 @@
+# Non-default Longhorn values only; the reasoning is docs/design/longhorn.md.
+# Images stay on the chart's multi-arch tags — never pin a digest here, the
+# fleet is amd64 + arm64.
+persistence:
+  # The only StorageClass in the cluster; three replicas on three machines.
+  defaultClass: true
+  defaultClassReplicaCount: 3
+  # Keep one replica on the node the pod runs on when it has a disk: local
+  # reads. Writes still sync to all three.
+  defaultDataLocality: best-effort
+defaultSettings:
+  # Default data path on every worker's EPHEMERAL partition (bind-mounted
+  # into the kubelet by the machine config). Control planes host nothing:
+  # Longhorn tolerates no control-plane taint.
+  defaultDataPath: /var/lib/longhorn
+  defaultReplicaCount: 3
+  # topology.kubernetes.io/zone is the physical host (machine config), so
+  # hard zone anti-affinity = no two replicas on one machine.
+  replicaZoneSoftAntiAffinity: false
+  # A stateful pod on a dead node is force-deleted so it can fail over,
+  # instead of sitting Terminating until the node returns.
+  nodeDownPodDeletionPolicy: delete-both-statefulset-and-deployment-pod
