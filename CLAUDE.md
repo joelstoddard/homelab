@@ -157,9 +157,17 @@ so a rescheduled pod is the same node; namespace labelled PodSecurity
 client secret in `app/secret.sops.yaml`; `TS_ROUTES` is the plaintext LAN
 prefix). The tailnet policy lives in a private repo (not named in this public
 repo), applied by GitOps; this repo documents only the `tag:homelab`
-interface. See `docs/design/tailscale-router.md`. Never
-`kubectl delete kustomization flux-system` — prune would remove Flux itself;
-use `flux uninstall`. Pruning `cilium/` removes the CNI. See
+interface. See `docs/design/tailscale-router.md`. `longhorn/`
+(`dependsOn: cilium`, `wait: true`) is the block storage: HelmRepository +
+HelmRelease 1.12.1 with values in a watched ConfigMap, namespace PSA
+privileged; every worker's `/var/lib/longhorn` on EPHEMERAL, 3 replicas with
+hard zone anti-affinity (`topology.kubernetes.io/zone` = physical host, from
+the machine config), default StorageClass. Talos prerequisites (extensions,
+kubelet mount) are in `versions.env` + the talos role. Pin the chart version
+in the HelmRelease only; re-run the multi-arch image check in
+`docs/design/longhorn.md` before bumping. See `docs/design/longhorn.md`.
+Never `kubectl delete kustomization flux-system` — prune would remove Flux
+itself; use `flux uninstall`. Pruning `cilium/` removes the CNI. See
 `kubernetes/README.md`.
 
 ### Infrastructure Hosts
