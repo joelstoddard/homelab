@@ -14,8 +14,8 @@ setenv serverip {{ pxe_server_ip }}
 # exceeds its file size, so re-check if a Talos bump grows the Image past ~100 MB.
 setenv kernel_addr_r 0x10000000
 setenv ramdisk_addr_r 0x18000000
-wget ${kernel_addr_r} /talos/{{ talos_version }}/vmlinuz-arm64.raw
-wget ${ramdisk_addr_r} /talos/{{ talos_version }}/initramfs-arm64.xz
+wget ${kernel_addr_r} /talos/{{ talos_pi_asset_dir }}/vmlinuz-arm64.raw
+wget ${ramdisk_addr_r} /talos/{{ talos_pi_asset_dir }}/initramfs-arm64.xz
 setenv bootargs "{{ talos_kernel_cmdline }}"
 # ${filesize} is the last wget's size (the initramfs); ${fdt_addr} is the
 # firmware-supplied device tree, set by u-boot's rpi board code.
