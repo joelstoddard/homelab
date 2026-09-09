@@ -1,0 +1,151 @@
+---
+# Roll a machine-config change and/or a new installer image onto RUNNING
+# Talos nodes, one at a time — the day-2 counterpart of talos.yaml, whose
+# apply step only reaches maintenance-mode nodes. Regenerates the configs,
+# pushes each node's config over the authenticated API, then brings the node
+# onto the build in versions.env: VMs via `talosctl upgrade` (drain, A/B
+# image swap, reboot; EPHEMERAL kept), Pis via a reboot into the refreshed
+# netboot assets — they boot the network image, not their disk
+# (docs/design/pi-netboot-steady-state.md). Not part of `make homelab`.
+#
+#   make apply-upgrade EXTRA_VARS='{"upgrade_hosts": ["k8s-agent-01"]}'
+#   make apply-upgrade EXTRA_VARS='{"upgrade_hosts": "all"}'
+#
+# Workers first, control plane last, VMs before Pis within each, all serial,
+# so etcd never loses more than one member and the slow Pi reboots come
+# after the VMs have proven the change. See docs/talos-bootstrap.md
+# "In-place upgrade".
+- name: Resolve the upgrade targets.
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    upgrade_candidates: "{{ groups['talos'] | default([]) if upgrade_hosts == 'all' else upgrade_hosts }}"
+  tasks:
+    - name: Require an explicit target list.
+      ansible.builtin.assert:
+        that: upgrade_hosts is defined
+        fail_msg: >-
+          upgrade_hosts is required — a JSON list of NetBox names, or "all":
+          make apply-upgrade EXTRA_VARS='{"upgrade_hosts": ["k8s-agent-01"]}'
+
+    - name: Refuse an empty list or targets that are not Talos nodes.
+      ansible.builtin.assert:
+        that:
+          - upgrade_candidates | length > 0
+          - upgrade_candidates | difference(groups['talos'] | default([])) | length == 0
+        fail_msg: >-
+          Not Talos nodes (NetBox platform talos):
+          {{ upgrade_candidates | difference(groups['talos'] | default([])) }}
+
+    - name: Register the targets.
+      ansible.builtin.add_host:
+        name: "{{ item }}"
+        groups: upgrade_pending
+      loop: "{{ upgrade_candidates }}"
+      changed_when: false
+
+# Same render as talos.yaml's first play, so the pushed configs carry the
+# current template (mounts, labels, install image). Control-plane
+# membership is derived here (NetBox tag); the roll order below needs it.
+- name: Generate the current machine configs.
+  hosts: localhost
+  connection: local
+  gather_facts: true
+  gather_subset:
+    - "!all"
+    - "!min"
+    - network
+  vars:
+    upgrade_pis: "{{ groups['pis'] | default([]) }}"
+    upgrade_workers: "{{ groups['upgrade_pending'] | difference(talos_controlplane_hosts) }}"
+    upgrade_controlplane: "{{ groups['upgrade_pending'] | intersect(talos_controlplane_hosts) }}"
+  tasks:
+    - name: Render configs (secrets bundle, base configs, per-node patches).
+      ansible.builtin.import_role:
+        name: talos
+        tasks_from: config
+
+    # add_host order is the roll order (order: inventory below). The derived
+    # control-plane list rides along as a hostvar so tasks/health.yaml sees
+    # NetBox's answer, not the role-default fallback — same reason talos_vip
+    # rides along: tasks/upgrade.yaml proxies talosctl upgrade's drain
+    # through the VIP (only a control-plane node serves the kubeconfig the
+    # drain fetches from --endpoints), and per-node plays don't see the
+    # localhost fact NetBox resolved it to.
+    - name: Register the workers in roll order (VMs, then Pis).
+      ansible.builtin.add_host:
+        name: "{{ item }}"
+        groups: upgrade_workers
+        talos_controlplane_hosts: "{{ talos_controlplane_hosts }}"
+        talos_vip: "{{ talos_vip }}"
+      loop: "{{ (upgrade_workers | difference(upgrade_pis) | sort) + (upgrade_workers | intersect(upgrade_pis) | sort) }}"
+      changed_when: false
+
+    - name: Register the control-plane nodes in roll order (VMs, then Pis).
+      ansible.builtin.add_host:
+        name: "{{ item }}"
+        groups: upgrade_controlplane
+        talos_controlplane_hosts: "{{ talos_controlplane_hosts }}"
+        talos_vip: "{{ talos_vip }}"
+      loop: "{{ (upgrade_controlplane | difference(upgrade_pis) | sort) + (upgrade_controlplane | intersect(upgrade_pis) | sort) }}"
+      changed_when: false
+
+    - name: Roll plan.
+      ansible.builtin.debug:
+        msg:
+          - "workers: {{ groups['upgrade_workers'] | default([]) | join(', ') }}"
+          - "control plane: {{ groups['upgrade_controlplane'] | default([]) | join(', ') }}"
+
+# The PXE server re-renders the Debian preseeds it owns, which need each
+# NUC's SOPS root_password — same loader play as pxe.yaml / reset.yaml.
+- name: Load per-host SOPS vars onto each PXE target.
+  hosts: pxe
+  gather_facts: false
+  connection: local
+  tasks:
+    - name: Load SOPS-encrypted host vars (lowercase filename)
+      community.sops.load_vars:
+        file: "{{ host_vars_file }}"
+      vars:
+        host_vars_file: "{{ inventory_dir }}/host_vars/{{ inventory_hostname | lower }}.sops.yaml"
+      when: host_vars_file is file
+      no_log: true
+
+# The Pis boot the netboot image, so refreshing the staged kernel/initramfs
+# for the current schematic IS their upgrade; the reboot in tasks/upgrade.yaml
+# picks it up. Gate unchanged (steady state). Skipped when no Pi is targeted.
+- name: Refresh the Pi netboot assets.
+  hosts: localhost
+  connection: local
+  gather_facts: true
+  force_handlers: true
+  tasks:
+    - name: Run the PXE role at the steady-state gate.
+      ansible.builtin.include_role:
+        name: 00-pxe
+      when: groups['upgrade_pending'] | intersect(groups['pis'] | default([])) | length > 0
+
+- name: Roll the workers, one at a time.
+  hosts: upgrade_workers
+  connection: local
+  gather_facts: false
+  serial: 1
+  order: inventory
+  tasks:
+    - name: Upgrade this node.
+      ansible.builtin.import_role:
+        name: talos
+        tasks_from: upgrade
+
+- name: Roll the control plane, one at a time.
+  hosts: upgrade_controlplane
+  connection: local
+  gather_facts: false
+  serial: 1
+  order: inventory
+  tasks:
+    - name: Upgrade this node.
+      ansible.builtin.import_role:
+        name: talos
+        tasks_from: upgrade

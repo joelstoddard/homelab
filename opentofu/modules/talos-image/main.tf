@@ -14,9 +14,10 @@ resource "proxmox_download_file" "talos_iso" {
   file_name    = local.iso_file_name
   overwrite    = false
 
-  # A version bump replaces this resource (url + file_name force it). Fetch
-  # the new ISO and re-point the VMs' CD-ROM before the old one — still
-  # mounted by running VMs — is deleted. Names are version-keyed, no clash.
+  # A version or schematic bump replaces this resource (url + file_name
+  # force it). Fetch the new ISO and re-point the VMs' CD-ROM before the
+  # old one — still mounted by running VMs — is deleted. Names carry the
+  # version and schematic, no clash.
   lifecycle {
     create_before_destroy = true
   }

@@ -1,0 +1,21 @@
+# Longhorn: replicated block storage across every worker (docs/design/longhorn.md).
+# dependsOn cilium (wait: true there) so the webhooks and DaemonSets get pod
+# networking on their first reconcile; wait: true here so a later layer can
+# `dependsOn: longhorn` and know the default StorageClass exists. 15 m: the
+# engine image and instance managers take a while to settle on the Pis.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: longhorn
+  namespace: flux-system
+spec:
+  interval: 10m0s
+  path: ./kubernetes/longhorn/app
+  prune: true
+  wait: true
+  timeout: 15m0s
+  dependsOn:
+    - name: cilium
+  sourceRef:
+    kind: GitRepository
+    name: flux-system

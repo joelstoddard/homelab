@@ -45,6 +45,7 @@ Two stages, two playbook entry points:
 - **`playbooks/main.yaml`** — runs against PXE-installed hosts via the `02-preflights` orchestrator. Targets `hosts: all` over SSH with `become`; the orchestrator dispatches per-OS work via `'<group>' in group_names` guards (currently `proxmox`; TrueNAS later).
 - **`playbooks/talos.yaml`** — bootstraps the Kubernetes cluster. Targets `hosts: talos` but runs `connection: local`, driving nodes over the Talos API (`talosctl`) because Talos nodes have no SSH or Python. This is why the Talos lifecycle is its own play rather than a branch of `02-preflights`. Dispatches the `talos` library's `config`/`apply`/`bootstrap`/`kubeconfig` tasks.
 - **`playbooks/reset.yaml`** — wipes named Talos nodes back to maintenance mode (`talosctl reset --wipe-mode all`, working the Pi netboot gate around it) so `talos.yaml` can reinstall them. The rebuild path for version bumps; deliberately not part of `make homelab`. See `docs/talos-bootstrap.md` "Rebuild / bumping versions".
+- **`playbooks/upgrade.yaml`** — rolls a config change / new installer image onto RUNNING Talos nodes one at a time (authenticated apply-config; talosctl upgrade for VMs, reboot into refreshed netboot assets for Pis; health between nodes). `make -C ansible apply-upgrade EXTRA_VARS='{"upgrade_hosts": [...]|"all"}'`. The day-2 path; `reset.yaml` is for multi-minor jumps.
 
 Roles split into two layers:
 
@@ -99,6 +100,9 @@ Current implementation:
   identity lives in `roles/talos/defaults/main.yaml` (fallbacks for the
   NetBox-derived values), not in a group_vars file, because the `localhost`
   config/bootstrap plays are not members of the `talos` inventory group.
+  Nodes carry `topology.kubernetes.io/zone` = physical host (NUC from NetBox
+  for VMs, the Pi itself) and a kubelet bind mount of `/var/lib/longhorn` —
+  Longhorn's prerequisites (`docs/design/longhorn.md`).
   Invoked from `playbooks/talos.yaml`. See the role README and
   `docs/talos-bootstrap.md`.
 - `04-external`, `05-extras`, `06-tests` — Planned post-cluster
@@ -153,9 +157,17 @@ so a rescheduled pod is the same node; namespace labelled PodSecurity
 client secret in `app/secret.sops.yaml`; `TS_ROUTES` is the plaintext LAN
 prefix). The tailnet policy lives in a private repo (not named in this public
 repo), applied by GitOps; this repo documents only the `tag:homelab`
-interface. See `docs/design/tailscale-router.md`. Never
-`kubectl delete kustomization flux-system` — prune would remove Flux itself;
-use `flux uninstall`. Pruning `cilium/` removes the CNI. See
+interface. See `docs/design/tailscale-router.md`. `longhorn/`
+(`dependsOn: cilium`, `wait: true`) is the block storage: HelmRepository +
+HelmRelease 1.12.1 with values in a watched ConfigMap, namespace PSA
+privileged; every worker's `/var/lib/longhorn` on EPHEMERAL, 3 replicas with
+hard zone anti-affinity (`topology.kubernetes.io/zone` = physical host, from
+the machine config), default StorageClass. Talos prerequisites (extensions,
+kubelet mount) are in `versions.env` + the talos role. Pin the chart version
+in the HelmRelease only; re-run the multi-arch image check in
+`docs/design/longhorn.md` before bumping. See `docs/design/longhorn.md`.
+Never `kubectl delete kustomization flux-system` — prune would remove Flux
+itself; use `flux uninstall`. Pruning `cilium/` removes the CNI. See
 `kubernetes/README.md`.
 
 ### Infrastructure Hosts
@@ -191,4 +203,8 @@ fallback schema for environments without NetBox.
   role defaults (file lookup via `role_path`), `opentofu/Makefile` (sourced →
   `TF_VAR_talos_version`), `kubernetes/Makefile` (sourced → lint drift guards
   against `gotk-components.yaml` and the Cilium `OCIRepository` tag), and
-  `install.sh` (sourced). Bump it there only.
+  `install.sh` (sourced). Bump it there only. The two Image Factory schematic
+  IDs (`TALOS_SCHEMATIC_ID`, `TALOS_PI_SCHEMATIC_ID`) live there too, read by
+  the `talos` and `00-pxe` roles and exported to OpenTofu as
+  `TF_VAR_talos_schematic_id`; both schematics carry Longhorn's
+  `iscsi-tools` + `util-linux-tools` extensions.

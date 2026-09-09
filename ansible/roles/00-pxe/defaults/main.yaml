@@ -86,8 +86,16 @@ ipxe_sha256: ""  # leave empty to skip checksum; set to pinned hash for producti
 talos_version: >-
   {{ lookup('file', role_path ~ '/../../../versions.env')
      | regex_findall('^TALOS_VERSION=(.+)$', multiline=True) | first | trim }}
-# Image Factory schematic for the arm64 Pis (rpi overlay + USB quirk).
-talos_pi_schematic_id: "ee122db4a1f0297d03367f978772ffd3c8319060bf3d38ee57990d6b90a00a25"
+# Image Factory schematic for the arm64 Pis (rpi overlay + USB quirk + the
+# Longhorn extensions). Single-sourced from versions.env — the talos role
+# reads the same line for the installer.
+talos_pi_schematic_id: >-
+  {{ lookup('file', role_path ~ '/../../../versions.env')
+     | regex_findall('^TALOS_PI_SCHEMATIC_ID=(.+)$', multiline=True) | first | trim }}
+# Staged assets are keyed on version AND schematic: the factory builds a
+# different kernel/initramfs per schematic at the same version (extensions
+# ride in the initramfs), and the download below is gated on presence.
+talos_pi_asset_dir: "{{ talos_version }}-{{ talos_pi_schematic_id[:8] }}"
 talos_arm64_kernel_url: >-
   https://factory.talos.dev/image/{{ talos_pi_schematic_id }}/{{ talos_version }}/kernel-arm64
 talos_arm64_initramfs_url: >-

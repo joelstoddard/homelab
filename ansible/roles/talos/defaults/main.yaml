@@ -84,14 +84,22 @@ talos_install_disk: "/dev/sda"
 
 # --- Image Factory schematics -------------------------------------------
 # From Talos 1.14 installers come only from the Image Factory, so every
-# node's talosImageURL names a schematic. See docs/design/talos-image-schematics.md.
-#
-# x86 VMs: `customization: {}` — the same build as the metal-amd64.iso that
-# opentofu boots them from.
-talos_schematic_id: "376567988ad370138ad8b2698212367b8edcb69b5fd68c80be1f2ec7d603b4ba"
-# arm64 Pis: rpi overlay + `usb-storage.quirks=0bda:9210:u` baked into the
-# UKI cmdline. MUST match 00-pxe's talos_pi_schematic_id (the netboot kernel).
-talos_pi_schematic_id: "ee122db4a1f0297d03367f978772ffd3c8319060bf3d38ee57990d6b90a00a25"
+# node's talosImageURL names a schematic. Single-sourced from versions.env
+# like the versions above: 00-pxe (Pi netboot assets) and opentofu (VM boot
+# ISO) read the same two IDs, so the build a node boots and the build it
+# installs cannot drift. See docs/design/talos-image-schematics.md.
+talos_schematic_id: >-
+  {{ lookup('file', role_path ~ '/../../../versions.env')
+     | regex_findall('^TALOS_SCHEMATIC_ID=(.+)$', multiline=True) | first | trim }}
+talos_pi_schematic_id: >-
+  {{ lookup('file', role_path ~ '/../../../versions.env')
+     | regex_findall('^TALOS_PI_SCHEMATIC_ID=(.+)$', multiline=True) | first | trim }}
+# System extensions both schematics carry — Longhorn's prerequisites
+# (docs/design/longhorn.md). tasks/upgrade.yaml verifies them on every node
+# it rolls.
+talos_system_extensions:
+  - iscsi-tools
+  - util-linux-tools
 
 # --- Local build/output paths -------------------------------------------
 # talhelper inputs + outputs land here on the operator workstation.
@@ -128,3 +136,4 @@ talhelper_bin: "talhelper"
 talosctl_bin: "talosctl"
 sops_bin: "sops"
 helm_bin: "helm"
+kubectl_bin: "kubectl"

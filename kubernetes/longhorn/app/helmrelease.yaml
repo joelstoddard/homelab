@@ -1,0 +1,28 @@
+# The chart version is pinned here only — nothing else consumes it (Cilium's
+# is in versions.env because the talos role seeds it too). A bump is a
+# Longhorn upgrade: read the release notes and re-run the multi-arch image
+# check in docs/design/longhorn.md first.
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: longhorn
+spec:
+  interval: 1h0m0s
+  releaseName: longhorn
+  timeout: 15m0s
+  chart:
+    spec:
+      chart: longhorn
+      version: "1.12.1"
+      sourceRef:
+        kind: HelmRepository
+        name: longhorn
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    remediation:
+      retries: 3
+  valuesFrom:
+    - kind: ConfigMap
+      name: longhorn-values

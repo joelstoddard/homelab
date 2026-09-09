@@ -45,8 +45,10 @@ netboots the same kernel, and boots the config it just installed.
   control-plane members, so quorum survives.
 - **The running OS is the netboot image, not the disk.** `versions.env`
   drives both, so they agree; `talosctl upgrade` would update the disk but
-  not what the Pi boots. Do not upgrade the Pis in place while this is in
-  effect — bump `versions.env` and `make apply-pxe` instead.
+  not what the Pi boots. Do not `talosctl upgrade` the Pis while this is in
+  effect — bump `versions.env` (or a schematic ID) and
+  `make -C ansible apply-upgrade`, which refreshes the netboot assets and
+  reboots each Pi into them.
 - The 12 VMs are unaffected (they boot from their virtio disk).
 
 ### Rejected

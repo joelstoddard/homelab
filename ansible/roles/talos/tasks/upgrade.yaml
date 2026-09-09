@@ -1,0 +1,130 @@
+---
+# Bring ONE running node onto the current config and build. Invoked per node
+# from playbooks/upgrade.yaml (serial: 1, connection: local); Talos API only.
+#
+# 1. apply-config (authenticated, mode auto): kubelet mounts, node labels,
+#    install image — none needs a reboot; if a future change does, Talos
+#    reboots and the Ready wait below covers it. A dry run first, so an
+#    unchanged node reports ok rather than changed — talosctl writes that
+#    summary to stderr, so the gate below reads both streams.
+# 2. The target build is talos_version on this node's schematic. The factory
+#    records the schematic as an ExtensionStatus named `schematic`, so one
+#    listing tells us both the schematic and the extensions — parsed from
+#    `get extensions -o yaml`'s multi-document output (its jsonpath form
+#    puts each field on its own line, so it can't be matched as `name=version`).
+# 3. VM: `talosctl upgrade` — Talos 1.13's lifecycle upgrade drains the node,
+#    swaps the A/B image, reboots, keeps EPHEMERAL (--preserve is legacy-only).
+#    Pi: `talosctl reboot` — it boots the netboot image the 00-pxe role
+#    refreshed earlier in the play; `upgrade` would rewrite a disk it never
+#    boots (docs/design/pi-netboot-steady-state.md).
+# 4. Node Ready + schedulable, then the whole cluster healthy, before the
+#    next node.
+#
+# Calls go straight to the node (--endpoints = itself), except the upgrade
+# call itself: talosctl's --drain fetches a kubeconfig from --endpoints, and
+# only control-plane nodes serve one, so a worker upgrading itself would
+# fail the drain — that call proxies through the control-plane VIP instead.
+
+- name: Set the target build for {{ inventory_hostname }}
+  ansible.builtin.set_fact:
+    talos_upgrade_is_pi: "{{ 'pis' in group_names }}"
+    talos_upgrade_schematic: "{{ talos_pi_schematic_id if 'pis' in group_names else talos_schematic_id }}"
+    talos_upgrade_config: "{{ talos_clusterconfig_dir }}/{{ talos_cluster_name }}-{{ inventory_hostname }}.yaml"
+    talos_upgrade_ctl: >-
+      {{ talosctl_bin }} --talosconfig {{ talos_talosconfig }}
+      --nodes {{ ansible_host }} --endpoints {{ ansible_host }}
+
+- name: Diff the rendered config against {{ inventory_hostname }}
+  ansible.builtin.command:
+    cmd: "{{ talos_upgrade_ctl }} apply-config --dry-run --file {{ talos_upgrade_config }}"
+  register: talos_upgrade_diff
+  changed_when: false
+  check_mode: false
+
+- name: Push the config to {{ inventory_hostname }}
+  ansible.builtin.command:
+    cmd: "{{ talos_upgrade_ctl }} apply-config --file {{ talos_upgrade_config }}"
+  changed_when: true
+  when: "'No changes' not in (talos_upgrade_diff.stdout ~ talos_upgrade_diff.stderr)"
+
+- name: Read the running extensions of {{ inventory_hostname }}
+  ansible.builtin.command:
+    cmd: "{{ talos_upgrade_ctl }} get extensions -o yaml"
+  register: talos_upgrade_extensions
+  changed_when: false
+  check_mode: false
+
+- name: Read the running Talos version of {{ inventory_hostname }}
+  ansible.builtin.command:
+    cmd: "{{ talos_upgrade_ctl }} version"
+  register: talos_upgrade_version
+  changed_when: false
+  check_mode: false
+
+# The factory records the schematic as an ExtensionStatus named `schematic`
+# whose version is the schematic ID. talosctl's jsonpath prints every field
+# on its own line, so parse the multi-document YAML instead.
+- name: Decide whether the new build is needed — {{ inventory_hostname }}
+  ansible.builtin.set_fact:
+    talos_upgrade_needed: >-
+      {{ not ((talos_upgrade_version.stdout | regex_findall('Tag:\s+(\S+)') | last) == talos_version
+              and talos_upgrade_running_schematic == talos_upgrade_schematic) }}
+  vars:
+    talos_upgrade_running_schematic: >-
+      {{ talos_upgrade_extensions.stdout | from_yaml_all | list
+         | selectattr('spec.metadata.name', 'eq', 'schematic')
+         | map(attribute='spec.metadata.version') | first | default('') }}
+
+- name: Upgrade the VM in place — {{ inventory_hostname }}
+  ansible.builtin.command:
+    cmd: >-
+      {{ talosctl_bin }} --talosconfig {{ talos_talosconfig }}
+      --nodes {{ ansible_host }} --endpoints {{ talos_vip }}
+      upgrade --image factory.talos.dev/installer/{{ talos_upgrade_schematic }}:{{ talos_version }}
+      --wait --timeout 15m
+  changed_when: true
+  when: talos_upgrade_needed | bool and not (talos_upgrade_is_pi | bool)
+
+# Keyed on Pi membership, not on the netboot gate: while
+# talos_pi_netboot_steady_state covers every Pi the two agree. If the gate
+# ever closes (Talos ≥ 1.14 — docs/design/pi-netboot-steady-state.md
+# "Revert"), a Pi boots its disk again and a reboot no longer upgrades it;
+# the verify step below then fails loudly, and Pis move to the upgrade
+# branch.
+- name: Reboot the Pi into the refreshed netboot image — {{ inventory_hostname }}
+  ansible.builtin.command:
+    cmd: "{{ talos_upgrade_ctl }} reboot --wait --timeout 15m"
+  changed_when: true
+  when: talos_upgrade_needed | bool and talos_upgrade_is_pi | bool
+
+- name: Wait until the Kubernetes node is Ready and schedulable — {{ inventory_hostname }}
+  ansible.builtin.command:
+    cmd: >-
+      {{ kubectl_bin }} --context {{ talos_cluster_name }} get node {{ inventory_hostname | lower }}
+      -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}/{.spec.unschedulable}'
+  register: talos_upgrade_node
+  changed_when: false
+  retries: 60
+  delay: 10
+  until: talos_upgrade_node.stdout == 'True/'
+  when: not ansible_check_mode
+
+- name: Verify the build now running on {{ inventory_hostname }}
+  ansible.builtin.command:
+    cmd: "{{ talos_upgrade_ctl }} get extensions -o yaml"
+  register: talos_upgrade_extensions_after
+  changed_when: false
+  # Parsed inline: a task var holding this list would round-trip through a
+  # string (the documents carry datetimes) and reach the check as text.
+  failed_when: >-
+    (talos_upgrade_extensions_after.stdout | from_yaml_all | list
+       | selectattr('spec.metadata.name', 'eq', 'schematic')
+       | map(attribute='spec.metadata.version') | first | default('')) != talos_upgrade_schematic
+    or (talos_system_extensions
+        | difference(talos_upgrade_extensions_after.stdout | from_yaml_all | list
+                     | map(attribute='spec.metadata.name') | list)
+        | length > 0)
+  when: not ansible_check_mode
+
+- name: Wait for the whole cluster to be healthy before the next node.
+  ansible.builtin.import_tasks: health.yaml

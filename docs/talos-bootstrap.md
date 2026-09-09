@@ -34,9 +34,12 @@ reads that file:
 | --- | --- |
 | `ansible/roles/talos/defaults` | `lookup('file', …)` via `role_path` (Talos, Kubernetes, and the Cilium chart it seeds) |
 | `ansible/roles/00-pxe/defaults` | `lookup('file', …)` via `role_path` |
-| `opentofu/` | `Makefile` sources it → `TF_VAR_talos_version` |
+| `opentofu/` | `Makefile` sources it → `TF_VAR_talos_version`, `TF_VAR_talos_schematic_id` |
 | `kubernetes/` | `Makefile` sources it → `FLUX_VERSION` / `CILIUM_VERSION` drift guards in `lint` |
 | `install.sh` | sources it → `talosctl`, `kubectl`, `flux` + `talhelper` versions |
+
+The two Image Factory schematic IDs live there too (`TALOS_SCHEMATIC_ID`,
+`TALOS_PI_SCHEMATIC_ID`).
 
 Bumping a version changes nothing on running nodes — see
 [Rebuild / bumping versions](#rebuild--bumping-versions).
@@ -126,8 +129,8 @@ is a worker. All Pis boot from a USB→NVMe SSD (Prerequisite 4), so etcd on
 
    The netbooted kernel/initramfs and the on-disk installer must be the same
    Image Factory build: `talos_pi_schematic_id` (sbc-raspberrypi overlay +
-   the USB quirk) is set identically in `roles/00-pxe/defaults` and
-   `roles/talos/defaults`. The x86 VMs install from a schematic too
+   the USB quirk) is read by both roles from `versions.env`. The x86 VMs
+   install from a schematic too
    (`talos_schematic_id`) — from Talos 1.14 installers come only through
    the Image Factory.
 
@@ -284,15 +287,59 @@ them with its digest-suffixed chart version); LoadBalancer pool and workloads
 follow as further layers. Part of `make homelab`; see the
 [`kubernetes/README.md`](../kubernetes/README.md).
 
+## In-place upgrade / day-2 config
+
+Config changes and same-minor image changes (a patch bump, a schematic
+change such as new system extensions) do not need a reinstall:
+
+```bash
+make -C ansible apply-upgrade EXTRA_VARS='{"upgrade_hosts": ["k8s-agent-01"]}'   # canary
+make -C ansible apply-upgrade EXTRA_VARS='{"upgrade_hosts": "all"}'
+```
+
+> The Pi netboot asset refresh republishes the shared `uboot.scr`, so every
+> Pi's *next* boot already uses the new build — the canary above proves the
+> reboot path, not the assets.
+
+`playbooks/upgrade.yaml` regenerates the configs, refreshes the Pi netboot
+assets if a Pi is targeted, then per node — VM workers, worker Pis,
+control-plane VMs, `kosmos`, one at a time — pushes the config over the
+authenticated API (`apply-config`, no reboot for kubelet/label/install-image
+changes), and if the node is not yet on `versions.env`'s build: VMs
+`talosctl upgrade` (drain, A/B image swap, reboot, EPHEMERAL kept), Pis
+`talosctl reboot` into the refreshed netboot image (they never boot their
+disk — [`design/pi-netboot-steady-state.md`](design/pi-netboot-steady-state.md)).
+Each node must be Ready and the cluster healthy before the next. Re-running
+is a no-op. Budget 3–4 min per node.
+
+**With Longhorn installed** (`kubernetes/longhorn/`), a VM's drain blocks on
+Longhorn's instance-manager PodDisruptionBudgets while the node holds a
+volume's last healthy replica — the roll then fails at the 15 m timeout
+rather than proceeding, which is the safe outcome. A Pi reboot drains
+nothing: its replicas go offline and rebuild afterwards. `talosctl health`
+between nodes checks node Readiness, not volume health, so after each Pi
+wait for `kubectl -n longhorn-system get volumes.longhorn.io` to show every
+volume `healthy` before rolling the next storage node — a fleet-wide `"all"`
+run can otherwise leave a volume with a single healthy replica. Prefer small
+`upgrade_hosts` batches once volumes exist.
+
+Multi-minor jumps still go through the rebuild below — Talos tests upgrades
+between adjacent minors only.
+
 ## Rebuild / bumping versions
 
 Talos only tests upgrades between adjacent minors and Kubernetes moves one
 minor at a time, so a cluster that has fallen several releases behind is
-quicker to **reinstall** than to walk forward — and while it carries no
-workloads, that costs nothing. The pipeline reinstalls a node only from
+quicker to **reinstall** than to walk forward (for anything smaller, see
+"In-place upgrade" above). The pipeline reinstalls a node only from
 maintenance mode, and nothing in `make homelab` puts an installed node back
 there (`apply-config --insecure` is refused, `pi-cutover` skips Pis without
 SSH). `make -C ansible apply-reset` is the missing step. From the operator:
+
+**With Longhorn installed, `--wipe-mode all` destroys every replica on the
+wiped nodes** — `"reset_hosts": "all"` deletes every volume in the cluster.
+Back up first and reset storage nodes one at a time; see
+[`design/longhorn.md`](design/longhorn.md) "Failure modes".
 
 ```bash
 # 1. versions.env: TALOS_VERSION, KUBERNETES_VERSION (check the Talos
