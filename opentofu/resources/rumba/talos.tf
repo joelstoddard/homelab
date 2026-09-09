@@ -10,11 +10,17 @@ variable "talos_version" {
   type        = string
 }
 
+variable "talos_schematic_id" {
+  description = "Talos Image Factory schematic ID for the boot ISO. Injected from versions.env by the Makefile."
+  type        = string
+}
+
 module "talos_image" {
-  source        = "../../modules/talos-image"
-  node_name     = "Rumba"
-  datastore_id  = "local"
-  talos_version = var.talos_version
+  source             = "../../modules/talos-image"
+  node_name          = "Rumba"
+  datastore_id       = "local"
+  talos_version      = var.talos_version
+  talos_schematic_id = var.talos_schematic_id
 }
 
 output "talos_iso_file_id" {

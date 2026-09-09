@@ -10,8 +10,9 @@ export NETBOX_URL ?= $(NETBOX_API)
 
 ANSIBLE_TOKEN_FILE  := ../ansible/inventory/group_vars/proxmox.sops.yaml
 OPENTOFU_SECRETS    := secrets.sops.yaml
-# Single source of truth for the Talos version (shared with ansible +
-# install.sh). Sourced in run_tofu and exported as TF_VAR_talos_version.
+# Single source of truth for the Talos version and VM schematic (shared with
+# ansible + install.sh). Sourced in run_tofu and exported as
+# TF_VAR_talos_version / TF_VAR_talos_schematic_id.
 VERSIONS_ENV        := $(abspath ../versions.env)
 
 # Resource dirs to iterate. resources/ may not exist yet on scaffold
@@ -100,6 +101,7 @@ define run_tofu
 	export TF_VAR_netbox_url="$$NETBOX_URL"; \
 	export TF_VAR_netbox_token="$$NETBOX_TOKEN"; \
 	export TF_VAR_talos_version="$$(. $(VERSIONS_ENV) && echo $$TALOS_VERSION)"; \
+	export TF_VAR_talos_schematic_id="$$(. $(VERSIONS_ENV) && echo $$TALOS_SCHEMATIC_ID)"; \
 	for d in $(RESOURCE_DIRS); do \
 		echo ">> tofu $(1) in $$d"; \
 		( \
