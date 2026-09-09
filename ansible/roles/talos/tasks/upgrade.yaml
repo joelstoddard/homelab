@@ -17,7 +17,8 @@
 #    Pi: `talosctl reboot` — it boots the netboot image the 00-pxe role
 #    refreshed earlier in the play; `upgrade` would rewrite a disk it never
 #    boots (docs/design/pi-netboot-steady-state.md).
-# 4. Node Ready + schedulable, then the whole cluster healthy, before the
+# 4. Node Ready + schedulable, then (if Longhorn is installed) no volume
+#    left degraded or faulted, then the whole cluster healthy, before the
 #    next node.
 #
 # Calls go straight to the node (--endpoints = itself), except the upgrade
@@ -107,6 +108,30 @@
   retries: 60
   delay: 10
   until: talos_upgrade_node.stdout == 'True/'
+  when: not ansible_check_mode
+
+# With Longhorn installed, a node's return is not the end of the disruption:
+# its replicas rebuild afterwards, and rolling the next storage node while a
+# volume is still degraded could leave that volume with one healthy replica.
+# Wait for every volume to be neither degraded nor faulted. Detached volumes
+# report robustness "unknown", so those are not waited on. A missing CRD
+# (kubectl: "the server doesn't have a resource type") means Longhorn is not
+# installed and is skipped; any other kubectl failure (API blip, expired
+# cert, wrong context) is retried and fails the roll after the retry budget.
+- name: Wait until no Longhorn volume is degraded or faulted — {{ inventory_hostname }}
+  ansible.builtin.command:
+    cmd: >-
+      {{ kubectl_bin }} --context {{ talos_cluster_name }} get volumes.longhorn.io -A
+      -o jsonpath='{range .items[?(@.status.robustness=="degraded")]}{.metadata.name}={.status.robustness}{"\n"}{end}
+      {range .items[?(@.status.robustness=="faulted")]}{.metadata.name}={.status.robustness}{"\n"}{end}'
+  register: talos_upgrade_volumes
+  changed_when: false
+  failed_when: false
+  retries: 90
+  delay: 20
+  until: >-
+    (talos_upgrade_volumes.rc != 0 and "doesn't have a resource type" in talos_upgrade_volumes.stderr)
+    or (talos_upgrade_volumes.rc == 0 and (talos_upgrade_volumes.stdout | trim | length) == 0)
   when: not ansible_check_mode
 
 - name: Verify the build now running on {{ inventory_hostname }}
