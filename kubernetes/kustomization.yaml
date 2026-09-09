@@ -8,3 +8,4 @@ resources:
   - cilium
   - cilium-lb
   - tailscale
+  - longhorn

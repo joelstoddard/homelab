@@ -17,7 +17,8 @@ install that gets Flux running in the first place.
 - [x] Remote access — Tailscale subnet router + exit node `homelab`
       (`tailscale/`; the tailnet policy is a private GitOps repo — see
       "Tailscale")
-- [ ] Storage, ingress, workloads
+- [x] Storage — Longhorn across every worker (longhorn/; see "Longhorn")
+- [ ] Ingress, workloads
 
 ## Layout
 
@@ -43,14 +44,22 @@ kubernetes/
 │   └── app/
 │       ├── pool.sops.yaml        # CiliumLoadBalancerIPPool "lan"; spec (the LAN bounds) encrypted
 │       └── l2-policy.yaml        # CiliumL2AnnouncementPolicy "lan", workers only
-└── tailscale/
+├── tailscale/
+│   ├── kustomization.yaml
+│   ├── ks.yaml                   # Flux Kustomization "tailscale", sops decryption
+│   └── app/
+│       ├── namespace.yaml        # PodSecurity "privileged" — NET_ADMIN + a privileged sysctl init
+│       ├── rbac.yaml             # SA + Role on the tailscale-state Secret
+│       ├── secret.sops.yaml      # tailscale-auth: TS_AUTHKEY (OAuth client secret)
+│       └── deployment.yaml       # one replica, Recreate, hostname homelab
+└── longhorn/
     ├── kustomization.yaml
-    ├── ks.yaml                   # Flux Kustomization "tailscale", sops decryption
+    ├── ks.yaml                   # Flux Kustomization "longhorn", dependsOn cilium, wait
     └── app/
-        ├── namespace.yaml        # PodSecurity "privileged" — NET_ADMIN + a privileged sysctl init
-        ├── rbac.yaml             # SA + Role on the tailscale-state Secret
-        ├── secret.sops.yaml      # tailscale-auth: TS_AUTHKEY (OAuth client secret)
-        └── deployment.yaml       # one replica, Recreate, hostname homelab
+        ├── namespace.yaml        # longhorn-system, PodSecurity "privileged"
+        ├── helmrepository.yaml   # https://charts.longhorn.io
+        ├── helmrelease.yaml      # chart longhorn 1.12.1, values from the ConfigMap
+        └── values.yaml           # 3 replicas, hard zone anti-affinity, default class
 ```
 
 `flux-system/gotk-sync.yaml` declares a `GitRepository` for this repo
@@ -222,6 +231,33 @@ kubectl --context homelab -n tailscale logs deploy/tailscale | tail
 kubectl --context homelab -n tailscale get secret tailscale-state   # exists once enrolled
 ```
 
+## Longhorn
+
+`longhorn/` is the cluster's block storage: every worker — NUC VM and Pi —
+contributes `/var/lib/longhorn` on its EPHEMERAL partition, volumes have
+three replicas on three physical hosts (`topology.kubernetes.io/zone`, set
+by the machine config), and `longhorn` is the default StorageClass.
+Rationale, the Talos prerequisites and the mixed-arch guards:
+[`docs/design/longhorn.md`](../docs/design/longhorn.md).
+
+Consequences:
+
+- **Change Longhorn through git only** — `values.yaml` (watched ConfigMap)
+  or the chart version in `helmrelease.yaml`. Before a bump, run the
+  multi-arch image check in the design doc.
+- Machine-config side (extensions, kubelet mount, zone labels) lives in
+  `versions.env` + `ansible/roles/talos`; changes reach nodes via
+  `make -C ansible apply-upgrade`.
+- Two of three replicas normally live on Pis: expect Pi-class write latency.
+
+```bash
+flux --context homelab get ks longhorn
+kubectl --context homelab -n longhorn-system get nodes.longhorn.io          # 15, all schedulable
+kubectl --context homelab -n longhorn-system get engineimages               # Deployed
+kubectl --context homelab -n longhorn-system get pods -o wide | grep -E 'longhorn-manager|csi-plugin|engine-image'
+kubectl --context homelab -n longhorn-system port-forward svc/longhorn-frontend 8080:80   # UI
+```
+
 ## Adding workloads
 
 1. Create a directory under `kubernetes/` holding a Flux `Kustomization` CR
@@ -295,3 +331,6 @@ merge lands on `main`. `make -C kubernetes` afterwards is still a no-op.
 - **`sops-age` is not in git.** It is created by the Makefile from the
   operator's key; a fresh cluster needs `make -C kubernetes` (or the `secret`
   target) before any encrypted Secret can reconcile.
+- **Pruning longhorn/ uninstalls Longhorn and every volume on it.** Longhorn's
+  deleting-confirmation-flag refuses the uninstall until set — leave it
+  unset. Same class as the cilium/ footgun.

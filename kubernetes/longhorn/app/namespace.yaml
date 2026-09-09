@@ -1,0 +1,11 @@
+# Talos enforces PodSecurity "baseline" on every namespace by default;
+# Longhorn's manager, instance managers and CSI plugin need privileged
+# (hostPath, iSCSI, bidirectional mount propagation). Opt this one out.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: longhorn-system
+  labels:
+    pod-security.kubernetes.io/enforce: privileged
+    pod-security.kubernetes.io/audit: privileged
+    pod-security.kubernetes.io/warn: privileged
