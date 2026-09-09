@@ -1,6 +1,9 @@
 # Non-default Longhorn values only; the reasoning is docs/design/longhorn.md.
 # Images stay on the chart's multi-arch tags — never pin a digest here, the
 # fleet is amd64 + arm64.
+# preUpgradeChecker.jobEnabled stays at the chart default: Longhorn's Flux
+# install guide sets nothing there — only the Argo CD guide disables the
+# hook job.
 persistence:
   # The only StorageClass in the cluster; three replicas on three machines.
   defaultClass: true
