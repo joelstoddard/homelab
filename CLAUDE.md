@@ -166,9 +166,58 @@ the machine config), default StorageClass. Talos prerequisites (extensions,
 kubelet mount) are in `versions.env` + the talos role. Pin the chart version
 in the HelmRelease only; re-run the multi-arch image check in
 `docs/design/longhorn.md` before bumping. See `docs/design/longhorn.md`.
+Ingress and TLS are five more layers — **committed but not yet reconciled**
+(Flux tracks `main`, so none of it has run once), which makes the rest of
+this paragraph the design rather than observed behaviour. Root order is
+`cluster-secrets` → `cert-manager` → `cert-manager-issuers` → `traefik` →
+`traefik-middlewares` (the
+full list is `flux-system`, `cilium`, `cilium-lb`, `cluster-secrets`, `cert-manager`,
+`cert-manager-issuers`, `traefik`, `traefik-middlewares`, `tailscale`,
+`longhorn`).
+`cluster-secrets/` is one SOPS Secret in `flux-system` holding `DOMAIN`,
+`TRAEFIK_LB_IP` and `ACME_EMAIL`; consumers (`cert-manager-issuers`,
+`traefik`, `longhorn`) add `dependsOn: cluster-secrets` +
+`postBuild.substituteFrom`, so the domain and the LAN address reach
+manifests at reconcile time and never appear in git — SOPS could not cover
+the LB IP, which lands in a `configMapGenerator` input. Substitution runs
+*after* decryption, so htpasswd hashes must be bcrypt (`htpasswd -nB`):
+envsubst replaces a classic `$apr1$` hash with an empty string. A `$WORD`
+written in a *comment* inside a substituted layer's `values.yaml` is eaten
+too — a `configMapGenerator` input is embedded verbatim, whereas kustomize
+strips comments from ordinary manifests. `cert-manager/` (chart + CRDs,
+`wait: true`) is split from `cert-manager-issuers/` (the staging/production
+`ClusterIssuer`s + a zone-scoped Cloudflare token) because a CR cannot be
+applied before its CRD is Established; `cert-manager-issuers/app/kustomization.yaml`
+sets no top-level `namespace:`, because kustomize's namespace transformer
+stamps one onto cluster-scoped CRs it does not recognise — `ClusterIssuer`
+is one, `Namespace` is exempt — so any new cluster-scoped CR needs the same
+treatment. `dns01RecursiveNameserversOnly: true` with public resolvers is
+load-bearing, not tuning: Pi-hole answers authoritatively for the wildcarded
+domain and returns NODATA for TXT, so a DNS-01 self-check through cluster
+DNS hangs at `Waiting for DNS-01 challenge propagation` indefinitely.
+`traefik/` is the ingress on a pinned LB IP from the `cilium-lb` pool, `web`
+redirecting to `websecure`, `TLSStore/default` serving `wildcard-tls` — the
+cluster's only certificate, so a new service needs one `IngressRoute` (or a
+plain `Ingress` with the `router.entrypoints` / `router.tls` annotations)
+and nothing else: no `Certificate`, no `tls.secretName`, no DNS record.
+The shared `default-headers` / `basic-auth` middlewares live in the `traefik`
+namespace but in their own layer, `traefik-middlewares/`
+(`dependsOn: traefik`): the `Middleware` CRD ships inside the chart's `crds/`
+directory, so a CR of that kind cannot be in the same apply pass — the same
+reason `cert-manager` and `cert-manager-issuers` are split. Other namespaces
+reference them as `traefik-<name>@kubernetescrd`; an `Ingress` annotation
+naming that qualified form resolves through the `kubernetesIngress` provider
+with nothing else set, while a Traefik CR referencing them by name +
+namespace needs `providers.kubernetesCRD.allowCrossNamespace`.
+The wildcard `Certificate` is on `letsencrypt-staging` until the chain
+verifies on the live cluster; the flip to `letsencrypt-production` is a
+one-line change. LAN DNS is not in this tree: the `address=` wildcard plus a
+`server=/<name>/#` passthrough per publicly-hosted name is
+`opentofu/resources/pihole/`, and a missing passthrough gives a valid
+certificate and a Traefik 404. See `docs/design/ingress-tls.md`.
 Never `kubectl delete kustomization flux-system` — prune would remove Flux
-itself; use `flux uninstall`. Pruning `cilium/` removes the CNI. See
-`kubernetes/README.md`.
+itself; use `flux uninstall`. Pruning `cilium/` removes the CNI; pruning
+`traefik/` takes every route in the cluster. See `kubernetes/README.md`.
 
 ### Infrastructure Hosts
 

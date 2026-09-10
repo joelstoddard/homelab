@@ -18,7 +18,19 @@ install that gets Flux running in the first place.
       (`tailscale/`; the tailnet policy is a private GitOps repo — see
       "Tailscale")
 - [x] Storage — Longhorn across every worker (longhorn/; see "Longhorn")
-- [ ] Ingress, workloads
+- [-] Ingress — Traefik on a pinned LoadBalancer IP, wildcard TLS, shared
+      middlewares (`traefik/` + `traefik-middlewares/` + `cluster-secrets/`).
+      Committed, **not yet reconciled** — see "Cluster secrets" and "Traefik"
+- [-] Certificates — cert-manager, one Let's Encrypt wildcard over DNS-01
+      (`cert-manager/` + `cert-manager-issuers/`). Committed, **not yet
+      reconciled**, and the wildcard is still on the staging issuer — see
+      "cert-manager"
+- [ ] Workloads
+
+`[-]` on those two is literal: Flux's `GitRepository` tracks `main`, so
+nothing on a branch runs, and neither layer has reconciled once. Everything
+written about them here is read off the manifests and the charts. Status
+note: [`docs/design/ingress-tls.md`](../docs/design/ingress-tls.md).
 
 ## Layout
 
@@ -44,6 +56,43 @@ kubernetes/
 │   └── app/
 │       ├── pool.sops.yaml        # CiliumLoadBalancerIPPool "lan"; spec (the LAN bounds) encrypted
 │       └── l2-policy.yaml        # CiliumL2AnnouncementPolicy "lan", workers only
+├── cluster-secrets/
+│   ├── kustomization.yaml
+│   ├── ks.yaml                   # Flux Kustomization "cluster-secrets", sops decryption, wait
+│   └── app/
+│       └── secrets.sops.yaml     # Secret "cluster-secrets" in flux-system: DOMAIN, TRAEFIK_LB_IP, ACME_EMAIL
+├── cert-manager/
+│   ├── kustomization.yaml
+│   ├── ks.yaml                   # Flux Kustomization "cert-manager", dependsOn cilium, wait
+│   └── app/
+│       ├── namespace.yaml        # cert-manager, no PodSecurity label
+│       ├── helmrepository.yaml   # https://charts.jetstack.io
+│       ├── helmrelease.yaml      # chart cert-manager v1.21.1, values from the ConfigMap
+│       └── values.yaml           # crds.enabled; DNS-01 self-checks pinned to public resolvers
+├── cert-manager-issuers/
+│   ├── kustomization.yaml
+│   ├── ks.yaml                   # Flux Kustomization, dependsOn cert-manager + cluster-secrets, postBuild
+│   └── app/
+│       ├── kustomization.yaml    # NO top-level namespace — it would be stamped onto the ClusterIssuers
+│       ├── secret.sops.yaml      # cloudflare-api-token (key api-token) in cert-manager
+│       ├── letsencrypt-staging.yaml     # ClusterIssuer, ACME staging directory
+│       └── letsencrypt-production.yaml  # ClusterIssuer, separate account key
+├── traefik/
+│   ├── kustomization.yaml
+│   ├── ks.yaml                   # Flux Kustomization, dependsOn cert-manager-issuers + cilium-lb + cluster-secrets, postBuild, wait
+│   └── app/
+│       ├── namespace.yaml        # traefik; unprivileged, so no PodSecurity label
+│       ├── helmrepository.yaml   # https://traefik.github.io/charts
+│       ├── helmrelease.yaml      # chart traefik 41.5.0, values from the ConfigMap
+│       ├── values.yaml           # 2 replicas, pinned LB IP, TLSStore/default, dashboard route
+│       ├── certificate.yaml      # wildcard-tls: ${DOMAIN} + *.${DOMAIN}, staging issuer
+│       └── secret-basic-auth.sops.yaml  # basic-auth-users: htpasswd lines, bcrypt only
+├── traefik-middlewares/
+│   ├── kustomization.yaml
+│   ├── ks.yaml                   # Flux Kustomization, dependsOn traefik — the Middleware CRD ships in the chart
+│   └── app/
+│       ├── kustomization.yaml    # namespace traefik (both CRs are namespaced, unlike the ClusterIssuers)
+│       └── middlewares.yaml      # default-headers (HSTS) + basic-auth, shared cross-namespace
 ├── tailscale/
 │   ├── kustomization.yaml
 │   ├── ks.yaml                   # Flux Kustomization "tailscale", sops decryption
@@ -82,6 +131,9 @@ ordering) rather than by growing the root tree — see "Adding workloads".
 | Age private key | `$SOPS_AGE_KEY_FILE` (default `~/.config/sops/age/keys.txt`) | Lands in-cluster as the `sops-age` Secret so kustomize-controller can decrypt `*.sops.yaml`. |
 | `FLUX_VERSION` | repo-root `versions.env` | Pins `gotk-components.yaml`; `make lint` refuses a mismatch. |
 | `CILIUM_VERSION` | repo-root `versions.env` | The chart the `talos` role seeds; `make lint` refuses a `cilium/app/ocirepository.yaml` tag that differs. |
+| `DOMAIN` | `cluster-secrets/app/secrets.sops.yaml` | The root domain every route hangs off. Reaches manifests through Flux `postBuild` substitution, so this public repo never carries it. |
+| `TRAEFIK_LB_IP` | same Secret | Traefik's pinned LoadBalancer address — inside the `cilium-lb` pool, reserved in NetBox. Pi-hole's wildcard points at it, so it must not float. It has to be *substituted* rather than SOPS-encrypted: it lands in a `configMapGenerator` input, which kustomize reads before decryption applies. |
+| `ACME_EMAIL` | same Secret | Let's Encrypt account contact on both `ClusterIssuer`s. |
 
 ## Bootstrap
 
@@ -111,9 +163,10 @@ conflict. Re-running on a healthy cluster is a no-op (seconds); Flux
 re-asserts git on its next reconcile either way.
 
 Other targets: `check` (server dry run once Flux is installed, client-side
-validation before), `lint` (offline: version pins + `kubectl kustomize` of
-the root and every `*/app`), `status` (`flux get all -A` + pods), `generate`
-(see "Upgrading").
+validation before), `lint` (offline: version pins, `kubectl kustomize` of
+the root and every `*/app`, and an `ENC[` sweep over every `*.sops.yaml` —
+see "Secrets"), `status` (`flux get all -A` + pods), `generate` (see
+"Upgrading").
 
 ## Verify
 
@@ -251,14 +304,179 @@ Consequences:
 - Pods on VMs get ~2,000 write IOPS at ~4 ms mean with all three
   replicas remote; pods on Pis ~900 write IOPS at ~8 ms — numbers in
   [`docs/design/longhorn.md`](../docs/design/longhorn.md).
+- **The UI is an `Ingress` behind Traefik** (`longhorn.<domain>`, basic auth
+  — the UI has no authentication of its own and can delete volumes). So
+  `ks.yaml` gained `dependsOn: cluster-secrets` for `${DOMAIN}` — but
+  deliberately *not* `dependsOn: traefik`: an `Ingress` with no controller is
+  inert and starts routing when Traefik appears, whereas making storage wait
+  on ingress would let a broken `traefik` reconcile block Longhorn's.
 
 ```bash
 flux --context homelab get ks longhorn
 kubectl --context homelab -n longhorn-system get nodes.longhorn.io          # 15, all schedulable
 kubectl --context homelab -n longhorn-system get engineimages               # Deployed
 kubectl --context homelab -n longhorn-system get pods -o wide | grep -E 'longhorn-manager|csi-plugin|engine-image'
-kubectl --context homelab -n longhorn-system port-forward svc/longhorn-frontend 8080:80   # UI
+kubectl --context homelab -n longhorn-system get ingress                    # class traefik
+kubectl --context homelab -n longhorn-system port-forward svc/longhorn-frontend 8080:80   # UI, DNS-free fallback
 ```
+
+## Cluster secrets
+
+`cluster-secrets/` is one SOPS-encrypted `Secret` in `flux-system` holding
+`DOMAIN`, `TRAEFIK_LB_IP` and `ACME_EMAIL` (see "Inputs"). Layers that need
+them add:
+
+```yaml
+dependsOn:
+  - name: cluster-secrets
+postBuild:
+  substituteFrom:
+    - kind: Secret
+      name: cluster-secrets
+```
+
+kustomize-controller substitutes `${DOMAIN}` and friends into the built
+manifests *after* SOPS decryption. The Secret lives in `flux-system` because
+`substituteFrom` resolves Secrets in the **consuming** Kustomization's
+namespace, not in the namespace being written to; `wait: true` on the layer
+is what makes a consumer's `dependsOn` mean "the keys are there".
+Consumers today: `cert-manager-issuers`, `traefik`, `longhorn`.
+
+This is why the domain and the LB address are not simply SOPS-encrypted:
+`TRAEFIK_LB_IP` has to reach Traefik's Helm values, which are a
+`configMapGenerator` input that kustomize reads during the build, before
+decryption is in scope. Substitution reaches both, and it keeps every future
+app's ingress reviewable in a diff.
+
+Three hazards come with it — an **undefined** variable resolves to the empty
+string rather than passing through literally (so a typo'd key yields
+`longhorn.` and a Ready Kustomization; assert on the rendered *value*, never
+on the absence of `${`), envsubst destroys a classic `$apr1$` htpasswd hash
+(hashes must be bcrypt), and comments inside a `configMapGenerator` input are
+substituted too (unlike comments in an ordinary manifest, which kustomize
+strips). A `substituteFrom` naming a Secret that does not exist is the one
+case that errors loudly. Full reasoning:
+[`docs/design/ingress-tls.md`](../docs/design/ingress-tls.md).
+
+```bash
+kubectl --context homelab -n flux-system get secret cluster-secrets \
+  -o go-template='{{range $k,$v := .data}}{{$k}}{{"\n"}}{{end}}'   # keys only, never values
+kubectl --context homelab -n longhorn-system get ingress \
+  -o jsonpath='{.items[*].spec.rules[*].host}'    # longhorn.<domain>, not "longhorn."
+```
+
+## cert-manager
+
+Two layers, not one. `cert-manager/` is the jetstack chart and its CRDs
+(`crds.enabled: true` — the chart installs none otherwise), `wait: true`.
+`cert-manager-issuers/` is the `letsencrypt-staging` /
+`letsencrypt-production` `ClusterIssuer`s plus the zone-scoped Cloudflare API
+token. Split because a `ClusterIssuer` cannot be applied until its CRD is
+Established, and `wait: true` on the chart layer is what guarantees that —
+the same reason `cilium` and `cilium-lb` are split.
+
+Two things about this pair are load-bearing:
+
+- **`dns01RecursiveNameserversOnly: true`** with public resolvers in
+  `cert-manager/app/values.yaml`. Pi-hole answers authoritatively for the
+  whole wildcarded domain and returns NODATA for `TXT` rather than
+  forwarding, so a DNS-01 self-check through cluster DNS would never see the
+  record cert-manager just wrote at Cloudflare. Symptom without it: a
+  `Challenge` stuck at `Waiting for DNS-01 challenge propagation`,
+  indefinitely, with nothing wrong at Cloudflare.
+- **`cert-manager-issuers/app/kustomization.yaml` sets no top-level
+  `namespace:`.** kustomize's namespace transformer stamps
+  `metadata.namespace` onto cluster-scoped CRs it does not recognise, and a
+  CRD-defined `ClusterIssuer` is one (`Namespace` is exempt, which is why the
+  sibling layers can set it). `secret.sops.yaml` carries its own namespace
+  instead. Any future cluster-scoped CR needs the same care — check the
+  `kubectl kustomize` output, not just the apply.
+
+The wildcard `Certificate` deliberately references **staging**: Let's Encrypt
+allows 5 duplicate certificates per week and a wildcard is easy to burn
+through while debugging DNS-01. Flipping to production is a one-line change
+to `traefik/app/certificate.yaml`, gated on the staging chain verifying live.
+Rationale, the CAA and token preflight, and the recovery path:
+[`docs/design/ingress-tls.md`](../docs/design/ingress-tls.md).
+
+```bash
+kubectl --context homelab get clusterissuer
+kubectl --context homelab get crd clusterissuers.cert-manager.io \
+  -o jsonpath='{.status.conditions[?(@.type=="Established")].status}'
+kubectl --context homelab -n cert-manager get deploy cert-manager \
+  -o jsonpath='{.spec.template.spec.containers[0].args}' | tr ',' '\n' | grep dns01
+```
+
+## Traefik
+
+`traefik/` is the cluster's ingress: the chart on a pinned LoadBalancer
+address from the `cilium-lb` pool (`lbipam.cilium.io/ips`), `web` redirecting
+permanently to `websecure`, and `TLSStore/default` serving the `wildcard-tls`
+certificate. Two replicas spread over `topology.kubernetes.io/zone` (the
+physical-host label, `ScheduleAnyway`). Rationale and the request path hop by
+hop: [`docs/design/ingress-tls.md`](../docs/design/ingress-tls.md).
+
+**Adding a service needs one route object and nothing else.** No
+`Certificate`, no `tls.secretName`, no DNS record — Pi-hole wildcards the
+whole domain at Traefik's address, and the default TLSStore supplies the
+certificate:
+
+- Hand-written route → an `IngressRoute` with a `Host` rule on `websecure`
+  and `tls: {}`.
+- An upstream chart that only emits `Ingress` (Longhorn) → set
+  `ingressClassName: traefik` plus the
+  `traefik.ingress.kubernetes.io/router.entrypoints: websecure` and
+  `router.tls: "true"` annotations. Both providers are on.
+- Anything without authentication of its own → attach
+  `traefik-basic-auth@kubernetescrd`, and `traefik-default-headers@kubernetescrd`
+  for HSTS. Both `Middleware`s live in the `traefik` namespace and serve every
+  namespace, so there is one copy of each and one basic-auth Secret. An
+  `Ingress` annotation naming that qualified form resolves through the
+  `kubernetesIngress` provider with nothing else enabled; a Traefik CR in
+  another namespace referencing them by name + namespace needs
+  `providers.kubernetesCRD.allowCrossNamespace: true`, which is set.
+- The hostname comes from `${DOMAIN}`, so the layer needs
+  `dependsOn: cluster-secrets` and `postBuild.substituteFrom` (see "Cluster
+  secrets"). htpasswd lines must be **bcrypt** (`htpasswd -nB`).
+
+`stsPreload` is deliberately absent from `default-headers`: `preload` asserts
+a host wants to be on the public HSTS preload list, and these names are
+LAN-only. The dashboard is `ingressRoute.dashboard` in the values, on
+`websecure` with a `Host` rule and both middlewares, rather than a
+hand-written route.
+
+The two `Middleware`s are **a layer of their own**, `traefik-middlewares/`
+(`dependsOn: traefik`). `middlewares.traefik.io` ships inside the chart's
+`crds/` directory, so a `Middleware` cannot be in the same pass that installs
+the chart: kustomize-controller would fail it with `no matches for kind
+"Middleware"` and `wait: true` would hold `traefik` red — the same reason
+`cert-manager` and `cert-manager-issuers` are split. The consequence is
+honest and transient: for the one reconcile between Traefik going Ready and
+that layer applying, the dashboard route and Longhorn's `Ingress` name
+middlewares that do not exist and Traefik refuses those routers. It heals
+itself. The basic-auth `Secret` stays in `traefik/`, in the namespace that
+reads it, which is why the middleware layer needs no `decryption` block.
+
+```bash
+flux --context homelab get ks traefik
+flux --context homelab get ks traefik-middlewares
+kubectl --context homelab -n traefik get svc traefik -o wide      # EXTERNAL-IP = the reserved address
+kubectl --context homelab -n traefik get certificate wildcard-tls
+kubectl --context homelab -n traefik get certificate wildcard-tls \
+  -o jsonpath='{.spec.dnsNames}'    # the domain and *.<domain> — an empty entry or a bare "*." means substitution missed
+kubectl --context homelab get ingressroutes,middlewares,tlsstores -A
+```
+
+An `EXTERNAL-IP` stuck at `<pending>` is an LB-IPAM problem, not a Traefik
+one — `kubectl -n traefik describe svc traefik` names the reason. This is the
+cluster's first `LoadBalancer` Service, so it is also the first live exercise
+of Cilium LB-IPAM and L2 announcement.
+
+LAN DNS is not in this directory: the wildcard and its passthrough
+exceptions are `misc.dnsmasq_lines` on the Pi-hole LXC, written by
+`opentofu/resources/pihole/`. A name that is hosted publicly but missing from
+the passthrough list fails confusingly — valid certificate, Traefik 404. See
+that directory's README and the design doc.
 
 ## Adding workloads
 
@@ -267,7 +485,10 @@ kubectl --context homelab -n longhorn-system port-forward svc/longhorn-frontend 
    `path` pointing at the manifests, `prune: true`, `dependsOn` any layer it
    needs first, `decryption` block if it carries `*.sops.yaml`). LAN values
    that are not secrets but must stay out of the public repo go the
-   `cilium-lb/` way: SOPS-encrypt the resource's `spec`.
+   `cilium-lb/` way: SOPS-encrypt the resource's `spec`. A hostname, or any
+   value that has to land in a `configMapGenerator` input, goes the
+   `cluster-secrets` way instead: `${VAR}` plus `postBuild.substituteFrom`
+   (see "Cluster secrets").
 2. List the directory in `kubernetes/kustomization.yaml`.
 3. `make -C kubernetes lint`, PR, merge. Flux picks it up within the
    `GitRepository` interval (1 m) and reconciles it.
@@ -295,6 +516,13 @@ values are protected. Choose names accordingly.
 Always edit via `sops`. kustomize-controller does not verify the SOPS MAC by
 default, so a hand-edited plaintext field would still deploy — but local
 `sops -d` and `sops updatekeys` break on it.
+
+**`make -C kubernetes lint` fails if any `*.sops.yaml` lacks an `ENC[`
+marker**, naming each one. Nothing else catches a missed `sops` pass: the
+decryptor skips a resource with no SOPS metadata, so a wholly plaintext
+Secret applies cleanly and its layer reports Ready, having published the
+values. This repo's history cannot be revoked, so that offline check is the
+last line of defence rather than a style rule.
 
 ## Upgrading
 
@@ -336,3 +564,10 @@ merge lands on `main`. `make -C kubernetes` afterwards is still a no-op.
 - **Pruning longhorn/ uninstalls Longhorn and every volume on it.** Longhorn's
   deleting-confirmation-flag refuses the uninstall until set — leave it
   unset. Same class as the cilium/ footgun.
+- **Pruning traefik/ takes every route in the cluster with it.** Nothing is
+  reachable by name until it reconciles back. No data is lost, so it is
+  recoverable from git — unlike `cilium/` or `longhorn/` — but every service
+  goes dark at once. Deleting the `cluster-secrets` Secret is quieter and
+  nastier: the consuming layers fail substitution and stop reconciling, so
+  already-applied routes keep serving while nothing in git can reach the
+  cluster any more.

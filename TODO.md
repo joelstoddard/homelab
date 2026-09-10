@@ -59,6 +59,42 @@
     - [ ] Benchmark and tighten the router's resource limits
     - [ ] Scrape `:9002/metrics` once an observability layer exists
     - [ ] Un-encrypt bare `10.0.0.0/20` mentions repo-wide (host addresses/ranges stay encrypted)
+- [-] Ingress + TLS — Traefik on a pinned LB IP, one cert-manager wildcard
+      over Cloudflare DNS-01, Pi-hole wildcard DNS. Five Flux layers
+      (`kubernetes/cluster-secrets/`, `cert-manager/`,
+      `cert-manager-issuers/`, `traefik/`, `traefik-middlewares/`) plus
+      `opentofu/resources/pihole/`
+      — `docs/design/ingress-tls.md`. **Committed, not yet reconciled** —
+      Flux tracks `main`, so none of it has run once; the post-merge
+      bring-up is what closes this entry.
+    - [ ] Flip the wildcard certificate to `letsencrypt-production` once the
+          staging chain is confirmed live — one line in
+          `kubernetes/traefik/app/certificate.yaml`
+    - [ ] Fold three doc edits into that same flip commit, once the feature
+          has actually reconciled: (1) drop the "not yet reconciled" framing
+          from the Status paragraph of `docs/design/ingress-tls.md`, and the
+          `[-]` markers here and in `kubernetes/README.md`'s Status list;
+          (2) drop that paragraph's sentence about the `*.sops.yaml` files
+          being committed as plaintext placeholders — untrue once encrypted;
+          (3) rewrite "Staging first" in the design doc for the
+          post-flip state (production issuer, staging kept as the rollback)
+    - [ ] Configure the tailnet split-DNS nameserver for the domain (pointing
+          at Pi-hole) so cluster services resolve over the tailnet, not only on
+          the LAN. Private-policy-repo change, not this repo — until it lands, a
+          remote client gets NXDOMAIN for `<name>.<domain>`
+    - [ ] Benchmark and tighten Traefik's resource limits (the same open
+          question as the Tailscale router's)
+    - [ ] Scrape Traefik and cert-manager metrics once an observability layer
+          exists
+    - [ ] Revisit `externalTrafficPolicy: Local` if client IPs in the access
+          logs ever matter — needs a Traefik pod on the node announcing the LB
+          address, and Cilium documents L2 mode as incompatible with `Local`
+    - [ ] `sops` the three plaintext placeholders
+          (`cluster-secrets/app/secrets.sops.yaml`,
+          `cert-manager-issuers/app/secret.sops.yaml`,
+          `traefik/app/secret-basic-auth.sops.yaml`) before the PR opens:
+          the `ENC[` guard in `make -C kubernetes lint` fails on them until
+          then, by design
 - [ ] Renovate for automated version-bump PRs
 - [ ] Pin all tool versions (talosctl/kubectl/talhelper/flux) — likely nix flakes
 
