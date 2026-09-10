@@ -23,7 +23,7 @@ client → Pi-hole: address=/example.com/192.168.1.x  (every name under the doma
        → 192.168.1.x: Traefik's Service, pinned by lbipam.cilium.io/ips, ARP'd by Cilium L2
        → :80 web, 301 → https → :443 websecure, TLS from TLSStore/default → wildcard-tls
        → router: an IngressRoute Host rule, or a plain Ingress
-       → middlewares: traefik-default-headers@kubernetescrd, traefik-basic-auth@kubernetescrd
+       → middlewares: traefik-default-headers@kubernetescrd, traefik-longhorn-auth@kubernetescrd
 ```
 
 Any router with `tls: {}` or the `router.tls: "true"` annotation is served the
@@ -43,11 +43,13 @@ not here. Until it lands, a remote client gets NXDOMAIN, not a routing error.
   needs pod networking on its first reconcile), `wait: true`.
 - **`cert-manager-issuers`** — the two `ClusterIssuer`s and the Cloudflare token.
 - **`traefik`** — chart, `TLSStore/default`, the wildcard `Certificate`, the
-  basic-auth Secret; two replicas spread over `topology.kubernetes.io/zone`.
+  per-service basic-auth Secrets; two replicas spread over
+  `topology.kubernetes.io/zone`.
   Both providers stay on: `kubernetesCRD` for hand-written routes,
   `kubernetesIngress` for charts that only emit an `Ingress` (Longhorn is the
   first). `wait: true`.
-- **`traefik-middlewares`** — the two shared `Middleware`s, `dependsOn: traefik`.
+- **`traefik-middlewares`** — the shared `default-headers` plus one basic-auth
+  `Middleware` per service, `dependsOn: traefik`.
 
 **Two of those five layers exist only because of one hazard, the `cilium` /
 `cilium-lb` call again: a CR cannot be applied before its CRD is Established,
@@ -142,16 +144,28 @@ manifests **after** SOPS decryption. Three hazards, all from running last:
 
 ## Headers and basic auth
 
-One `default-headers` and one `basic-auth` `Middleware` in `traefik` serve every
-namespace as `traefik-<name>@kubernetescrd`. Two paths reach that name, and only
-one of them involves a flag: an `Ingress` annotated
+The `Middleware`s live in `traefik` and serve every namespace as
+`traefik-<name>@kubernetescrd`. Two paths reach that name, and only one of them
+involves a flag: an `Ingress` annotated
 `traefik.ingress.kubernetes.io/router.middlewares` (the `kubernetesIngress`
-provider — Longhorn's route, and the only consumer today) names the qualified
-form directly and needs nothing enabled, while a Traefik CR in another namespace
-referencing them by name + namespace goes through `kubernetesCRD`, which is what
+provider — Longhorn's route) names the qualified form directly and needs nothing
+enabled, while a Traefik CR in another namespace referencing them by name +
+namespace goes through `kubernetesCRD`, which is what
 `providers.kubernetesCRD.allowCrossNamespace: true` permits. Both stay on.
-`basic-auth` is load-bearing: neither the Traefik dashboard nor the Longhorn UI
-authenticates, and the Longhorn UI can delete volumes.
+
+Basic auth is load-bearing, because neither the Traefik dashboard nor the
+Longhorn UI authenticates on its own — but they get **one middleware and one
+Secret each**, never a shared pair. A single credential across both means a leak
+from either exposes both, and neither can be rotated without disrupting the
+other. They are also not equivalent risks: the dashboard is read-only, so its
+credential guards *confidentiality* — the dashboard is a complete routing map,
+every internal hostname, address and port on one page, on a LAN that carries
+other people's devices. Longhorn's guards *integrity*: that UI can delete
+volumes.
+
+Per-service passwords stop reuse; they do not give per-user identity, revocation
+or MFA, and they are a stopgap rather than an auth system. The real answer is
+forward-auth against an IdP — the Kanidm entry in `TODO.md`.
 
 `default-headers` sets HSTS (`stsSeconds: 31536000`, `stsIncludeSubdomains`)
 plus `frameDeny`, `contentTypeNosniff`, `browserXssFilter`. **`stsPreload` is

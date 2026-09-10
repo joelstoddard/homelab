@@ -25,11 +25,6 @@ install that gets Flux running in the first place.
       (`cert-manager/` + `cert-manager-issuers/`) — see "cert-manager"
 - [ ] Workloads
 
-`[-]` on those two is literal: Flux's `GitRepository` tracks `main`, so
-nothing on a branch runs, and neither layer has reconciled once. Everything
-written about them here is read off the manifests and the charts. Status
-note: [`docs/design/ingress-tls.md`](../docs/design/ingress-tls.md).
-
 ## Layout
 
 ```
@@ -83,14 +78,15 @@ kubernetes/
 │       ├── helmrepository.yaml   # https://traefik.github.io/charts
 │       ├── helmrelease.yaml      # chart traefik 41.5.0, values from the ConfigMap
 │       ├── values.yaml           # 2 replicas, pinned LB IP, TLSStore/default, dashboard route
-│       ├── certificate.yaml      # wildcard-tls: ${DOMAIN} + *.${DOMAIN}, staging issuer
-│       └── secret-basic-auth.sops.yaml  # basic-auth-users: htpasswd lines, bcrypt only
+│       ├── certificate.yaml      # wildcard-tls: ${DOMAIN} + *.${DOMAIN}, production issuer
+│       ├── secret-dashboard-auth.sops.yaml  # dashboard-auth-users: htpasswd, bcrypt only
+│       └── secret-longhorn-auth.sops.yaml   # longhorn-auth-users: a DIFFERENT credential
 ├── traefik-middlewares/
 │   ├── kustomization.yaml
 │   ├── ks.yaml                   # Flux Kustomization, dependsOn traefik — the Middleware CRD ships in the chart
 │   └── app/
 │       ├── kustomization.yaml    # namespace traefik (both CRs are namespaced, unlike the ClusterIssuers)
-│       └── middlewares.yaml      # default-headers (HSTS) + basic-auth, shared cross-namespace
+│       └── middlewares.yaml      # default-headers (HSTS) + one basic-auth Middleware per service
 ├── tailscale/
 │   ├── kustomization.yaml
 │   ├── ks.yaml                   # Flux Kustomization "tailscale", sops decryption
@@ -425,10 +421,10 @@ certificate:
   `ingressClassName: traefik` plus the
   `traefik.ingress.kubernetes.io/router.entrypoints: websecure` and
   `router.tls: "true"` annotations. Both providers are on.
-- Anything without authentication of its own → attach
-  `traefik-basic-auth@kubernetescrd`, and `traefik-default-headers@kubernetescrd`
-  for HSTS. Both `Middleware`s live in the `traefik` namespace and serve every
-  namespace, so there is one copy of each and one basic-auth Secret. An
+- Anything without authentication of its own → give it **its own** basic-auth
+  `Middleware` and `Secret` (never reuse another service's), and attach
+  `traefik-default-headers@kubernetescrd` for HSTS. The `Middleware`s live in
+  the `traefik` namespace and serve every namespace. An
   `Ingress` annotation naming that qualified form resolves through the
   `kubernetesIngress` provider with nothing else enabled; a Traefik CR in
   another namespace referencing them by name + namespace needs
@@ -452,8 +448,8 @@ the chart: kustomize-controller would fail it with `no matches for kind
 honest and transient: for the one reconcile between Traefik going Ready and
 that layer applying, the dashboard route and Longhorn's `Ingress` name
 middlewares that do not exist and Traefik refuses those routers. It heals
-itself. The basic-auth `Secret` stays in `traefik/`, in the namespace that
-reads it, which is why the middleware layer needs no `decryption` block.
+itself. The basic-auth `Secret`s stay in `traefik/`, in the namespace that
+reads them, which is why the middleware layer needs no `decryption` block.
 
 ```bash
 flux --context homelab get ks traefik

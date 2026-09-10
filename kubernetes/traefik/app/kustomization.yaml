@@ -7,9 +7,10 @@ resources:
   - helmrelease.yaml
   - certificate.yaml
   # The Middlewares are a layer of their own (their CRD arrives with the chart
-  # in this same pass); the Secret one of them names stays here, in the
-  # namespace that reads it.
-  - secret-basic-auth.sops.yaml
+  # in this same pass); the Secrets they name stay here, in the namespace that
+  # reads them. One per service, never shared — middlewares.yaml explains why.
+  - secret-dashboard-auth.sops.yaml
+  - secret-longhorn-auth.sops.yaml
 configMapGenerator:
   - name: traefik-values
     files:

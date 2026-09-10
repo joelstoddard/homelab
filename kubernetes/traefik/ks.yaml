@@ -5,7 +5,7 @@
 # cert-manager-issuers today, named here so a change to that edge cannot
 # silently break substitution. wait: true so a later layer can dependsOn
 # traefik meaningfully. postBuild for ${DOMAIN} and ${TRAEFIK_LB_IP};
-# decryption for the basic-auth Secret.
+# decryption for the per-service basic-auth Secrets.
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:
