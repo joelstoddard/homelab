@@ -59,23 +59,20 @@
     - [ ] Benchmark and tighten the router's resource limits
     - [ ] Scrape `:9002/metrics` once an observability layer exists
     - [ ] Un-encrypt bare `10.0.0.0/20` mentions repo-wide (host addresses/ranges stay encrypted)
-- [-] Ingress + TLS — Traefik on a pinned LB IP, one cert-manager wildcard
+- [x] Ingress + TLS — Traefik on a pinned LB IP, one cert-manager wildcard
       over Cloudflare DNS-01, Pi-hole wildcard DNS. Five Flux layers
       (`kubernetes/cluster-secrets/`, `cert-manager/`,
       `cert-manager-issuers/`, `traefik/`, `traefik-middlewares/`) plus
       `opentofu/resources/pihole/`
-      — `docs/design/ingress-tls.md`. **Committed, not yet reconciled** —
-      Flux tracks `main`, so none of it has run once; the post-merge
-      bring-up is what closes this entry.
-    - [ ] Flip the wildcard certificate to `letsencrypt-production` once the
-          staging chain is confirmed live — one line in
-          `kubernetes/traefik/app/certificate.yaml`
-    - [ ] Fold two doc edits into that same flip commit: the `[-]` markers
-          here and in `kubernetes/README.md`'s Status list, and a rewrite of
-          "Staging first" in the design doc for the post-flip state
-          (production issuer, staging kept as the rollback). The design doc
-          itself carries no deployment status to update — that is deliberate,
-          so it cannot go stale on merge
+      — `docs/design/ingress-tls.md`. Live and on the production issuer.
+    - [ ] Hand out Pi-hole as the ONLY resolver over DHCP. Clients currently
+          also get a public resolver and the router, which know nothing of the
+          `address=/<domain>/` wildcard: macOS asks whichever it likes, caches
+          the NXDOMAIN, and every cluster hostname fails intermittently until
+          `dscacheutil -flushcache`. Split-horizon DNS only works if clients
+          ask the split-horizon resolver exclusively. The trade is real —
+          removing the fallbacks means one Pi-hole is a single point of
+          failure for all name resolution, so pair it with a second one
     - [ ] Configure the tailnet split-DNS nameserver for the domain (pointing
           at Pi-hole) so cluster services resolve over the tailnet, not only on
           the LAN. Private-policy-repo change, not this repo — until it lands, a

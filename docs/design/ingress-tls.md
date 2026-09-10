@@ -201,17 +201,19 @@ fails the apply.
 
 ## Staging first
 
-`traefik/app/certificate.yaml` references `letsencrypt-staging` deliberately, not
-unfinished. Production allows 5 duplicate certificates per registered domain per
-week; a wildcard over the whole zone is one certificate, easy to re-request five
-times while debugging DNS-01, and the lockout lasts a week. The two issuers
-differ only in ACME directory and `privateKeySecretRef` — separate account keys
-mean separate accounts, so staging never touches production's rate-limit state.
-**Flipping to production is a one-line commit** (`issuerRef.name` →
-`letsencrypt-production`), gated on the staging chain verifying end to end live:
-that window is where a wrong token scope, a CAA record and trap 1 all surface.
-Flipping back is the same one line; deleting `wildcard-tls` forces a fresh
-order, and repeating that against production is what burns the limit.
+`traefik/app/certificate.yaml` is on `letsencrypt-production`, but it landed on
+`letsencrypt-staging` first and any rebuild should do the same. Production allows
+5 duplicate certificates per registered domain per week; a wildcard over the
+whole zone is one certificate, easy to re-request five times while debugging
+DNS-01, and the lockout lasts a week. The staging window is where a wrong token
+scope, a CAA record and trap 1 all surface, and it costs nothing to spend it.
+
+The two issuers differ only in ACME directory and `privateKeySecretRef` —
+separate account keys mean separate accounts, so staging never touches
+production's rate-limit state. Both stay declared: switching either way is one
+line in `issuerRef.name`, which makes staging the rollback as well as the
+rehearsal. Deleting `wildcard-tls` forces a fresh order, and repeating that
+against production is what burns the limit.
 
 ## Preflight for a rebuild
 

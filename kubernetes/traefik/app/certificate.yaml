@@ -2,7 +2,8 @@
 # TLSStore certificate has to live beside it. A wildcard also keeps individual
 # service names out of the public Certificate Transparency logs, which
 # per-service certificates would publish permanently.
-# issuerRef stays on staging until the chain verifies; docs/design/ingress-tls.md.
+# On production since the staging chain verified end to end; flipping back is
+# the same one line. docs/design/ingress-tls.md "Staging first".
 apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
@@ -14,4 +15,4 @@ spec:
     - "*.${DOMAIN}"
   issuerRef:
     kind: ClusterIssuer
-    name: letsencrypt-staging
+    name: letsencrypt-production

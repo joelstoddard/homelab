@@ -18,13 +18,11 @@ install that gets Flux running in the first place.
       (`tailscale/`; the tailnet policy is a private GitOps repo — see
       "Tailscale")
 - [x] Storage — Longhorn across every worker (longhorn/; see "Longhorn")
-- [-] Ingress — Traefik on a pinned LoadBalancer IP, wildcard TLS, shared
-      middlewares (`traefik/` + `traefik-middlewares/` + `cluster-secrets/`).
-      Committed, **not yet reconciled** — see "Cluster secrets" and "Traefik"
-- [-] Certificates — cert-manager, one Let's Encrypt wildcard over DNS-01
-      (`cert-manager/` + `cert-manager-issuers/`). Committed, **not yet
-      reconciled**, and the wildcard is still on the staging issuer — see
-      "cert-manager"
+- [x] Ingress — Traefik on a pinned LoadBalancer IP, wildcard TLS, shared
+      middlewares (`traefik/` + `traefik-middlewares/` + `cluster-secrets/`) —
+      see "Cluster secrets" and "Traefik"
+- [x] Certificates — cert-manager, one Let's Encrypt wildcard over DNS-01
+      (`cert-manager/` + `cert-manager-issuers/`) — see "cert-manager"
 - [ ] Workloads
 
 `[-]` on those two is literal: Flux's `GitRepository` tracks `main`, so
