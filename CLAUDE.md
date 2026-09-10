@@ -166,9 +166,7 @@ the machine config), default StorageClass. Talos prerequisites (extensions,
 kubelet mount) are in `versions.env` + the talos role. Pin the chart version
 in the HelmRelease only; re-run the multi-arch image check in
 `docs/design/longhorn.md` before bumping. See `docs/design/longhorn.md`.
-Ingress and TLS are five more layers — **committed but not yet reconciled**
-(Flux tracks `main`, so none of it has run once), which makes the rest of
-this paragraph the design rather than observed behaviour. Root order is
+Ingress and TLS are five more layers. Root order is
 `cluster-secrets` → `cert-manager` → `cert-manager-issuers` → `traefik` →
 `traefik-middlewares` (the
 full list is `flux-system`, `cilium`, `cilium-lb`, `cluster-secrets`, `cert-manager`,

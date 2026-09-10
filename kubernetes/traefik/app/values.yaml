@@ -30,9 +30,9 @@ ports:
           permanent: true
 providers:
   kubernetesCRD:
-    # One default-headers and one basic-auth Middleware in this namespace
-    # serve every app namespace, rather than a copy of each (and of the
-    # basic-auth Secret) per namespace. Single-tenant cluster: deliberate.
+    # The shared default-headers Middleware, and each service's own
+    # basic-auth Middleware, live in this namespace and serve every app
+    # namespace from here. Single-tenant cluster: deliberate.
     allowCrossNamespace: true
 # Renders TLSStore/default, so every route gets the wildcard with `tls: {}`
 # and no per-service certificate reference.
@@ -51,7 +51,7 @@ ingressRoute:
     matchRule: Host(`traefik.${DOMAIN}`)
     middlewares:
       - name: default-headers
-      - name: basic-auth
+      - name: dashboard-auth
 resources:
   requests:
     cpu: 100m

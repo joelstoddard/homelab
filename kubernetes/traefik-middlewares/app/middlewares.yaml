@@ -18,15 +18,31 @@ spec:
     stsIncludeSubdomains: true
     stsSeconds: 31536000
 ---
-# Basic auth for services with no authentication of their own — the Traefik
-# dashboard and the Longhorn UI both fall in that category. The Secret it
-# names stays in the traefik layer, which does run Flux variable substitution:
-# envsubst would replace a classic $apr1$… hash with an empty string, so those
-# htpasswd lines must be bcrypt.
+# Basic auth for services with no authentication of their own. One middleware
+# and one Secret PER SERVICE, deliberately: a shared credential means a leak
+# from either exposes both, and neither can be rotated without disrupting the
+# other. They are not equivalent risks — the Traefik dashboard is read-only,
+# while Longhorn's UI can delete volumes — so they do not share a secret.
+#
+# Both Secrets live in the traefik layer, which runs Flux variable
+# substitution: envsubst replaces a classic $apr1$… hash with an empty string,
+# so every htpasswd line here must be bcrypt (htpasswd -nB).
+#
+# This is a stopgap for single-operator access, not an auth system. Per-service
+# passwords stop reuse; they do not give per-user identity, revocation or MFA.
+# That needs forward-auth against an IdP — see the Kanidm entry in TODO.md.
 apiVersion: traefik.io/v1alpha1
 kind: Middleware
 metadata:
-  name: basic-auth
+  name: dashboard-auth
 spec:
   basicAuth:
-    secret: basic-auth-users
+    secret: dashboard-auth-users
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: longhorn-auth
+spec:
+  basicAuth:
+    secret: longhorn-auth-users

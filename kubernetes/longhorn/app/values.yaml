@@ -33,8 +33,8 @@ ingress:
   # this route from the TLSStore default wildcard, so there is no per-service
   # secret to name. The router annotations are what put the route on the HTTPS
   # entrypoint at all. Longhorn's UI has no authentication of its own, so
-  # basic-auth here is load-bearing, not decoration.
+  # its own basic-auth credential here is load-bearing, not decoration.
   annotations:
     traefik.ingress.kubernetes.io/router.entrypoints: websecure
     traefik.ingress.kubernetes.io/router.tls: "true"
-    traefik.ingress.kubernetes.io/router.middlewares: traefik-default-headers@kubernetescrd,traefik-basic-auth@kubernetescrd
+    traefik.ingress.kubernetes.io/router.middlewares: traefik-default-headers@kubernetescrd,traefik-longhorn-auth@kubernetescrd
