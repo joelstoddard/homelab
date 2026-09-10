@@ -1,6 +1,12 @@
 #!/bin/bash
 set -euo pipefail
 
+# Remove ourselves on every exit path, success or failure. The rendered
+# script carries the Pi-hole admin password, so it must not survive a failed
+# run — and doing it here rather than as a second remote-exec inline command
+# is what lets a failure actually surface (see main.tf's provisioner).
+trap 'rm -f "$0"' EXIT
+
 # Pi-hole v6 bootstrap script. Runs once on the freshly provisioned
 # LXC via null_resource + remote-exec. Idempotent: re-running over an
 # existing install re-applies setupVars.conf and sets the password
@@ -59,14 +65,13 @@ pihole setpassword '${web_password}'
 # tofu plan + apply runs (each opens several sessions during state
 # refresh and resource writes) don't trip api_seats_exceeded.
 #
-# Assert the sed landed — if Pi-hole renames the key in a future
-# release, the substitution silently no-ops and we'd find out via
-# api_seats_exceeded on the next plan instead of here.
-sed -i 's/max_sessions = [0-9]\+/max_sessions = 50/' /etc/pihole/pihole.toml
-if ! grep -q '^[[:space:]]*max_sessions = 50$' /etc/pihole/pihole.toml; then
-    echo "max_sessions = 50 not present after sed; pihole.toml schema changed?" >&2
-    exit 1
-fi
+# Set through FTL rather than sed-ing pihole.toml. FTL annotates every
+# non-default value in the file it writes ("max_sessions = 50 ### CHANGED,
+# default = 16"), which silently broke the `grep -q '…= 50$'` assert this
+# replaces: the sed still landed, the anchored grep could no longer match,
+# and the script exited 1 before configuring anything below. FTL validates
+# the key itself, so a renamed setting in a future release still fails loudly.
+pihole-FTL --config webserver.api.max_sessions 50
 
 # LAN resolution for the Kubernetes cluster: wildcard the root domain at
 # Traefik's LoadBalancer IP, with a passthrough per publicly-hosted name

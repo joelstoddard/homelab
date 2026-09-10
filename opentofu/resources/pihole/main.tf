@@ -85,10 +85,14 @@ resource "null_resource" "pihole_install" {
     destination = "/root/pi-hole-bootstrap.sh"
   }
 
+  # One command, not two. remote-exec joins an inline list into a single
+  # script with no `set -e`, so the provisioner's exit status is the LAST
+  # command's: a failed installer followed by a succeeding `rm` reported
+  # "Apply complete!" while nothing had been configured. The script now
+  # deletes itself via an EXIT trap instead.
   provisioner "remote-exec" {
     inline = [
       "bash /root/pi-hole-bootstrap.sh",
-      "rm -f /root/pi-hole-bootstrap.sh",
     ]
   }
 
