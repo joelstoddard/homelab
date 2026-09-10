@@ -6,3 +6,4 @@ kind: Kustomization
 namespace: traefik
 resources:
   - middlewares.yaml
+  - serverstransport.yaml

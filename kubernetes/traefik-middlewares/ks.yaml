@@ -1,10 +1,11 @@
-# The two shared Middlewares, deliberately not in the traefik layer. Their CRD
-# ships inside the Traefik chart's crds/ directory, so it does not exist while
-# kustomize-controller applies that layer — one pass, no pause for a CRD the
-# same pass installs — and `no matches for kind "Middleware"` would hold
+# Shared Traefik CRs — Middlewares and a ServersTransport so far — that
+# depend on the chart's CRDs and so cannot live in the traefik layer. Those
+# CRDs ship inside the Traefik chart's crds/ directory, so they do not exist
+# while kustomize-controller applies that layer — one pass, no pause for a
+# CRD the same pass installs — and `no matches for kind "..."` would hold
 # traefik red. Same split as cilium / cilium-lb and cert-manager /
 # cert-manager-issuers; `wait: true` on traefik is what makes it safe. No
-# postBuild: neither Middleware carries a ${VAR}.
+# postBuild: none of these resources carries a ${VAR}.
 #
 # The cost is real: between Traefik going Ready and this layer applying a
 # reconcile later, the chart's dashboard route and Longhorn's Ingress name

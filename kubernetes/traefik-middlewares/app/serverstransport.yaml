@@ -1,0 +1,28 @@
+# Lets a future route reach a Proxmox VE host's UI on port 8006, which
+# serves a self-signed certificate that Traefik would otherwise refuse to
+# connect to. This is a ServersTransport, not a Middleware — "custom
+# middleware for the self-signed cert" is the intuition most people arrive
+# with, and it is the wrong CR: a Middleware acts on the request/response
+# passing through a router, while trusting (or not trusting) a backend's
+# certificate is negotiated before any request is proxied, which is a
+# transport concern. insecureSkipVerify applies only to the Traefik→Proxmox
+# leg; the browser→Traefik leg is untouched and still terminates on the
+# wildcard certificate from TLSStore/default, so nothing user-facing is
+# weakened.
+#
+# The two CRs are also referenced differently, which is easy to get wrong:
+# an IngressRoute's service entry in another namespace names this via a
+# single provider-qualified string, `traefik-proxmox-insecure@kubernetescrd`
+# (namespace + name, no separate field), whereas a Middleware cross-namespace
+# reference is a structured `name`/`namespace` field pair with no `@` suffix.
+# Cross-namespace works here at all because the chart values set
+# providers.kubernetesCRD.allowCrossNamespace: true.
+#
+# Nothing references this yet — routing to the Proxmox nodes needs their
+# real addresses, which lands in a follow-up (TODO.md).
+apiVersion: traefik.io/v1alpha1
+kind: ServersTransport
+metadata:
+  name: proxmox-insecure
+spec:
+  insecureSkipVerify: true

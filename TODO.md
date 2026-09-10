@@ -95,6 +95,28 @@
           `traefik/app/secret-basic-auth.sops.yaml`) before the PR opens:
           the `ENC[` guard in `make -C kubernetes lint` fails on them until
           then, by design
+    - [ ] Put the four Proxmox hosts behind Traefik — the `ServersTransport`
+          landed (`kubernetes/traefik-middlewares/app/serverstransport.yaml`,
+          unreferenced so far). Still needed: a headless `Service` (no
+          selector) plus a manually maintained `EndpointSlice` listing all
+          four node IPs — preferred over `ExternalName`, which would need
+          `providers.kubernetesCRD.allowExternalNameServices` and has open
+          reliability issues in the Traefik Helm chart; an `IngressRoute`
+          whose service entry sets `scheme: https`, `port: 8006` and
+          `serversTransport: traefik-proxmox-insecure@kubernetescrd`; new
+          `cluster-secrets` keys for the node addresses and the hostname,
+          since those are real LAN data. One hostname can front all four
+          nodes — `pveproxy` forwards requests for resources owned by
+          another node — so list all four endpoints rather than pointing at
+          one and creating a single point of failure.
+    - [ ] Two open questions for that same follow-up, unverified: Traefik's
+          entrypoint `readTimeout` defaults to 60s, which may truncate large
+          ISO/template uploads — raising it affects every route on that
+          entrypoint, so it needs testing rather than a blind bump; and
+          whether Proxmox's ticket cookie tolerates Traefik round-robining
+          across the four nodes mid-session — reasoning says it should,
+          since API paths embed the target node, but no explicit report was
+          found, so watch it on first use.
 - [ ] Renovate for automated version-bump PRs
 - [ ] Pin all tool versions (talosctl/kubectl/talhelper/flux) — likely nix flakes
 
