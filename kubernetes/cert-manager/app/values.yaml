@@ -1,0 +1,14 @@
+# Non-default cert-manager values only; the reasoning is
+# docs/design/ingress-tls.md.
+# crds.keep stays at the chart default (true): the CRDs outlive this release,
+# so removing the layer cannot take every Certificate object with it.
+crds:
+  # The chart installs no CRDs unless asked (crds.enabled defaults to false).
+  enabled: true
+# DNS-01 self-checks must bypass Pi-hole. Pi-hole answers authoritatively for
+# the whole domain (address=/<domain>/<traefik-ip>) and never forwards those
+# names upstream, returning NODATA for TXT — so the _acme-challenge lookup
+# would never see the record cert-manager just wrote at Cloudflare, and every
+# order would sit in propagation forever. Ask the public resolvers directly.
+dns01RecursiveNameservers: "1.1.1.1:53,9.9.9.9:53"
+dns01RecursiveNameserversOnly: true
