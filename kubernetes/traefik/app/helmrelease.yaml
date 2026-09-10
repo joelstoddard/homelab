@@ -1,0 +1,26 @@
+# Chart version pinned here only — nothing outside Flux consumes it. Traefik
+# chart versions carry no v prefix.
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: traefik
+spec:
+  interval: 1h0m0s
+  releaseName: traefik
+  timeout: 10m0s
+  chart:
+    spec:
+      chart: traefik
+      version: "41.5.0"
+      sourceRef:
+        kind: HelmRepository
+        name: traefik
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    remediation:
+      retries: 3
+  valuesFrom:
+    - kind: ConfigMap
+      name: traefik-values

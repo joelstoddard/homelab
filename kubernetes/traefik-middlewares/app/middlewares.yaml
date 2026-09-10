@@ -1,0 +1,32 @@
+# Shared middlewares, reached from other namespaces by their qualified name
+# traefik-<name>@kubernetescrd. Two different paths get there: an Ingress
+# annotated traefik.ingress.kubernetes.io/router.middlewares names that
+# qualified form directly, which the kubernetesIngress provider resolves with
+# nothing else enabled (Longhorn's route, the only consumer today); a Traefik
+# CR in another namespace referencing these by name + namespace goes through
+# the kubernetesCRD provider, and that is what
+# providers.kubernetesCRD.allowCrossNamespace in the chart values permits.
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: default-headers
+spec:
+  headers:
+    browserXssFilter: true
+    contentTypeNosniff: true
+    frameDeny: true
+    stsIncludeSubdomains: true
+    stsSeconds: 31536000
+---
+# Basic auth for services with no authentication of their own — the Traefik
+# dashboard and the Longhorn UI both fall in that category. The Secret it
+# names stays in the traefik layer, which does run Flux variable substitution:
+# envsubst would replace a classic $apr1$… hash with an empty string, so those
+# htpasswd lines must be bcrypt.
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: basic-auth
+spec:
+  basicAuth:
+    secret: basic-auth-users

@@ -1,0 +1,61 @@
+# Non-default Traefik values only; the reasoning is docs/design/ingress-tls.md.
+# Left at chart defaults deliberately: service type LoadBalancer, websecure
+# TLS, ingressClass as the cluster default, and both the CRD and Ingress
+# providers enabled.
+deployment:
+  replicas: 2
+# topology.kubernetes.io/zone is the physical host (NUC for VMs, the Pi
+# itself), set by the Talos machine config for Longhorn's replica
+# anti-affinity and reused here. ScheduleAnyway, not DoNotSchedule: an
+# ingress that will not schedule is worse than one that is briefly unbalanced.
+topologySpreadConstraints:
+  - maxSkew: 1
+    topologyKey: topology.kubernetes.io/zone
+    whenUnsatisfiable: ScheduleAnyway
+    labelSelector:
+      matchLabels:
+        app.kubernetes.io/name: traefik
+service:
+  annotations:
+    # Cilium LB-IPAM hands out this exact address from the cilium-lb pool.
+    # The Pi-hole wildcard points at it, so it must not float.
+    lbipam.cilium.io/ips: "${TRAEFIK_LB_IP}"
+ports:
+  web:
+    http:
+      redirections:
+        entryPoint:
+          to: websecure
+          scheme: https
+          permanent: true
+providers:
+  kubernetesCRD:
+    # One default-headers and one basic-auth Middleware in this namespace
+    # serve every app namespace, rather than a copy of each (and of the
+    # basic-auth Secret) per namespace. Single-tenant cluster: deliberate.
+    allowCrossNamespace: true
+# Renders TLSStore/default, so every route gets the wildcard with `tls: {}`
+# and no per-service certificate reference.
+tlsStore:
+  default:
+    defaultCertificate:
+      secretName: wildcard-tls
+ingressRoute:
+  dashboard:
+    # Chart default is the unexposed `traefik` entrypoint and a PathPrefix
+    # rule; a Host rule on websecure plus basic auth is what makes it
+    # reachable without being open.
+    enabled: true
+    entryPoints:
+      - websecure
+    matchRule: Host(`traefik.${DOMAIN}`)
+    middlewares:
+      - name: default-headers
+      - name: basic-auth
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 256Mi

@@ -1,0 +1,26 @@
+# The two shared Middlewares, deliberately not in the traefik layer. Their CRD
+# ships inside the Traefik chart's crds/ directory, so it does not exist while
+# kustomize-controller applies that layer — one pass, no pause for a CRD the
+# same pass installs — and `no matches for kind "Middleware"` would hold
+# traefik red. Same split as cilium / cilium-lb and cert-manager /
+# cert-manager-issuers; `wait: true` on traefik is what makes it safe. No
+# postBuild: neither Middleware carries a ${VAR}.
+#
+# The cost is real: between Traefik going Ready and this layer applying a
+# reconcile later, the chart's dashboard route and Longhorn's Ingress name
+# middlewares that do not exist, and Traefik refuses a router whose middleware
+# is missing. Transient and self-healing, not a defect.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: traefik-middlewares
+  namespace: flux-system
+spec:
+  interval: 10m0s
+  path: ./kubernetes/traefik-middlewares/app
+  prune: true
+  dependsOn:
+    - name: traefik
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
