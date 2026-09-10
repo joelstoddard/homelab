@@ -12,5 +12,6 @@ resources:
   - cert-manager-issuers
   - traefik
   - traefik-middlewares
+  - lan-services
   - tailscale
   - longhorn

@@ -1,5 +1,5 @@
 # A top-level namespace is safe here: every resource in this layer is
-# namespaced — the two Middlewares and the ServersTransport alike. The
+# namespaced — the Middlewares and the ServersTransport alike. The
 # sibling cert-manager-issuers layer sets none because kustomize would stamp
 # it onto its cluster-scoped ClusterIssuers.
 apiVersion: kustomize.config.k8s.io/v1beta1

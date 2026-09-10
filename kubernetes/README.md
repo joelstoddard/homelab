@@ -23,6 +23,9 @@ install that gets Flux running in the first place.
       see "Cluster secrets" and "Traefik"
 - [x] Certificates — cert-manager, one Let's Encrypt wildcard over DNS-01
       (`cert-manager/` + `cert-manager-issuers/`) — see "cert-manager"
+- [x] LAN services — seven off-cluster hosts (four Proxmox nodes, TrueNAS,
+      Pi-hole, the router) behind Traefik on the wildcard certificate
+      (`lan-services/`) — see "LAN services"
 - [ ] Workloads
 
 ## Layout
@@ -87,6 +90,19 @@ kubernetes/
 │   └── app/
 │       ├── kustomization.yaml    # namespace traefik (both CRs are namespaced, unlike the ClusterIssuers)
 │       └── middlewares.yaml      # default-headers (HSTS) + one basic-auth Middleware per service
+├── lan-services/
+│   ├── kustomization.yaml
+│   ├── ks.yaml                   # Flux Kustomization "lan-services", dependsOn traefik + traefik-middlewares + cluster-secrets, postBuild
+│   └── app/
+│       ├── kustomization.yaml    # namespace lan-services
+│       ├── namespace.yaml        # lan-services; no PodSecurity label, this layer runs no pods
+│       ├── rumba.yaml            # Proxmox node: headless Service + EndpointSlice + IngressRoute
+│       ├── tango.yaml            # ditto
+│       ├── salsa.yaml            # ditto
+│       ├── samba.yaml            # ditto
+│       ├── voyager.yaml          # TrueNAS SCALE
+│       ├── pihole.yaml           # Pi-hole's admin UI
+│       └── james-webb.yaml       # the router; plain HTTP, no serversTransport
 ├── tailscale/
 │   ├── kustomization.yaml
 │   ├── ks.yaml                   # Flux Kustomization "tailscale", sops decryption
@@ -128,6 +144,13 @@ ordering) rather than by growing the root tree — see "Adding workloads".
 | `DOMAIN` | `cluster-secrets/app/secrets.sops.yaml` | The root domain every route hangs off. Reaches manifests through Flux `postBuild` substitution, so this public repo never carries it. |
 | `TRAEFIK_LB_IP` | same Secret | Traefik's pinned LoadBalancer address — inside the `cilium-lb` pool, reserved in NetBox. Pi-hole's wildcard points at it, so it must not float. It has to be *substituted* rather than SOPS-encrypted: it lands in a `configMapGenerator` input, which kustomize reads before decryption applies. |
 | `ACME_EMAIL` | same Secret | Let's Encrypt account contact on both `ClusterIssuer`s. |
+| `RUMBA_IP` | same Secret | A Proxmox node's LAN address, hand-copied into `lan-services/app/rumba.yaml`'s `EndpointSlice`. |
+| `TANGO_IP` | same Secret | Same, for `tango.yaml`. |
+| `SALSA_IP` | same Secret | Same, for `salsa.yaml`. |
+| `SAMBA_IP` | same Secret | Same, for `samba.yaml`. |
+| `VOYAGER_IP` | same Secret | TrueNAS's LAN address, for `voyager.yaml`. |
+| `PIHOLE_IP` | same Secret | Pi-hole's LAN address, for `pihole.yaml`. |
+| `ROUTER_IP` | same Secret | The router's LAN address, for `james-webb.yaml`. |
 
 ## Bootstrap
 
@@ -334,7 +357,7 @@ manifests *after* SOPS decryption. The Secret lives in `flux-system` because
 `substituteFrom` resolves Secrets in the **consuming** Kustomization's
 namespace, not in the namespace being written to; `wait: true` on the layer
 is what makes a consumer's `dependsOn` mean "the keys are there".
-Consumers today: `cert-manager-issuers`, `traefik`, `longhorn`.
+Consumers today: `cert-manager-issuers`, `traefik`, `longhorn`, `lan-services`.
 
 This is why the domain and the LB address are not simply SOPS-encrypted:
 `TRAEFIK_LB_IP` has to reach Traefik's Helm values, which are a
@@ -439,7 +462,7 @@ LAN-only. The dashboard is `ingressRoute.dashboard` in the values, on
 `websecure` with a `Host` rule and both middlewares, rather than a
 hand-written route.
 
-The two `Middleware`s are **a layer of their own**, `traefik-middlewares/`
+The `Middleware`s are **a layer of their own**, `traefik-middlewares/`
 (`dependsOn: traefik`). `middlewares.traefik.io` ships inside the chart's
 `crds/` directory, so a `Middleware` cannot be in the same pass that installs
 the chart: kustomize-controller would fail it with `no matches for kind
@@ -471,6 +494,39 @@ exceptions are `misc.dnsmasq_lines` on the Pi-hole LXC, written by
 `opentofu/resources/pihole/`. A name that is hosted publicly but missing from
 the passthrough list fails confusingly — valid certificate, Traefik 404. See
 that directory's README and the design doc.
+
+## LAN services
+
+`lan-services/` fronts seven hosts that run no pods — the four Proxmox nodes
+(`rumba`, `tango`, `salsa`, `samba`), TrueNAS (`voyager`), Pi-hole, and the
+router — with Traefik, so each gets the wildcard certificate instead of its
+own self-signed one (the router: instead of no TLS at all). Traefik cannot
+route to a bare IP, so each backend is a headless `Service` paired with a
+hand-maintained `EndpointSlice` naming its one real address, plus an
+`IngressRoute`. It `dependsOn` **`traefik-middlewares` as well as
+`traefik`**: every route here names the `default-headers` Middleware, and
+Traefik refuses a router whose middleware is missing. The dashboard route and
+Longhorn's `Ingress` do eat that transient, but neither can avoid it — the
+dashboard route is rendered by the chart inside the `traefik` layer, and
+pointing `longhorn` at ingress would let a broken `traefik` block storage.
+This layer is nothing but routing, so waiting one reconcile beats 404s on
+seven hostnames. Also `dependsOn: cluster-secrets`, for `${DOMAIN}` and the
+seven address variables.
+
+Six of the seven backends serve a self-signed certificate: their routes use
+the shared `ServersTransport` `lan-insecure` (renamed from its earlier
+Proxmox-only name now that Proxmox is not its only user) via
+`serversTransport: traefik-lan-insecure@kubernetescrd`. The router speaks plain HTTP with no TLS
+at all, so its route sets neither `scheme` nor `serversTransport`. None of
+the seven carry basic auth — each already authenticates on its own. Full
+reasoning: [`docs/design/ingress-tls.md`](../docs/design/ingress-tls.md).
+
+```bash
+flux --context homelab get ks lan-services
+kubectl --context homelab -n lan-services get ingressroutes
+kubectl --context homelab -n lan-services get endpointslices \
+  -o custom-columns=NAME:.metadata.name,ADDR:.endpoints[*].addresses
+```
 
 ## Adding workloads
 

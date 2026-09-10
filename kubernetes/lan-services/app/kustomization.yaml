@@ -1,0 +1,15 @@
+# Every resource here is namespaced (Service, EndpointSlice, IngressRoute
+# alike), so a top-level namespace: is safe — unlike cert-manager-issuers,
+# which must set none because its ClusterIssuers are cluster-scoped.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: lan-services
+resources:
+  - namespace.yaml
+  - rumba.yaml
+  - tango.yaml
+  - salsa.yaml
+  - samba.yaml
+  - voyager.yaml
+  - pihole.yaml
+  - james-webb.yaml

@@ -1,0 +1,46 @@
+# Proxmox VE's UI, on 8006 with the self-signed certificate every node ships.
+apiVersion: v1
+kind: Service
+metadata:
+  name: tango
+spec:
+  clusterIP: None
+  ports:
+    - name: https
+      port: 8006
+      targetPort: 8006
+---
+apiVersion: discovery.k8s.io/v1
+kind: EndpointSlice
+metadata:
+  name: tango
+  labels:
+    kubernetes.io/service-name: tango
+addressType: IPv4
+ports:
+  - name: https
+    port: 8006
+endpoints:
+  - addresses:
+      - ${TANGO_IP}
+    conditions:
+      ready: true
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: tango
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - kind: Rule
+      match: Host(`tango.${DOMAIN}`)
+      middlewares:
+        - name: default-headers
+          namespace: traefik
+      services:
+        - name: tango
+          port: 8006
+          scheme: https
+          serversTransport: traefik-lan-insecure@kubernetescrd
