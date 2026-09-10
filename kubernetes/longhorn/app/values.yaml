@@ -23,3 +23,18 @@ defaultSettings:
   # A stateful pod on a dead node is force-deleted so it can fail over,
   # instead of sitting Terminating until the node returns.
   nodeDownPodDeletionPolicy: delete-both-statefulset-and-deployment-pod
+ingress:
+  # The UI behind Traefik. This chart emits a plain Ingress rather than an
+  # IngressRoute, which is why traefik keeps its kubernetesIngress provider on.
+  enabled: true
+  ingressClassName: traefik
+  host: longhorn.${DOMAIN}
+  # tls stays at the chart default (false): with no spec.tls, Traefik serves
+  # this route from the TLSStore default wildcard, so there is no per-service
+  # secret to name. The router annotations are what put the route on the HTTPS
+  # entrypoint at all. Longhorn's UI has no authentication of its own, so
+  # basic-auth here is load-bearing, not decoration.
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.tls: "true"
+    traefik.ingress.kubernetes.io/router.middlewares: traefik-default-headers@kubernetescrd,traefik-basic-auth@kubernetescrd

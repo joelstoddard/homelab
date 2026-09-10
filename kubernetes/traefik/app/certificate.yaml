@@ -1,0 +1,17 @@
+# One wildcard for the whole cluster, in Traefik's namespace because a default
+# TLSStore certificate has to live beside it. A wildcard also keeps individual
+# service names out of the public Certificate Transparency logs, which
+# per-service certificates would publish permanently.
+# issuerRef stays on staging until the chain verifies; docs/design/ingress-tls.md.
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: wildcard-tls
+spec:
+  secretName: wildcard-tls
+  dnsNames:
+    - ${DOMAIN}
+    - "*.${DOMAIN}"
+  issuerRef:
+    kind: ClusterIssuer
+    name: letsencrypt-staging

@@ -1,0 +1,21 @@
+# cert-manager: the chart and its CRDs, nothing else. Split from the
+# ClusterIssuers (cert-manager-issuers) for the same reason cilium and
+# cilium-lb are split — a ClusterIssuer cannot be applied until its CRD is
+# Established, and wait: true here is what guarantees that for the dependent
+# layer. dependsOn cilium so the webhook has pod networking on first reconcile.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: cert-manager
+  namespace: flux-system
+spec:
+  interval: 10m0s
+  path: ./kubernetes/cert-manager/app
+  prune: true
+  wait: true
+  timeout: 10m0s
+  dependsOn:
+    - name: cilium
+  sourceRef:
+    kind: GitRepository
+    name: flux-system

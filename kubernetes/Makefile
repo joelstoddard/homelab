@@ -27,7 +27,8 @@ help:
 	@echo "Targets:"
 	@echo "  build     - Verify kubectl, the kube context, the age key and the versions.env pins."
 	@echo "  lint      - gotk-components.yaml matches FLUX_VERSION, the Cilium OCIRepository matches"
-	@echo "              CILIUM_VERSION; kubectl kustomize builds the root and every */app. Offline."
+	@echo "              CILIUM_VERSION, kubectl kustomize builds the root and every */app, and every"
+	@echo "              *.sops.yaml is encrypted. Offline."
 	@echo "  check     - Server-side dry run of flux-system/ (client-side before the first install)."
 	@echo "  apply     - components -> sops-age secret -> sync. Idempotent. Default."
 	@echo "  generate  - Regenerate gotk-components.yaml from FLUX_VERSION (needs the flux CLI)."
@@ -56,6 +57,12 @@ build:
 #
 # The root build only reaches each layer's Flux Kustomization CR; the
 # manifests it points at (*/app) are built separately.
+#
+# The last guard is the only thing standing between a missed `sops` pass and a
+# permanent leak. Nothing downstream catches one: kustomize-controller's
+# decryptor skips any resource carrying no SOPS metadata, so a plaintext
+# Secret applies cleanly and the layer goes green — while its real values sit
+# in this public repo's history, which no later commit can revoke.
 lint:
 	@grep -q '^# Flux Version: $(FLUX_VERSION)$$' $(COMPONENTS) || { \
 		echo "$(COMPONENTS) is not at $(FLUX_VERSION); run 'make generate'." >&2; \
@@ -68,6 +75,14 @@ lint:
 	@kubectl kustomize . >/dev/null
 	@echo ">> kubectl kustomize . builds"
 	@for d in */app; do kubectl kustomize $$d >/dev/null && echo ">> kubectl kustomize $$d builds" || exit 1; done
+	@plaintext=; for f in $$(find . -name '*.sops.yaml'); do \
+		grep -q 'ENC\[' $$f || plaintext="$$plaintext $$f"; \
+	done; \
+	[ -z "$$plaintext" ] || { \
+		echo "plaintext (no ENC[ marker):$$plaintext" >&2; \
+		echo "run 'sops <file>' on each before committing; this repo is public and its history cannot be revoked." >&2; \
+		exit 1; }
+	@echo ">> every *.sops.yaml is encrypted"
 
 # Only flux-system/ is dry-run: SOPS-encrypted Secrets elsewhere fail a
 # server dry run (top-level `sops:` field, non-base64 values). Before the

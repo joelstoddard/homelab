@@ -7,5 +7,10 @@ resources:
   - flux-system
   - cilium
   - cilium-lb
+  - cluster-secrets
+  - cert-manager
+  - cert-manager-issuers
+  - traefik
+  - traefik-middlewares
   - tailscale
   - longhorn

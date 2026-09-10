@@ -15,7 +15,7 @@ the mental model from scratch.
 | [netbooting-pis.md](./netbooting-pis.md) | The Raspberry Pi 4 → Talos path hop by hop: EEPROM, the dnsmasq gate, u-boot, the install, Talos from disk — with the cutover playbook and every failure seen so far. | Cutting a Pi over, or a Pi that won't netboot / won't install / came back on the wrong OS. |
 | [talos-bootstrap.md](./talos-bootstrap.md) | Bringing up the Kubernetes cluster: VM ISO boot (OpenTofu) + Pi arm64 netboot (PXE), then `talosctl` config/bootstrap/kubeconfig via the `talos` role. | Bootstrapping or rebuilding the cluster, or debugging a node stuck in maintenance mode. |
 | [makefile.md](./makefile.md) | Root → subdir `make` chain, variable passthrough (`LIMIT`/`TAGS`/`EXTRA_VARS`), how planned subdirs auto-extend the chain. | Adding a new layer, or wondering why `make homelab` did/didn't do a thing. |
-| [design/](./design/) | Why a non-obvious mechanism is the way it is — one doc per concept (Pi netboot steady state, Talos image schematics, Cilium bootstrap), cited from the code that depends on it. | Before changing something that looks odd on purpose. |
+| [design/](./design/) | Why a non-obvious mechanism is the way it is — one doc per concept (Cilium bootstrap, Longhorn, the Tailscale router, ingress and TLS, and more), cited from the code that depends on it. | Before changing something that looks odd on purpose. |
 
 ## Conventions
 

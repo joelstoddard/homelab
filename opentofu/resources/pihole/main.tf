@@ -1,11 +1,26 @@
 locals {
   pihole_host_ipv4 = split("/", var.pihole_static_ipv4_cidr)[0]
 
+  # Wildcard the root domain at the cluster ingress, then hand back the
+  # handful of names that are really hosted elsewhere. dnsmasq matches the
+  # most specific domain first, so the server= lines win over the address=
+  # line. Both inputs empty (an unpopulated checkout) means an empty array,
+  # which clears the setting rather than half-configuring it.
+  pihole_dnsmasq_lines = (
+    var.pihole_wildcard_domain == "" || var.pihole_cluster_ingress_ip == ""
+    ? []
+    : concat(
+      ["address=/${var.pihole_wildcard_domain}/${var.pihole_cluster_ingress_ip}"],
+      [for name in var.pihole_dns_passthrough_names : "server=/${name}/#"],
+    )
+  )
+
   pihole_install_script = templatefile("${path.module}/templates/install.sh.tftpl", {
-    static_ipv4_cidr = var.pihole_static_ipv4_cidr
-    dns_1            = var.pihole_upstream_dns[0]
-    dns_2            = length(var.pihole_upstream_dns) > 1 ? var.pihole_upstream_dns[1] : ""
-    web_password     = var.pihole_web_password
+    static_ipv4_cidr   = var.pihole_static_ipv4_cidr
+    dns_1              = var.pihole_upstream_dns[0]
+    dns_2              = length(var.pihole_upstream_dns) > 1 ? var.pihole_upstream_dns[1] : ""
+    web_password       = var.pihole_web_password
+    dnsmasq_lines_json = jsonencode(local.pihole_dnsmasq_lines)
   })
 }
 

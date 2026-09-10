@@ -59,6 +59,62 @@
     - [ ] Benchmark and tighten the router's resource limits
     - [ ] Scrape `:9002/metrics` once an observability layer exists
     - [ ] Un-encrypt bare `10.0.0.0/20` mentions repo-wide (host addresses/ranges stay encrypted)
+- [-] Ingress + TLS — Traefik on a pinned LB IP, one cert-manager wildcard
+      over Cloudflare DNS-01, Pi-hole wildcard DNS. Five Flux layers
+      (`kubernetes/cluster-secrets/`, `cert-manager/`,
+      `cert-manager-issuers/`, `traefik/`, `traefik-middlewares/`) plus
+      `opentofu/resources/pihole/`
+      — `docs/design/ingress-tls.md`. **Committed, not yet reconciled** —
+      Flux tracks `main`, so none of it has run once; the post-merge
+      bring-up is what closes this entry.
+    - [ ] Flip the wildcard certificate to `letsencrypt-production` once the
+          staging chain is confirmed live — one line in
+          `kubernetes/traefik/app/certificate.yaml`
+    - [ ] Fold two doc edits into that same flip commit: the `[-]` markers
+          here and in `kubernetes/README.md`'s Status list, and a rewrite of
+          "Staging first" in the design doc for the post-flip state
+          (production issuer, staging kept as the rollback). The design doc
+          itself carries no deployment status to update — that is deliberate,
+          so it cannot go stale on merge
+    - [ ] Configure the tailnet split-DNS nameserver for the domain (pointing
+          at Pi-hole) so cluster services resolve over the tailnet, not only on
+          the LAN. Private-policy-repo change, not this repo — until it lands, a
+          remote client gets NXDOMAIN for `<name>.<domain>`
+    - [ ] Benchmark and tighten Traefik's resource limits (the same open
+          question as the Tailscale router's)
+    - [ ] Scrape Traefik and cert-manager metrics once an observability layer
+          exists
+    - [ ] Revisit `externalTrafficPolicy: Local` if client IPs in the access
+          logs ever matter — needs a Traefik pod on the node announcing the LB
+          address, and Cilium documents L2 mode as incompatible with `Local`
+    - [ ] `sops` the three plaintext placeholders
+          (`cluster-secrets/app/secrets.sops.yaml`,
+          `cert-manager-issuers/app/secret.sops.yaml`,
+          `traefik/app/secret-basic-auth.sops.yaml`) before the PR opens:
+          the `ENC[` guard in `make -C kubernetes lint` fails on them until
+          then, by design
+    - [ ] Put the four Proxmox hosts behind Traefik — the `ServersTransport`
+          landed (`kubernetes/traefik-middlewares/app/serverstransport.yaml`,
+          unreferenced so far). Still needed: a headless `Service` (no
+          selector) plus a manually maintained `EndpointSlice` listing all
+          four node IPs — preferred over `ExternalName`, which would need
+          `providers.kubernetesCRD.allowExternalNameServices` and has open
+          reliability issues in the Traefik Helm chart; an `IngressRoute`
+          whose service entry sets `scheme: https`, `port: 8006` and
+          `serversTransport: traefik-proxmox-insecure@kubernetescrd`; new
+          `cluster-secrets` keys for the node addresses and the hostname,
+          since those are real LAN data. One hostname can front all four
+          nodes — `pveproxy` forwards requests for resources owned by
+          another node — so list all four endpoints rather than pointing at
+          one and creating a single point of failure.
+    - [ ] Two open questions for that same follow-up, unverified: Traefik's
+          entrypoint `readTimeout` defaults to 60s, which may truncate large
+          ISO/template uploads — raising it affects every route on that
+          entrypoint, so it needs testing rather than a blind bump; and
+          whether Proxmox's ticket cookie tolerates Traefik round-robining
+          across the four nodes mid-session — reasoning says it should,
+          since API paths embed the target node, but no explicit report was
+          found, so watch it on first use.
 - [ ] Renovate for automated version-bump PRs
 - [ ] Pin all tool versions (talosctl/kubectl/talhelper/flux) — likely nix flakes
 

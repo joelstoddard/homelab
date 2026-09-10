@@ -101,6 +101,33 @@ Set such a client's groups to `["Exclusions"]` *exclusively*.
 and emits a plan-time warning. It's a warning, not an error: the
 config is valid, just almost certainly not what was meant.
 
+## Wildcard DNS
+
+`pihole_wildcard_domain` and `pihole_cluster_ingress_ip` wildcard the
+root domain to Traefik's LoadBalancer IP, so every hostname under the
+domain resolves on the LAN without a per-service DNS entry.
+`pihole_dns_passthrough_names` lists the handful of names that are
+actually hosted outside the cluster — dnsmasq matches the most specific
+domain first, so each passthrough's `server=` line wins over the
+wildcard's `address=` line and keeps that name resolving to its real
+public answer instead of the cluster ingress.
+
+All three are real hostnames/LAN IPs, so resource-scoped in
+`secrets.env` like `pihole_static_ipv4_cidr` above, and all three
+default to empty so `make lint` and `make check` pass on an
+unpopulated checkout — an empty wildcard domain or ingress IP clears
+the setting rather than half-configuring it.
+
+Forgetting a passthrough entry fails quietly, not loudly: the wildcard
+certificate already covers the name, so a LAN client gets a valid TLS
+certificate and a Traefik 404 — it looks like the site vanished, not
+like a DNS problem.
+
+These lines are one half of the cluster's ingress: the wildcard also
+makes dnsmasq authoritative for the domain, which breaks cert-manager's
+DNS-01 self-check unless it bypasses Pi-hole. Both traps, and the
+Traefik side, are in the repo-root `docs/design/ingress-tls.md`.
+
 ## Drift
 
 - Adlist add/remove: edit `var.pihole_adlists`, re-apply.
