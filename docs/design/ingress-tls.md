@@ -6,16 +6,6 @@ per-service TLS configuration. Layers:
 `kubernetes/{cluster-secrets,cert-manager,cert-manager-issuers,traefik,traefik-middlewares}/`;
 LAN DNS `opentofu/resources/pihole/`; first consumer `kubernetes/longhorn/`.
 
-**Status: designed and committed, not yet reconciled.** Flux's `GitRepository`
-tracks `main` (`kubernetes/flux-system/gotk-sync.yaml`), so none of this has run
-once. Everything below is read off the manifests and the published charts, never
-observed; runtime behaviour is written as expected, not as fact. Two deliberate
-consequences: the wildcard `Certificate` is on the staging issuer ("Staging
-first"), and the three `*.sops.yaml` files these layers add are committed as
-plaintext placeholders, encrypted before the PR opens. Until that `sops` pass,
-`make -C kubernetes lint` **fails** — the encryption guard it now carries is
-doing its job ("Known limitations").
-
 ## Problem
 
 Nothing in the cluster is reachable by name, and nothing needs to be public —
@@ -267,6 +257,5 @@ keys above), `cert-manager-issuers/app/secret.sops.yaml` (`api-token`),
   cleanly and the layer goes green — with the domain, the LoadBalancer
   address, a live Cloudflare DNS-edit token and the bcrypt hashes published in
   a public repo's permanent history, which no later commit can revoke. Hence
-  the `ENC[` sweep in `lint`, offline, naming every file that fails it. It
-  **fails on this branch by design**, on the three placeholders above: that is
-  the condition it exists to catch, and the operator's `sops` pass clears it.
+  the `ENC[` sweep in `lint`, offline, naming every file that fails it. A
+  layer's secrets are therefore only as safe as that one check.

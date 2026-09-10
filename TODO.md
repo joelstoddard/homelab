@@ -70,14 +70,12 @@
     - [ ] Flip the wildcard certificate to `letsencrypt-production` once the
           staging chain is confirmed live — one line in
           `kubernetes/traefik/app/certificate.yaml`
-    - [ ] Fold three doc edits into that same flip commit, once the feature
-          has actually reconciled: (1) drop the "not yet reconciled" framing
-          from the Status paragraph of `docs/design/ingress-tls.md`, and the
-          `[-]` markers here and in `kubernetes/README.md`'s Status list;
-          (2) drop that paragraph's sentence about the `*.sops.yaml` files
-          being committed as plaintext placeholders — untrue once encrypted;
-          (3) rewrite "Staging first" in the design doc for the
-          post-flip state (production issuer, staging kept as the rollback)
+    - [ ] Fold two doc edits into that same flip commit: the `[-]` markers
+          here and in `kubernetes/README.md`'s Status list, and a rewrite of
+          "Staging first" in the design doc for the post-flip state
+          (production issuer, staging kept as the rollback). The design doc
+          itself carries no deployment status to update — that is deliberate,
+          so it cannot go stale on merge
     - [ ] Configure the tailnet split-DNS nameserver for the domain (pointing
           at Pi-hole) so cluster services resolve over the tailnet, not only on
           the LAN. Private-policy-repo change, not this repo — until it lands, a
