@@ -1,0 +1,38 @@
+# Fronts seven off-cluster LAN hosts — the four Proxmox nodes, TrueNAS,
+# Pi-hole, the router — with Traefik so each gets the wildcard certificate
+# instead of its own self-signed one (the router: instead of no TLS at all).
+# Traefik cannot route to a bare IP: an IngressRoute's services entry names a
+# Service, so every backend here is a headless Service (clusterIP: None, no
+# selector — there is no pod to select) paired with a hand-maintained
+# EndpointSlice naming its one real address. That pairing is the only reason
+# those two objects exist per backend.
+#
+# dependsOn traefik-middlewares as well as traefik, because every route here
+# references the default-headers Middleware and Traefik refuses a router whose
+# middleware is missing. The dashboard route and Longhorn's Ingress do eat that
+# transient 404 — but neither can avoid it: the dashboard route is rendered by
+# the chart inside the traefik layer, and pointing longhorn at ingress would let
+# a broken traefik block storage. This layer is nothing but routing, so it has
+# no reason not to wait, and waiting costs one reconcile against 404s on seven
+# hostnames. dependsOn cluster-secrets for ${DOMAIN} and the seven address
+# variables; postBuild substitutes both after decryption.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: lan-services
+  namespace: flux-system
+spec:
+  interval: 10m0s
+  path: ./kubernetes/lan-services/app
+  prune: true
+  dependsOn:
+    - name: traefik
+    - name: traefik-middlewares
+    - name: cluster-secrets
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+  postBuild:
+    substituteFrom:
+      - kind: Secret
+        name: cluster-secrets

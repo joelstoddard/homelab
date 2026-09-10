@@ -1,0 +1,46 @@
+# The router: plain HTTP on 80, no TLS at all. Traefik terminates the
+# wildcard certificate and forwards this leg in cleartext over the LAN —
+# strictly better than the browser leg being unencrypted, as it is today.
+apiVersion: v1
+kind: Service
+metadata:
+  name: james-webb
+spec:
+  clusterIP: None
+  ports:
+    - name: http
+      port: 80
+      targetPort: 80
+---
+apiVersion: discovery.k8s.io/v1
+kind: EndpointSlice
+metadata:
+  name: james-webb
+  labels:
+    kubernetes.io/service-name: james-webb
+addressType: IPv4
+ports:
+  - name: http
+    port: 80
+endpoints:
+  - addresses:
+      - ${ROUTER_IP}
+    conditions:
+      ready: true
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: james-webb
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - kind: Rule
+      match: Host(`james-webb.${DOMAIN}`)
+      middlewares:
+        - name: default-headers
+          namespace: traefik
+      services:
+        - name: james-webb
+          port: 80

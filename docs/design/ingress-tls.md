@@ -3,8 +3,9 @@
 How a LAN or tailnet client reaches a cluster service at
 `https://<name>.example.com` with a publicly-trusted certificate and no
 per-service TLS configuration. Layers:
-`kubernetes/{cluster-secrets,cert-manager,cert-manager-issuers,traefik,traefik-middlewares}/`;
-LAN DNS `opentofu/resources/pihole/`; first consumer `kubernetes/longhorn/`.
+`kubernetes/{cluster-secrets,cert-manager,cert-manager-issuers,traefik,traefik-middlewares}/`,
+plus `lan-services/` for hosts outside the cluster; LAN DNS
+`opentofu/resources/pihole/`; first in-cluster consumer `kubernetes/longhorn/`.
 
 ## Problem
 
@@ -26,8 +27,13 @@ client → Pi-hole: address=/example.com/192.168.1.x  (every name under the doma
        → middlewares: traefik-default-headers@kubernetescrd, traefik-longhorn-auth@kubernetescrd
 ```
 
-Any router with `tls: {}` or the `router.tls: "true"` annotation is served the
-default store's wildcard: **adding a service is one route object, nothing else.**
+Every router is served the default store's wildcard: **adding a service is one
+route object, nothing else.** A router needs no `tls` section at all — the
+chart leaves `ports.websecure.tls.enabled` at its default, so entrypoint TLS
+covers any router without one, which is why the dashboard route and all seven
+`lan-services` routes carry none. `tls: {}` and the `router.tls: "true"`
+annotation are for putting a route on the HTTPS entrypoint from the *Ingress*
+side (Longhorn), not a prerequisite for the certificate.
 
 That path starts at Pi-hole, so it is a LAN path. A **tailnet** client resolves
 these names only if the tailnet pushes a split-DNS nameserver for the domain at
@@ -180,6 +186,65 @@ error-free secure transport — clicking through a
 certificate interstitial records **no** HSTS state. And the state is keyed to the
 serving host, so a header from `traefik.example.com` pins only that host and
 names beneath it, never the apex `example.com` or `www.example.com`.
+
+## Off-cluster LAN backends
+
+`kubernetes/lan-services/` fronts seven hosts that are not pods — the four
+Proxmox nodes, TrueNAS, Pi-hole, and the router — with the same wildcard
+certificate every in-cluster route gets. An `IngressRoute`'s `services` entry
+names a `Service`, and Traefik has no notion of routing straight to a bare
+IP; the only way to point at an off-cluster address is a headless `Service`
+(`clusterIP: None`, no selector — there is no pod to select) paired with a
+hand-maintained `EndpointSlice` naming that one real address. Nothing else
+about these `Service`s differs from an ordinary one.
+
+Six of the seven backends serve a self-signed certificate Traefik does not
+trust by default (the four Proxmox nodes on 8006, TrueNAS on 443, Pi-hole on
+443); their routes carry `scheme: https` plus
+`serversTransport: traefik-lan-insecure@kubernetescrd`, the `ServersTransport`
+in `traefik-middlewares/app/serverstransport.yaml` (`insecureSkipVerify:
+true`, negotiated only on the Traefik→backend leg — the browser leg still
+terminates on the wildcard). The seventh, the router, speaks plain HTTP with
+no TLS at all; its route sets neither `scheme` nor `serversTransport`, and
+Traefik forwards that leg in cleartext — still an improvement on the browser
+leg being unencrypted, as it is today.
+
+That `serversTransport` reference and a `Middleware` cross-namespace
+reference are two different shapes, easy to cross: `serversTransport` is one
+provider-qualified string (`traefik-<name>@kubernetescrd`), while the
+`default-headers` reference on the same route is a structured `name`/
+`namespace` pair with no `@` suffix.
+
+None of these routes carry basic auth. Every one of the seven backends
+authenticates on its own (a Proxmox login, TrueNAS's login, Pi-hole's
+password, the router's), and all seven are already reachable by IP on the
+LAN today — the hostname adds TLS and a memorable name, not new exposure.
+That is a different call from the Traefik dashboard or Longhorn, neither of
+which has a login of its own.
+
+One caveat worth having on record: Pi-hole and the router are now reachable
+under names that Pi-hole itself resolves. If Traefik is down, those names go
+down with it — DNS still answers, nothing behind it does — so the fallback
+for that specific outage is the plain IP, not the hostname. Fine to accept,
+worth knowing before the day it matters.
+
+Two ways one of these routes can look broken while being correct, both worth
+checking before touching a manifest:
+
+- **A blank panel rather than a 404.** `default-headers` sets
+  `frameDeny: true`, which is `X-Frame-Options: DENY` — and that blocks
+  *same-origin* framing too, not just third-party. An admin UI built out of
+  frames renders empty through Traefik while working perfectly by IP. The fix
+  is a per-route `Middleware` setting `customFrameOptionsValue: SAMEORIGIN`
+  in place of `frameDeny`, not dropping the headers.
+- **The name never reaches Traefik at all.** dnsmasq answers a locally-known
+  name — its own hostname, an `/etc/hosts` entry, a hand-added Local DNS
+  Record — *before* the `address=/<domain>/` wildcard, so the client gets the
+  real host and its self-signed certificate instead of the route. `pihole` is
+  the likeliest name to hit this. Nothing in `opentofu/resources/pihole/`
+  creates such records, so it can only come from a manual leftover: `dig` the
+  name against Pi-hole and expect the Traefik address before concluding the
+  route is at fault.
 
 ## LAN DNS: the wildcard and its two traps
 

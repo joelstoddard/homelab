@@ -60,7 +60,7 @@
     - [ ] Scrape `:9002/metrics` once an observability layer exists
     - [ ] Un-encrypt bare `10.0.0.0/20` mentions repo-wide (host addresses/ranges stay encrypted)
 - [x] Ingress + TLS — Traefik on a pinned LB IP, one cert-manager wildcard
-      over Cloudflare DNS-01, Pi-hole wildcard DNS. Five Flux layers
+      over Cloudflare DNS-01, Pi-hole wildcard DNS. Six Flux layers
       (`kubernetes/cluster-secrets/`, `cert-manager/`,
       `cert-manager-issuers/`, `traefik/`, `traefik-middlewares/`) plus
       `opentofu/resources/pihole/`
@@ -84,34 +84,28 @@
     - [ ] Revisit `externalTrafficPolicy: Local` if client IPs in the access
           logs ever matter — needs a Traefik pod on the node announcing the LB
           address, and Cilium documents L2 mode as incompatible with `Local`
-    - [ ] `sops` the three plaintext placeholders
-          (`cluster-secrets/app/secrets.sops.yaml`,
-          `cert-manager-issuers/app/secret.sops.yaml`,
-          `traefik/app/secret-basic-auth.sops.yaml`) before the PR opens:
-          the `ENC[` guard in `make -C kubernetes lint` fails on them until
-          then, by design
-    - [ ] Put the four Proxmox hosts behind Traefik — the `ServersTransport`
-          landed (`kubernetes/traefik-middlewares/app/serverstransport.yaml`,
-          unreferenced so far). Still needed: a headless `Service` (no
-          selector) plus a manually maintained `EndpointSlice` listing all
-          four node IPs — preferred over `ExternalName`, which would need
+    - [x] Put the four Proxmox hosts behind Traefik —
+          `kubernetes/lan-services/` (also fronts TrueNAS, Pi-hole and the
+          router, seven backends total). Headless `Service` + hand-maintained
+          `EndpointSlice` + `IngressRoute` per backend — preferred over
+          `ExternalName`, which would need
           `providers.kubernetesCRD.allowExternalNameServices` and has open
-          reliability issues in the Traefik Helm chart; an `IngressRoute`
-          whose service entry sets `scheme: https`, `port: 8006` and
-          `serversTransport: traefik-proxmox-insecure@kubernetescrd`; new
-          `cluster-secrets` keys for the node addresses and the hostname,
-          since those are real LAN data. One hostname can front all four
-          nodes — `pveproxy` forwards requests for resources owned by
-          another node — so list all four endpoints rather than pointing at
-          one and creating a single point of failure.
-    - [ ] Two open questions for that same follow-up, unverified: Traefik's
-          entrypoint `readTimeout` defaults to 60s, which may truncate large
-          ISO/template uploads — raising it affects every route on that
-          entrypoint, so it needs testing rather than a blind bump; and
-          whether Proxmox's ticket cookie tolerates Traefik round-robining
-          across the four nodes mid-session — reasoning says it should,
-          since API paths embed the target node, but no explicit report was
-          found, so watch it on first use.
+          reliability issues in the Traefik Helm chart. Landed as one
+          hostname per node (`rumba`/`tango`/`salsa`/`samba`.${DOMAIN})
+          rather than the single shared hostname sketched here, so no node
+          depends on `pveproxy` forwarding a request meant for another.
+          `ServersTransport` renamed from its earlier Proxmox-only name to
+          `lan-insecure`, now shared by six of the seven backends. The
+          `EndpointSlice`s are hand-maintained: a re-addressed host needs a
+          `cluster-secrets` edit, not just a DHCP change.
+    - [ ] One open question remains from that follow-up, unverified:
+          Traefik's entrypoint `readTimeout` defaults to 60s, which may
+          truncate large ISO/template uploads — raising it affects every
+          route on that entrypoint, so it needs testing rather than a blind
+          bump. (The other question sketched here — whether Proxmox's ticket
+          cookie tolerates Traefik round-robining across nodes mid-session —
+          no longer applies: each node has its own hostname and single
+          endpoint, so nothing round-robins.)
 - [ ] Renovate for automated version-bump PRs
 - [ ] Pin all tool versions (talosctl/kubectl/talhelper/flux) — likely nix flakes
 
