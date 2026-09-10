@@ -68,6 +68,15 @@ if ! grep -q '^[[:space:]]*max_sessions = 50$' /etc/pihole/pihole.toml; then
     exit 1
 fi
 
+# LAN resolution for the Kubernetes cluster: wildcard the root domain at
+# Traefik's LoadBalancer IP, with a passthrough per publicly-hosted name
+# (dnsmasq matches the most specific domain first). FTL parses and validates
+# the array itself, and dnsmasq-test checks the generated config, so a
+# malformed line fails here instead of silently breaking resolution for the
+# whole LAN. An empty array clears the setting.
+pihole-FTL --config misc.dnsmasq_lines '${dnsmasq_lines_json}'
+pihole-FTL dnsmasq-test
+
 # Restart FTL to drop any half-warmed state from the install path,
 # pick up the new max_sessions config, and clear any open sessions.
 # Without this, the first API write (create a group/adlist) can fail

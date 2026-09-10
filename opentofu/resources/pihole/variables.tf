@@ -206,3 +206,42 @@ variable "pihole_adlists" {
     "https://v.firebog.net/hosts/Prigent-Malware.txt",
   ]
 }
+
+variable "pihole_cluster_ingress_ip" {
+  description = "Traefik's pinned LoadBalancer IP in the Kubernetes cluster. Every name under pihole_wildcard_domain resolves here on the LAN. Resource-scoped; injected via TF_VAR_pihole_cluster_ingress_ip from opentofu/resources/pihole/secrets.env. Empty disables the wildcard entirely."
+  type        = string
+  default     = ""
+}
+
+variable "pihole_wildcard_domain" {
+  description = "Root domain wildcarded to the cluster ingress. A real domain name, so resource-scoped: injected via TF_VAR_pihole_wildcard_domain from secrets.env. Empty disables the wildcard entirely."
+  type        = string
+  default     = ""
+}
+
+variable "pihole_dns_passthrough_names" {
+  description = <<-EOT
+    Fully-qualified names under pihole_wildcard_domain that must keep
+    resolving to their real public answers on the LAN — the services hosted
+    outside the cluster. Each becomes a `server=/<name>/#` line; dnsmasq
+    resolves the most specific match first, so these beat the wildcard.
+
+    Omitting a name that is hosted publicly does not fail loudly: the
+    wildcard certificate covers it, so a LAN client gets a valid certificate
+    and a Traefik 404 — TLS looks perfect and the site is simply gone.
+
+    Real hostnames, so resource-scoped in secrets.env. Defaults to empty so
+    `make lint` and `make check` pass on an unpopulated checkout.
+  EOT
+
+  type    = list(string)
+  default = []
+
+  validation {
+    condition = alltrue([
+      for name in var.pihole_dns_passthrough_names :
+      can(regex("^([A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?\\.)+[A-Za-z]{2,}$", name))
+    ])
+    error_message = "Every pihole_dns_passthrough_names entry must be a fully-qualified hostname (e.g. \"www.example.com\"). A bare label would generate a dnsmasq line that shadows an entire TLD."
+  }
+}
