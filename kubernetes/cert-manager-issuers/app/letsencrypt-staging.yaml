@@ -1,0 +1,23 @@
+# Staging exists to be used first: Let's Encrypt allows 5 duplicate
+# certificates per week, and a wildcard is easy to burn through while
+# debugging a DNS-01 setup. The wildcard Certificate points here until the
+# chain verifies end to end (docs/design/ingress-tls.md).
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-staging
+spec:
+  acme:
+    server: https://acme-staging-v02.api.letsencrypt.org/directory
+    email: ${ACME_EMAIL}
+    privateKeySecretRef:
+      name: letsencrypt-staging-account-key
+    solvers:
+      - dns01:
+          cloudflare:
+            apiTokenSecretRef:
+              name: cloudflare-api-token
+              key: api-token
+        selector:
+          dnsZones:
+            - ${DOMAIN}
