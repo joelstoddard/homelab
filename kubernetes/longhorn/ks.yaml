@@ -16,6 +16,11 @@ spec:
   timeout: 15m0s
   dependsOn:
     - name: cilium
+    - name: cluster-secrets
   sourceRef:
     kind: GitRepository
     name: flux-system
+  postBuild:
+    substituteFrom:
+      - kind: Secret
+        name: cluster-secrets
