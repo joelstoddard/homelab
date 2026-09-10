@@ -42,6 +42,22 @@ module "lxc" {
 }
 
 resource "null_resource" "pihole_install" {
+  # Both inputs empty is legitimate — an unpopulated checkout. One empty is
+  # always a mistake, and the `[]` fallback above turns it into an apply that
+  # reports success and writes nothing: a misspelled TF_VAR_ name in
+  # secrets.env cost a full rollout round that way. Fail at plan time instead.
+  lifecycle {
+    precondition {
+      condition     = (var.pihole_wildcard_domain == "") == (var.pihole_cluster_ingress_ip == "")
+      error_message = "pihole_wildcard_domain and pihole_cluster_ingress_ip must be set together or left empty together — one without the other silently disables the cluster wildcard. Check the TF_VAR_ names in opentofu/resources/pihole/secrets.env."
+    }
+
+    precondition {
+      condition     = length(var.pihole_dns_passthrough_names) == 0 || var.pihole_wildcard_domain != ""
+      error_message = "pihole_dns_passthrough_names is set while pihole_wildcard_domain is empty: there is no wildcard for those names to override, so the server= lines they generate would pass through names nothing was catching."
+    }
+  }
+
   # `container_mac` (the eth0 MAC Proxmox auto-assigns at creation)
   # rather than `vm_id` (a constant input) so the installer re-runs
   # when the LXC itself is replaced. Without that, Proxmox-UI deletion
