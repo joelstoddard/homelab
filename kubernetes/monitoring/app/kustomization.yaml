@@ -6,6 +6,8 @@ resources:
   - helmrepositories.yaml
   - prometheus/helmrelease.yaml
   - loki/helmrelease.yaml
+  - grafana/helmrelease.yaml
+  - secret-grafana-admin.sops.yaml
 # Each chart's values.yaml -> the ConfigMap its HelmRelease reads via
 # valuesFrom; no hash suffix so the HelmRelease can name it, and the watch
 # label makes helm-controller reconcile on content changes (same pattern as
@@ -18,6 +20,9 @@ configMapGenerator:
   - name: loki-values
     files:
       - values.yaml=loki/values.yaml
+  - name: grafana-values
+    files:
+      - values.yaml=grafana/values.yaml
 generatorOptions:
   disableNameSuffixHash: true
   labels:
