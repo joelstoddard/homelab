@@ -26,9 +26,11 @@
 - [-] Configure VMs
     - [x] Kubernetes (k8s-vm modules boot the Talos ISO into maintenance mode)
     - [ ] Right-size VM memory: a 16 GB NUC carries 4 + 8 + 8 GB of Talos VMs
-          (plus the 8 GB operator on one of them, no swap). Rumba OOM-killed the
-          operator during the 2026-09-07 Cilium rebuild; stopgap was
-          `qm set 901 --balloon 2048`. Fix the sizing in NetBox (k8s-vm reads
+          (plus the operator on one of them, no swap). Rumba OOM-killed the
+          operator during the 2026-09-07 Cilium rebuild and `k8s-server-01`
+          when the observability stack landed on 2026-09-11; the operator VM
+          is now 4096 MB / balloon 1024 (`qm set 901`), but every NUC still
+          sits at ~14.4 of 15.5 GiB. Fix the sizing in NetBox (k8s-vm reads
           it) and/or give the VMs balloon minimums in `modules/vm`.
 
 ## Raspberry Pis
@@ -107,10 +109,15 @@
           endpoint, so nothing round-robins.)
 - [x] Observability — Prometheus + Loki + Grafana + Alloy (`kubernetes/monitoring/`,
       `kubernetes/alloy/`) — `docs/design/observability.md`
-    - [ ] Control-plane component metrics (etcd, scheduler, controller-manager):
-          talconfig control-plane patch + `apply-upgrade` of the five nodes
+    - [x] Control-plane component metrics (etcd, scheduler, controller-manager):
+          talconfig control-plane patch + `apply-upgrade` + one graceful
+          `talosctl reboot` per control-plane node (etcd only reads its
+          arguments at start) — live 2026-09-11
     - [ ] Measure and tighten the stack's limits after 24 h (design doc
           "Measurements")
+    - [ ] Series budget: ~360k active series against the ~100k estimate —
+          `topk(10, count by (__name__) ({__name__=~".+"}))`, then drop or
+          relabel the biggest families (Hubble and cAdvisor are the suspects)
     - [ ] Restrict etcd `:2381` to the pod CIDR with a Talos `NetworkRuleConfig`
     - [ ] Talos machine logs (kubelet/containerd/kernel) to Loki — Talos sends
           JSON lines over TCP/UDP; needs a receiver Alloy lacks
