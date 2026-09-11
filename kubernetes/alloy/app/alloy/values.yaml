@@ -1,0 +1,79 @@
+# One Alloy per node: scrapes its own kubelet/cAdvisor, exports node metrics
+# from the host mounts, tails /var/log/pods, and takes its share of the
+# cluster-wide scrapes via clustering. Config is config/config.alloy, mounted
+# from the alloy-config ConfigMap; the reloader picks up edits without a
+# restart. docs/design/observability.md.
+alloy:
+  configMap:
+    create: false
+    name: alloy-config
+    key: config.alloy
+  clustering:
+    enabled: true
+  mounts:
+    varlog: true
+    extra:
+      - name: procfs
+        mountPath: /host/proc
+        readOnly: true
+      - name: sysfs
+        mountPath: /host/sys
+        readOnly: true
+      - name: rootfs
+        mountPath: /host/root
+        readOnly: true
+        mountPropagation: HostToContainer
+  extraEnv:
+    - name: NODE_NAME
+      valueFrom:
+        fieldRef:
+          fieldPath: spec.nodeName
+    # hostNetwork: the pod's host IP is the node's LAN address.
+    - name: HOST_IP
+      valueFrom:
+        fieldRef:
+          fieldPath: status.hostIP
+  # Alloy's default advertise interfaces are eth0/en0, which Talos nodes do
+  # not have (end0 on the Pis, enp* on the VMs); left alone it advertises
+  # 127.0.0.1 and clustering silently collapses.
+  extraArgs:
+    - --cluster.advertise-address=$(HOST_IP):12345
+  # Pod log files under /var/log/pods are root-owned 0640; the image's default
+  # user cannot read them.
+  securityContext:
+    runAsUser: 0
+    runAsGroup: 0
+  resources:
+    requests:
+      cpu: 100m
+      memory: 192Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+controller:
+  type: daemonset
+  hostPID: true
+  # hostNetwork so the unix exporter reports the node's interfaces, not the
+  # pod's; port 12345 is then a node port, free on Talos.
+  hostNetwork: true
+  dnsPolicy: ClusterFirstWithHostNet
+  # Control-plane nodes carry no workloads, but they do have a kubelet and
+  # logs worth collecting.
+  tolerations:
+    - key: node-role.kubernetes.io/control-plane
+      operator: Exists
+      effect: NoSchedule
+  volumes:
+    extra:
+      - name: procfs
+        hostPath:
+          path: /proc
+      - name: sysfs
+        hostPath:
+          path: /sys
+      - name: rootfs
+        hostPath:
+          path: /
+  podAnnotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "12345"

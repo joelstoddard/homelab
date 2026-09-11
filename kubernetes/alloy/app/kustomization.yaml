@@ -1,0 +1,20 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: alloy
+resources:
+  - namespace.yaml
+  - helmrepository.yaml
+  - alloy/helmrelease.yaml
+  - alloy-events/helmrelease.yaml
+  - config
+configMapGenerator:
+  - name: alloy-values
+    files:
+      - values.yaml=alloy/values.yaml
+  - name: alloy-events-values
+    files:
+      - values.yaml=alloy-events/values.yaml
+generatorOptions:
+  disableNameSuffixHash: true
+  labels:
+    reconcile.fluxcd.io/watch: Enabled

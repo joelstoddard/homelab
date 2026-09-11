@@ -1,0 +1,83 @@
+# Stateless Grafana: git is the source of truth. Datasources are provisioned
+# here with fixed UIDs so vendored dashboard JSON can name them; dashboards
+# arrive through the sidecar from labelled ConfigMaps (dashboards/). A UI edit
+# to a provisioned dashboard is refused; Save As a copy, iterate, export,
+# commit — the copy vanishes on restart. docs/design/observability.md.
+persistence:
+  enabled: false
+testFramework:
+  enabled: false
+admin:
+  existingSecret: grafana-admin
+  userKey: admin-user
+  passwordKey: admin-password
+grafana.ini:
+  server:
+    root_url: https://grafana.${DOMAIN}
+  analytics:
+    reporting_enabled: false
+    check_for_updates: false
+  news:
+    news_feed_enabled: false
+  auth.anonymous:
+    enabled: false
+datasources:
+  datasources.yaml:
+    apiVersion: 1
+    datasources:
+      - name: Prometheus
+        uid: prometheus
+        type: prometheus
+        access: proxy
+        url: http://prometheus-server.monitoring.svc
+        isDefault: true
+        editable: false
+        jsonData:
+          # Matches Alloy's scrape interval so rate windows span >= 2 samples.
+          timeInterval: 60s
+      - name: Loki
+        uid: loki
+        type: loki
+        access: proxy
+        url: http://loki.monitoring.svc:3100
+        editable: false
+sidecar:
+  dashboards:
+    enabled: true
+    label: grafana_dashboard
+    labelValue: "1"
+    # Cilium's chart ships its dashboards as ConfigMaps in kube-system.
+    searchNamespace: ALL
+    folderAnnotation: grafana_folder
+    provider:
+      foldersFromFilesStructure: true
+      allowUiUpdates: false
+  resources:
+    requests:
+      cpu: 20m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 128Mi
+ingress:
+  enabled: true
+  ingressClassName: traefik
+  hosts:
+    - grafana.${DOMAIN}
+  # tls stays at the chart default (empty): with no spec.tls Traefik serves
+  # this route from the TLSStore default wildcard. Grafana authenticates
+  # itself, so only the headers middleware, no basic-auth.
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.tls: "true"
+    traefik.ingress.kubernetes.io/router.middlewares: traefik-default-headers@kubernetescrd
+podAnnotations:
+  prometheus.io/scrape: "true"
+  prometheus.io/port: "3000"
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi

@@ -1,0 +1,45 @@
+# One ConfigMap per dashboard, labelled for Grafana's sidecar, folder from the
+# annotation. Substitution is disabled on every ConfigMap here: dashboard JSON
+# is full of $__rate_interval and ${var}, which Flux's envsubst would eat.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+generatorOptions:
+  disableNameSuffixHash: true
+  labels:
+    grafana_dashboard: "1"
+  annotations:
+    kustomize.toolkit.fluxcd.io/substitute: disabled
+configMapGenerator:
+  - name: dashboard-k8s-views-global
+    files: [Kubernetes/k8s-views-global.json]
+    options: {annotations: {grafana_folder: Kubernetes}}
+  - name: dashboard-k8s-views-namespaces
+    files: [Kubernetes/k8s-views-namespaces.json]
+    options: {annotations: {grafana_folder: Kubernetes}}
+  - name: dashboard-k8s-views-nodes
+    files: [Kubernetes/k8s-views-nodes.json]
+    options: {annotations: {grafana_folder: Kubernetes}}
+  - name: dashboard-k8s-views-pods
+    files: [Kubernetes/k8s-views-pods.json]
+    options: {annotations: {grafana_folder: Kubernetes}}
+  - name: dashboard-node-exporter-full
+    files: [Kubernetes/node-exporter-full.json]
+    options: {annotations: {grafana_folder: Kubernetes}}
+  - name: dashboard-longhorn
+    files: [Storage/longhorn.json]
+    options: {annotations: {grafana_folder: Storage}}
+  - name: dashboard-traefik
+    files: [Ingress/traefik.json]
+    options: {annotations: {grafana_folder: Ingress}}
+  - name: dashboard-cert-manager
+    files: [Ingress/cert-manager.json]
+    options: {annotations: {grafana_folder: Ingress}}
+  - name: dashboard-flux-control-plane
+    files: [Flux/control-plane.json]
+    options: {annotations: {grafana_folder: Flux}}
+  - name: dashboard-logs-explorer
+    files: [Logs/logs-explorer.json]
+    options: {annotations: {grafana_folder: Logs}}
+  - name: dashboard-kubernetes-events
+    files: [Logs/kubernetes-events.json]
+    options: {annotations: {grafana_folder: Logs}}

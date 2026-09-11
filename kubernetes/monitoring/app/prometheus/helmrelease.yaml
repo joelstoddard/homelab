@@ -1,0 +1,27 @@
+# The chart version is pinned here only. prometheus-community chart versions
+# carry no v prefix. A bump is a Prometheus upgrade: run the multi-arch image
+# check in docs/design/longhorn.md first.
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: prometheus
+spec:
+  interval: 1h0m0s
+  releaseName: prometheus
+  timeout: 10m0s
+  chart:
+    spec:
+      chart: prometheus
+      version: "29.28.0"
+      sourceRef:
+        kind: HelmRepository
+        name: prometheus-community
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    remediation:
+      retries: 3
+  valuesFrom:
+    - kind: ConfigMap
+      name: prometheus-values

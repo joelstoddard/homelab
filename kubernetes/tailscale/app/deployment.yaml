@@ -20,6 +20,10 @@ spec:
     metadata:
       labels:
         app.kubernetes.io/name: tailscale
+      # :9002/metrics (TS_ENABLE_METRICS below) for the alloy layer.
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9002"
     spec:
       serviceAccountName: tailscale
       # Reschedule ~30 s after the node drops, not the 5 min default. The

@@ -1,0 +1,27 @@
+# The chart version is pinned here only (no v prefix). A bump is a Grafana
+# upgrade: the sidecar and Grafana images both move; run the multi-arch check
+# in docs/design/longhorn.md first.
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: grafana
+spec:
+  interval: 1h0m0s
+  releaseName: grafana
+  timeout: 10m0s
+  chart:
+    spec:
+      chart: grafana
+      version: "13.2.2"
+      sourceRef:
+        kind: HelmRepository
+        name: grafana-community
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    remediation:
+      retries: 3
+  valuesFrom:
+    - kind: ConfigMap
+      name: grafana-values

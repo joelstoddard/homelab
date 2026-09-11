@@ -1,0 +1,29 @@
+{
+  "id": null,
+  "uid": "homelab-k8s-events",
+  "title": "Kubernetes events",
+  "tags": ["logs", "events", "homelab"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "time": {"from": "now-6h", "to": "now"},
+  "templating": {
+    "list": [
+      {"name": "namespace", "label": "Namespace", "type": "query", "datasource": {"type": "loki", "uid": "loki"},
+       "query": {"label": "namespace", "stream": "{job=\"loki.source.kubernetes_events\"}", "type": 1}, "refresh": 2, "includeAll": true, "multi": true, "sort": 1}
+    ]
+  },
+  "panels": [
+    {"id": 1, "type": "timeseries", "title": "Events per namespace", "gridPos": {"h": 7, "w": 24, "x": 0, "y": 0},
+     "datasource": {"type": "loki", "uid": "loki"},
+     "targets": [{"refId": "A", "expr": "sum by (namespace) (count_over_time({job=\"loki.source.kubernetes_events\", namespace=~\"$namespace\"} [$__auto]))", "legendFormat": "{{namespace}}"}],
+     "fieldConfig": {"defaults": {"custom": {"drawStyle": "bars", "fillOpacity": 60}}, "overrides": []}},
+    {"id": 2, "type": "logs", "title": "Warnings", "gridPos": {"h": 10, "w": 24, "x": 0, "y": 7},
+     "datasource": {"type": "loki", "uid": "loki"},
+     "options": {"showTime": true, "wrapLogMessage": true, "sortOrder": "Descending", "dedupStrategy": "none", "enableLogDetails": true},
+     "targets": [{"refId": "A", "expr": "{job=\"loki.source.kubernetes_events\", namespace=~\"$namespace\"} |= \"type=Warning\""}]},
+    {"id": 3, "type": "logs", "title": "All events", "gridPos": {"h": 12, "w": 24, "x": 0, "y": 17},
+     "datasource": {"type": "loki", "uid": "loki"},
+     "options": {"showTime": true, "wrapLogMessage": true, "sortOrder": "Descending", "dedupStrategy": "none", "enableLogDetails": true},
+     "targets": [{"refId": "A", "expr": "{job=\"loki.source.kubernetes_events\", namespace=~\"$namespace\"}"}]}
+  ]
+}

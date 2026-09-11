@@ -325,8 +325,8 @@ keys above), `cert-manager-issuers/app/secret.sops.yaml` (`api-token`),
   documents L2 mode as incompatible with `Local`. Cost: SNAT'd client addresses
   in the access logs.
 - **Resource limits are a first guess** — requests `100m`/`128Mi`, limits
-  `500m`/`256Mi`, sized for a Pi. And no `ServiceMonitor`: `prometheus.enabled`
-  stays at its chart default, nothing exists to scrape it. Both `TODO.md`.
+  `500m`/`256Mi`, sized for a Pi (`TODO.md`). Metrics are scraped by the
+  `alloy` layer via pod annotations — `docs/design/observability.md`.
 - **Startup ordering is not enforced.** Traefik may become Ready before
   `wildcard-tls` exists, log a missing-certificate error and serve its internal
   self-signed certificate; it should pick the real Secret up when cert-manager

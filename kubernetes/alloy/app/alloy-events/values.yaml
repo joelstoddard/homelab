@@ -1,0 +1,20 @@
+# One unprivileged Alloy watching the events API. After a restart it may
+# re-emit events still in the API (one-hour TTL); accepted.
+alloy:
+  configMap:
+    create: false
+    name: alloy-events-config
+    key: events.alloy
+  resources:
+    requests:
+      cpu: 20m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
+controller:
+  type: deployment
+  replicas: 1
+  podAnnotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "12345"

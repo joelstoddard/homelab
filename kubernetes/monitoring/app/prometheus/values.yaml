@@ -1,0 +1,69 @@
+# Prometheus as a TSDB only: Alloy scrapes and remote-writes into it, so the
+# chart's own scrape jobs are all off and the receiver flag is on.
+# docs/design/observability.md.
+server:
+  extraFlags:
+    - web.enable-lifecycle
+    - web.enable-remote-write-receiver
+  retention: 30d
+  # Below the PVC so the volume never fills before retention kicks in.
+  retentionSize: 18GB
+  persistentVolume:
+    enabled: true
+    size: 20Gi
+  # RWO Longhorn volume: the old pod must release it before the new one mounts.
+  strategy:
+    type: Recreate
+  # Longhorn from a VM is ~2x the IOPS of a Pi; the TSDB write path notices.
+  nodeSelector:
+    kubernetes.io/arch: amd64
+  podAnnotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "9090"
+  resources:
+    requests:
+      cpu: 500m
+      memory: 1Gi
+    limits:
+      cpu: "1"
+      memory: 2Gi
+# The chart's default jobs are a map, so each must be switched off by name.
+scrapeConfigs:
+  prometheus:
+    enabled: false
+  kubernetes-api-servers:
+    enabled: false
+  kubernetes-nodes:
+    enabled: false
+  kubernetes-nodes-cadvisor:
+    enabled: false
+  kubernetes-service-endpoints:
+    enabled: false
+  kubernetes-service-endpoints-slow:
+    enabled: false
+  prometheus-pushgateway:
+    enabled: false
+  kubernetes-services:
+    enabled: false
+  kubernetes-pods:
+    enabled: false
+  kubernetes-pods-slow:
+    enabled: false
+alertmanager:
+  enabled: false
+# Node metrics come from Alloy's unix exporter (one DaemonSet, not two).
+prometheus-node-exporter:
+  enabled: false
+prometheus-pushgateway:
+  enabled: false
+# Subchart. Its Service carries prometheus.io/scrape by default
+# (prometheusScrape: true), which is how Alloy finds it.
+kube-state-metrics:
+  enabled: true
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi

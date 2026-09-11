@@ -1,0 +1,18 @@
+# Classic Helm repos, not OCI (unlike Cilium), hence HelmRepository +
+# chart.spec. The Loki and Grafana charts moved to grafana-community in 2026;
+# the Alloy chart did not and lives in the alloy layer's own HelmRepository.
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmRepository
+metadata:
+  name: prometheus-community
+spec:
+  interval: 1h0m0s
+  url: https://prometheus-community.github.io/helm-charts
+---
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmRepository
+metadata:
+  name: grafana-community
+spec:
+  interval: 1h0m0s
+  url: https://grafana-community.github.io/helm-charts
