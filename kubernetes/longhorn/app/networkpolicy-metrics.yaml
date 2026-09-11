@@ -1,0 +1,22 @@
+# Longhorn's own NetworkPolicy admits only Longhorn pods to longhorn-manager,
+# and the alloy DaemonSet runs on the host network, so Cilium sees its scrapes
+# as the host / remote-node identities — which no podSelector can match, and
+# which Cilium's CIDR rules do not match either. A Cilium policy naming the
+# entities is the one form that lets :9500/metrics through.
+# docs/design/observability.md.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: longhorn-manager-metrics-from-nodes
+spec:
+  endpointSelector:
+    matchLabels:
+      app: longhorn-manager
+  ingress:
+    - fromEntities:
+        - host
+        - remote-node
+      toPorts:
+        - ports:
+            - port: "9500"
+              protocol: TCP

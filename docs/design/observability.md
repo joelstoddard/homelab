@@ -31,6 +31,13 @@ defaults that hide the control-plane components.
   `web.enable-remote-write-receiver` and an empty scrape config. Cilium's
   `cilium-envoy` Service carries the same chart-emitted annotations, so a
   `cilium-envoy` job shows up as a bonus of Service-based discovery.
+  Targets behind a NetworkPolicy (Longhorn's manager, the Flux controllers)
+  see the hostNetwork scraper as Cilium's `host` / `remote-node` identity,
+  which neither a `podSelector`/`namespaceSelector` nor an `ipBlock` matches
+  on Cilium; each such layer carries a `CiliumNetworkPolicy` admitting those
+  entities on the metrics port (`longhorn/app/networkpolicy-metrics.yaml`,
+  `flux-system/networkpolicy-node-scraping.yaml`), and a new
+  policy-protected target needs the same.
 - **No Prometheus Operator, no CRDs.** Flux, Cilium, cert-manager,
   kube-state-metrics and Traefik already carry the annotations — Traefik's
   chart annotates its own pods once `metrics.prometheus` is on, so this
