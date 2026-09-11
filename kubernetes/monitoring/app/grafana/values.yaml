@@ -41,6 +41,29 @@ datasources:
         access: proxy
         url: http://loki.monitoring.svc:3100
         editable: false
+      - name: Tempo
+        uid: tempo
+        type: tempo
+        access: proxy
+        url: http://tempo.monitoring.svc:3200
+        editable: false
+        jsonData:
+          # Beyla stamps k8s.namespace.name / k8s.pod.name on spans and Loki streams
+          # carry namespace / pod; nothing here logs trace IDs, so no ID filter.
+          tracesToLogsV2:
+            datasourceUid: loki
+            spanStartTimeShift: "-5m"
+            spanEndTimeShift: "5m"
+            tags:
+              - key: k8s.namespace.name
+                value: namespace
+              - key: k8s.pod.name
+                value: pod
+            filterByTraceID: false
+          serviceMap:
+            datasourceUid: prometheus
+          nodeGraph:
+            enabled: true
 sidecar:
   dashboards:
     enabled: true

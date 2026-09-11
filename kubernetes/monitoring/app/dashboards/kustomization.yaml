@@ -43,3 +43,6 @@ configMapGenerator:
   - name: dashboard-kubernetes-events
     files: [Logs/kubernetes-events.json]
     options: {annotations: {grafana_folder: Logs}}
+  - name: dashboard-beyla-red
+    files: [Tracing/beyla-red.json]
+    options: {annotations: {grafana_folder: Tracing}}

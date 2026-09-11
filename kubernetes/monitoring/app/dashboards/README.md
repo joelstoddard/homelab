@@ -27,3 +27,4 @@ the sidecar watches every namespace.
 | Flux/control-plane.json | Flux | fluxcd/flux2-monitoring-example monitoring/configs/dashboards/control-plane.json | main @ 2026-09 | datasource UIDs pinned |
 | Logs/logs-explorer.json | Logs | hand-written | — | — |
 | Logs/kubernetes-events.json | Logs | hand-written | — | — |
+| Tracing/beyla-red.json | Tracing | grafana.com/grafana/dashboards/19923 | 3 | datasource UIDs pinned |
