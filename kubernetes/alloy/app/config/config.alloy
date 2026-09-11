@@ -165,6 +165,13 @@ discovery.relabel "node" {
 		target_label = "node"
 		replacement  = sys.env("NODE_NAME")
 	}
+
+	// The exporter's targets arrive with job="integrations/unix", which would
+	// win over the scrape's job_name; the dashboards expect node-exporter.
+	rule {
+		target_label = "job"
+		replacement  = "node-exporter"
+	}
 }
 
 prometheus.scrape "node" {
@@ -448,6 +455,14 @@ discovery.kubernetes "longhorn" {
 discovery.relabel "longhorn" {
 	targets = discovery.kubernetes.longhorn.targets
 
+	// The endpoints role also emits the manager's webhook ports (9502/9503),
+	// which are not metrics endpoints; keep the one the Service names.
+	rule {
+		source_labels = ["__meta_kubernetes_endpoint_port_name"]
+		regex         = "manager"
+		action        = "keep"
+	}
+
 	rule {
 		source_labels = ["__meta_kubernetes_pod_node_name"]
 		target_label  = "node"
@@ -635,11 +650,13 @@ discovery.kubernetes "pods_local" {
 discovery.relabel "pod_logs" {
 	targets = discovery.kubernetes.pods_local.targets
 
+	// Braced indices: Go's regexp expansion reads "$1_" as a group named "1_"
+	// (empty), which silently drops the <ns>_<pod>_ prefix and matches nothing.
 	rule {
 		source_labels = ["__meta_kubernetes_namespace", "__meta_kubernetes_pod_name", "__meta_kubernetes_pod_uid", "__meta_kubernetes_pod_container_name"]
 		separator     = "/"
 		regex         = "(.+)/(.+)/(.+)/(.+)"
-		replacement   = "/var/log/pods/$1_$2_$3/$4/*.log"
+		replacement   = "/var/log/pods/${1}_${2}_${3}/${4}/*.log"
 		target_label  = "__path__"
 	}
 
