@@ -81,7 +81,11 @@ defaults that hide the control-plane components.
 - **Talos control plane.** Scheduler and controller-manager bind to
   `127.0.0.1` and etcd has no metrics listener by default; a control-plane
   patch sets `bind-address: 0.0.0.0` and `listen-metrics-urls:
-  http://0.0.0.0:2381`, rolled with `make -C ansible apply-upgrade`. etcd
+  http://0.0.0.0:2381`, rolled with `make -C ansible apply-upgrade` and then
+  one graceful `talosctl reboot` per control-plane node: the play reboots
+  only on a build change, the static pods restart on config push, but etcd
+  reads its arguments at start and Talos refuses restarting it via the API
+  (`docs/talos-bootstrap.md`, "In-place upgrade"). etcd
   runs as a Talos host service, not a static pod, so Alloy discovers it by
   node (`node-role.kubernetes.io/control-plane`) on `:2381` over plain
   HTTP; the metrics carry no key data, and a `NetworkRuleConfig` is the
@@ -113,8 +117,30 @@ Logs: `namespace`, `pod`, `container`, `app`, `node`, `stream`,
 
 ## Measurements
 
-Filled in after the first 24 h live: series count, TSDB bytes/day, Loki
-bytes/day, working-set memory per pod against its limit.
+First hour live (2026-09-11, after the fix PR and the control-plane
+reboots), 24 h figures to follow:
+
+| What | Measured | Budget / estimate |
+| --- | --- | --- |
+| Active series | ~360k | ~100k estimated; the breakdown by `__name__` is the first follow-up |
+| Scrape targets | ~195 (`count(up)`), none down at steady state | — |
+| Prometheus working set | 0.8 GiB | 2 GiB limit |
+| Loki working set | 0.22 GiB | 1 GiB limit |
+| Grafana pod (with sidecar) | 0.53 GiB | 0.5 + 0.125 GiB limits |
+| Alloy, busiest pod | 383 MiB | 512 MiB limit |
+| Reconcile after merge | 6 min to both layers Ready; first pod-log lines within a minute of the fix | — |
+
+## Observed behaviour
+
+- **Rumba OOM-killed `k8s-server-01` as the stack landed.** The four NUCs sat
+  at ~14.4 of 15.5 GiB; the Cilium roll plus the Alloy pod on a 4 GB
+  control-plane VM tipped Rumba, which also hosts the operator VM. The
+  operator VM went from 8192/2048 to 4096/1024 (memory/balloon) and the
+  node was restarted; right-sizing the agents is still `TODO.md`. etcd's
+  quorum of five carried the loss.
+- **`apply-upgrade` did not restart etcd.** With an unchanged Talos build the
+  play pushes config without a reboot; five graceful `talosctl reboot`s
+  opened `:2381` (see the Talos control plane bullet above).
 
 ## Rejected
 
