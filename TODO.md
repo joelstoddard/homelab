@@ -121,7 +121,10 @@
     - [ ] Restrict etcd `:2381` to the pod CIDR with a Talos `NetworkRuleConfig`
     - [ ] Talos machine logs (kubelet/containerd/kernel) to Loki — Talos sends
           JSON lines over TCP/UDP; needs a receiver Alloy lacks
-    - [ ] Spec 2: Beyla / OTel eBPF instrumentation (metrics-only vs traces + Tempo)
+    - [x] Spec 2: Beyla eBPF RED metrics + traces into Tempo (`kubernetes/beyla/`, `docs/design/tracing.md`)
+        - [ ] Route traces through Alloy's otelcol pipeline once an
+              SDK-instrumented app needs a single OTLP ingest point
+        - [ ] Measure Beyla/Tempo after 24 h (design doc "Measurements")
     - [ ] Spec 3: exporters on Proxmox, TrueNAS, Pi-hole, the router
     - [ ] Vendor the Alloy mixin dashboards (alloy-resources, alloy-controller) once compiled JSON is obtainable without jsonnet
 - [ ] Renovate for automated version-bump PRs

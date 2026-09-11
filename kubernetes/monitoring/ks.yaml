@@ -3,9 +3,9 @@
 # cilium so the pods get networking on first reconcile, cluster-secrets for
 # ${DOMAIN} in Grafana's Ingress and root_url, traefik-middlewares because that
 # Ingress names default-headers and Traefik refuses a router whose middleware is
-# missing. wait: true so the alloy layer's dependsOn means the remote-write and
-# push endpoints exist. 15 m: three charts and two PVCs to bind on first
-# reconcile.
+# missing. wait: true so the alloy and beyla layers' dependsOn means the
+# remote-write, push and OTLP endpoints exist. 15 m: four charts and three
+# PVCs to bind on first reconcile.
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:
