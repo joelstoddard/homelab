@@ -1,0 +1,28 @@
+{
+  "id": null,
+  "uid": "homelab-logs-explorer",
+  "title": "Logs explorer",
+  "tags": ["logs", "homelab"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "time": {"from": "now-1h", "to": "now"},
+  "templating": {
+    "list": [
+      {"name": "namespace", "label": "Namespace", "type": "query", "datasource": {"type": "loki", "uid": "loki"},
+       "query": {"label": "namespace", "type": 1}, "refresh": 2, "includeAll": true, "multi": true, "sort": 1},
+      {"name": "pod", "label": "Pod", "type": "query", "datasource": {"type": "loki", "uid": "loki"},
+       "query": {"label": "pod", "stream": "{namespace=~\"$namespace\"}", "type": 1}, "refresh": 2, "includeAll": true, "multi": true, "sort": 1},
+      {"name": "search", "label": "Contains", "type": "textbox", "query": ""}
+    ]
+  },
+  "panels": [
+    {"id": 1, "type": "timeseries", "title": "Lines per namespace", "gridPos": {"h": 7, "w": 24, "x": 0, "y": 0},
+     "datasource": {"type": "loki", "uid": "loki"},
+     "targets": [{"refId": "A", "expr": "sum by (namespace) (count_over_time({namespace=~\"$namespace\", pod=~\"$pod\"} |= \"$search\" [$__auto]))", "legendFormat": "{{namespace}}"}],
+     "fieldConfig": {"defaults": {"custom": {"drawStyle": "bars", "fillOpacity": 60}}, "overrides": []}},
+    {"id": 2, "type": "logs", "title": "Logs", "gridPos": {"h": 20, "w": 24, "x": 0, "y": 7},
+     "datasource": {"type": "loki", "uid": "loki"},
+     "options": {"showTime": true, "wrapLogMessage": true, "sortOrder": "Descending", "dedupStrategy": "none", "enableLogDetails": true},
+     "targets": [{"refId": "A", "expr": "{namespace=~\"$namespace\", pod=~\"$pod\"} |= \"$search\""}]}
+  ]
+}
