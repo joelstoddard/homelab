@@ -36,7 +36,7 @@ defaults that hide the control-plane components.
   which neither a `podSelector`/`namespaceSelector` nor an `ipBlock` matches
   on Cilium; each such layer carries a `CiliumNetworkPolicy` admitting those
   entities on the metrics port (`longhorn/app/networkpolicy-metrics.yaml`,
-  `flux-system/networkpolicy-scraping-from-nodes.yaml`), and a new
+  `flux-system/networkpolicy-node-scraping.yaml`), and a new
   policy-protected target needs the same.
 - **No Prometheus Operator, no CRDs.** Flux, Cilium, cert-manager,
   kube-state-metrics and Traefik already carry the annotations — Traefik's
