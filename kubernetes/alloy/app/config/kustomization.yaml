@@ -11,3 +11,6 @@ configMapGenerator:
   - name: alloy-config
     files:
       - config.alloy
+  - name: alloy-events-config
+    files:
+      - events.alloy
