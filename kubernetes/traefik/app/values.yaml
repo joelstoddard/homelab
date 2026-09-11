@@ -59,3 +59,10 @@ resources:
   limits:
     cpu: 500m
     memory: 256Mi
+metrics:
+  prometheus:
+    # Per-router and per-service series feed the Traefik dashboard; the
+    # chart's default has routers off.
+    addEntryPointsLabels: true
+    addRoutersLabels: true
+    addServicesLabels: true
