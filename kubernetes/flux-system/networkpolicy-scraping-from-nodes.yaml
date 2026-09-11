@@ -1,0 +1,20 @@
+# gotk-components.yaml's allow-scraping policy admits :8080 from any
+# namespace, but the alloy DaemonSet runs on the host network and reaches the
+# controllers as Cilium's host / remote-node identities, which a
+# namespaceSelector never matches. Same port, entity-based, Cilium-native.
+# docs/design/observability.md.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-scraping-from-nodes
+  namespace: flux-system
+spec:
+  endpointSelector: {}
+  ingress:
+    - fromEntities:
+        - host
+        - remote-node
+      toPorts:
+        - ports:
+            - port: "8080"
+              protocol: TCP

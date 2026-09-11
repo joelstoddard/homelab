@@ -5,6 +5,7 @@ resources:
   - namespace.yaml
   - helmrepository.yaml
   - helmrelease.yaml
+  - networkpolicy-metrics.yaml
 # values.yaml -> the ConfigMap the HelmRelease reads via valuesFrom. No hash
 # suffix so the HelmRelease can name it; the watch label makes helm-controller
 # reconcile on content changes (same pattern as cilium/app).
