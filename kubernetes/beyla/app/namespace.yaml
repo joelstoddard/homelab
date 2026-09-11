@@ -1,0 +1,12 @@
+# Talos enforces PodSecurity "baseline" on every namespace by default. The
+# Beyla chart runs privileged with hostPID and hostNetwork: eBPF probes,
+# host process inspection, and header injection on the node's sockets.
+# Opt this one out.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: beyla
+  labels:
+    pod-security.kubernetes.io/enforce: privileged
+    pod-security.kubernetes.io/audit: privileged
+    pod-security.kubernetes.io/warn: privileged

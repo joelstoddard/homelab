@@ -1,0 +1,9 @@
+# The Beyla chart lives in grafana/helm-charts (like Alloy's), not in
+# grafana-community where Loki, Grafana and Tempo moved.
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmRepository
+metadata:
+  name: grafana
+spec:
+  interval: 1h0m0s
+  url: https://grafana.github.io/helm-charts
