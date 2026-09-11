@@ -406,6 +406,11 @@ Consequences:
   and `prometheus.io/port: "<n>"` (required), `prometheus.io/path` and
   `prometheus.io/scheme` optional. `job` becomes its `app.kubernetes.io/name`.
   The same on a Service works too.
+- **A target behind a NetworkPolicy needs a `CiliumNetworkPolicy`** admitting
+  the `host` and `remote-node` entities on its metrics port — Alloy is
+  hostNetwork, and on Cilium neither a namespace/pod selector nor an
+  `ipBlock` matches node identities (`longhorn/app/networkpolicy-metrics.yaml`
+  is the template).
 - **Everything else is `alloy/app/config/config.alloy`**: edit, PR, the
   reloader applies it without a restart.
 - Alloy listens on the node's `:12345` (hostNetwork): the debug UI is
