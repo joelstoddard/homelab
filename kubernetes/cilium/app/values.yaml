@@ -47,9 +47,36 @@ cgroup:
 rollOutCiliumPods: true
 operator:
   rollOutPods: true
+  prometheus:
+    enabled: true
+  dashboards:
+    enabled: true
 
 # LB-IPAM is on by default; L2 announcements make the IPs it hands out
 # reachable: one worker per Service answers ARP for them. Pool and policy
 # live in kubernetes/cilium-lb/.
 l2announcements:
   enabled: true
+
+# Metrics for the observability stack, scraped by kubernetes/alloy via the
+# prometheus.io annotations these add (no ServiceMonitor: no operator CRDs
+# here); Hubble flow metrics without relay or UI, httpV2 left out because it
+# only fills under L7 visibility, which nothing has — docs/design/observability.md.
+# The dashboards are the chart's own grafana_dashboard ConfigMaps in
+# kube-system, and merging this rolls every agent once (rollOutCiliumPods above).
+prometheus:
+  enabled: true
+dashboards:
+  enabled: true
+hubble:
+  metrics:
+    enabled:
+      - dns
+      - drop
+      - tcp
+      - flow
+      - port-distribution
+      - icmp
+    enableOpenMetrics: true
+    dashboards:
+      enabled: true
