@@ -16,13 +16,15 @@ affinity:
 podAnnotations:
   prometheus.io/scrape: "true"
   prometheus.io/port: "9090"
+# Steady state is ~360 MiB a node; analysing a large Go binary (Grafana,
+# Prometheus) spikes past 512Mi and OOMKilled the pod on those nodes.
 resources:
   requests:
     cpu: 100m
-    memory: 128Mi
+    memory: 256Mi
   limits:
     cpu: 500m
-    memory: 512Mi
+    memory: 1Gi
 # The metadata cache exists for clusters far larger than 20 nodes.
 k8sCache:
   replicas: 0
