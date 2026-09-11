@@ -1,0 +1,549 @@
+// Grafana Alloy, one instance per node. Per-node blocks filter to NODE_NAME
+// and are never clustered; cluster-wide blocks carry `clustering { enabled =
+// true }` so the DaemonSet shares the targets. docs/design/observability.md.
+
+// ---------------------------------------------------------------- sinks --
+
+prometheus.remote_write "prometheus" {
+	endpoint {
+		url = "http://prometheus-server.monitoring.svc/api/v1/write"
+	}
+}
+
+loki.write "loki" {
+	endpoint {
+		url = "http://loki.monitoring.svc:3100/loki/api/v1/push"
+	}
+}
+
+// ------------------------------------------ this node: kubelet + cAdvisor --
+
+discovery.kubernetes "node" {
+	role = "node"
+
+	selectors {
+		role  = "node"
+		field = "metadata.name=" + sys.env("NODE_NAME")
+	}
+}
+
+// Both paths share job="kubelet" and differ by metrics_path, as kube-prometheus
+// does and the dashboards expect. Talos kubelet serving certs are self-signed.
+discovery.relabel "kubelet" {
+	targets = discovery.kubernetes.node.targets
+
+	rule {
+		source_labels = ["__meta_kubernetes_node_name"]
+		target_label  = "instance"
+	}
+
+	rule {
+		source_labels = ["__meta_kubernetes_node_name"]
+		target_label  = "node"
+	}
+
+	rule {
+		target_label = "metrics_path"
+		replacement  = "/metrics"
+	}
+}
+
+discovery.relabel "cadvisor" {
+	targets = discovery.kubernetes.node.targets
+
+	rule {
+		source_labels = ["__meta_kubernetes_node_name"]
+		target_label  = "instance"
+	}
+
+	rule {
+		source_labels = ["__meta_kubernetes_node_name"]
+		target_label  = "node"
+	}
+
+	rule {
+		target_label = "metrics_path"
+		replacement  = "/metrics/cadvisor"
+	}
+}
+
+prometheus.scrape "kubelet" {
+	targets           = discovery.relabel.kubelet.output
+	forward_to        = [prometheus.remote_write.prometheus.receiver]
+	job_name          = "kubelet"
+	metrics_path      = "/metrics"
+	scheme            = "https"
+	bearer_token_file = "/var/run/secrets/kubernetes.io/serviceaccount/token"
+	scrape_interval   = "60s"
+
+	tls_config {
+		insecure_skip_verify = true
+	}
+}
+
+prometheus.scrape "cadvisor" {
+	targets           = discovery.relabel.cadvisor.output
+	forward_to        = [prometheus.relabel.cadvisor.receiver]
+	job_name          = "kubelet"
+	metrics_path      = "/metrics/cadvisor"
+	scheme            = "https"
+	bearer_token_file = "/var/run/secrets/kubernetes.io/serviceaccount/token"
+	scrape_interval   = "60s"
+
+	tls_config {
+		insecure_skip_verify = true
+	}
+}
+
+// The kube-prometheus cAdvisor drop list: per-cgroup duplicates and series
+// nothing here reads. This is where most of the series budget is spent.
+prometheus.relabel "cadvisor" {
+	forward_to = [prometheus.remote_write.prometheus.receiver]
+
+	rule {
+		source_labels = ["__name__"]
+		regex         = "container_cpu_(cfs_throttled_seconds_total|load_average_10s|system_seconds_total|user_seconds_total)"
+		action        = "drop"
+	}
+
+	rule {
+		source_labels = ["__name__"]
+		regex         = "container_fs_(io_current|io_time_seconds_total|io_time_weighted_seconds_total|reads_merged_total|sector_reads_total|sector_writes_total|writes_merged_total)"
+		action        = "drop"
+	}
+
+	rule {
+		source_labels = ["__name__"]
+		regex         = "container_memory_(mapped_file|swap)"
+		action        = "drop"
+	}
+
+	rule {
+		source_labels = ["__name__"]
+		regex         = "container_(file_descriptors|tasks_state|threads_max|blkio_device_usage_total)"
+		action        = "drop"
+	}
+
+	rule {
+		source_labels = ["__name__"]
+		regex         = "container_spec.*"
+		action        = "drop"
+	}
+	// Pod-level pseudo containers (container="") duplicate what the pod's real
+	// containers already report for these families.
+	rule {
+		source_labels = ["__name__", "container"]
+		regex         = "container_(network_tcp_usage_total|network_udp_usage_total);"
+		action        = "drop"
+	}
+}
+
+// ------------------------------------------------ this node: node metrics --
+
+// node-exporter's collectors in-process, reading the host through the mounts
+// values.yaml adds. Emits the same node_* series, job="node-exporter".
+prometheus.exporter.unix "node" {
+	procfs_path = "/host/proc"
+	sysfs_path  = "/host/sys"
+	rootfs_path = "/host/root"
+
+	filesystem {
+		mount_points_exclude = "^/(dev|proc|run/credentials/.+|run/containerd/.+|sys|var/lib/containerd/.+|var/lib/kubelet/.+)($|/)"
+		fs_types_exclude     = "^(autofs|binfmt_misc|bpf|cgroup2?|configfs|debugfs|devpts|devtmpfs|fusectl|hugetlbfs|iso9660|mqueue|nsfs|overlay|proc|procfs|pstore|rpc_pipefs|securityfs|selinuxfs|squashfs|sysfs|tracefs)$"
+	}
+}
+
+discovery.relabel "node" {
+	targets = prometheus.exporter.unix.node.targets
+
+	rule {
+		target_label = "instance"
+		replacement  = sys.env("NODE_NAME")
+	}
+
+	rule {
+		target_label = "node"
+		replacement  = sys.env("NODE_NAME")
+	}
+}
+
+prometheus.scrape "node" {
+	targets         = discovery.relabel.node.output
+	forward_to      = [prometheus.remote_write.prometheus.receiver]
+	job_name        = "node-exporter"
+	scrape_interval = "60s"
+}
+
+// --------------------------------------- cluster-wide: annotated pods --
+
+// The convention: prometheus.io/scrape="true" AND prometheus.io/port are
+// required; path and scheme optional. job comes from the pod's app label
+// (app.kubernetes.io/name, then app, then k8s-app). Covers Flux, cert-manager,
+// Cilium, Traefik, the Tailscale router and this stack's own pods.
+discovery.kubernetes "pods" {
+	role = "pod"
+}
+
+discovery.relabel "annotated_pods" {
+	targets = discovery.kubernetes.pods.targets
+
+	rule {
+		source_labels = ["__meta_kubernetes_pod_phase"]
+		regex         = "Running"
+		action        = "keep"
+	}
+
+	rule {
+		source_labels = ["__meta_kubernetes_pod_annotation_prometheus_io_scrape"]
+		regex         = "true"
+		action        = "keep"
+	}
+
+	rule {
+		source_labels = ["__meta_kubernetes_pod_annotationpresent_prometheus_io_port"]
+		regex         = "true"
+		action        = "keep"
+	}
+
+	rule {
+		source_labels = ["__meta_kubernetes_pod_container_init"]
+		regex         = "true"
+		action        = "drop"
+	}
+
+	rule {
+		source_labels = ["__meta_kubernetes_pod_annotation_prometheus_io_scheme"]
+		regex         = "(https?)"
+		target_label  = "__scheme__"
+	}
+
+	rule {
+		source_labels = ["__meta_kubernetes_pod_annotation_prometheus_io_path"]
+		regex         = "(.+)"
+		target_label  = "__metrics_path__"
+	}
+	// Pod IP + annotated port. One pod yields one target per container port
+	// before this rule and identical targets after it, which the scraper
+	// deduplicates — so no container label here, it would defeat the dedup.
+	rule {
+		source_labels = ["__meta_kubernetes_pod_ip", "__meta_kubernetes_pod_annotation_prometheus_io_port"]
+		regex         = "(.+);(\\d+)"
+		replacement   = "$1:$2"
+		target_label  = "__address__"
+	}
+
+	rule {
+		source_labels = ["__meta_kubernetes_namespace"]
+		target_label  = "namespace"
+	}
+
+	rule {
+		source_labels = ["__meta_kubernetes_pod_name"]
+		target_label  = "pod"
+	}
+
+	rule {
+		source_labels = ["__meta_kubernetes_pod_name"]
+		target_label  = "instance"
+	}
+
+	rule {
+		source_labels = ["__meta_kubernetes_pod_node_name"]
+		target_label  = "node"
+	}
+
+	rule {
+		source_labels = ["__meta_kubernetes_pod_label_app_kubernetes_io_name", "__meta_kubernetes_pod_label_app", "__meta_kubernetes_pod_label_k8s_app"]
+		regex         = "([^;]+);.*|;([^;]+);.*|;;(.+)"
+		replacement   = "$1$2$3"
+		target_label  = "job"
+	}
+}
+
+prometheus.scrape "annotated_pods" {
+	targets         = discovery.relabel.annotated_pods.output
+	forward_to      = [prometheus.remote_write.prometheus.receiver]
+	job_name        = "annotated-pods"
+	scrape_interval = "60s"
+
+	clustering {
+		enabled = true
+	}
+}
+
+// ----------------------------------- cluster-wide: annotated Services --
+
+// Same convention on a Service (kube-state-metrics, Hubble metrics). Without a
+// port annotation the endpoint's own port is scraped.
+discovery.kubernetes "endpoints" {
+	role = "endpoints"
+}
+
+discovery.relabel "annotated_services" {
+	targets = discovery.kubernetes.endpoints.targets
+
+	// The endpoints role also emits every other container port of the backing
+	// pod; only real endpoint ports carry endpoint metadata, and only ready ones
+	// answer.
+	rule {
+		source_labels = ["__meta_kubernetes_endpoint_port_protocol"]
+		regex         = ".+"
+		action        = "keep"
+	}
+
+	rule {
+		source_labels = ["__meta_kubernetes_endpoint_ready"]
+		regex         = "true"
+		action        = "keep"
+	}
+
+	rule {
+		source_labels = ["__meta_kubernetes_service_annotation_prometheus_io_scrape"]
+		regex         = "true"
+		action        = "keep"
+	}
+
+	rule {
+		source_labels = ["__meta_kubernetes_service_annotation_prometheus_io_scheme"]
+		regex         = "(https?)"
+		target_label  = "__scheme__"
+	}
+
+	rule {
+		source_labels = ["__meta_kubernetes_service_annotation_prometheus_io_path"]
+		regex         = "(.+)"
+		target_label  = "__metrics_path__"
+	}
+
+	rule {
+		source_labels = ["__address__", "__meta_kubernetes_service_annotation_prometheus_io_port"]
+		regex         = "(.+?)(?::\\d+)?;(\\d+)"
+		replacement   = "$1:$2"
+		target_label  = "__address__"
+	}
+
+	rule {
+		source_labels = ["__meta_kubernetes_namespace"]
+		target_label  = "namespace"
+	}
+
+	rule {
+		source_labels = ["__meta_kubernetes_service_name"]
+		target_label  = "service"
+	}
+
+	rule {
+		source_labels = ["__meta_kubernetes_pod_name"]
+		target_label  = "pod"
+	}
+
+	rule {
+		source_labels = ["__meta_kubernetes_pod_name"]
+		target_label  = "instance"
+	}
+
+	rule {
+		source_labels = ["__meta_kubernetes_pod_node_name"]
+		target_label  = "node"
+	}
+
+	rule {
+		source_labels = ["__meta_kubernetes_service_label_app_kubernetes_io_name", "__meta_kubernetes_service_label_app", "__meta_kubernetes_service_label_k8s_app"]
+		regex         = "([^;]+);.*|;([^;]+);.*|;;(.+)"
+		replacement   = "$1$2$3"
+		target_label  = "job"
+	}
+}
+
+prometheus.scrape "annotated_services" {
+	targets         = discovery.relabel.annotated_services.output
+	forward_to      = [prometheus.remote_write.prometheus.receiver]
+	job_name        = "annotated-services"
+	scrape_interval = "60s"
+
+	clustering {
+		enabled = true
+	}
+}
+
+// -------------------------------------------- cluster-wide: kube-apiserver --
+
+discovery.kubernetes "apiserver" {
+	role = "endpoints"
+
+	namespaces {
+		names = ["default"]
+	}
+
+	selectors {
+		role  = "endpoints"
+		field = "metadata.name=kubernetes"
+	}
+}
+
+discovery.relabel "apiserver" {
+	targets = discovery.kubernetes.apiserver.targets
+
+	rule {
+		source_labels = ["__meta_kubernetes_service_name", "__meta_kubernetes_endpoint_port_name"]
+		regex         = "kubernetes;https"
+		action        = "keep"
+	}
+}
+
+prometheus.scrape "apiserver" {
+	targets           = discovery.relabel.apiserver.output
+	forward_to        = [prometheus.relabel.apiserver.receiver]
+	job_name          = "apiserver"
+	scheme            = "https"
+	bearer_token_file = "/var/run/secrets/kubernetes.io/serviceaccount/token"
+	scrape_interval   = "60s"
+
+	tls_config {
+		ca_file     = "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
+		server_name = "kubernetes"
+	}
+
+	clustering {
+		enabled = true
+	}
+}
+
+// The apiserver's latency histograms are the single largest series source in
+// a small cluster and none of the vendored dashboards read them.
+prometheus.relabel "apiserver" {
+	forward_to = [prometheus.remote_write.prometheus.receiver]
+
+	rule {
+		source_labels = ["__name__"]
+		regex         = "apiserver_(request_duration_seconds|request_sli_duration_seconds|request_slo_duration_seconds|response_sizes|watch_events_sizes|request_body_size_bytes|admission_controller_admission_duration_seconds|admission_step_admission_duration_seconds|admission_webhook_admission_duration_seconds)_bucket"
+		action        = "drop"
+	}
+
+	rule {
+		source_labels = ["__name__"]
+		regex         = "etcd_request_duration_seconds_bucket"
+		action        = "drop"
+	}
+}
+
+// -------------------------------------------------- cluster-wide: Longhorn --
+
+// longhorn-manager serves /metrics on the backend Service's port 9500; the
+// chart offers only a ServiceMonitor, which needs CRDs this cluster does not
+// have.
+discovery.kubernetes "longhorn" {
+	role = "endpoints"
+
+	namespaces {
+		names = ["longhorn-system"]
+	}
+
+	selectors {
+		role  = "endpoints"
+		field = "metadata.name=longhorn-backend"
+	}
+}
+
+discovery.relabel "longhorn" {
+	targets = discovery.kubernetes.longhorn.targets
+
+	rule {
+		source_labels = ["__meta_kubernetes_pod_node_name"]
+		target_label  = "node"
+	}
+
+	rule {
+		source_labels = ["__meta_kubernetes_pod_name"]
+		target_label  = "pod"
+	}
+}
+
+prometheus.scrape "longhorn" {
+	targets         = discovery.relabel.longhorn.output
+	forward_to      = [prometheus.remote_write.prometheus.receiver]
+	job_name        = "longhorn-manager"
+	scrape_interval = "60s"
+
+	clustering {
+		enabled = true
+	}
+}
+
+// -------------------------------------------------- this node: pod logs --
+
+discovery.kubernetes "pods_local" {
+	role = "pod"
+
+	selectors {
+		role  = "pod"
+		field = "spec.nodeName=" + sys.env("NODE_NAME")
+	}
+}
+
+// kubelet writes /var/log/pods/<ns>_<pod>_<uid>/<container>/0.log and rotates
+// at 10 MiB; the *.log glob deliberately misses the rotated 0.log.<ts> files.
+discovery.relabel "pod_logs" {
+	targets = discovery.kubernetes.pods_local.targets
+
+	rule {
+		source_labels = ["__meta_kubernetes_namespace", "__meta_kubernetes_pod_name", "__meta_kubernetes_pod_uid", "__meta_kubernetes_pod_container_name"]
+		separator     = "/"
+		regex         = "(.+)/(.+)/(.+)/(.+)"
+		replacement   = "/var/log/pods/$1_$2_$3/$4/*.log"
+		target_label  = "__path__"
+	}
+
+	rule {
+		source_labels = ["__meta_kubernetes_namespace"]
+		target_label  = "namespace"
+	}
+
+	rule {
+		source_labels = ["__meta_kubernetes_pod_name"]
+		target_label  = "pod"
+	}
+
+	rule {
+		source_labels = ["__meta_kubernetes_pod_container_name"]
+		target_label  = "container"
+	}
+
+	rule {
+		source_labels = ["__meta_kubernetes_pod_node_name"]
+		target_label  = "node"
+	}
+
+	rule {
+		source_labels = ["__meta_kubernetes_pod_label_app_kubernetes_io_name", "__meta_kubernetes_pod_label_app", "__meta_kubernetes_pod_label_k8s_app", "__meta_kubernetes_pod_container_name"]
+		regex         = "([^;]+);.*|;([^;]+);.*|;;([^;]+);.*|;;;(.+)"
+		replacement   = "$1$2$3$4"
+		target_label  = "app"
+	}
+
+	rule {
+		source_labels = ["namespace", "app"]
+		separator     = "/"
+		target_label  = "job"
+	}
+}
+
+local.file_match "pod_logs" {
+	path_targets = discovery.relabel.pod_logs.output
+}
+
+loki.source.file "pod_logs" {
+	targets    = local.file_match.pod_logs.targets
+	forward_to = [loki.process.pod_logs.receiver]
+}
+
+loki.process "pod_logs" {
+	forward_to = [loki.write.loki.receiver]
+	// containerd's CRI log format: timestamp, stream, flags, line. Adds the
+	// stream label and puts the original timestamp on the entry.
+	stage.cri { }
+	// The path is already implied by namespace/pod/container.
+	stage.label_drop {
+		values = ["filename"]
+	}
+}

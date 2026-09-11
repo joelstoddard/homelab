@@ -1,0 +1,20 @@
+# The collectors: one Alloy DaemonSet scraping and tailing every node, plus a
+# one-replica Alloy for Kubernetes events — docs/design/observability.md.
+# dependsOn monitoring (wait: true there) so the remote-write and push
+# endpoints exist on first reconcile. No postBuild: nothing here names the
+# domain, and keeping envsubst away from River (which is full of $1 and ${1})
+# is worth the missing convenience. No wait: nothing depends on this layer.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: alloy
+  namespace: flux-system
+spec:
+  interval: 10m0s
+  path: ./kubernetes/alloy/app
+  prune: true
+  dependsOn:
+    - name: monitoring
+  sourceRef:
+    kind: GitRepository
+    name: flux-system

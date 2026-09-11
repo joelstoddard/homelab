@@ -1,0 +1,12 @@
+# Talos enforces PodSecurity "baseline" on every namespace by default. The
+# Alloy DaemonSet mounts /var/log, /proc, /sys and / from the host and runs
+# with hostPID + hostNetwork so its unix exporter sees the node, not the pod.
+# Opt this one out.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: alloy
+  labels:
+    pod-security.kubernetes.io/enforce: privileged
+    pod-security.kubernetes.io/audit: privileged
+    pod-security.kubernetes.io/warn: privileged
