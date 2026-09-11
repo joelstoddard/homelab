@@ -1,0 +1,6 @@
+# Stays on Talos' default PodSecurity "baseline": nothing here needs host
+# access. The collectors that do live in the alloy namespace.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: monitoring
