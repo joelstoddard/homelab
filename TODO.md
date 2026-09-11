@@ -28,10 +28,15 @@
     - [ ] Right-size VM memory: a 16 GB NUC carries 4 + 8 + 8 GB of Talos VMs
           (plus the operator on one of them, no swap). Rumba OOM-killed the
           operator during the 2026-09-07 Cilium rebuild and `k8s-server-01`
-          when the observability stack landed on 2026-09-11; the operator VM
-          is now 4096 MB / balloon 1024 (`qm set 901`), but every NUC still
-          sits at ~14.4 of 15.5 GiB. Fix the sizing in NetBox (k8s-vm reads
-          it) and/or give the VMs balloon minimums in `modules/vm`.
+          when the observability stack landed on 2026-09-11, then
+          `k8s-agent-02` the same evening as Beyla landed (~360 MiB more a
+          node); the operator VM is now 4096 MB / balloon 1024 (`qm set
+          901`), but the k8s VMs have ballooning off, so every NUC still
+          sits at ~14.4 of 15.5 GiB and Rumba is over-allocated. Fix the
+          sizing in NetBox (k8s-vm reads it) and/or give the VMs balloon
+          minimums in `modules/vm`. A hard kill can also leave a corrupt
+          image behind (`exec format error`): `talosctl image remove` both
+          the tag and the digest reference, then delete the pod.
 
 ## Raspberry Pis
 - [x] Bootstrap with TalOS (arm64 PXE netboot via 00-pxe `talos.yaml`)
@@ -115,9 +120,12 @@
           arguments at start) — live 2026-09-11
     - [ ] Measure and tighten the stack's limits after 24 h (design doc
           "Measurements")
-    - [ ] Series budget: ~360k active series against the ~100k estimate —
+    - [ ] Series budget: ~382k active series against the ~100k estimate —
           `topk(10, count by (__name__) ({__name__=~".+"}))`, then drop or
-          relabel the biggest families (Hubble and cAdvisor are the suspects)
+          relabel the biggest families (kubelet 89k, apiserver 50k, Longhorn
+          39k, cilium-envoy 39k, Beyla 38k of which 28k are client-side
+          histograms keyed by destination address and ~20k the body-size
+          families no dashboard reads)
     - [ ] Restrict etcd `:2381` to the pod CIDR with a Talos `NetworkRuleConfig`
     - [ ] Talos machine logs (kubelet/containerd/kernel) to Loki — Talos sends
           JSON lines over TCP/UDP; needs a receiver Alloy lacks
@@ -125,6 +133,13 @@
         - [ ] Route traces through Alloy's otelcol pipeline once an
               SDK-instrumented app needs a single OTLP ingest point
         - [ ] Measure Beyla/Tempo after 24 h (design doc "Measurements")
+        - [ ] Service names: Beyla calls all four Flux controllers
+              `flux-system` and Traefik `traefik-traefik` — a
+              `service_name_template` or per-namespace `name` rule
+        - [ ] Beyla sits at ~360 MiB a node with its own informers; try the
+              chart's `k8sCache` (one shared metadata cache) to shrink it
+        - [ ] Cross-service propagation proof (Traefik → Grafana in one
+              trace) once the Beyla pod on Grafana's node stays up
     - [ ] Spec 3: exporters on Proxmox, TrueNAS, Pi-hole, the router
     - [ ] Vendor the Alloy mixin dashboards (alloy-resources, alloy-controller) once compiled JSON is obtainable without jsonnet
 - [ ] Renovate for automated version-bump PRs
