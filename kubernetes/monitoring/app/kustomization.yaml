@@ -7,12 +7,13 @@ resources:
   - prometheus/helmrelease.yaml
   - loki/helmrelease.yaml
   - grafana/helmrelease.yaml
+  - tempo/helmrelease.yaml
   - secret-grafana-admin.sops.yaml
   - dashboards
 # Each chart's values.yaml -> the ConfigMap its HelmRelease reads via
 # valuesFrom; no hash suffix so the HelmRelease can name it, and the watch
 # label makes helm-controller reconcile on content changes (same pattern as
-# longhorn/app). These three files are substituted by Flux, so ${DOMAIN} is
+# longhorn/app). These four files are substituted by Flux, so ${DOMAIN} is
 # the only $ allowed in them, comments included — docs/design/observability.md.
 configMapGenerator:
   - name: prometheus-values
@@ -24,6 +25,9 @@ configMapGenerator:
   - name: grafana-values
     files:
       - values.yaml=grafana/values.yaml
+  - name: tempo-values
+    files:
+      - values.yaml=tempo/values.yaml
 generatorOptions:
   disableNameSuffixHash: true
   labels:

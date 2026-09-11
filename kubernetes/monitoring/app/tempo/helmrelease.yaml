@@ -1,0 +1,28 @@
+# The chart version is pinned here only (no v prefix). grafana-community's
+# "tempo" chart is the single-binary one; "tempo-distributed" is a different
+# chart. A bump is a Tempo upgrade: run the multi-arch image check in
+# docs/design/longhorn.md first.
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: tempo
+spec:
+  interval: 1h0m0s
+  releaseName: tempo
+  timeout: 10m0s
+  chart:
+    spec:
+      chart: tempo
+      version: "3.0.0"
+      sourceRef:
+        kind: HelmRepository
+        name: grafana-community
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    remediation:
+      retries: 3
+  valuesFrom:
+    - kind: ConfigMap
+      name: tempo-values
