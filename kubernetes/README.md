@@ -396,8 +396,10 @@ Consequences:
 - Grafana authenticates itself: its Ingress carries `default-headers` only.
   The admin password is `monitoring/app/secret-grafana-admin.sops.yaml`.
 - **Tempo** (`monitoring/app/tempo/`) stores Beyla's traces on a 10Gi
-  Longhorn PVC for 72 h; Grafana's `Tempo` datasource jumps from a span to
-  its pod's Loki lines and draws the service map. No route: Explore is the UI.
+  Longhorn PVC for 72 h and its metrics-generator remote-writes the
+  service-graph series to Prometheus; Grafana's `Tempo` datasource jumps
+  from a span to its pod's Loki lines and draws the service map from them.
+  No route: Explore is the UI.
 - Prometheus and Alloy have UIs but no route: `port-forward` below.
 
 ```bash

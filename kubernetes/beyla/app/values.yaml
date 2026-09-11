@@ -1,8 +1,8 @@
 # Beyla on every worker: instruments every containerised process except
-# kube-system and the collectors, exports RED + service-graph metrics for
-# Alloy to scrape and OTLP traces straight to Tempo. Privileged + hostPID are
-# the chart's defaults and what Talos needs (perf_event_paranoid=3);
-# contextPropagation below is what adds hostNetwork. docs/design/tracing.md.
+# kube-system and the collectors, exports RED metrics for Alloy to scrape
+# and OTLP traces straight to Tempo. Privileged + hostPID are the chart's
+# defaults and what Talos needs (perf_event_paranoid=3); contextPropagation
+# below is what adds hostNetwork. docs/design/tracing.md.
 preset: application
 privileged: true
 # Control-plane VMs have ~2 GB free and run nothing Beyla would instrument.
@@ -16,13 +16,15 @@ affinity:
 podAnnotations:
   prometheus.io/scrape: "true"
   prometheus.io/port: "9090"
+# Steady state is ~360 MiB a node; analysing a large Go binary (Grafana,
+# Prometheus) spikes past 512Mi and OOMKilled the pod on those nodes.
 resources:
   requests:
     cpu: 100m
-    memory: 128Mi
+    memory: 256Mi
   limits:
     cpu: 500m
-    memory: 512Mi
+    memory: 1Gi
 # The metadata cache exists for clusters far larger than 20 nodes.
 k8sCache:
   replicas: 0
@@ -62,12 +64,13 @@ config:
     ebpf:
       # W3C traceparent injection; needs kernel lockdown "none", which Talos has.
       context_propagation: headers
+    # No application_service_graph: OBI only records it inside the span-metrics
+    # path, so it is inert on its own; Tempo's metrics-generator draws the map.
     prometheus_export:
       port: 9090
       path: /metrics
       features:
         - application
-        - application_service_graph
     otel_traces_export:
       endpoint: http://tempo.monitoring.svc:4317
       protocol: grpc

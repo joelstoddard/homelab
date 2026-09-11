@@ -38,8 +38,10 @@ instrumentation and for injecting trace context into live requests.
   `attributes.select` so a restart does not mint a new series set; spans
   keep them.
 - **Metrics through Alloy, traces straight to Tempo.** Beyla's Prometheus
-  exporter on `:9090` (features `application`, `application_service_graph`)
-  is scraped by the alloy layer's pod-annotation job like any other pod.
+  exporter on `:9090` (feature `application`; `application_service_graph`
+  is left out because OBI only records it inside the span-metrics path, so
+  alone it emits nothing) is scraped by the alloy layer's pod-annotation
+  job like any other pod.
   Traces go OTLP gRPC to `tempo.monitoring.svc:4317` directly: Beyla already
   stamps Kubernetes metadata on spans, so an Alloy hop would add a stage and
   a second privileged component for no gain. Sampling `traceidratio 0.1`:
@@ -51,10 +53,12 @@ instrumentation and for injecting trace context into live requests.
   services get library-level injection (TLS included); with hostNetwork the
   network-level path covers anything else.
 - **Tempo single binary** (`grafana-community/tempo` 3.0.0), local backend
-  on a 10Gi Longhorn PVC, 72 h retention, amd64, OTLP receivers only,
-  metrics-generator off (Beyla's service-graph series feed Grafana's service
-  map). Same durability story as Loki: three Longhorn replicas, no object
-  store.
+  on a 10Gi Longhorn PVC, 72 h retention, amd64, OTLP receivers only. Its
+  metrics-generator runs the `service-graphs` processor alone and
+  remote-writes the `traces_service_graph_*` series to Prometheus (WAL on
+  the PVC at `/var/tempo/metrics`), which is what Grafana's service map
+  reads; span-metrics stay off because Beyla already exports RED. Same
+  durability story as Loki: three Longhorn replicas, no object store.
 - **Grafana.** Datasource `tempo` with traces-to-logs (Loki, by
   `k8s.namespace.name`/`k8s.pod.name`), service map (Prometheus), node
   graph; traces-to-metrics is left out because Grafana renders nothing from
@@ -67,16 +71,17 @@ instrumentation and for injecting trace context into live requests.
   instrumented workload; Alloy's `namespace`/`pod` target labels identify
   the scraper. Tempo lives in `monitoring`, which is instrumented, so
   Beyla's own exports produce Tempo server spans (which Beyla then
-  exports): the service map always shows a `beyla → tempo` edge and a
-  small floor of infrastructure spans, converging at roughly one span per
-  export batch.
+  exports): a small floor of infrastructure traces rooted at `tempo`,
+  converging at roughly one span per export batch. They carry no client
+  parent, so the service-graphs processor draws no edge for them.
 
 ## Failure modes
 
 - A probe fails to attach to some process: Beyla logs and skips it, the rest
   continues.
-- Beyla's memory grows with instrumented processes: the 512Mi limit
-  restarts only Beyla.
+- Beyla's memory grows with instrumented processes: the 1Gi limit restarts
+  only Beyla (512Mi was not enough on the nodes hosting Grafana and
+  Prometheus, see Observed behaviour).
 - Tempo down or full: the OTLP exporter retries briefly then drops spans;
   metrics unaffected; Longhorn volumes expand online.
 - A service mis-handles an injected `traceparent`: set
@@ -85,9 +90,49 @@ instrumentation and for injecting trace context into live requests.
 
 ## Measurements
 
-Filled after the first 24 h: Beyla working set per pod against 512Mi,
-Tempo working set and PVC use, series added by `job="beyla"`, traces per
-minute at 10 % sampling.
+First hour live (2026-09-11), 24 h figures to follow:
+
+| What | Measured | Budget / estimate |
+| --- | --- | --- |
+| Beyla working set | 320–390 MiB on every node at steady state; OOMKilled at 512Mi on the Grafana and Prometheus nodes | 512Mi limit at launch, 1Gi now |
+| Tempo working set | 155 MiB before the metrics-generator | 768 MiB limit |
+| Series added by `job="beyla"` | ~37.8k (total ~382k): 28k are `http_client_*` histograms keyed by destination address, ~20k of all Beyla series are the body-size families | series-budget item in `TODO.md` |
+| Instrumented namespaces | longhorn-system, traefik, monitoring, flux-system, cert-manager, tailscale | no kube-system, as designed |
+| Reconcile after merge | 6 min to both layers Ready; Beyla pods Running within 30 s of the HelmRelease | — |
+
+## Observed behaviour
+
+- **Rumba OOM-killed `k8s-agent-02` the second the Beyla pods started.**
+  The second hypervisor kill of the day (`docs/design/observability.md`):
+  the k8s VMs run with ballooning off, so Rumba's 4000 + 5000 + 5000 MB of
+  Talos VMs plus the operator exceed its 15.5 GiB once the guests fill,
+  and Beyla's ~360 MiB a node was the push. The VM was restarted unchanged;
+  the node rejoined without an EPHEMERAL wipe, but the Beyla image that
+  was mid-pull at the kill came back corrupt (`exec /beyla: exec format
+  error`) and re-pulling the tag reused the broken layers — both the tag
+  and the digest reference had to go (`talosctl image remove`) before a
+  fresh pull worked. Prometheus, which lived on that node, rescheduled with
+  its Longhorn volume within two minutes. Right-sizing is `TODO.md`.
+- **Beyla OOMKilled at 512Mi where large Go binaries live.** Steady state
+  is 320–390 MiB everywhere, but the pod on Grafana's node crash-looped
+  and the pods on the Prometheus node and one more each died once during
+  instrumentation; Grafana was therefore not instrumented in the first
+  hour. Limit raised to 1Gi, request to 256Mi.
+- **No service-graph series from Beyla.** `application_service_graph`
+  produced nothing: in OBI's Prometheus exporter the service-graph
+  recorder sits inside the block gated on span metrics
+  (`otelSpanMetricsObserved`), so the feature is inert unless
+  `application_span_otel` is also on. Tempo's metrics-generator now draws
+  the graph instead.
+- **Benign Beyla warnings on every node.** bpffs pinned maps unavailable
+  (`/sys/fs/bpf/otel`; only the log enricher and profile correlation need
+  them), cloud metadata probes timing out, and the kernel
+  `ioctl(FIONREAD)` compensation notice.
+- **Traces in the first hour.** Roots at `longhorn`, `loki`,
+  `longhorn-csi-plugin`, `tempo` and `traefik-traefik`; an in-pod trace
+  (HTTP server span → gRPC client → gRPC server) proved propagation across
+  a socket. The cross-service Traefik → Grafana proof waits on the memory
+  fix.
 
 ## Rejected
 
@@ -95,13 +140,20 @@ minute at 10 % sampling.
   stops everything.
 - **Traces via Alloy's otelcol pipeline.** Add it when an SDK-instrumented
   app needs a single OTLP ingest point.
-- **Tempo metrics-generator.** Duplicates Beyla's RED and service-graph
-  series; revisit if Beyla's service graph proves insufficient.
+- **Beyla `application_span_otel` to unlock its service graph.** Span
+  metrics on the order of the HTTP families again (roughly +20–30k series)
+  for a graph Tempo derives from traces it already holds. Tempo's
+  span-metrics processor is off for the same reason.
 - **Beyla network flows.** Hubble covers L3/L4.
 
 ## Known limitations
 
-- 10 % sampling: a specific request may be absent from Tempo.
+- 10 % sampling: a specific request may be absent from Tempo, and the
+  service-graph rates are a tenth of the RED series (they come from the
+  sampled traces).
+- Beyla names a workload after its labels, which lumps the four Flux
+  controllers together as `flux-system` and calls Traefik
+  `traefik-traefik` (`TODO.md`).
 - No SDK/OTLP ingestion from application code yet.
 - Tempo is not HA and has no object store.
 - Tempo logs `error calling scheduler … no jobs found` every 15 s while
