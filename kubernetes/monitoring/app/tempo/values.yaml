@@ -1,0 +1,49 @@
+# One Tempo, local trace storage on a Longhorn PVC, same shape as Loki:
+# Longhorn's three replicas are the durability story and no object store
+# exists. Beyla sends OTLP straight here. docs/design/tracing.md.
+replicas: 1
+tempo:
+  reportingEnabled: false
+  retention: 72h
+  storage:
+    trace:
+      backend: local
+      local:
+        path: /var/tempo/traces
+      wal:
+        path: /var/tempo/wal
+  # Helm deep-merges this map, so each Jaeger protocol is nulled explicitly
+  # (`jaeger: null` alone breaks the chart's ports template); the chart still
+  # declares Jaeger containerPorts but nothing listens on them.
+  receivers:
+    otlp:
+      protocols:
+        grpc:
+          endpoint: "0.0.0.0:4317"
+        http:
+          endpoint: "0.0.0.0:4318"
+    jaeger:
+      protocols:
+        grpc: null
+        thrift_binary: null
+        thrift_compact: null
+        thrift_http: null
+  # Beyla already emits RED and service-graph series; nothing to generate.
+  metricsGenerator:
+    enabled: false
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 768Mi
+persistence:
+  enabled: true
+  size: 10Gi
+# Longhorn from a VM is ~2x the IOPS of a Pi.
+nodeSelector:
+  kubernetes.io/arch: amd64
+podAnnotations:
+  prometheus.io/scrape: "true"
+  prometheus.io/port: "3200"

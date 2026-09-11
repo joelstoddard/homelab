@@ -68,7 +68,7 @@ defaults that hide the control-plane components.
   `${DOMAIN}` for Grafana's Ingress and root URL, but dashboard JSON and
   River are full of `$__rate_interval` and `${1}`, which Flux's envsubst
   replaces with nothing. Both sit in nested kustomizations whose ConfigMaps
-  carry `kustomize.toolkit.fluxcd.io/substitute: disabled`. The three values
+  carry `kustomize.toolkit.fluxcd.io/substitute: disabled`. The four values
   files are the only substituted inputs and contain no other `$`.
 - **Events from a second Alloy.** `loki.source.kubernetes_events` cannot be
   sharded across the DaemonSet, so a one-replica `alloy-events` Deployment
@@ -111,7 +111,7 @@ Logs: `namespace`, `pod`, `container`, `app`, `node`, `stream`,
   rotates at 10 MiB) and Loki drops exact duplicates.
 - Volume fills: `retentionSize` sits below the PVC; Loki's compactor
   enforces time; Longhorn volumes expand online.
-- A `$WORD` in a comment in one of the three values files is eaten by
+- A `$WORD` in a comment in one of the four values files is eaten by
   envsubst; the dashboards and River are exempt per resource.
 - Enabling Cilium metrics rolled every agent once.
 

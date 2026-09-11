@@ -29,6 +29,8 @@ install that gets Flux running in the first place.
 - [x] Observability — Alloy scraping/tailing every node into Prometheus and
       Loki, Grafana with dashboards from git (`monitoring/`, `alloy/`; see
       "Monitoring" and "Alloy")
+- [x] Tracing — Beyla eBPF RED metrics + traces into Tempo (`beyla/`,
+      Tempo in `monitoring/`; see "Beyla")
 - [ ] Workloads
 
 ## Layout
@@ -126,24 +128,34 @@ kubernetes/
 │   ├── kustomization.yaml
 │   ├── ks.yaml                   # Flux Kustomization "monitoring", dependsOn cilium + longhorn + cluster-secrets + traefik-middlewares, wait
 │   └── app/
-│       ├── kustomization.yaml    # namespace monitoring; wires the three values.yaml generators + dashboards
+│       ├── kustomization.yaml    # namespace monitoring; wires the four values.yaml generators + dashboards
 │       ├── namespace.yaml        # monitoring; no PodSecurity label (baseline default)
 │       ├── helmrepositories.yaml # prometheus-community + grafana-community
 │       ├── prometheus/           # HelmRelease + values: remote-write receiver, empty scrape config
 │       ├── loki/                 # HelmRelease + values: Monolithic mode, filesystem on a Longhorn PVC
 │       ├── grafana/              # HelmRelease + values: stateless, fixed prometheus/loki datasource UIDs
+│       ├── tempo/                # HelmRelease + values: single binary, local backend, Longhorn PVC, 72h retention
 │       ├── secret-grafana-admin.sops.yaml  # admin password
 │       └── dashboards/           # JSON dashboards as ConfigMaps, substitute disabled (see its README)
-└── alloy/
+├── alloy/
+│   ├── kustomization.yaml
+│   ├── ks.yaml                   # Flux Kustomization "alloy", dependsOn monitoring
+│   └── app/
+│       ├── kustomization.yaml    # namespace alloy; wires namespace, HelmRepository and the three sub-kustomizations
+│       ├── namespace.yaml        # PodSecurity "privileged" — hostPath/hostPID/hostNetwork + root
+│       ├── helmrepository.yaml   # https://grafana.github.io/helm-charts
+│       ├── alloy/                # HelmRelease + values: the clustered DaemonSet, all 20 nodes
+│       ├── alloy-events/         # HelmRelease + values: one-replica Deployment for Kubernetes events
+│       └── config/               # River configs, substitute disabled: config.alloy + events.alloy
+└── beyla/
     ├── kustomization.yaml
-    ├── ks.yaml                   # Flux Kustomization "alloy", dependsOn monitoring
+    ├── ks.yaml                   # Flux Kustomization "beyla", dependsOn monitoring
     └── app/
-        ├── kustomization.yaml    # namespace alloy; wires namespace, HelmRepository and the three sub-kustomizations
-        ├── namespace.yaml        # PodSecurity "privileged" — hostPath/hostPID/hostNetwork + root
+        ├── kustomization.yaml    # namespace beyla; wires namespace, HelmRepository, HelmRelease and the values ConfigMap
+        ├── namespace.yaml        # PodSecurity "privileged" — hostPID + hostNetwork for eBPF probes
         ├── helmrepository.yaml   # https://grafana.github.io/helm-charts
-        ├── alloy/                # HelmRelease + values: the clustered DaemonSet, all 20 nodes
-        ├── alloy-events/         # HelmRelease + values: one-replica Deployment for Kubernetes events
-        └── config/               # River configs, substitute disabled: config.alloy + events.alloy
+        ├── helmrelease.yaml      # chart beyla 1.16.11, values from the ConfigMap
+        └── values.yaml           # instrument everything but kube-system + collectors; traces OTLP to Tempo, 10% sampled
 ```
 
 `flux-system/gotk-sync.yaml` declares a `GitRepository` for this repo
@@ -378,11 +390,14 @@ Consequences:
 - **Change the stack through git only** — each chart's `values.yaml`
   (watched ConfigMap) or its `helmrelease.yaml` version. Multi-arch check
   before a bump, as for Longhorn.
-- The three `values.yaml` files are substituted (`${DOMAIN}`), so no other
+- The four `values.yaml` files are substituted (`${DOMAIN}`), so no other
   `$` may appear in them — comments included. The dashboards and the Alloy
   configs are exempt via `kustomize.toolkit.fluxcd.io/substitute: disabled`.
 - Grafana authenticates itself: its Ingress carries `default-headers` only.
   The admin password is `monitoring/app/secret-grafana-admin.sops.yaml`.
+- **Tempo** (`monitoring/app/tempo/`) stores Beyla's traces on a 10Gi
+  Longhorn PVC for 72 h; Grafana's `Tempo` datasource jumps from a span to
+  its pod's Loki lines and draws the service map. No route: Explore is the UI.
 - Prometheus and Alloy have UIs but no route: `port-forward` below.
 
 ```bash
@@ -421,6 +436,31 @@ flux --context homelab get ks alloy
 kubectl --context homelab -n alloy get pods -o wide                       # 20 + 1, both arches
 kubectl --context homelab -n alloy port-forward ds/alloy 12345:12345      # UI: targets, clustering, pipeline
 kubectl --context homelab -n alloy logs ds/alloy --tail=50 | grep -iE 'error|failed'
+```
+
+## Beyla
+
+`beyla/` is eBPF auto-instrumentation: a privileged DaemonSet on every
+worker that gives each containerised service outside kube-system RED
+metrics (scraped by Alloy via annotations, job `beyla`) and 10 %-sampled
+traces (OTLP straight to Tempo) with no code changes. Rationale and the
+propagation caveats: [`docs/design/tracing.md`](../docs/design/tracing.md).
+
+Consequences:
+
+- **New workloads are instrumented automatically.** To opt a namespace out,
+  add it to `exclude_instrument` in `beyla/app/values.yaml`.
+- Beyla listens on the node's `:9090` (hostNetwork): nothing else may take
+  that port on a worker.
+- Traces from Traefik through to Grafana and Loki share one trace ID
+  because Beyla injects `traceparent`; a service that chokes on the header
+  gets `context_propagation: disabled`.
+
+```bash
+flux --context homelab get ks beyla
+kubectl --context homelab -n beyla get pods -o wide                                # 15, workers only
+kubectl --context homelab -n beyla logs ds/beyla --tail=50 | grep -iE 'error|instrumenting'
+kubectl --context homelab -n monitoring get pvc storage-tempo-0                    # Bound
 ```
 
 ## Cluster secrets
