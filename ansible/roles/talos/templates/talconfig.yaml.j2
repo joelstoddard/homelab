@@ -92,3 +92,21 @@ nodes:
 controlPlane:
   certSANs:
     - {{ talos_vip }}
+  # Control-plane only (talhelper applies these to controlPlane: true nodes).
+  # Talos binds the scheduler and controller-manager to localhost and gives
+  # etcd no metrics listener; the alloy layer scrapes all three by node
+  # address — docs/design/observability.md. The etcd URL is plain HTTP on the
+  # LAN and serves /metrics and /health only. Rolled out with
+  # `make -C ansible apply-upgrade` (etcd needs the reboot the play performs).
+  patches:
+    - |-
+      cluster:
+        controllerManager:
+          extraArgs:
+            bind-address: 0.0.0.0
+        scheduler:
+          extraArgs:
+            bind-address: 0.0.0.0
+        etcd:
+          extraArgs:
+            listen-metrics-urls: http://0.0.0.0:2381

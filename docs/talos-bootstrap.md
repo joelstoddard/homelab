@@ -325,6 +325,15 @@ budget) before moving on — no manual watching of
 Multi-minor jumps still go through the rebuild below — Talos tests upgrades
 between adjacent minors only.
 
+The control-plane metrics patch (`controlPlane.patches` in
+`talconfig.yaml.j2`: `bind-address: 0.0.0.0` for scheduler and
+controller-manager, `listen-metrics-urls: http://0.0.0.0:2381` for etcd) is a
+config change that etcd only picks up on restart, so it rolls through
+`apply-upgrade` like a version bump — five nodes, one at a time. After it,
+`curl http://<control-plane-ip>:2381/metrics` from the LAN answers, and
+`curl -k https://<control-plane-ip>:10259/metrics` returns 401 (not a
+connection refusal). `docs/design/observability.md`.
+
 ## Rebuild / bumping versions
 
 Talos only tests upgrades between adjacent minors and Kubernetes moves one

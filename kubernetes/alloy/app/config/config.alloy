@@ -470,6 +470,155 @@ prometheus.scrape "longhorn" {
 	}
 }
 
+// ---------------------------------- cluster-wide: control-plane components --
+
+// Talos static pods, host network, HTTPS with authn/authz delegated to the
+// apiserver; the certs are Talos-internal, hence skip-verify. Needs the
+// bind-address patch in the talos role.
+discovery.kubernetes "control_plane_pods" {
+	role = "pod"
+
+	namespaces {
+		names = ["kube-system"]
+	}
+
+	selectors {
+		role  = "pod"
+		label = "tier=control-plane"
+	}
+}
+
+discovery.relabel "kube_controller_manager" {
+	targets = discovery.kubernetes.control_plane_pods.targets
+
+	rule {
+		source_labels = ["__meta_kubernetes_pod_label_k8s_app"]
+		regex         = "kube-controller-manager"
+		action        = "keep"
+	}
+
+	rule {
+		source_labels = ["__meta_kubernetes_pod_ip"]
+		regex         = "(.+)"
+		replacement   = "$1:10257"
+		target_label  = "__address__"
+	}
+
+	rule {
+		source_labels = ["__meta_kubernetes_pod_node_name"]
+		target_label  = "node"
+	}
+
+	rule {
+		source_labels = ["__meta_kubernetes_pod_node_name"]
+		target_label  = "instance"
+	}
+}
+
+prometheus.scrape "kube_controller_manager" {
+	targets           = discovery.relabel.kube_controller_manager.output
+	forward_to        = [prometheus.remote_write.prometheus.receiver]
+	job_name          = "kube-controller-manager"
+	scheme            = "https"
+	bearer_token_file = "/var/run/secrets/kubernetes.io/serviceaccount/token"
+	scrape_interval   = "60s"
+
+	tls_config {
+		insecure_skip_verify = true
+	}
+
+	clustering {
+		enabled = true
+	}
+}
+
+discovery.relabel "kube_scheduler" {
+	targets = discovery.kubernetes.control_plane_pods.targets
+
+	rule {
+		source_labels = ["__meta_kubernetes_pod_label_k8s_app"]
+		regex         = "kube-scheduler"
+		action        = "keep"
+	}
+
+	rule {
+		source_labels = ["__meta_kubernetes_pod_ip"]
+		regex         = "(.+)"
+		replacement   = "$1:10259"
+		target_label  = "__address__"
+	}
+
+	rule {
+		source_labels = ["__meta_kubernetes_pod_node_name"]
+		target_label  = "node"
+	}
+
+	rule {
+		source_labels = ["__meta_kubernetes_pod_node_name"]
+		target_label  = "instance"
+	}
+}
+
+prometheus.scrape "kube_scheduler" {
+	targets           = discovery.relabel.kube_scheduler.output
+	forward_to        = [prometheus.remote_write.prometheus.receiver]
+	job_name          = "kube-scheduler"
+	scheme            = "https"
+	bearer_token_file = "/var/run/secrets/kubernetes.io/serviceaccount/token"
+	scrape_interval   = "60s"
+
+	tls_config {
+		insecure_skip_verify = true
+	}
+
+	clustering {
+		enabled = true
+	}
+}
+
+// etcd is a Talos host service, not a pod: discover it by control-plane node
+// and hit the plain-HTTP metrics listener the talos role's patch opens.
+discovery.kubernetes "control_plane_nodes" {
+	role = "node"
+
+	selectors {
+		role  = "node"
+		label = "node-role.kubernetes.io/control-plane"
+	}
+}
+
+discovery.relabel "etcd" {
+	targets = discovery.kubernetes.control_plane_nodes.targets
+
+	rule {
+		source_labels = ["__meta_kubernetes_node_address_InternalIP"]
+		regex         = "(.+)"
+		replacement   = "$1:2381"
+		target_label  = "__address__"
+	}
+
+	rule {
+		source_labels = ["__meta_kubernetes_node_name"]
+		target_label  = "node"
+	}
+
+	rule {
+		source_labels = ["__meta_kubernetes_node_name"]
+		target_label  = "instance"
+	}
+}
+
+prometheus.scrape "etcd" {
+	targets         = discovery.relabel.etcd.output
+	forward_to      = [prometheus.remote_write.prometheus.receiver]
+	job_name        = "etcd"
+	scrape_interval = "60s"
+
+	clustering {
+		enabled = true
+	}
+}
+
 // -------------------------------------------------- this node: pod logs --
 
 discovery.kubernetes "pods_local" {
