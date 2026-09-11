@@ -170,8 +170,8 @@ Ingress and TLS are five more layers. Root order is
 `cluster-secrets` → `cert-manager` → `cert-manager-issuers` → `traefik` →
 `traefik-middlewares` (the
 full list is `flux-system`, `cilium`, `cilium-lb`, `cluster-secrets`, `cert-manager`,
-`cert-manager-issuers`, `traefik`, `traefik-middlewares`, `tailscale`,
-`longhorn`).
+`cert-manager-issuers`, `traefik`, `traefik-middlewares`, `lan-services`,
+`tailscale`, `longhorn`, `monitoring`, `alloy`).
 `cluster-secrets/` is one SOPS Secret in `flux-system` holding `DOMAIN`,
 `TRAEFIK_LB_IP` and `ACME_EMAIL`; consumers (`cert-manager-issuers`,
 `traefik`, `longhorn`) add `dependsOn: cluster-secrets` +
@@ -213,6 +213,23 @@ one-line change. LAN DNS is not in this tree: the `address=` wildcard plus a
 `server=/<name>/#` passthrough per publicly-hosted name is
 `opentofu/resources/pihole/`, and a missing passthrough gives a valid
 certificate and a Traefik 404. See `docs/design/ingress-tls.md`.
+`monitoring/` (`dependsOn: cilium, longhorn, cluster-secrets,
+traefik-middlewares`, `wait: true`) is Prometheus as a remote-write-only
+TSDB, Loki Monolithic on Longhorn and a stateless Grafana whose dashboards
+are JSON under `monitoring/app/dashboards/<Folder>/` (one ConfigMap per
+file, sidecar-loaded, read-only in the UI; datasource UIDs `prometheus` /
+`loki` are fixed). `alloy/` (`dependsOn: monitoring`, PSA privileged) is
+the collector: a clustered Alloy DaemonSet on all 20 nodes scraping its own
+kubelet/cAdvisor, exporting node metrics in-process, tailing
+`/var/log/pods`, and sharding the cluster-wide targets — pods and Services
+annotated `prometheus.io/scrape` + `prometheus.io/port` — plus a one-replica
+`alloy-events`. No Prometheus Operator, no CRDs: `alloy/app/config/config.alloy`
+is the one place scrape config lives. The three `monitoring` values files
+are substituted, so `${DOMAIN}` is the only `$` allowed in them; dashboards
+and River sit in nested kustomizations whose ConfigMaps carry
+`kustomize.toolkit.fluxcd.io/substitute: disabled`. Control-plane component
+metrics need the talos role's control-plane patch (`bind-address`,
+`listen-metrics-urls`). See `docs/design/observability.md`.
 Never `kubectl delete kustomization flux-system` — prune would remove Flux
 itself; use `flux uninstall`. Pruning `cilium/` removes the CNI; pruning
 `traefik/` takes every route in the cluster. See `kubernetes/README.md`.

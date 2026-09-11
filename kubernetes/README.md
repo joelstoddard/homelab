@@ -26,6 +26,9 @@ install that gets Flux running in the first place.
 - [x] LAN services — seven off-cluster hosts (four Proxmox nodes, TrueNAS,
       Pi-hole, the router) behind Traefik on the wildcard certificate
       (`lan-services/`) — see "LAN services"
+- [x] Observability — Alloy scraping/tailing every node into Prometheus and
+      Loki, Grafana with dashboards from git (`monitoring/`, `alloy/`; see
+      "Monitoring" and "Alloy")
 - [ ] Workloads
 
 ## Layout
@@ -111,14 +114,36 @@ kubernetes/
 │       ├── rbac.yaml             # SA + Role on the tailscale-state Secret
 │       ├── secret.sops.yaml      # tailscale-auth: TS_AUTHKEY (OAuth client secret)
 │       └── deployment.yaml       # one replica, Recreate, hostname homelab
-└── longhorn/
+├── longhorn/
+│   ├── kustomization.yaml
+│   ├── ks.yaml                   # Flux Kustomization "longhorn", dependsOn cilium, wait
+│   └── app/
+│       ├── namespace.yaml        # longhorn-system, PodSecurity "privileged"
+│       ├── helmrepository.yaml   # https://charts.longhorn.io
+│       ├── helmrelease.yaml      # chart longhorn 1.12.1, values from the ConfigMap
+│       └── values.yaml           # 3 replicas, hard zone anti-affinity, default class
+├── monitoring/
+│   ├── kustomization.yaml
+│   ├── ks.yaml                   # Flux Kustomization "monitoring", dependsOn cilium + longhorn + cluster-secrets + traefik-middlewares, wait
+│   └── app/
+│       ├── kustomization.yaml    # namespace monitoring; wires the three values.yaml generators + dashboards
+│       ├── namespace.yaml        # monitoring; no PodSecurity label (baseline default)
+│       ├── helmrepositories.yaml # prometheus-community + grafana-community
+│       ├── prometheus/           # HelmRelease + values: remote-write receiver, empty scrape config
+│       ├── loki/                 # HelmRelease + values: Monolithic mode, filesystem on a Longhorn PVC
+│       ├── grafana/              # HelmRelease + values: stateless, fixed prometheus/loki datasource UIDs
+│       ├── secret-grafana-admin.sops.yaml  # admin password
+│       └── dashboards/           # JSON dashboards as ConfigMaps, substitute disabled (see its README)
+└── alloy/
     ├── kustomization.yaml
-    ├── ks.yaml                   # Flux Kustomization "longhorn", dependsOn cilium, wait
+    ├── ks.yaml                   # Flux Kustomization "alloy", dependsOn monitoring
     └── app/
-        ├── namespace.yaml        # longhorn-system, PodSecurity "privileged"
-        ├── helmrepository.yaml   # https://charts.longhorn.io
-        ├── helmrelease.yaml      # chart longhorn 1.12.1, values from the ConfigMap
-        └── values.yaml           # 3 replicas, hard zone anti-affinity, default class
+        ├── kustomization.yaml    # namespace alloy; wires namespace, HelmRepository and the three sub-kustomizations
+        ├── namespace.yaml        # PodSecurity "privileged" — hostPath/hostPID/hostNetwork + root
+        ├── helmrepository.yaml   # https://grafana.github.io/helm-charts
+        ├── alloy/                # HelmRelease + values: the clustered DaemonSet, all 20 nodes
+        ├── alloy-events/         # HelmRelease + values: one-replica Deployment for Kubernetes events
+        └── config/               # River configs, substitute disabled: config.alloy + events.alloy
 ```
 
 `flux-system/gotk-sync.yaml` declares a `GitRepository` for this repo
@@ -337,6 +362,62 @@ kubectl --context homelab -n longhorn-system get ingress                    # cl
 kubectl --context homelab -n longhorn-system port-forward svc/longhorn-frontend 8080:80   # UI, DNS-free fallback
 ```
 
+## Monitoring
+
+`monitoring/` holds the backends: Prometheus (a remote-write receiver only —
+nothing in its own scrape config), Loki (Monolithic, filesystem on a
+Longhorn PVC) and a stateless Grafana whose datasources have fixed UIDs
+(`prometheus`, `loki`) and whose dashboards come from git. Rationale:
+[`docs/design/observability.md`](../docs/design/observability.md).
+
+Consequences:
+
+- **Dashboards are JSON in `monitoring/app/dashboards/<Folder>/`**, one
+  ConfigMap each (see the README there). Provisioned dashboards are
+  read-only in the UI: Save As, iterate, Export, commit.
+- **Change the stack through git only** — each chart's `values.yaml`
+  (watched ConfigMap) or its `helmrelease.yaml` version. Multi-arch check
+  before a bump, as for Longhorn.
+- The three `values.yaml` files are substituted (`${DOMAIN}`), so no other
+  `$` may appear in them — comments included. The dashboards and the Alloy
+  configs are exempt via `kustomize.toolkit.fluxcd.io/substitute: disabled`.
+- Grafana authenticates itself: its Ingress carries `default-headers` only.
+  The admin password is `monitoring/app/secret-grafana-admin.sops.yaml`.
+- Prometheus and Alloy have UIs but no route: `port-forward` below.
+
+```bash
+flux --context homelab get ks monitoring
+kubectl --context homelab -n monitoring get hr,pods,pvc,ingress
+kubectl --context homelab -n monitoring port-forward svc/prometheus-server 9090:80   # Prometheus UI
+kubectl --context homelab -n monitoring logs deploy/grafana -c grafana-sc-dashboard --tail=20   # sidecar loads
+```
+
+## Alloy
+
+`alloy/` is the collector: a clustered Alloy DaemonSet on all 20 nodes (own
+kubelet + cAdvisor, node metrics via the built-in unix exporter, pod logs
+from `/var/log/pods`; cluster-wide scrapes sharded by clustering) and a
+one-replica `alloy-events` for Kubernetes events. Namespace is PodSecurity
+`privileged`: hostPath, hostPID, hostNetwork, root.
+
+Consequences:
+
+- **To have a pod scraped, annotate it**: `prometheus.io/scrape: "true"`
+  and `prometheus.io/port: "<n>"` (required), `prometheus.io/path` and
+  `prometheus.io/scheme` optional. `job` becomes its `app.kubernetes.io/name`.
+  The same on a Service works too.
+- **Everything else is `alloy/app/config/config.alloy`**: edit, PR, the
+  reloader applies it without a restart.
+- Alloy listens on the node's `:12345` (hostNetwork): the debug UI is
+  `port-forward` to any one pod.
+
+```bash
+flux --context homelab get ks alloy
+kubectl --context homelab -n alloy get pods -o wide                       # 20 + 1, both arches
+kubectl --context homelab -n alloy port-forward ds/alloy 12345:12345      # UI: targets, clustering, pipeline
+kubectl --context homelab -n alloy logs ds/alloy --tail=50 | grep -iE 'error|failed'
+```
+
 ## Cluster secrets
 
 `cluster-secrets/` is one SOPS-encrypted `Secret` in `flux-system` holding
@@ -542,6 +623,10 @@ kubectl --context homelab -n lan-services get endpointslices \
 2. List the directory in `kubernetes/kustomization.yaml`.
 3. `make -C kubernetes lint`, PR, merge. Flux picks it up within the
    `GitRepository` interval (1 m) and reconciles it.
+4. Metrics: annotate the pod with `prometheus.io/scrape: "true"` and
+   `prometheus.io/port`. Dashboard: a JSON file under
+   `monitoring/app/dashboards/<Folder>/` plus a generator entry in its
+   `kustomization.yaml` (see the README there).
 
 Nothing speculative is pre-created: no `infrastructure/` / `apps/` split, no
 notification or image-automation wiring. Add those when a consumer exists.
@@ -621,3 +706,9 @@ merge lands on `main`. `make -C kubernetes` afterwards is still a no-op.
   nastier: the consuming layers fail substitution and stop reconciling, so
   already-applied routes keep serving while nothing in git can reach the
   cluster any more.
+- **A `$` in `monitoring/app/*/values.yaml`** other than `${DOMAIN}` is
+  substituted away, comments included. Dashboard JSON and River belong in
+  `dashboards/` and `alloy/app/config/`, which are exempt.
+- **Pruning `alloy/` stops all collection; pruning `monitoring/` deletes
+  Prometheus's PVC** (Longhorn's reclaim policy is `Delete`); Loki's
+  `storage-loki-0` claim is a StatefulSet template and survives an uninstall.

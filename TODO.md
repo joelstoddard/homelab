@@ -57,7 +57,7 @@
 - [x] Tailscale subnet router + exit node as a Deployment (`kubernetes/tailscale/`,
       policy in a private repo — `docs/design/tailscale-router.md`)
     - [ ] Benchmark and tighten the router's resource limits
-    - [ ] Scrape `:9002/metrics` once an observability layer exists
+    - [x] Scrape `:9002/metrics` (alloy layer, pod annotations)
     - [ ] Un-encrypt bare `10.0.0.0/20` mentions repo-wide (host addresses/ranges stay encrypted)
 - [x] Ingress + TLS — Traefik on a pinned LB IP, one cert-manager wildcard
       over Cloudflare DNS-01, Pi-hole wildcard DNS. Six Flux layers
@@ -79,8 +79,7 @@
           remote client gets NXDOMAIN for `<name>.<domain>`
     - [ ] Benchmark and tighten Traefik's resource limits (the same open
           question as the Tailscale router's)
-    - [ ] Scrape Traefik and cert-manager metrics once an observability layer
-          exists
+    - [x] Scrape Traefik and cert-manager metrics (alloy layer, pod annotations)
     - [ ] Revisit `externalTrafficPolicy: Local` if client IPs in the access
           logs ever matter — needs a Traefik pod on the node announcing the LB
           address, and Cilium documents L2 mode as incompatible with `Local`
@@ -106,6 +105,18 @@
           cookie tolerates Traefik round-robining across nodes mid-session —
           no longer applies: each node has its own hostname and single
           endpoint, so nothing round-robins.)
+- [x] Observability — Prometheus + Loki + Grafana + Alloy (`kubernetes/monitoring/`,
+      `kubernetes/alloy/`) — `docs/design/observability.md`
+    - [ ] Control-plane component metrics (etcd, scheduler, controller-manager):
+          talconfig control-plane patch + `apply-upgrade` of the five nodes
+    - [ ] Measure and tighten the stack's limits after 24 h (design doc
+          "Measurements")
+    - [ ] Restrict etcd `:2381` to the pod CIDR with a Talos `NetworkRuleConfig`
+    - [ ] Talos machine logs (kubelet/containerd/kernel) to Loki — Talos sends
+          JSON lines over TCP/UDP; needs a receiver Alloy lacks
+    - [ ] Spec 2: Beyla / OTel eBPF instrumentation (metrics-only vs traces + Tempo)
+    - [ ] Spec 3: exporters on Proxmox, TrueNAS, Pi-hole, the router
+    - [ ] Vendor the Alloy mixin dashboards (alloy-resources, alloy-controller) once compiled JSON is obtainable without jsonnet
 - [ ] Renovate for automated version-bump PRs
 - [ ] Pin all tool versions (talosctl/kubectl/talhelper/flux) — likely nix flakes
 

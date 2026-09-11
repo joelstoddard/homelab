@@ -15,3 +15,5 @@ resources:
   - lan-services
   - tailscale
   - longhorn
+  - monitoring
+  - alloy
