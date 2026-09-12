@@ -16,6 +16,12 @@ affinity:
 podAnnotations:
   prometheus.io/scrape: "true"
   prometheus.io/port: "9090"
+# A pod takes minutes to die, so one node at a time would roll 14 nodes for
+# the better part of an hour; a node without Beyla only misses RED samples.
+updateStrategy:
+  type: RollingUpdate
+  rollingUpdate:
+    maxUnavailable: 50%
 # Steady state is ~360 MiB a node; analysing a large Go binary (Grafana,
 # Prometheus) spikes past 512Mi and OOMKilled the pod on those nodes.
 resources:
