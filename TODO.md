@@ -30,13 +30,17 @@
           operator during the 2026-09-07 Cilium rebuild and `k8s-server-01`
           when the observability stack landed on 2026-09-11, then
           `k8s-agent-02` the same evening as Beyla landed (~360 MiB more a
-          node); the operator VM is now 4096 MB / balloon 1024 (`qm set
-          901`), but the k8s VMs have ballooning off, so every NUC still
-          sits at ~14.4 of 15.5 GiB and Rumba is over-allocated. Fix the
-          sizing in NetBox (k8s-vm reads it) and/or give the VMs balloon
-          minimums in `modules/vm`. A hard kill can also leave a corrupt
-          image behind (`exec format error`): `talosctl image remove` both
-          the tag and the digest reference, then delete the pod.
+          node) and Salsa `k8s-agent-06` at midnight — no operator VM there,
+          so 4 + 5 + 5 GB of Talos VMs with ballooning off fill a NUC on
+          their own. The operator VM is 4096 MB / balloon 1024 (`qm set
+          901`); the fix is fleet-wide: size the agents in NetBox (k8s-vm
+          reads it) and/or give the VMs balloon minimums in `modules/vm`.
+          A hard kill can leave a corrupt image behind (`exec format
+          error`) that survives `talosctl image remove` of tag and digest,
+          a reboot and a re-pull: wipe EPHEMERAL (`talosctl reset --graceful
+          --system-labels-to-wipe EPHEMERAL --reboot`, re-add the Longhorn
+          disk) and then drop the `beyla-repair` NoSchedule taint that
+          keeps Beyla off `k8s-agent-02` meanwhile.
 
 ## Raspberry Pis
 - [x] Bootstrap with TalOS (arm64 PXE netboot via 00-pxe `talos.yaml`)

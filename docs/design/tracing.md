@@ -82,6 +82,9 @@ instrumentation and for injecting trace context into live requests.
 - Beyla's memory grows with instrumented processes: the 1Gi limit restarts
   only Beyla (512Mi was not enough on the nodes hosting Grafana and
   Prometheus, see Observed behaviour).
+- Rolling the DaemonSet: a Beyla pod takes minutes to die, so half the
+  nodes roll at once and the HelmRelease waits 30 m; a node without Beyla
+  for a few minutes only misses RED samples.
 - Tempo down or full: the OTLP exporter retries briefly then drops spans;
   metrics unaffected; Longhorn volumes expand online.
 - A service mis-handles an injected `traceparent`: set
@@ -109,10 +112,24 @@ First hour live (2026-09-11), 24 h figures to follow:
   and Beyla's ~360 MiB a node was the push. The VM was restarted unchanged;
   the node rejoined without an EPHEMERAL wipe, but the Beyla image that
   was mid-pull at the kill came back corrupt (`exec /beyla: exec format
-  error`) and re-pulling the tag reused the broken layers — both the tag
-  and the digest reference had to go (`talosctl image remove`) before a
-  fresh pull worked. Prometheus, which lived on that node, rescheduled with
-  its Longhorn volume within two minutes. Right-sizing is `TODO.md`.
+  error`) and stayed so through `talosctl image remove` of both the tag
+  and the digest reference, a graceful reboot and a fresh pull: containerd
+  keeps reusing the unpacked layer. The node carries a `beyla-repair`
+  NoSchedule taint until its EPHEMERAL partition is wiped, so it runs
+  everything but Beyla. Prometheus, which lived on that node, rescheduled
+  with its Longhorn volume within two minutes. Right-sizing is `TODO.md`.
+- **Salsa OOM-killed `k8s-agent-06` at midnight the same way.** No operator
+  VM there: 4000 + 5000 + 5000 MB of Talos VMs with ballooning off fill a
+  16 GB NUC on their own once the guests do, and Beyla's footprint on two
+  of them was the push. Loki rescheduled with its volume. The sizing fix
+  is fleet-wide, not a Rumba quirk.
+- **A Beyla pod takes minutes to die.** On deletion the runtime's kill
+  times out (`Kill container failed … DeadlineExceeded` in the kubelet log)
+  and the container lingers three to five minutes while probes detach, so
+  the chart's one-node-at-a-time rollout outlived the 10 m Helm timeout,
+  Helm rolled back, the rollback hit the same wall, and the release
+  thrashed between 512Mi and 1Gi templates until it was suspended by hand.
+  Now `timeout: 30m0s` and `maxUnavailable: 50%`.
 - **Beyla OOMKilled at 512Mi where large Go binaries live.** Steady state
   is 320–390 MiB everywhere, but the pod on Grafana's node crash-looped
   and the pods on the Prometheus node and one more each died once during
@@ -131,8 +148,14 @@ First hour live (2026-09-11), 24 h figures to follow:
 - **Traces in the first hour.** Roots at `longhorn`, `loki`,
   `longhorn-csi-plugin`, `tempo` and `traefik-traefik`; an in-pod trace
   (HTTP server span → gRPC client → gRPC server) proved propagation across
-  a socket. The cross-service Traefik → Grafana proof waits on the memory
-  fix.
+  a socket. Fifteen minutes after the metrics-generator started,
+  `traces_service_graph_request_total` held 51 edge series, among them
+  `traefik-traefik → grafana`, `traefik-traefik → prometheus` and
+  `tempo → prometheus` (its own remote-write): the processor pairs client
+  and server spans from different services, which is the cross-service
+  propagation proof. Unpaired server spans show up under the client `user`.
+  The Tempo restart that enabled the generator dropped one live-store
+  block it could not replay (`failed to replay block. removing.`).
 
 ## Rejected
 
@@ -152,8 +175,9 @@ First hour live (2026-09-11), 24 h figures to follow:
   service-graph rates are a tenth of the RED series (they come from the
   sampled traces).
 - Beyla names a workload after its labels, which lumps the four Flux
-  controllers together as `flux-system` and calls Traefik
-  `traefik-traefik` (`TODO.md`).
+  controllers together as `flux-system`, calls Traefik `traefik-traefik`
+  and gives every Longhorn instance-manager pod its own hashed name in
+  the service graph (`TODO.md`).
 - No SDK/OTLP ingestion from application code yet.
 - Tempo is not HA and has no object store.
 - Tempo logs `error calling scheduler … no jobs found` every 15 s while
