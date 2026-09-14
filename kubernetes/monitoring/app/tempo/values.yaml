@@ -43,13 +43,14 @@ tempo:
       metrics_generator:
         processors:
           - service-graphs
+  # 155 MiB before the metrics-generator; OOMKilled once at 768Mi after it.
   resources:
     requests:
       cpu: 100m
       memory: 256Mi
     limits:
       cpu: 500m
-      memory: 768Mi
+      memory: 1Gi
 persistence:
   enabled: true
   size: 10Gi
