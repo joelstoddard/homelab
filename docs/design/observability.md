@@ -141,6 +141,24 @@ reboots), 24 h figures to follow:
 - **`apply-upgrade` did not restart etcd.** With an unchanged Talos build the
   play pushes config without a reboot; five graceful `talosctl reboot`s
   opened `:2381` (see the Talos control plane bullet above).
+- **The liveness probe killed Prometheus during WAL replay.** After its
+  node was lost (2026-09-14), replaying the WAL at ~380k series took longer
+  than the chart's liveness budget (30 s delay, three 15 s periods), so
+  the kubelet restarted the container at ~75 s every time and Prometheus
+  never came back; Alloy's remote-write WAL buffered meanwhile. A startup
+  probe with a 15-minute budget now holds liveness off until the TSDB is
+  up. kube-state-metrics exits when an API call times out (41 restarts in
+  35 h while a control-plane node was sick) and recovers by itself.
+- **A 4 GB control-plane VM starved under etcd.** On `k8s-server-01` etcd
+  grew to 2.8 GB RSS (358 MB on its peers) while it flapped its peer
+  connections for 25 hours; the guest ran at 60 MB available, OOM-killed
+  Alloy, and kubelet and containerd failed with it. A graceful
+  `talosctl reboot` brought the member back at 222 MB like the others.
+  Quorum of five carried the loss again.
+- **Rumba OOM-killed `k8s-agent-01` on 2026-09-13**, after the agents had
+  been resized to 4000 MB: three 4 GB Talos VMs plus the 4 GB operator VM
+  still exceed its 15.5 GiB once the guests fill. The operator VM is the
+  variable left (`TODO.md`).
 
 ## Rejected
 

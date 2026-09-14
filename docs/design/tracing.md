@@ -98,7 +98,7 @@ First hour live (2026-09-11), 24 h figures to follow:
 | What | Measured | Budget / estimate |
 | --- | --- | --- |
 | Beyla working set | 320–390 MiB on every node at steady state; OOMKilled at 512Mi on the Grafana and Prometheus nodes | 512Mi limit at launch, 1Gi now |
-| Tempo working set | 155 MiB before the metrics-generator | 768 MiB limit |
+| Tempo working set | 155 MiB before the metrics-generator; OOMKilled once at 768Mi in the two days after it | 768Mi limit at launch, 1Gi now |
 | Series added by `job="beyla"` | ~37.8k (total ~382k): 28k are `http_client_*` histograms keyed by destination address, ~20k of all Beyla series are the body-size families | series-budget item in `TODO.md` |
 | Instrumented namespaces | longhorn-system, traefik, monitoring, flux-system, cert-manager, tailscale | no kube-system, as designed |
 | Reconcile after merge | 6 min to both layers Ready; Beyla pods Running within 30 s of the HelmRelease | — |
@@ -152,8 +152,11 @@ First hour live (2026-09-11), 24 h figures to follow:
   `traces_service_graph_request_total` held 51 edge series, among them
   `traefik-traefik → grafana`, `traefik-traefik → prometheus` and
   `tempo → prometheus` (its own remote-write): the processor pairs client
-  and server spans from different services, which is the cross-service
-  propagation proof. Unpaired server spans show up under the client `user`.
+  and server spans from different services. Once Grafana's node ran Beyla
+  at 1Gi (2026-09-14), single traces held Traefik's server and client spans,
+  Grafana's server span and Grafana's own client spans to Prometheus and
+  its database: header propagation across three services without touching
+  their code. Unpaired server spans show up under the client `user`.
   The Tempo restart that enabled the generator dropped one live-store
   block it could not replay (`failed to replay block. removing.`).
 
