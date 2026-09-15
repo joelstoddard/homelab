@@ -412,10 +412,17 @@ after the wipe (stale OVMF boot entry), recreate that one VM with
   `exec format error` or other odd container failures.** containerd's
   content store can hold blobs that were never fsynced; image digests match
   a healthy node, so `talosctl image remove` + re-pull just reuses the same
-  bad blob. Wipe EPHEMERAL: `talosctl reset --system-labels-to-wipe
-  EPHEMERAL --graceful --reboot` (STATE and the machine config survive; a
-  control-plane node leaves and rejoins etcd). With Longhorn installed, also
-  re-register the node's stale-`diskUUID` Longhorn disk — see
-  [`design/longhorn.md`](design/longhorn.md) "Failure modes" (the
-  validating webhook may need a retry: "spec and status of disks … are
-  being syncing").
+  bad blob — removing both the tag and the digest reference, rebooting and
+  pulling again did not help either (2026-09-14). Wipe EPHEMERAL:
+  `talosctl reset --system-labels-to-wipe EPHEMERAL --graceful --reboot
+  --wait` (STATE and the machine config survive; a control-plane node
+  leaves and rejoins etcd; a worker was back Ready 30 s after the reboot).
+  With Longhorn installed, also re-register the node's stale-`diskUUID`
+  Longhorn disk in this order, each step a `kubectl patch` on the
+  `nodes.longhorn.io` record: set the stale disk entry's own
+  `allowScheduling: false` (the node-level flag is not enough: "Please
+  disable the disk … first"), JSON-patch-remove the entry, then add a fresh
+  entry with a new name and the same path (adding it first fails with
+  "duplicate disk paths"). The validating webhook may need a retry: "spec
+  and status of disks … are being syncing". Details in
+  [`design/longhorn.md`](design/longhorn.md) "Failure modes".

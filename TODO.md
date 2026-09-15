@@ -32,15 +32,19 @@
           `k8s-agent-02` the same evening as Beyla landed (~360 MiB more a
           node) and Salsa `k8s-agent-06` at midnight — no operator VM there,
           so 4 + 5 + 5 GB of Talos VMs with ballooning off fill a NUC on
-          their own. The operator VM is 4096 MB / balloon 1024 (`qm set
-          901`); the fix is fleet-wide: size the agents in NetBox (k8s-vm
-          reads it) and/or give the VMs balloon minimums in `modules/vm`.
+          their own. The agents went to 4000 MB via NetBox + tofu on
+          2026-09-12 (the bpg provider "reboots" with a hard `qmstop` +
+          `qmstart` — set `reboot_after_update = false` in `modules/vm` and
+          reboot Talos gracefully instead; a guest reboot alone does not
+          resize QEMU, it needs shutdown + start). Rumba still killed
+          `k8s-agent-01` on 2026-09-13 until the operator VM was stopped on
+          2026-09-14. Left: balloon minimums in `modules/vm`, and 4 GB is
+          tight for a control-plane VM once etcd misbehaves.
           A hard kill can leave a corrupt image behind (`exec format
           error`) that survives `talosctl image remove` of tag and digest,
-          a reboot and a re-pull: wipe EPHEMERAL (`talosctl reset --graceful
-          --system-labels-to-wipe EPHEMERAL --reboot`, re-add the Longhorn
-          disk) and then drop the `beyla-repair` NoSchedule taint that
-          keeps Beyla off `k8s-agent-02` meanwhile.
+          a reboot and a re-pull; only the EPHEMERAL wipe clears it
+          (`docs/talos-bootstrap.md` "Recovery" — `k8s-agent-02` was wiped
+          on 2026-09-15 and its `beyla-repair` taint dropped).
 
 ## Raspberry Pis
 - [x] Bootstrap with TalOS (arm64 PXE netboot via 00-pxe `talos.yaml`)
@@ -131,6 +135,10 @@
           histograms keyed by destination address and ~20k the body-size
           families no dashboard reads)
     - [ ] Restrict etcd `:2381` to the pod CIDR with a Talos `NetworkRuleConfig`
+    - [ ] Alert when a member's etcd RSS passes 1 GB (`process_resident_memory_bytes{job="etcd"}`):
+          `k8s-server-01` grew to 2.7 GB twice in two days and starved its 4 GB VM
+          (design doc "Observed behaviour"); Grafana unified alerting needs no new components
+    - [ ] Raise Grafana's memory limit (peak 480 MiB of 512Mi over three days)
     - [ ] Talos machine logs (kubelet/containerd/kernel) to Loki — Talos sends
           JSON lines over TCP/UDP; needs a receiver Alloy lacks
     - [x] Spec 2: Beyla eBPF RED metrics + traces into Tempo (`kubernetes/beyla/`, `docs/design/tracing.md`)

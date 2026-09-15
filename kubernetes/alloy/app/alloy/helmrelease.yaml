@@ -25,3 +25,15 @@ spec:
   valuesFrom:
     - kind: ConfigMap
       name: alloy-values
+  # The chart hard-codes a 1 s readiness timeout; a busy Alloy answers /-/ready
+  # slower than that and sits NotReady for days while still shipping data.
+  postRenderers:
+    - kustomize:
+        patches:
+          - target:
+              kind: DaemonSet
+              name: alloy
+            patch: |
+              - op: replace
+                path: /spec/template/spec/containers/0/readinessProbe/timeoutSeconds
+                value: 5

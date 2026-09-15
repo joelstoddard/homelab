@@ -103,6 +103,16 @@ First hour live (2026-09-11), 24 h figures to follow:
 | Instrumented namespaces | longhorn-system, traefik, monitoring, flux-system, cert-manager, tailscale | no kube-system, as designed |
 | Reconcile after merge | 6 min to both layers Ready; Beyla pods Running within 30 s of the HelmRelease | — |
 
+Three days live (2026-09-15; peaks are `max_over_time[3d]`):
+
+| What | Measured | Budget |
+| --- | --- | --- |
+| Beyla working set, peak | 754 MiB while instrumenting a large binary; ~360 MiB steady | 1Gi limit |
+| Series from `job="beyla"` | ~66k, up from 37.8k once Grafana's node stayed instrumented | series-budget item in `TODO.md` |
+| Tempo working set, peak | 350 MiB with the metrics-generator | 1Gi limit |
+| Spans received by Tempo | ~670 a minute at the 10 % sample | — |
+| Service graph | 53 edge series; Grafana instrumented with 53 route series | — |
+
 ## Observed behaviour
 
 - **Rumba OOM-killed `k8s-agent-02` the second the Beyla pods started.**
@@ -114,9 +124,12 @@ First hour live (2026-09-11), 24 h figures to follow:
   was mid-pull at the kill came back corrupt (`exec /beyla: exec format
   error`) and stayed so through `talosctl image remove` of both the tag
   and the digest reference, a graceful reboot and a fresh pull: containerd
-  keeps reusing the unpacked layer. The node carries a `beyla-repair`
-  NoSchedule taint until its EPHEMERAL partition is wiped, so it runs
-  everything but Beyla. Prometheus, which lived on that node, rescheduled
+  keeps reusing the unpacked layer. A `beyla-repair` NoSchedule taint kept
+  Beyla off the node for four days (and, as a side effect, any new
+  DaemonSet pod: an Alloy restart needed the taint lifted for a minute);
+  the EPHEMERAL wipe on 2026-09-15 (`docs/talos-bootstrap.md` "Recovery")
+  cleared the layer and the fifteenth Beyla pod runs. Prometheus, which
+  lived on that node, rescheduled
   with its Longhorn volume within two minutes. Right-sizing is `TODO.md`.
 - **Salsa OOM-killed `k8s-agent-06` at midnight the same way.** No operator
   VM there: 4000 + 5000 + 5000 MB of Talos VMs with ballooning off fill a

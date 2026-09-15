@@ -162,10 +162,15 @@ replicas sit.
   `talosctl reset --system-labels-to-wipe EPHEMERAL --graceful --reboot`
   (STATE survives; a control-plane node leaves and rejoins etcd), then
   re-register the node's Longhorn disk — the node record keeps the old
-  `diskUUID` and reports a mismatch: set `allowScheduling: false`,
-  JSON-patch-remove the stale entry from the `nodes.longhorn.io`
-  `spec.disks`, add a fresh one (new name, same `/var/lib/longhorn` path,
-  `allowScheduling: true`); the validating webhook may answer "spec and
-  status of disks … are being syncing" — retry after a few seconds. Steps
-  in [`talos-bootstrap.md`](../talos-bootstrap.md) "Recovery". Every node
-  that was hard-killed carries the risk, not only the one that shows it.
+  `diskUUID` and reports a mismatch: set the stale disk entry's own
+  `allowScheduling: false` (the node-level flag does not satisfy the
+  webhook: "Please disable the disk … and remove all replicas first"; any
+  replica records still pointing at the wiped disk have to go too),
+  JSON-patch-remove the entry from the `nodes.longhorn.io` `spec.disks`,
+  then add a fresh one (new name, same `/var/lib/longhorn` path,
+  `allowScheduling: true`) — adding it while the stale entry exists fails
+  with "duplicate disk paths". The webhook may answer "spec and status of
+  disks … are being syncing" — retry after a few seconds. Steps in
+  [`talos-bootstrap.md`](../talos-bootstrap.md) "Recovery"; the 2026-09-15
+  `k8s-agent-02` wipe took two minutes end to end. Every node that was
+  hard-killed carries the risk, not only the one that shows it.
