@@ -124,9 +124,12 @@ Three days live (2026-09-15; peaks are `max_over_time[3d]`):
   was mid-pull at the kill came back corrupt (`exec /beyla: exec format
   error`) and stayed so through `talosctl image remove` of both the tag
   and the digest reference, a graceful reboot and a fresh pull: containerd
-  keeps reusing the unpacked layer. The node carries a `beyla-repair`
-  NoSchedule taint until its EPHEMERAL partition is wiped, so it runs
-  everything but Beyla. Prometheus, which lived on that node, rescheduled
+  keeps reusing the unpacked layer. A `beyla-repair` NoSchedule taint kept
+  Beyla off the node for four days (and, as a side effect, any new
+  DaemonSet pod: an Alloy restart needed the taint lifted for a minute);
+  the EPHEMERAL wipe on 2026-09-15 (`docs/talos-bootstrap.md` "Recovery")
+  cleared the layer and the fifteenth Beyla pod runs. Prometheus, which
+  lived on that node, rescheduled
   with its Longhorn volume within two minutes. Right-sizing is `TODO.md`.
 - **Salsa OOM-killed `k8s-agent-06` at midnight the same way.** No operator
   VM there: 4000 + 5000 + 5000 MB of Talos VMs with ballooning off fill a

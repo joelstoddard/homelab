@@ -42,10 +42,9 @@
           tight for a control-plane VM once etcd misbehaves.
           A hard kill can leave a corrupt image behind (`exec format
           error`) that survives `talosctl image remove` of tag and digest,
-          a reboot and a re-pull: wipe EPHEMERAL (`talosctl reset --graceful
-          --system-labels-to-wipe EPHEMERAL --reboot`, re-add the Longhorn
-          disk) and then drop the `beyla-repair` NoSchedule taint that
-          keeps Beyla off `k8s-agent-02` meanwhile.
+          a reboot and a re-pull; only the EPHEMERAL wipe clears it
+          (`docs/talos-bootstrap.md` "Recovery" — `k8s-agent-02` was wiped
+          on 2026-09-15 and its `beyla-repair` taint dropped).
 
 ## Raspberry Pis
 - [x] Bootstrap with TalOS (arm64 PXE netboot via 00-pxe `talos.yaml`)
