@@ -14,6 +14,14 @@ server:
   # RWO Longhorn volume: the old pod must release it before the new one mounts.
   strategy:
     type: Recreate
+  # WAL replay after a restart takes minutes at ~380k series and answers no
+  # probe meanwhile; without this the liveness probe killed Prometheus at 75 s
+  # and it never came back. 90 x 10 s = 15 min before liveness takes over.
+  startupProbe:
+    enabled: true
+    periodSeconds: 10
+    failureThreshold: 90
+    timeoutSeconds: 10
   # Longhorn from a VM is ~2x the IOPS of a Pi; the TSDB write path notices.
   nodeSelector:
     kubernetes.io/arch: amd64
