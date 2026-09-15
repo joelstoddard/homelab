@@ -32,9 +32,14 @@
           `k8s-agent-02` the same evening as Beyla landed (~360 MiB more a
           node) and Salsa `k8s-agent-06` at midnight — no operator VM there,
           so 4 + 5 + 5 GB of Talos VMs with ballooning off fill a NUC on
-          their own. The operator VM is 4096 MB / balloon 1024 (`qm set
-          901`); the fix is fleet-wide: size the agents in NetBox (k8s-vm
-          reads it) and/or give the VMs balloon minimums in `modules/vm`.
+          their own. The agents went to 4000 MB via NetBox + tofu on
+          2026-09-12 (the bpg provider "reboots" with a hard `qmstop` +
+          `qmstart` — set `reboot_after_update = false` in `modules/vm` and
+          reboot Talos gracefully instead; a guest reboot alone does not
+          resize QEMU, it needs shutdown + start). Rumba still killed
+          `k8s-agent-01` on 2026-09-13 until the operator VM was stopped on
+          2026-09-14. Left: balloon minimums in `modules/vm`, and 4 GB is
+          tight for a control-plane VM once etcd misbehaves.
           A hard kill can leave a corrupt image behind (`exec format
           error`) that survives `talosctl image remove` of tag and digest,
           a reboot and a re-pull: wipe EPHEMERAL (`talosctl reset --graceful

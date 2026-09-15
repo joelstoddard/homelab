@@ -130,6 +130,20 @@ reboots), 24 h figures to follow:
 | Alloy, busiest pod | 383 MiB | 512 MiB limit |
 | Reconcile after merge | 6 min to both layers Ready; first pod-log lines within a minute of the fix | — |
 
+Three days live (2026-09-15, with Beyla and Tempo added on 2026-09-11 and a
+Prometheus outage in between; peaks are `max_over_time[3d]`):
+
+| What | Measured | Budget |
+| --- | --- | --- |
+| Active series | ~370k, 1,270 samples/s appended | Beyla is ~66k of it |
+| TSDB on disk | 1.2 GiB after four days | 18 GB `retentionSize` on a 20Gi PVC |
+| Prometheus working set, peak | 1.59 GiB (WAL replay after a node loss) | 2 GiB limit |
+| Loki working set, peak | 114 MiB; ingesting ~1.6 GiB of log lines a day | 1 GiB limit |
+| Grafana working set, peak | 480 MiB | 512Mi limit: the next one to raise |
+| kube-state-metrics, peak | 30 MiB | 256Mi limit |
+| Alloy, peak | 512 MiB, i.e. the limit, on the Pis during the outage | 1Gi now |
+| Scrape targets down at steady state | none (21 `alloy`, 14 `beyla`, 20 `kubelet`) | — |
+
 ## Observed behaviour
 
 - **Rumba OOM-killed `k8s-server-01` as the stack landed.** The four NUCs sat
@@ -153,12 +167,29 @@ reboots), 24 h figures to follow:
   grew to 2.8 GB RSS (358 MB on its peers) while it flapped its peer
   connections for 25 hours; the guest ran at 60 MB available, OOM-killed
   Alloy, and kubelet and containerd failed with it. A graceful
-  `talosctl reboot` brought the member back at 222 MB like the others.
-  Quorum of five carried the loss again.
+  `talosctl reboot` brought the member back at 222 MB like the others for
+  a day; the next morning its etcd was flapping again (up 23 % of the hour,
+  17 state changes in 12 h) and the node's apiserver, controller-manager,
+  scheduler and Cilium agent restarted behind it. Quorum of five carried
+  the loss both times; the member needs a rebuild from its peers.
 - **Rumba OOM-killed `k8s-agent-01` on 2026-09-13**, after the agents had
   been resized to 4000 MB: three 4 GB Talos VMs plus the 4 GB operator VM
-  still exceed its 15.5 GiB once the guests fill. The operator VM is the
-  variable left (`TODO.md`).
+  still exceed its 15.5 GiB once the guests fill. The operator VM was
+  stopped on 2026-09-14 (the cluster is driven from the workstation now),
+  which leaves Rumba with three 4 GB VMs like the other NUCs.
+- **Alloy suffered the Prometheus outage twice over.** With nowhere to
+  remote-write, every Alloy's WAL grew and the Pi pods were OOMKilled at
+  512Mi (up to 14 times each); once Prometheus was back the queues drained
+  within minutes. Separately, the 13 Alloys on the VMs sat NotReady for a
+  day and a half while still scraping and shipping (every node's kubelet
+  samples stayed under a minute old): their HTTP server had stopped
+  answering `/-/ready` and `/metrics` during the outage, and NotReady pods
+  drop out of the headless Service the cluster discovers peers through,
+  hence the memberlist errors. Deleting the 13 pods brought all of them
+  Ready within a minute. The Pi pods, busier with logs, also see 3–15 %
+  CFS throttling at 500m and miss the chart's hard-coded one-second
+  readiness timeout now and then. Limits are now 1 CPU / 1Gi and a Flux
+  post-render patch sets the readiness timeout to 5 s.
 
 ## Rejected
 

@@ -103,6 +103,16 @@ First hour live (2026-09-11), 24 h figures to follow:
 | Instrumented namespaces | longhorn-system, traefik, monitoring, flux-system, cert-manager, tailscale | no kube-system, as designed |
 | Reconcile after merge | 6 min to both layers Ready; Beyla pods Running within 30 s of the HelmRelease | — |
 
+Three days live (2026-09-15; peaks are `max_over_time[3d]`):
+
+| What | Measured | Budget |
+| --- | --- | --- |
+| Beyla working set, peak | 754 MiB while instrumenting a large binary; ~360 MiB steady | 1Gi limit |
+| Series from `job="beyla"` | ~66k, up from 37.8k once Grafana's node stayed instrumented | series-budget item in `TODO.md` |
+| Tempo working set, peak | 350 MiB with the metrics-generator | 1Gi limit |
+| Spans received by Tempo | ~670 a minute at the 10 % sample | — |
+| Service graph | 53 edge series; Grafana instrumented with 53 route series | — |
+
 ## Observed behaviour
 
 - **Rumba OOM-killed `k8s-agent-02` the second the Beyla pods started.**
