@@ -168,10 +168,16 @@ Prometheus outage in between; peaks are `max_over_time[3d]`):
   connections for 25 hours; the guest ran at 60 MB available, OOM-killed
   Alloy, and kubelet and containerd failed with it. A graceful
   `talosctl reboot` brought the member back at 222 MB like the others for
-  a day; the next morning its etcd was flapping again (up 23 % of the hour,
-  17 state changes in 12 h) and the node's apiserver, controller-manager,
-  scheduler and Cilium agent restarted behind it. Quorum of five carried
-  the loss both times; the member needs a rebuild from its peers.
+  a day; the next morning etcd's RSS climbed to 2.67 GB again, the member
+  flapped for two hours (up 23 % of the hour, 17 state changes in 12 h) and
+  the node's apiserver, controller-manager, scheduler and Cilium agent
+  restarted behind it until the guest OOM-killed the apiserver and the
+  pressure lifted; everything on the node was healthy again within the
+  hour. Quorum of five carried both episodes. The peers' apiservers peak at
+  0.5–1 GB and a control-plane VM otherwise keeps ~1.7 GB spare, so the
+  size holds while etcd behaves; why this one member's etcd grows tenfold
+  is the open question, and an alert on `process_resident_memory_bytes`
+  for `job="etcd"` is the cheap guard (`TODO.md`).
 - **Rumba OOM-killed `k8s-agent-01` on 2026-09-13**, after the agents had
   been resized to 4000 MB: three 4 GB Talos VMs plus the 4 GB operator VM
   still exceed its 15.5 GiB once the guests fill. The operator VM was

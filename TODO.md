@@ -136,6 +136,10 @@
           histograms keyed by destination address and ~20k the body-size
           families no dashboard reads)
     - [ ] Restrict etcd `:2381` to the pod CIDR with a Talos `NetworkRuleConfig`
+    - [ ] Alert when a member's etcd RSS passes 1 GB (`process_resident_memory_bytes{job="etcd"}`):
+          `k8s-server-01` grew to 2.7 GB twice in two days and starved its 4 GB VM
+          (design doc "Observed behaviour"); Grafana unified alerting needs no new components
+    - [ ] Raise Grafana's memory limit (peak 480 MiB of 512Mi over three days)
     - [ ] Talos machine logs (kubelet/containerd/kernel) to Loki — Talos sends
           JSON lines over TCP/UDP; needs a receiver Alloy lacks
     - [x] Spec 2: Beyla eBPF RED metrics + traces into Tempo (`kubernetes/beyla/`, `docs/design/tracing.md`)
