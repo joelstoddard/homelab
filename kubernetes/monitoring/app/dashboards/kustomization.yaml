@@ -46,3 +46,15 @@ configMapGenerator:
   - name: dashboard-beyla-red
     files: [Tracing/beyla-red.json]
     options: {annotations: {grafana_folder: Tracing}}
+  - name: dashboard-proxmox
+    files: [Hosts/proxmox.json]
+    options: {annotations: {grafana_folder: Hosts}}
+  - name: dashboard-pihole
+    files: [Hosts/pihole.json]
+    options: {annotations: {grafana_folder: Hosts}}
+  - name: dashboard-blackbox
+    files: [Hosts/blackbox.json]
+    options: {annotations: {grafana_folder: Hosts}}
+  - name: dashboard-host-logs
+    files: [Hosts/host-logs.json]
+    options: {annotations: {grafana_folder: Hosts}}
