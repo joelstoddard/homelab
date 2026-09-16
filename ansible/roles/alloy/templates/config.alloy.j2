@@ -64,6 +64,14 @@ loki.source.journal "journal" {
 loki.relabel "journal" {
 	forward_to = []
 
+	// The source stamps job with its own component id after the static labels
+	// map, so only a relabel rule makes job="journal" stick (the dashboards
+	// select on it).
+	rule {
+		target_label = "job"
+		replacement  = "journal"
+	}
+
 	rule {
 		source_labels = ["__journal__systemd_unit"]
 		target_label  = "unit"
