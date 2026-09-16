@@ -10,6 +10,9 @@ resources:
   - secret-pihole-exporter.sops.yaml
   - blackbox-exporter.yaml
   - graphite-exporter.yaml
+  - alloy-gateway/helmrelease.yaml
+  - alloy-gateway/service-syslog.yaml
+  - config
 # This layer is substituted by Flux: every generator input here may contain
 # the cluster-secrets variable names and no other $ — the River file sits in
 # config/ with substitution disabled, the targets file deliberately here.
@@ -20,6 +23,12 @@ configMapGenerator:
   - name: graphite-mapping
     files:
       - mapping.yml=graphite/mapping.yml
+  - name: alloy-gateway-values
+    files:
+      - values.yaml=alloy-gateway/values.yaml
+  - name: gateway-targets
+    files:
+      - targets.json=targets/targets.json
 generatorOptions:
   disableNameSuffixHash: true
   labels:

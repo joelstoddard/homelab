@@ -1,6 +1,8 @@
 # TrueNAS CORE has no exporter path except Reporting -> remote Graphite; this
 # receives that plaintext TCP stream on the shared LAN address and serves it
-# as Prometheus metrics to the Alloy gateway.
+# as Prometheus metrics to the Alloy gateway. Not annotated for the
+# DaemonSet: its /metrics IS the data and the gateway scrapes it with a
+# proper instance label. docs/design/host-monitoring.md.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -16,9 +18,6 @@ spec:
     metadata:
       labels:
         app.kubernetes.io/name: graphite-exporter
-      annotations:
-        prometheus.io/scrape: "true"
-        prometheus.io/port: "9108"
     spec:
       containers:
         - name: graphite-exporter

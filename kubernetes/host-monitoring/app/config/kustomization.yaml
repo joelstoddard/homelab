@@ -1,0 +1,14 @@
+# River for the gateway. Substitution is disabled: this file has no postBuild
+# need today, but the annotation keeps a future relabel with a capture group,
+# or a later postBuild change, safe. Its targets come from the substituted
+# file in ../targets instead.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+generatorOptions:
+  disableNameSuffixHash: true
+  annotations:
+    kustomize.toolkit.fluxcd.io/substitute: disabled
+configMapGenerator:
+  - name: alloy-gateway-config
+    files:
+      - gateway.alloy
