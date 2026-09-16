@@ -70,11 +70,14 @@ Current implementation:
   kernel, renders the dispatcher); future `truenas.yaml`.
 - `01-wake-on-lan` — Sends WOL magic packets at the end of `pxe.yaml` to bring
   up sleeping target hosts.
-- `02-preflights` — OS-agnostic orchestrator. Currently dispatches the
-  `proxmox` library's `debian-to-pve`, `cluster`, `api-token`, and
+- `02-preflights` — OS-agnostic orchestrator. Generic hygiene first:
+  `resolv.yaml` writes `/etc/resolv.conf` with the Pi-hole LXC (looked up by
+  its NetBox name, `dns_primary_host`) ahead of a public fallback, because only
+  Pi-hole answers the LAN wildcard the hosts push metrics and logs to. Then
+  the `proxmox` library's `debian-to-pve`, `cluster`, `api-token`, and
   `monitoring-token` tasks for proxmox-group hosts, and the `alloy` role for
-  alloy-group hosts. Generic Debian hygiene tasks (admin user, swap,
-  fail2ban) are planned, not yet implemented.
+  alloy-group hosts. Further Debian hygiene (admin user, swap, fail2ban) is
+  planned, not yet implemented.
 - `proxmox` — OS library. Four task files: `debian-to-pve.yaml` (Debian →
   Proxmox VE conversion: adds the Proxmox apt repo, installs `pve-manager`,
   configures `vmbr0` bridge networking, reboots into the Proxmox kernel),
