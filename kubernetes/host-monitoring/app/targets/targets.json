@@ -1,0 +1,16 @@
+[
+  {"targets": ["${RUMBA_IP}"],  "labels": {"group": "pve", "instance": "rumba"}},
+  {"targets": ["${TANGO_IP}"],  "labels": {"group": "pve", "instance": "tango"}},
+  {"targets": ["${SALSA_IP}"],  "labels": {"group": "pve", "instance": "salsa"}},
+  {"targets": ["${SAMBA_IP}"],  "labels": {"group": "pve", "instance": "samba"}},
+  {"targets": ["${ROUTER_IP}:80"],   "labels": {"group": "probe", "module": "tcp_connect", "instance": "james-webb"}},
+  {"targets": ["${RUMBA_IP}:8006"],  "labels": {"group": "probe", "module": "tcp_connect", "instance": "rumba"}},
+  {"targets": ["${TANGO_IP}:8006"],  "labels": {"group": "probe", "module": "tcp_connect", "instance": "tango"}},
+  {"targets": ["${SALSA_IP}:8006"],  "labels": {"group": "probe", "module": "tcp_connect", "instance": "salsa"}},
+  {"targets": ["${SAMBA_IP}:8006"],  "labels": {"group": "probe", "module": "tcp_connect", "instance": "samba"}},
+  {"targets": ["${VOYAGER_IP}:443"], "labels": {"group": "probe", "module": "tcp_connect", "instance": "voyager"}},
+  {"targets": ["${PIHOLE_IP}:443"],  "labels": {"group": "probe", "module": "tcp_connect", "instance": "pihole"}},
+  {"targets": ["http://${ROUTER_IP}/"],   "labels": {"group": "probe", "module": "http_2xx", "instance": "james-webb"}},
+  {"targets": ["https://${VOYAGER_IP}/"], "labels": {"group": "probe", "module": "http_2xx", "instance": "voyager"}},
+  {"targets": ["${ROUTER_IP}"],      "labels": {"group": "probe", "module": "dns_lookup", "instance": "james-webb"}}
+]

@@ -105,6 +105,14 @@ Current implementation:
   Longhorn's prerequisites (`docs/design/longhorn.md`).
   Invoked from `playbooks/talos.yaml`. See the role README and
   `docs/talos-bootstrap.md`.
+- `alloy` — OS library installing Grafana Alloy on the hosts outside the
+  cluster (the four NUCs and the Pi-hole LXC, NetBox tag `alloy` → group
+  `alloy`): apt repo, one `config.alloy` template, journald access, service.
+  Dispatched from `02-preflights`, with `playbooks/alloy.yaml` /
+  `make -C ansible apply-alloy` as the targeted entry point; the read-only
+  PVE token the cluster's exporter uses comes from the `proxmox` library's
+  `monitoring-token` task. Not in the repo yet — it lands with the Ansible
+  half of `docs/design/host-monitoring.md`.
 - `04-external`, `05-extras`, `06-tests` — Planned post-cluster
   roles, not yet implemented. (Cluster bootstrap, once handled by a planned
   `03-k3s`, is now the `talos` library + `playbooks/talos.yaml`.)
@@ -171,7 +179,7 @@ Ingress and TLS are five more layers. Root order is
 `traefik-middlewares` (the
 full list is `flux-system`, `cilium`, `cilium-lb`, `cluster-secrets`, `cert-manager`,
 `cert-manager-issuers`, `traefik`, `traefik-middlewares`, `lan-services`,
-`tailscale`, `longhorn`, `monitoring`, `alloy`, `beyla`).
+`tailscale`, `longhorn`, `monitoring`, `alloy`, `beyla`, `host-monitoring`).
 `cluster-secrets/` is one SOPS Secret in `flux-system` holding `DOMAIN`,
 `TRAEFIK_LB_IP` and `ACME_EMAIL`; consumers (`cert-manager-issuers`,
 `traefik`, `longhorn`) add `dependsOn: cluster-secrets` +
@@ -237,6 +245,24 @@ through the pod annotations, traces OTLP straight into Tempo (a fourth
 HelmRelease in `monitoring/`, local storage on Longhorn, 72 h). Grafana's
 `tempo` datasource correlates spans with Loki and Prometheus. Beyla runs
 hostNetwork, so its `:9090` is a node port. See `docs/design/tracing.md`.
+`host-monitoring/` (`dependsOn: monitoring, cilium-lb, cluster-secrets`,
+substituted) is the fleet outside the cluster: `pve-exporter`,
+`pihole-exporter` and `blackbox-exporter` poll and probe Proxmox, Pi-hole and
+the router, `graphite-exporter` receives TrueNAS's collectd stream, and a
+third Alloy (`alloy-gateway`) scrapes all four and runs the syslog receiver;
+the two receivers share one pinned `${INGEST_LB_IP}` through
+`lbipam.cilium.io/sharing-key`, syslog on 1514 in the pod so it needs neither
+root nor NET_BIND_SERVICE. The Alloys on the Proxmox hosts and the Pi-hole LXC push
+in through `prometheus.${DOMAIN}/api/v1/write` and
+`loki.${DOMAIN}/loki/api/v1/push` — `monitoring/app/ingest/`, one `hosts`
+credential behind the `ingest-auth` Middleware, a deliberate exception to the
+per-service basic-auth rule because both sinks are write-only. Addresses are
+only ever `${…}` from `cluster-secrets`, listed in
+`host-monitoring/app/targets/targets.json`; the gateway's River sits in
+`app/config/` with substitution disabled and its targets mount at
+`/etc/alloy-targets`, outside the chart's read-only `/etc/alloy`. No ICMP
+probes: PodSecurity baseline forbids `NET_RAW`. See
+`docs/design/host-monitoring.md`.
 Never `kubectl delete kustomization flux-system` — prune would remove Flux
 itself; use `flux uninstall`. Pruning `cilium/` removes the CNI; pruning
 `traefik/` takes every route in the cluster. See `kubernetes/README.md`.

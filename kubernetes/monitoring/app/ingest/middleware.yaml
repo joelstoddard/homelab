@@ -1,0 +1,11 @@
+# Basic auth for the two write routes in ingressroutes.yaml, one credential for
+# both on purpose: the same five hosts hold it and both sinks are write-only, so
+# a leak adds samples or lines but reads nothing (docs/design/host-monitoring.md).
+# The per-service rule in traefik-middlewares/app/middlewares.yaml is about UIs.
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: ingest-auth
+spec:
+  basicAuth:
+    secret: ingest-auth-users

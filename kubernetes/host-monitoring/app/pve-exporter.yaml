@@ -1,0 +1,65 @@
+# prometheus-pve-exporter polls each NUC's PVE API by ?target=, the four
+# addresses supplied by the Alloy gateway, with the read-only alloy@pve!alloy
+# token the proxmox role's monitoring-token task mints (docs/design/host-monitoring.md).
+# PVE serves a self-signed certificate, hence PVE_VERIFY_SSL=false.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pve-exporter
+  labels:
+    app.kubernetes.io/name: pve-exporter
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: pve-exporter
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: pve-exporter
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9221"
+    spec:
+      containers:
+        - name: pve-exporter
+          image: prompve/prometheus-pve-exporter:3.5.5
+          ports:
+            - name: http
+              containerPort: 9221
+          readinessProbe:
+            tcpSocket:
+              port: 9221
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          env:
+            - name: PVE_VERIFY_SSL
+              value: "false"
+          envFrom:
+            - secretRef:
+                name: pve-exporter
+          resources:
+            requests:
+              cpu: 20m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            runAsUser: 65534
+            capabilities:
+              drop: ["ALL"]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: pve-exporter
+spec:
+  selector:
+    app.kubernetes.io/name: pve-exporter
+  ports:
+    - name: http
+      port: 9221
+      targetPort: 9221

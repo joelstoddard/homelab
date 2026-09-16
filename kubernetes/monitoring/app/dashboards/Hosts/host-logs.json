@@ -1,0 +1,30 @@
+{
+  "id": null,
+  "uid": "homelab-host-logs",
+  "title": "Host logs",
+  "tags": ["logs", "hosts", "homelab"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "time": {"from": "now-1h", "to": "now"},
+  "templating": {
+    "list": [
+      {"name": "host", "label": "Host", "type": "query", "datasource": {"type": "loki", "uid": "loki"},
+       "query": {"label": "host", "stream": "{job=~\"journal|syslog\"}", "type": 1}, "refresh": 2, "includeAll": true, "multi": true, "sort": 1},
+      {"name": "search", "label": "Contains", "type": "textbox", "query": ""}
+    ]
+  },
+  "panels": [
+    {"id": 1, "type": "timeseries", "title": "Lines per host", "gridPos": {"h": 7, "w": 24, "x": 0, "y": 0},
+     "datasource": {"type": "loki", "uid": "loki"},
+     "targets": [{"refId": "A", "expr": "sum by (host) (count_over_time({job=~\"journal|syslog\", host=~\"$host\"} |= \"$search\" [$__auto]))", "legendFormat": "{{host}}"}],
+     "fieldConfig": {"defaults": {"custom": {"drawStyle": "bars", "fillOpacity": 60}}, "overrides": []}},
+    {"id": 2, "type": "logs", "title": "journald (NUCs, Pi-hole)", "gridPos": {"h": 11, "w": 24, "x": 0, "y": 7},
+     "datasource": {"type": "loki", "uid": "loki"},
+     "options": {"showTime": true, "wrapLogMessage": true, "sortOrder": "Descending", "dedupStrategy": "none", "enableLogDetails": true},
+     "targets": [{"refId": "A", "expr": "{job=\"journal\", host=~\"$host\"} |= \"$search\""}]},
+    {"id": 3, "type": "logs", "title": "syslog (TrueNAS, router)", "gridPos": {"h": 11, "w": 24, "x": 0, "y": 18},
+     "datasource": {"type": "loki", "uid": "loki"},
+     "options": {"showTime": true, "wrapLogMessage": true, "sortOrder": "Descending", "dedupStrategy": "none", "enableLogDetails": true},
+     "targets": [{"refId": "A", "expr": "{job=\"syslog\", host=~\"$host\"} |= \"$search\""}]}
+  ]
+}

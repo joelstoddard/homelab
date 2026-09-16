@@ -9,6 +9,9 @@ resources:
   - grafana/helmrelease.yaml
   - tempo/helmrelease.yaml
   - secret-grafana-admin.sops.yaml
+  - ingest/middleware.yaml
+  - ingest/ingressroutes.yaml
+  - ingest/secret-ingest-auth.sops.yaml
   - dashboards
 # Each chart's values.yaml -> the ConfigMap its HelmRelease reads via
 # valuesFrom; no hash suffix so the HelmRelease can name it, and the watch

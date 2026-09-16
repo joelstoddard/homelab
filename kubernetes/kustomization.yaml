@@ -18,3 +18,4 @@ resources:
   - monitoring
   - alloy
   - beyla
+  - host-monitoring

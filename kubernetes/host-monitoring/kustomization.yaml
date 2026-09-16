@@ -1,0 +1,6 @@
+# Only the Flux Kustomization CR lives at this level; what it applies is in
+# app/ (same shape as every other layer).
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ks.yaml

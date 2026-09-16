@@ -1,0 +1,41 @@
+# One Alloy: receives syslog from TrueNAS and the router and scrapes the
+# multi-target exporters from the targets file mounted below. Syslog listens
+# on 1514 so the pod needs neither root nor NET_BIND_SERVICE to be correct,
+# whatever the chart's user; the hand-written syslog Service maps 514 to it.
+alloy:
+  configMap:
+    create: false
+    name: alloy-gateway-config
+    key: gateway.alloy
+  extraPorts:
+    - name: syslog-udp
+      port: 1514
+      targetPort: 1514
+      protocol: UDP
+    - name: syslog-tcp
+      port: 1514
+      targetPort: 1514
+      protocol: TCP
+  mounts:
+    extra:
+      - name: targets
+        mountPath: /etc/alloy-targets
+        readOnly: true
+  resources:
+    requests:
+      cpu: 20m
+      memory: 96Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
+controller:
+  type: deployment
+  replicas: 1
+  volumes:
+    extra:
+      - name: targets
+        configMap:
+          name: gateway-targets
+  podAnnotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "12345"

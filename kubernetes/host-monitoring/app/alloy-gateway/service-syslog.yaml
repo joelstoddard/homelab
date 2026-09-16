@@ -1,0 +1,24 @@
+# Hand-written rather than the chart's Service so the LAN address carries
+# only syslog; the chart's ClusterIP keeps Alloy's UI port off the LAN.
+# Shares the pinned address with the graphite Service via the sharing key.
+apiVersion: v1
+kind: Service
+metadata:
+  name: syslog
+  annotations:
+    lbipam.cilium.io/ips: "${INGEST_LB_IP}"
+    lbipam.cilium.io/sharing-key: ingest
+spec:
+  type: LoadBalancer
+  selector:
+    app.kubernetes.io/name: alloy
+    app.kubernetes.io/instance: alloy-gateway
+  ports:
+    - name: syslog-udp
+      port: 514
+      targetPort: 1514
+      protocol: UDP
+    - name: syslog-tcp
+      port: 514
+      targetPort: 1514
+      protocol: TCP

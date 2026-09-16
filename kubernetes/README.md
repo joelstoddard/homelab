@@ -31,6 +31,10 @@ install that gets Flux running in the first place.
       "Monitoring" and "Alloy")
 - [x] Tracing — Beyla eBPF RED metrics + traces into Tempo (`beyla/`,
       Tempo in `monitoring/`; see "Beyla")
+- [x] Host monitoring — Alloy on the Proxmox hosts and the Pi-hole LXC,
+      exporters and receivers for Proxmox, Pi-hole, TrueNAS and the router
+      (`host-monitoring/`, write routes in `monitoring/`; agent side lands
+      in its own PR) — see "Host monitoring"
 - [ ] Workloads
 
 ## Layout
@@ -105,7 +109,7 @@ kubernetes/
 │       ├── tango.yaml            # ditto
 │       ├── salsa.yaml            # ditto
 │       ├── samba.yaml            # ditto
-│       ├── voyager.yaml          # TrueNAS SCALE
+│       ├── voyager.yaml          # TrueNAS CORE
 │       ├── pihole.yaml           # Pi-hole's admin UI
 │       └── james-webb.yaml       # the router; plain HTTP, no serversTransport
 ├── tailscale/
@@ -135,6 +139,7 @@ kubernetes/
 │       ├── loki/                 # HelmRelease + values: Monolithic mode, filesystem on a Longhorn PVC
 │       ├── grafana/              # HelmRelease + values: stateless, fixed prometheus/loki datasource UIDs
 │       ├── tempo/                # HelmRelease + values: single binary, local backend, Longhorn PVC, 72h retention
+│       ├── ingest/               # the off-cluster write paths: ingest-auth Middleware + Secret, two IngressRoutes
 │       ├── secret-grafana-admin.sops.yaml  # admin password
 │       └── dashboards/           # JSON dashboards as ConfigMaps, substitute disabled (see its README)
 ├── alloy/
@@ -147,15 +152,29 @@ kubernetes/
 │       ├── alloy/                # HelmRelease + values: the clustered DaemonSet, all 20 nodes
 │       ├── alloy-events/         # HelmRelease + values: one-replica Deployment for Kubernetes events
 │       └── config/               # River configs, substitute disabled: config.alloy + events.alloy
-└── beyla/
+├── beyla/
+│   ├── kustomization.yaml
+│   ├── ks.yaml                   # Flux Kustomization "beyla", dependsOn monitoring
+│   └── app/
+│       ├── kustomization.yaml    # namespace beyla; wires namespace, HelmRepository, HelmRelease and the values ConfigMap
+│       ├── namespace.yaml        # PodSecurity "privileged" — hostPID + hostNetwork for eBPF probes
+│       ├── helmrepository.yaml   # https://grafana.github.io/helm-charts
+│       ├── helmrelease.yaml      # chart beyla 1.16.11, values from the ConfigMap
+│       └── values.yaml           # instrument everything but kube-system + collectors; traces OTLP to Tempo, 10% sampled
+└── host-monitoring/
     ├── kustomization.yaml
-    ├── ks.yaml                   # Flux Kustomization "beyla", dependsOn monitoring
+    ├── ks.yaml                   # Flux Kustomization, dependsOn monitoring + cilium-lb + cluster-secrets, postBuild, sops
     └── app/
-        ├── kustomization.yaml    # namespace beyla; wires namespace, HelmRepository, HelmRelease and the values ConfigMap
-        ├── namespace.yaml        # PodSecurity "privileged" — hostPID + hostNetwork for eBPF probes
+        ├── kustomization.yaml    # namespace host-monitoring; the blackbox/graphite/values/targets generators
+        ├── namespace.yaml        # host-monitoring; no PodSecurity label (baseline default)
         ├── helmrepository.yaml   # https://grafana.github.io/helm-charts
-        ├── helmrelease.yaml      # chart beyla 1.16.11, values from the ConfigMap
-        └── values.yaml           # instrument everything but kube-system + collectors; traces OTLP to Tempo, 10% sampled
+        ├── pve-exporter.yaml     # Deployment + Service, multi-target /pve; secret-pve-exporter.sops.yaml holds the token
+        ├── pihole-exporter.yaml  # Deployment + Service, Pi-hole v6 API; secret-pihole-exporter.sops.yaml holds the password
+        ├── blackbox-exporter.yaml # Deployment + Service; blackbox/blackbox.yml: tcp_connect, http_2xx, dns_lookup
+        ├── graphite-exporter.yaml # Deployment + Service + the LoadBalancer "graphite" (TCP 2003)
+        ├── alloy-gateway/        # HelmRelease + values + the hand-written LoadBalancer "syslog" (UDP/TCP 514)
+        ├── config/               # gateway.alloy, substitute disabled
+        └── targets/targets.json  # the substituted probe/poll target list, mounted at /etc/alloy-targets
 ```
 
 `flux-system/gotk-sync.yaml` declares a `GitRepository` for this repo
@@ -188,6 +207,7 @@ ordering) rather than by growing the root tree — see "Adding workloads".
 | `VOYAGER_IP` | same Secret | TrueNAS's LAN address, for `voyager.yaml`. |
 | `PIHOLE_IP` | same Secret | Pi-hole's LAN address, for `pihole.yaml`. |
 | `ROUTER_IP` | same Secret | The router's LAN address, for `james-webb.yaml`. |
+| `INGEST_LB_IP` | same Secret | The address TrueNAS and the router send graphite and syslog to — reserved in the `cilium-lb` pool, shared by the two receiver Services. The seven addresses above are also the `host-monitoring` probe and poll targets. |
 
 ## Bootstrap
 
@@ -463,6 +483,46 @@ flux --context homelab get ks beyla
 kubectl --context homelab -n beyla get pods -o wide                                # 15, workers only
 kubectl --context homelab -n beyla logs ds/beyla --tail=50 | grep -iE 'error|instrumenting'
 kubectl --context homelab -n monitoring get pvc storage-tempo-0                    # Bound
+```
+
+## Host monitoring
+
+`host-monitoring/` is everything that knows about a host outside the cluster:
+`pve-exporter` and `pihole-exporter` polling APIs, `blackbox-exporter`
+probing the router and every UI port, `graphite-exporter` receiving TrueNAS's
+collectd stream, and a third Alloy (`alloy-gateway`) that scrapes all four
+and runs the syslog receiver. The Proxmox hosts and the Pi-hole LXC push
+their own node metrics and journald in from an Alloy installed by the
+`ansible/roles/alloy` role (its own PR — until it lands, the write routes
+below exist with nobody pushing to them). Rationale:
+[`docs/design/host-monitoring.md`](../docs/design/host-monitoring.md).
+
+Consequences:
+
+- **The two write routes are paths, not UIs.** `monitoring/app/ingest/`
+  exposes only `prometheus.<domain>/api/v1/write` and
+  `loki.<domain>/loki/api/v1/push`, both behind the `ingest-auth` Middleware;
+  every other path on those hostnames is a 404. One credential, `hosts`,
+  serves both — the deliberate exception to the per-service rule under
+  "Traefik", because both sinks are write-only.
+- **`INGEST_LB_IP` is the LAN face.** The `graphite` (TCP 2003) and `syslog`
+  (UDP/TCP 514) Services share that one pinned address through
+  `lbipam.cilium.io/sharing-key: ingest`. It is what TrueNAS's Reporting and
+  syslog settings and the router's remote-log setting point at, so moving it
+  means revisiting two UIs by hand.
+- **A new host to instrument: tag it `alloy` in NetBox, then
+  `make -C ansible apply-alloy`.** Nothing in this directory changes.
+- **A new probe: one line in `host-monitoring/app/targets/targets.json`** —
+  address as a `${VAR}` from `cluster-secrets`, `group` (`pve` or `probe`),
+  `module` for a probe, and `instance` as the host's name.
+- Syslog reaches Alloy on 1514, so the pod needs neither root nor
+  `NET_BIND_SERVICE`; the hand-written `syslog` Service does the 514 → 1514
+  mapping and keeps Alloy's `:12345` UI off the LAN.
+
+```bash
+flux --context homelab get ks host-monitoring
+kubectl --context homelab -n host-monitoring get pods,svc          # two LB Services, one address
+kubectl --context homelab -n host-monitoring logs deploy/alloy-gateway --tail=50
 ```
 
 ## Cluster secrets
@@ -759,3 +819,17 @@ merge lands on `main`. `make -C kubernetes` afterwards is still a no-op.
 - **Pruning `alloy/` stops all collection; pruning `monitoring/` deletes
   Prometheus's PVC** (Longhorn's reclaim policy is `Delete`); Loki's
   `storage-loki-0` claim is a StatefulSet template and survives an uninstall.
+- **Addresses in `host-monitoring/` are only ever `${VAR}` from
+  `cluster-secrets`.** `app/targets/targets.json` is where the list of them
+  lives — the only generator input carrying any — and `pihole-exporter.yaml`
+  and the two LoadBalancer Services take one each the same way. The other
+  three generator inputs (blackbox config, graphite mapping, gateway values)
+  are substituted too, so no stray `$` belongs in them.
+- **The gateway's River must stay in `host-monitoring/app/config/`**, the
+  nested kustomization with `substitute: disabled`. Defence in depth: the
+  file holds no `$` today, but moved up a level, a future relabel rule using
+  a capture group would have its `$1` replaced with the empty string. Its
+  targets ConfigMap mounts at `/etc/alloy-targets`, not under `/etc/alloy` —
+  the chart owns that path read-only and a nested mount fails.
+- **A new probe's `module` must exist in `blackbox/blackbox.yml`**, or the
+  scrape returns 400 with no other signal.
