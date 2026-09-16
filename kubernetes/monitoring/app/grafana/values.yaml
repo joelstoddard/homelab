@@ -21,6 +21,11 @@ grafana.ini:
     news_feed_enabled: false
   auth.anonymous:
     enabled: false
+  plugins:
+    # The pre-installer upgrades the decoupled core datasource plugins in
+    # place; plugins-bundled is read-only in this image, the uninstall half
+    # fails and the plugin drops out of the registry (Loki did, 2026-09-11).
+    preinstall_disabled: true
 datasources:
   datasources.yaml:
     apiVersion: 1
