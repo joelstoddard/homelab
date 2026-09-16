@@ -28,6 +28,7 @@ The dynamic inventory produces these bare-named groups via `keyed_groups`:
 |---|---|
 | `proxmox` / `talos` / `truenas` | `platform.slug` |
 | `pxe` | tag `pxe` |
+| `alloy` | tag `alloy` (same mechanism as `pxe`) |
 | `nucs` | `device_type` slug matching `^nuc` |
 | `pis` | `device_type` slug matching `^pi-` |
 
@@ -49,6 +50,12 @@ runtime aliases that the plugin's `compose:` can't construct directly
 A new PXE-managed host needs `platform` set (e.g. `proxmox`) and tag
 `pxe` applied in NetBox before it shows up in the corresponding
 groups. Set those via the NetBox UI when adding a device.
+
+The Pi-hole LXC has no PXE story of its own, so it's modelled in NetBox as a
+VM with platform `debian`, tagged `alloy` — that tag is all NetBox needs;
+`ansible/inventory/group_vars/alloy.yaml` sets `ansible_user: root` for the
+whole `alloy` group, not per-host. See `ansible/roles/alloy/README.md` for
+the SOPS-encrypted group vars the `alloy` group also needs.
 
 ## Bootstrap fallback: static inventory files
 

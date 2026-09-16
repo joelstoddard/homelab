@@ -155,7 +155,7 @@
     - [x] Spec 3: exporters on Proxmox, TrueNAS, Pi-hole, the router
           (`kubernetes/host-monitoring/` + the write routes in
           `monitoring/app/ingest/`, `docs/design/host-monitoring.md`)
-        - [ ] The agent half: an `alloy` role installing Grafana Alloy on the
+        - [x] The agent half: an `alloy` role installing Grafana Alloy on the
               four NUCs and the Pi-hole LXC, plus the `monitoring-token`
               task minting the read-only PVE token (its own PR)
         - [ ] Curated TrueNAS graphite mapping and a dashboard — the exporter
@@ -171,6 +171,9 @@
               james-webb's three probes overlay with identical legends
         - [ ] Default the syslog `host` label from the source when the
               sender omits the hostname field
+        - [ ] Move the push credential to Alloy's `basic_auth`
+              `password_file` (a 0600 one-liner) so `config.alloy` can be
+              0644 and `--check --diff` shows config changes again
     - [ ] Vendor the Alloy mixin dashboards (alloy-resources, alloy-controller) once compiled JSON is obtainable without jsonnet
 - [ ] Renovate for automated version-bump PRs
 - [ ] Pin all tool versions (talosctl/kubectl/talhelper/flux) — likely nix flakes

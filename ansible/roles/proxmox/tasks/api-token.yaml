@@ -50,11 +50,38 @@
   run_once: true
   no_log: true
 
+- name: Check whether the cluster group_vars file already exists.
+  ansible.builtin.stat:
+    path: "{{ inventory_dir }}/group_vars/proxmox.sops.yaml"
+  register: proxmox_sops_file
+  when:
+    - not terraform_token_exists
+    - not ansible_check_mode
+  delegate_to: localhost
+  run_once: true
+
+- name: Load the existing cluster group_vars before rewriting them.
+  # The persist step below writes the whole file; load what's there first so
+  # a pve_exporter_token monitoring-token.yaml already persisted survives a
+  # terraform-token rotation instead of being dropped.
+  community.sops.load_vars:
+    file: "{{ inventory_dir }}/group_vars/proxmox.sops.yaml"
+  when:
+    - not terraform_token_exists
+    - not ansible_check_mode
+    - proxmox_sops_file.stat.exists
+  delegate_to: localhost
+  run_once: true
+  no_log: true
+
 - name: Persist the API token to the SOPS-encrypted cluster group_vars.
   community.sops.sops_encrypt:
     path: "{{ inventory_dir }}/group_vars/proxmox.sops.yaml"
-    content_yaml:
-      proxmox_api_token: "root@pam!terraform={{ (new_token.stdout | from_json).value }}"
+    content_yaml: >-
+      {{
+        {'proxmox_api_token': 'root@pam!terraform=' ~ (new_token.stdout | from_json).value}
+        | combine({'pve_exporter_token': pve_exporter_token} if pve_exporter_token is defined else {})
+      }}
   when:
     - not terraform_token_exists
     - not ansible_check_mode

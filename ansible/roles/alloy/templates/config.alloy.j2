@@ -1,0 +1,76 @@
+// Rendered by ansible/roles/alloy for {{ inventory_hostname | lower }}. Node
+// metrics and journald, pushed to the cluster over HTTPS with basic auth
+// (kubernetes/monitoring/app/ingest/). docs/design/host-monitoring.md.
+
+prometheus.remote_write "cluster" {
+	endpoint {
+		url = "https://prometheus.{{ alloy_domain }}/api/v1/write"
+
+		basic_auth {
+			username = "hosts"
+			password = "{{ alloy_hosts_password }}"
+		}
+	}
+}
+
+loki.write "cluster" {
+	endpoint {
+		url = "https://loki.{{ alloy_domain }}/loki/api/v1/push"
+
+		basic_auth {
+			username = "hosts"
+			password = "{{ alloy_hosts_password }}"
+		}
+	}
+}
+
+// Same job and instance shape as the cluster nodes, so Node Exporter Full
+// lists this host in the same dropdown.
+prometheus.exporter.unix "node" {
+	filesystem {
+		mount_points_exclude = "{{ alloy_fs_mount_points_exclude }}"
+		fs_types_exclude     = "{{ alloy_fs_types_exclude }}"
+	}
+}
+
+discovery.relabel "node" {
+	targets = prometheus.exporter.unix.node.targets
+
+	rule {
+		target_label = "instance"
+		replacement  = "{{ inventory_hostname | lower }}"
+	}
+
+	rule {
+		target_label = "job"
+		replacement  = "node-exporter"
+	}
+}
+
+prometheus.scrape "node" {
+	targets         = discovery.relabel.node.output
+	forward_to      = [prometheus.remote_write.cluster.receiver]
+	job_name        = "node-exporter"
+	scrape_interval = "{{ alloy_scrape_interval }}"
+}
+
+loki.source.journal "journal" {
+	max_age       = "{{ alloy_journal_max_age }}"
+	relabel_rules = loki.relabel.journal.rules
+	labels        = {job = "journal", host = "{{ inventory_hostname | lower }}"}
+	forward_to    = [loki.write.cluster.receiver]
+}
+
+loki.relabel "journal" {
+	forward_to = []
+
+	rule {
+		source_labels = ["__journal__systemd_unit"]
+		target_label  = "unit"
+	}
+
+	rule {
+		source_labels = ["__journal_priority_keyword"]
+		target_label  = "priority"
+	}
+}

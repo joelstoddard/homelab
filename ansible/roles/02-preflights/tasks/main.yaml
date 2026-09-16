@@ -4,7 +4,7 @@
 # (admin user, swap, fail2ban) will land here ahead of the per-OS
 # dispatch in a future change.
 
-- name: Run the proxmox-group lifecycle (debian-to-pve, cluster, api-token).
+- name: Run the proxmox-group lifecycle (debian-to-pve, cluster, api-token, monitoring-token).
   ansible.builtin.include_role:
     name: proxmox
     tasks_from: "{{ item }}"
@@ -12,7 +12,13 @@
     - debian-to-pve
     - cluster
     - api-token
+    - monitoring-token
   when: "'proxmox' in group_names"
+
+- name: Run the alloy-group lifecycle.
+  ansible.builtin.include_role:
+    name: alloy
+  when: "'alloy' in group_names"
 
 # Talos is intentionally NOT dispatched here. This play SSHes into hosts
 # with become; Talos nodes run no SSH daemon and no Python. The Talos

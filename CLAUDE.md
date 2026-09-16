@@ -42,7 +42,7 @@ The root `Makefile` delegates to subdirectory Makefiles; `ansible/`, `opentofu/`
 Two stages, two playbook entry points:
 
 - **`pxe.yaml`** — provisions baremetal by network-booting target hosts (iPXE chainload for x86, u-boot for the Pis). Targets `hosts: pxe` (devices tagged `pxe` in NetBox). Per-OS group membership (`proxmox` and `talos` now, planned `truenas`) is derived from NetBox `platform.slug` and drives the boot path: Proxmox hosts get a Debian netinstall + per-host preseed; Talos hosts (the arm64 Pis) get a purpose-built u-boot over TFTP that fetches the Talos kernel/initramfs over HTTP and boots into maintenance mode — offered only to Pis listed in `talos_pi_provision_hosts`; every other Pi is ignored by dnsmasq and falls through to its local disk.
-- **`playbooks/main.yaml`** — runs against PXE-installed hosts via the `02-preflights` orchestrator. Targets `hosts: all` over SSH with `become`; the orchestrator dispatches per-OS work via `'<group>' in group_names` guards (currently `proxmox`; TrueNAS later).
+- **`playbooks/main.yaml`** — runs against PXE-installed hosts via the `02-preflights` orchestrator. Targets `hosts: pxe:!talos` over SSH with `become`; the orchestrator dispatches per-OS work via `'<group>' in group_names` guards (currently `proxmox` and `alloy`; TrueNAS later). The alloy dispatch therefore only reaches the NUCs (both `pxe` and `alloy`-tagged); the Pi-hole LXC isn't PXE-provisioned, so it's reached by `playbooks/alloy.yaml` instead.
 - **`playbooks/talos.yaml`** — bootstraps the Kubernetes cluster. Targets `hosts: talos` but runs `connection: local`, driving nodes over the Talos API (`talosctl`) because Talos nodes have no SSH or Python. This is why the Talos lifecycle is its own play rather than a branch of `02-preflights`. Dispatches the `talos` library's `config`/`apply`/`bootstrap`/`kubeconfig` tasks.
 - **`playbooks/reset.yaml`** — wipes named Talos nodes back to maintenance mode (`talosctl reset --wipe-mode all`, working the Pi netboot gate around it) so `talos.yaml` can reinstall them. The rebuild path for version bumps; deliberately not part of `make homelab`. See `docs/talos-bootstrap.md` "Rebuild / bumping versions".
 - **`playbooks/upgrade.yaml`** — rolls a config change / new installer image onto RUNNING Talos nodes one at a time (authenticated apply-config; talosctl upgrade for VMs, reboot into refreshed netboot assets for Pis; health between nodes). `make -C ansible apply-upgrade EXTRA_VARS='{"upgrade_hosts": [...]|"all"}'`. The day-2 path; `reset.yaml` is for multi-minor jumps.
@@ -71,16 +71,20 @@ Current implementation:
 - `01-wake-on-lan` — Sends WOL magic packets at the end of `pxe.yaml` to bring
   up sleeping target hosts.
 - `02-preflights` — OS-agnostic orchestrator. Currently dispatches the
-  `proxmox` library's `debian-to-pve`, `cluster`, and `api-token` tasks for
-  proxmox-group hosts. Generic Debian hygiene tasks (admin user, swap,
+  `proxmox` library's `debian-to-pve`, `cluster`, `api-token`, and
+  `monitoring-token` tasks for proxmox-group hosts, and the `alloy` role for
+  alloy-group hosts. Generic Debian hygiene tasks (admin user, swap,
   fail2ban) are planned, not yet implemented.
-- `proxmox` — OS library. Three task files: `debian-to-pve.yaml` (Debian →
+- `proxmox` — OS library. Four task files: `debian-to-pve.yaml` (Debian →
   Proxmox VE conversion: adds the Proxmox apt repo, installs `pve-manager`,
   configures `vmbr0` bridge networking, reboots into the Proxmox kernel),
   `cluster.yaml` (`pvecm create` on the leader, `pvecm add` on followers via
   `expect`-driven SSH; preflights against existing guests; verifies quorum),
-  and `api-token.yaml` (bootstraps a `root@pam!terraform` API token, persisted
-  to `inventory/group_vars/proxmox.sops.yaml` for downstream automation).
+  `api-token.yaml` (bootstraps a `root@pam!terraform` API token, persisted
+  to `inventory/group_vars/proxmox.sops.yaml` for downstream automation), and
+  `monitoring-token.yaml` (mints a read-only `alloy@pve` token with role
+  `PVEAuditor` on `/` for the cluster's `pve-exporter`, persisted alongside
+  the terraform token as `pve_exporter_token`).
 - `talos` — OS library driving the Talos Kubernetes cluster from the operator
   workstation (Talos has no SSH/Python). Config generation is delegated to
   `talhelper`: `config.yaml` resolves the VIP (NetBox IP tagged `talos-vip`,
@@ -111,8 +115,7 @@ Current implementation:
   Dispatched from `02-preflights`, with `playbooks/alloy.yaml` /
   `make -C ansible apply-alloy` as the targeted entry point; the read-only
   PVE token the cluster's exporter uses comes from the `proxmox` library's
-  `monitoring-token` task. Not in the repo yet — it lands with the Ansible
-  half of `docs/design/host-monitoring.md`.
+  `monitoring-token` task.
 - `04-external`, `05-extras`, `06-tests` — Planned post-cluster
   roles, not yet implemented. (Cluster bootstrap, once handled by a planned
   `03-k3s`, is now the `talos` library + `playbooks/talos.yaml`.)

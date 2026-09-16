@@ -24,7 +24,6 @@ spec:
           image: prom/graphite-exporter:v0.16.0
           args:
             - --graphite.mapping-config=/etc/graphite/mapping.yml
-            - --graphite.mapping-strict-match=false
             - --graphite.listen-address=:2003
             - --web.listen-address=:9108
           ports:

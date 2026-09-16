@@ -1,0 +1,93 @@
+---
+# A read-only PVE API identity for the cluster's pve-exporter: user alloy@pve
+# with role PVEAuditor on /, token "alloy" without privilege separation, value
+# persisted to inventory/group_vars/proxmox.sops.yaml next to the terraform
+# token. RECOVERY as api-token.yaml: `pveum user token remove alloy@pve alloy`
+# and re-run if the value was minted but not persisted.
+
+- name: Ensure the alloy@pve user exists.
+  ansible.builtin.command: pveum user add alloy@pve --comment "pve-exporter (read-only)"
+  register: user_add
+  changed_when: user_add.rc == 0
+  failed_when: user_add.rc != 0 and 'already exists' not in user_add.stderr
+  delegate_to: "{{ proxmox_cluster_leader }}"
+  run_once: true
+
+- name: Grant PVEAuditor on / to alloy@pve.
+  ansible.builtin.command: pveum acl modify / --users alloy@pve --roles PVEAuditor
+  changed_when: false
+  delegate_to: "{{ proxmox_cluster_leader }}"
+  run_once: true
+
+- name: Check whether the alloy token already exists.
+  # In check mode the user-add above was skipped, so on a cluster that has
+  # never had a real apply alloy@pve doesn't exist yet and this list fails —
+  # tolerate that instead of failing the run.
+  ansible.builtin.command: pveum user token list alloy@pve --output-format json
+  register: existing_alloy_tokens
+  changed_when: false
+  failed_when: existing_alloy_tokens.rc != 0 and not ansible_check_mode
+  check_mode: false
+  delegate_to: "{{ proxmox_cluster_leader }}"
+  run_once: true
+
+- name: Determine whether the alloy token needs creating.
+  ansible.builtin.set_fact:
+    alloy_token_exists: >-
+      {{
+        ((existing_alloy_tokens.stdout if existing_alloy_tokens.rc == 0 else '[]') | from_json)
+        | selectattr('tokenid', 'equalto', 'alloy')
+        | list
+        | length > 0
+      }}
+  run_once: true
+
+- name: Load the terraform token before minting the alloy token.
+  # The sops vars plugin never loads this file, and api-token.yaml may have
+  # minted proxmox_api_token earlier in the same run. Loading fresh here and
+  # asserting before minting means a failed assert leaves no orphaned
+  # server-side alloy token.
+  community.sops.load_vars:
+    file: "{{ inventory_dir }}/group_vars/proxmox.sops.yaml"
+  when:
+    - not alloy_token_exists
+    - not ansible_check_mode
+  delegate_to: localhost
+  run_once: true
+  no_log: true
+
+- name: Assert the existing terraform token is loaded before overwriting proxmox.sops.yaml.
+  ansible.builtin.assert:
+    that: proxmox_api_token is defined
+    fail_msg: >-
+      proxmox_api_token is not defined — run api-token.yaml (which persists
+      it) before monitoring-token.yaml on a greenfield cluster.
+  when:
+    - not alloy_token_exists
+    - not ansible_check_mode
+  run_once: true
+
+- name: Generate the alloy API token on the leader.
+  ansible.builtin.command:
+    cmd: pveum user token add alloy@pve alloy --privsep 0 --output-format json
+  register: new_alloy_token
+  when:
+    - not alloy_token_exists
+    - not ansible_check_mode
+  changed_when: true
+  delegate_to: "{{ proxmox_cluster_leader }}"
+  run_once: true
+  no_log: true
+
+- name: Persist the alloy token to the SOPS-encrypted cluster group_vars.
+  community.sops.sops_encrypt:
+    path: "{{ inventory_dir }}/group_vars/proxmox.sops.yaml"
+    content_yaml:
+      proxmox_api_token: "{{ proxmox_api_token }}"
+      pve_exporter_token: "alloy@pve!alloy={{ (new_alloy_token.stdout | from_json).value }}"
+  when:
+    - not alloy_token_exists
+    - not ansible_check_mode
+  delegate_to: localhost
+  run_once: true
+  no_log: true

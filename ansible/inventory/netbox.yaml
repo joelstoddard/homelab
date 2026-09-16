@@ -14,6 +14,7 @@
 # matching the previous static-inventory shape):
 #   - <platform>                            (e.g. proxmox, talos, truenas)
 #   - pxe       <- tag pxe
+#   - alloy     <- tag alloy
 #   - nucs      <- device_type ~ ^nuc
 #   - pis       <- device_type ~ ^pi-
 #
@@ -84,6 +85,11 @@ keyed_groups:
   - prefix: ''
     separator: ''
     key: "tags | default([]) | select('eq','pxe') | first | default('')"
+
+  # Tag `alloy` → group `alloy`. Same shape as the `pxe` entry above.
+  - prefix: ''
+    separator: ''
+    key: "tags | default([]) | select('eq','alloy') | first | default('')"
 
   # Device type slug → nucs / pis. Non-matching slugs → '' (no group created).
   - prefix: ''
