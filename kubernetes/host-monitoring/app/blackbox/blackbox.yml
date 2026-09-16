@@ -1,0 +1,24 @@
+# Three probers, no ICMP: that needs NET_RAW, which PodSecurity baseline
+# forbids, and a TCP connect to a UI port gives the same up/down and RTT.
+modules:
+  tcp_connect:
+    prober: tcp
+    timeout: 5s
+    tcp:
+      preferred_ip_protocol: ip4
+  http_2xx:
+    prober: http
+    timeout: 5s
+    http:
+      preferred_ip_protocol: ip4
+      follow_redirects: true
+      tls_config:
+        insecure_skip_verify: true
+  dns_lookup:
+    prober: dns
+    timeout: 5s
+    dns:
+      preferred_ip_protocol: ip4
+      transport_protocol: udp
+      query_name: grafana.com
+      query_type: A

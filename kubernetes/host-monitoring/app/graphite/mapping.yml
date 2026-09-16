@@ -1,0 +1,4 @@
+# Passthrough: collectd paths become underscored metric names, so the whole
+# TrueNAS stream is visible in Explore first; a curated mapping comes once
+# the names are known (TODO.md).
+mappings: []

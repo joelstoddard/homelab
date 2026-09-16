@@ -1,0 +1,95 @@
+# TrueNAS CORE has no exporter path except Reporting -> remote Graphite; this
+# receives that plaintext TCP stream on the shared LAN address and serves it
+# as Prometheus metrics to the Alloy gateway.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: graphite-exporter
+  labels:
+    app.kubernetes.io/name: graphite-exporter
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: graphite-exporter
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: graphite-exporter
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9108"
+    spec:
+      containers:
+        - name: graphite-exporter
+          image: prom/graphite-exporter:v0.16.0
+          args:
+            - --graphite.mapping-config=/etc/graphite/mapping.yml
+            - --graphite.mapping-strict-match=false
+            - --graphite.listen-address=:2003
+            - --web.listen-address=:9108
+          ports:
+            - name: http
+              containerPort: 9108
+            - name: graphite
+              containerPort: 2003
+          # 2003, not 9108: that's the LoadBalancer-fronted path, so a pod
+          # not yet listening must fall out of the graphite Service's endpoints.
+          readinessProbe:
+            tcpSocket:
+              port: 2003
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          volumeMounts:
+            - name: mapping
+              mountPath: /etc/graphite
+              readOnly: true
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            runAsUser: 65534
+            capabilities:
+              drop: ["ALL"]
+      volumes:
+        - name: mapping
+          configMap:
+            name: graphite-mapping
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: graphite-exporter
+spec:
+  selector:
+    app.kubernetes.io/name: graphite-exporter
+  ports:
+    - name: http
+      port: 9108
+      targetPort: 9108
+---
+# The LAN face: one pinned address from the Cilium pool, shared with the
+# syslog Service in alloy-gateway/ through the sharing key. TrueNAS's
+# Reporting screen points here.
+apiVersion: v1
+kind: Service
+metadata:
+  name: graphite
+  annotations:
+    lbipam.cilium.io/ips: "${INGEST_LB_IP}"
+    lbipam.cilium.io/sharing-key: ingest
+spec:
+  type: LoadBalancer
+  selector:
+    app.kubernetes.io/name: graphite-exporter
+  ports:
+    - name: graphite
+      port: 2003
+      targetPort: 2003
+      protocol: TCP
