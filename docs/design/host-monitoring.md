@@ -123,22 +123,35 @@ throughout: a public repo (no address or domain in plaintext), PodSecurity
   name for it, not the `PIHOLE_`-prefixed one the other variables suggest —
   and the LXC's certificate is self-signed, so it is on.
 - **The agent side is Ansible.** An `alloy` library role beside `proxmox` and
-  `talos`, dispatched from `02-preflights` for hosts in group `alloy` — the
-  NetBox tag `alloy`, the same mechanism as `pxe`, with the Pi-hole LXC
-  modelled in NetBox as a VM. It adds the Grafana apt repository, installs
-  `alloy` pinned to the cluster's chart version, renders one
-  `/etc/alloy/config.alloy` at mode 0600 owned by `alloy` (it carries the
-  push password), puts the user in `systemd-journal`, and enables the
-  service. The template differs between hosts only in the host name: the
-  built-in unix exporter, a 60 s scrape with `job="node-exporter"`,
-  `loki.source.journal` relabelling unit and priority, and
-  `prometheus.remote_write` / `loki.write` to the two routes with the `hosts`
-  credential. `alloy_domain` and the password live in
-  `ansible/inventory/group_vars/alloy.sops.yaml`; that domain and
-  `cluster-secrets`' `DOMAIN` must agree. The hosts trust the public wildcard
-  certificate, and Pi-hole's `address=` wildcard already points both
-  hostnames at Traefik. This role lands in its own PR; until it does, the
-  write routes exist with nobody pushing to them.
+  `talos`, pinned to `alloy_version` `1.19.2-1`, dispatched from
+  `02-preflights` for hosts in group `alloy` — the NetBox tag `alloy`, the
+  same mechanism as `pxe`, with the Pi-hole LXC modelled in NetBox as a VM —
+  and also reachable directly via `playbooks/alloy.yaml` /
+  `make -C ansible check-alloy|apply-alloy` as the targeted entry point.
+  `tasks/main.yaml` asserts `alloy_domain` and `alloy_hosts_password` are
+  defined before doing anything else. It adds the Grafana apt repository,
+  installs `alloy`, renders one `/etc/alloy/config.alloy` at mode 0600 owned
+  by `alloy` (it carries the push password) — validated with `alloy fmt`
+  before it replaces the file on disk — puts the user in `systemd-journal`,
+  and enables the service. The template differs between hosts only in the
+  host name: the built-in unix exporter, a 60 s scrape with
+  `job="node-exporter"`, `loki.source.journal` relabelling unit and priority,
+  and `prometheus.remote_write` / `loki.write` to the two routes with the
+  `hosts` credential. `alloy_domain` and the password live in
+  `ansible/inventory/group_vars/alloy.sops.yaml`, loaded by the role with
+  `community.sops.load_vars` (the vars plugin isn't enabled in
+  `ansible.cfg`, so it never auto-loads); that domain and `cluster-secrets`'
+  `DOMAIN` must agree. The hosts trust the public wildcard certificate, and
+  Pi-hole's `address=` wildcard already points both hostnames at Traefik.
+  The write routes sit idle until `make -C ansible apply-alloy` runs. The
+  read-only PVE token it depends on comes from the `proxmox` library's
+  `monitoring-token` task — user `alloy@pve`, role `PVEAuditor` on `/`,
+  token `alloy` with `--privsep 0`, persisted as one string,
+  `pve_exporter_token: alloy@pve!alloy=<uuid>`, in
+  `group_vars/proxmox.sops.yaml` — which the operator splits by hand into
+  the cluster's `secret-pve-exporter.sops.yaml` keys `PVE_USER`,
+  `PVE_TOKEN_NAME` and `PVE_TOKEN_VALUE` (Ansible doesn't write the
+  Kubernetes Secret: two systems, one hand-off).
 - **Two settings are clicked, not committed.** TrueNAS CORE: System →
   Reporting → Remote Graphite Server, and System → Advanced → Syslog server
   (UDP), both the ingest address. The router: System Log → Remote log server,
@@ -221,3 +234,6 @@ Nothing is live yet. After the first day, record:
 - Anything on the LAN can inject syslog lines and graphite samples at the
   shared LB address: both protocols are plaintext and unauthenticated, and
   the gateway accepts whatever arrives.
+- `check-alloy` only works once Alloy is already installed: on a fresh host
+  `/etc/default/alloy` and `/etc/alloy/config.alloy` don't exist yet, and
+  check mode can't edit or template a file that isn't there.

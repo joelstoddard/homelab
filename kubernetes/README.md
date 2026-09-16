@@ -33,8 +33,8 @@ install that gets Flux running in the first place.
       Tempo in `monitoring/`; see "Beyla")
 - [x] Host monitoring — Alloy on the Proxmox hosts and the Pi-hole LXC,
       exporters and receivers for Proxmox, Pi-hole, TrueNAS and the router
-      (`host-monitoring/`, write routes in `monitoring/`; agent side lands
-      in its own PR) — see "Host monitoring"
+      (`host-monitoring/`, write routes in `monitoring/`) — see
+      "Host monitoring"
 - [ ] Workloads
 
 ## Layout
@@ -493,8 +493,8 @@ probing the router and every UI port, `graphite-exporter` receiving TrueNAS's
 collectd stream, and a third Alloy (`alloy-gateway`) that scrapes all four
 and runs the syslog receiver. The Proxmox hosts and the Pi-hole LXC push
 their own node metrics and journald in from an Alloy installed by the
-`ansible/roles/alloy` role (its own PR — until it lands, the write routes
-below exist with nobody pushing to them). Rationale:
+`ansible/roles/alloy` role — the write routes below sit idle until
+`make -C ansible apply-alloy` runs. Rationale:
 [`docs/design/host-monitoring.md`](../docs/design/host-monitoring.md).
 
 Consequences:
