@@ -4,6 +4,18 @@ ansible_ssh_private_key_file: "~/.ssh/id_rsa"
 ssh_public_key: "{{ lookup('file', '~/.ssh/id_rsa.pub') }}"
 quad_nine_dns_server: "9.9.9.9"
 
+# Resolver order for /etc/resolv.conf (02-preflights resolv.yaml): the
+# Pi-hole LXC first — it alone answers the LAN wildcard the write routes
+# live under — then the public fallback. The LXC is looked up by its NetBox
+# name so its address never enters git; without it (static inventory) the
+# hosts fall back to the public resolver alone. Search domain = the host's
+# NetBox dns_name minus its first label.
+dns_primary_host: Pihole
+dns_servers:
+  - "{{ hostvars[dns_primary_host].ansible_host | default(quad_nine_dns_server) }}"
+  - "{{ quad_nine_dns_server }}"
+dns_search: "{{ (dns_name | default('')).split('.')[1:] | join('.') }}"
+
 # Kernel cmdline parameters baked into the installed system. Two
 # consumers reference this and must stay in sync:
 #   - 00-pxe preseed `late_command` persists it for fresh installs.

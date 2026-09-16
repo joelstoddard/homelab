@@ -1,0 +1,16 @@
+---
+# The hosts outside the cluster reach it by name (prometheus.<domain>,
+# loki.<domain>), and only Pi-hole answers for that wildcard: a host left on
+# the public resolvers gets NXDOMAIN and the Alloy agent buffers forever.
+# /etc/resolv.conf is a plain file on these hosts (ifupdown2, no resolvconf,
+# no systemd-resolved), so the template is the whole story. glibc only moves
+# to the next nameserver on timeout, so the public fallback never masks
+# Pi-hole with a cached NXDOMAIN — docs/design/host-monitoring.md.
+
+- name: Point name resolution at Pi-hole first, a public resolver second.
+  ansible.builtin.template:
+    src: resolv.conf.j2
+    dest: /etc/resolv.conf
+    owner: root
+    group: root
+    mode: "0644"

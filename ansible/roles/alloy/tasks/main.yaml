@@ -32,6 +32,14 @@
     dest: /etc/apt/keyrings/grafana.asc
     mode: "0644"
 
+- name: Ensure gpg is present for the dearmor step.
+  # A minimal Debian container (the Pi-hole LXC) ships without gnupg.
+  ansible.builtin.apt:
+    name: gnupg
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
 - name: Dearmor the key for signed-by.
   # apt wants a binary keyring in signed-by; get_url cannot dearmor.
   ansible.builtin.command:

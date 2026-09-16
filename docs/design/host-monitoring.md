@@ -142,7 +142,14 @@ throughout: a public repo (no address or domain in plaintext), PodSecurity
   `community.sops.load_vars` (the vars plugin isn't enabled in
   `ansible.cfg`, so it never auto-loads); that domain and `cluster-secrets`'
   `DOMAIN` must agree. The hosts trust the public wildcard certificate, and
-  Pi-hole's `address=` wildcard already points both hostnames at Traefik.
+  Pi-hole's `address=` wildcard already points both hostnames at Traefik —
+  which only helps a host that asks Pi-hole. The NUCs were installed on
+  public resolvers and the LXC inherits its host's `/etc/resolv.conf` at
+  container start (PVE's default; the LXC module sets no DNS and ignores
+  drift), so `02-preflights/tasks/resolv.yaml` writes the Pi-hole LXC first
+  and `9.9.9.9` second on every Debian-based host. glibc only moves on after
+  a timeout, never on NXDOMAIN, so the fallback cannot mask Pi-hole; when
+  Pi-hole is down each lookup stalls `timeout:2` and Alloy's WAL buffers.
   The write routes sit idle until `make -C ansible apply-alloy` runs. The
   read-only PVE token it depends on comes from the `proxmox` library's
   `monitoring-token` task — user `alloy@pve`, role `PVEAuditor` on `/`,
@@ -164,7 +171,10 @@ Metrics `job`: `node-exporter` (the five agent hosts, `instance` = host
 name), `pve` (`instance` = NUC name; the exporter's own `id` and `node`
 labels carry the guests), `pihole` (`instance` = `pihole`), `truenas`
 (`instance` = `voyager`), `blackbox` (`instance` = probed host, `module` =
-prober). Logs: `job="journal"` with `host`, `unit`, `priority`;
+prober). Logs: `job="journal"` with `host`, `unit`, `priority` — the `job`
+comes from a `loki.relabel` rule, because `loki.source.journal` stamps its
+own component id over the static `labels` map (the first rollout shipped
+`job="loki.source.journal.journal"` and the dashboard stayed empty);
 `job="syslog"` with `host`, `severity`, `facility`, `app`. Host names, never
 addresses, in labels.
 
@@ -173,6 +183,11 @@ addresses, in labels.
 - Traefik or the cluster unreachable from a host: Alloy's WAL holds roughly
   two hours of samples, `loki.write` retries for a few minutes and then drops
   lines.
+- A host resolving through anything but Pi-hole gets `no such host` for both
+  routes and looks exactly like the case above from the cluster's side (no
+  `up`, nothing in Loki); the first rollout hit this on all five hosts until
+  `resolv.yaml` ran. Check `getent ahostsv4 prometheus.<domain>` on the host
+  before anything else.
 - `INGEST_LB_IP` missing from `cluster-secrets`: substitution yields an empty
   annotation, so neither Service gets the pinned address while the
   Kustomization still goes Ready — assert on the address the Services carry,

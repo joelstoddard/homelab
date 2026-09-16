@@ -87,7 +87,11 @@
           `dscacheutil -flushcache`. Split-horizon DNS only works if clients
           ask the split-horizon resolver exclusively. The trade is real —
           removing the fallbacks means one Pi-hole is a single point of
-          failure for all name resolution, so pair it with a second one
+          failure for all name resolution, so pair it with a second one.
+          The statically configured Debian hosts (the NUCs, the Pi-hole LXC)
+          are done: `02-preflights/tasks/resolv.yaml` puts Pi-hole first with
+          a public fallback, which glibc only reaches on timeout — the macOS
+          caching trap does not apply there. DHCP clients remain.
     - [ ] Configure the tailnet split-DNS nameserver for the domain (pointing
           at Pi-hole) so cluster services resolve over the tailnet, not only on
           the LAN. Private-policy-repo change, not this repo — until it lands, a

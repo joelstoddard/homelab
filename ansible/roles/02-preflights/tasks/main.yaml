@@ -1,8 +1,11 @@
 ---
-# OS-agnostic post-PXE lifecycle orchestrator. Dispatches into per-OS
-# task libraries by group membership. Generic Debian hygiene tasks
-# (admin user, swap, fail2ban) will land here ahead of the per-OS
-# dispatch in a future change.
+# OS-agnostic post-PXE lifecycle orchestrator. Generic Debian hygiene runs
+# first (resolv.yaml today; admin user, swap, fail2ban planned), then the
+# per-OS task libraries by group membership.
+
+- name: Point the Debian-based hosts at Pi-hole for name resolution.
+  ansible.builtin.include_tasks: resolv.yaml
+  when: "'proxmox' in group_names or 'debian' in group_names"
 
 - name: Run the proxmox-group lifecycle (debian-to-pve, cluster, api-token, monitoring-token).
   ansible.builtin.include_role:

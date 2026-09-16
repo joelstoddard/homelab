@@ -1,0 +1,9 @@
+# Managed by ansible (02-preflights resolv.yaml). Pi-hole first so the
+# LAN wildcard resolves; a public resolver second. docs/design/host-monitoring.md.
+{% if dns_search %}
+search {{ dns_search }}
+{% endif %}
+{% for ns in dns_servers | unique %}
+nameserver {{ ns }}
+{% endfor %}
+options timeout:2
