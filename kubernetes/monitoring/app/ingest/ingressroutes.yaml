@@ -1,0 +1,38 @@
+# Prometheus's remote-write receiver and Loki's push path for the off-cluster
+# Alloys (docs/design/host-monitoring.md). Only these paths: the UIs behind
+# the same hostnames stay unreachable (Traefik answers 404 elsewhere).
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: prometheus-write
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - kind: Rule
+      match: Host(`prometheus.${DOMAIN}`) && PathPrefix(`/api/v1/write`)
+      middlewares:
+        - name: ingest-auth
+        - name: default-headers
+          namespace: traefik
+      services:
+        - name: prometheus-server
+          port: 80
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: loki-push
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - kind: Rule
+      match: Host(`loki.${DOMAIN}`) && PathPrefix(`/loki/api/v1/push`)
+      middlewares:
+        - name: ingest-auth
+        - name: default-headers
+          namespace: traefik
+      services:
+        - name: loki
+          port: 3100
