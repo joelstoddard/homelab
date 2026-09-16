@@ -1,0 +1,71 @@
+# eko/pihole-exporter v1.x speaks the Pi-hole v6 API (session auth with the
+# web password). The LXC's address comes from cluster-secrets at reconcile.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pihole-exporter
+  labels:
+    app.kubernetes.io/name: pihole-exporter
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: pihole-exporter
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: pihole-exporter
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9617"
+    spec:
+      containers:
+        - name: pihole-exporter
+          image: ekofr/pihole-exporter:v1.2.0
+          ports:
+            - name: http
+              containerPort: 9617
+          readinessProbe:
+            tcpSocket:
+              port: 9617
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          env:
+            - name: PIHOLE_HOSTNAME
+              value: "${PIHOLE_IP}"
+            - name: PIHOLE_PROTOCOL
+              value: https
+            - name: PIHOLE_PORT
+              value: "443"
+            - name: SKIP_TLS_VERIFICATION
+              value: "true"
+            - name: PORT
+              value: "9617"
+          envFrom:
+            - secretRef:
+                name: pihole-exporter
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 64Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            runAsUser: 65534
+            capabilities:
+              drop: ["ALL"]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: pihole-exporter
+spec:
+  selector:
+    app.kubernetes.io/name: pihole-exporter
+  ports:
+    - name: http
+      port: 9617
+      targetPort: 9617

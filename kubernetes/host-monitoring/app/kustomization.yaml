@@ -1,0 +1,18 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: host-monitoring
+resources:
+  - namespace.yaml
+  - helmrepository.yaml
+  - pve-exporter.yaml
+  - secret-pve-exporter.sops.yaml
+  - pihole-exporter.yaml
+  - secret-pihole-exporter.sops.yaml
+# This layer is substituted by Flux: every generator input here may contain
+# the cluster-secrets variable names and no other $ — the River file sits in
+# config/ with substitution disabled, the targets file deliberately here.
+configMapGenerator: []
+generatorOptions:
+  disableNameSuffixHash: true
+  labels:
+    reconcile.fluxcd.io/watch: Enabled

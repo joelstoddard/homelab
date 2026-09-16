@@ -1,0 +1,6 @@
+# Talos' default PodSecurity "baseline": nothing here needs host access, and
+# baseline is why the blackbox probes are TCP/HTTP/DNS, not ICMP (NET_RAW).
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: host-monitoring

@@ -1,0 +1,33 @@
+# Everything that knows about hosts outside the cluster: pollers for
+# Proxmox, Pi-hole and the router, receivers for TrueNAS's graphite stream
+# and remote syslog, and the Alloy that scrapes them — docs/design/
+# host-monitoring.md. Substituted: the hosts' addresses and the receivers'
+# LAN address come from cluster-secrets, so River lives in a
+# substitute-disabled ConfigMap and the targets file next to it does not.
+# dependsOn cilium-lb for the LoadBalancer address, monitoring for Prometheus
+# and Loki, cluster-secrets so a change to monitoring's own edges cannot
+# silently break substitution. No wait: nothing depends on this layer.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: host-monitoring
+  namespace: flux-system
+spec:
+  interval: 10m0s
+  path: ./kubernetes/host-monitoring/app
+  prune: true
+  dependsOn:
+    - name: monitoring
+    - name: cilium-lb
+    - name: cluster-secrets
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+  postBuild:
+    substituteFrom:
+      - kind: Secret
+        name: cluster-secrets
+  decryption:
+    provider: sops
+    secretRef:
+      name: sops-age
