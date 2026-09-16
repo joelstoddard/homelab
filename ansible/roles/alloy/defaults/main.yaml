@@ -1,0 +1,15 @@
+---
+# Pin to the cluster's Alloy (kubernetes/alloy/app/alloy/helmrelease.yaml
+# chart 1.12.1 = app v1.19.2). `apt-cache madison alloy` lists what the repo
+# offers; bump both together.
+alloy_version: "1.19.2-1"
+alloy_apt_key_url: https://apt.grafana.com/gpg.key
+alloy_apt_repo: "deb [signed-by=/etc/apt/keyrings/grafana.gpg] https://apt.grafana.com stable main"
+alloy_scrape_interval: 60s
+alloy_journal_max_age: 12h
+# Filesystems the unix exporter ignores. These REPLACE node_exporter's own
+# default regexes rather than add to them, so the upstream entries are
+# carried forward here alongside the homelab-specific ones: container roots,
+# PVE storage and rpool paths.
+alloy_fs_mount_points_exclude: "^/(dev|proc|run/credentials/.+|sys|var/lib/docker/.+|var/lib/lxc/.+|var/lib/vz/.+|rpool.*)($|/)"
+alloy_fs_types_exclude: "^(autofs|binfmt_misc|bpf|cgroup2?|configfs|debugfs|devpts|devtmpfs|fusectl|fuse.lxcfs|hugetlbfs|iso9660|mqueue|nsfs|overlay|proc|procfs|pstore|rpc_pipefs|securityfs|selinuxfs|squashfs|sysfs|tracefs)$"  # noqa: yaml[line-length]

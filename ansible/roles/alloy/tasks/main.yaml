@@ -1,0 +1,88 @@
+---
+# Grafana Alloy on a bare Debian host: node metrics and journald pushed to
+# the cluster's write routes — docs/design/host-monitoring.md. The five hosts
+# share one template; only inventory_hostname differs.
+
+- name: Load the alloy group vars (SOPS-encrypted).
+  # The sops vars plugin isn't enabled in ansible.cfg, so
+  # group_vars/alloy.sops.yaml never auto-loads — load it explicitly, this
+  # repo's pattern (playbooks/main.yaml loads host_vars the same way).
+  community.sops.load_vars:
+    file: "{{ inventory_dir }}/group_vars/alloy.sops.yaml"
+  no_log: true
+
+- name: Require alloy_domain and alloy_hosts_password.
+  ansible.builtin.assert:
+    that:
+      - alloy_domain is defined
+      - alloy_hosts_password is defined
+    fail_msg: >-
+      alloy_domain and alloy_hosts_password must be set — see the "Group
+      variables" section of ansible/roles/alloy/README.md.
+
+- name: Ensure the apt keyring directory exists.
+  ansible.builtin.file:
+    path: /etc/apt/keyrings
+    state: directory
+    mode: "0755"
+
+- name: Install Grafana's apt signing key.
+  ansible.builtin.get_url:
+    url: "{{ alloy_apt_key_url }}"
+    dest: /etc/apt/keyrings/grafana.asc
+    mode: "0644"
+
+- name: Dearmor the key for signed-by.
+  # apt wants a binary keyring in signed-by; get_url cannot dearmor.
+  ansible.builtin.command:
+    cmd: gpg --dearmor --yes -o /etc/apt/keyrings/grafana.gpg /etc/apt/keyrings/grafana.asc
+    creates: /etc/apt/keyrings/grafana.gpg
+
+- name: Add the Grafana apt repository.
+  ansible.builtin.apt_repository:
+    repo: "{{ alloy_apt_repo }}"
+    filename: grafana
+    state: present
+
+- name: Install Alloy.
+  ansible.builtin.apt:
+    name: "alloy={{ alloy_version }}"
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+    allow_downgrade: true
+
+- name: Let Alloy read the journal.
+  ansible.builtin.user:
+    name: alloy
+    groups: systemd-journal
+    append: true
+  notify: Restart alloy
+
+- name: Disable usage reporting.
+  ansible.builtin.lineinfile:
+    path: /etc/default/alloy
+    regexp: '^CUSTOM_ARGS='
+    line: 'CUSTOM_ARGS="--disable-reporting"'
+  notify: Restart alloy
+
+- name: Render the Alloy config.
+  # The rendered file carries the push credential. 0600 keeps it off disk to
+  # non-owners; diff: false keeps it off the --check --diff console/log,
+  # since the template module's diff otherwise prints the whole file
+  # (task failures and the validate: error still surface).
+  ansible.builtin.template:
+    src: config.alloy.j2
+    dest: /etc/alloy/config.alloy
+    owner: alloy
+    group: alloy
+    mode: "0600"
+    validate: "alloy fmt %s"
+  diff: false
+  notify: Restart alloy
+
+- name: Enable and start Alloy.
+  ansible.builtin.systemd:
+    name: alloy
+    enabled: true
+    state: started

@@ -38,6 +38,8 @@ help:
 	@echo "  apply-reset	- Wipe Talos nodes back to maintenance mode for a reinstall (EXTRA_VARS reset_hosts)."
 	@echo "  check-upgrade	- Dry run an in-place Talos node upgrade (EXTRA_VARS upgrade_hosts)."
 	@echo "  apply-upgrade	- Roll config + installer image onto running Talos nodes, serially (EXTRA_VARS upgrade_hosts)."
+	@echo "  check-alloy	- Dry run the Grafana Alloy install on the tagged hosts."
+	@echo "  apply-alloy	- Install Grafana Alloy on the Proxmox NUCs and the Pi-hole LXC."
 	@echo "  kubeconfig	- Merge the cluster context into this machine's ~/.kube/config (OPERATOR_SSH=user@host)."
 	@echo "  ping     	- Ping hosts."
 	@echo "  clean    	- Clean temporary files."
@@ -154,6 +156,22 @@ check-upgrade:
 .PHONY: apply-upgrade
 apply-upgrade:
 	$(VENV)/bin/ansible-playbook playbooks/upgrade.yaml \
+		$(if $(VERBOSITY),-$(VERBOSITY)) \
+		$(if $(EXTRA_VARS),--extra-vars='$(EXTRA_VARS)')
+
+# Grafana Alloy on the hosts tagged `alloy` in NetBox (the four Proxmox NUCs
+# and the Pi-hole LXC) — see roles/alloy/README.md.
+.PHONY: check-alloy
+check-alloy:
+	$(VENV)/bin/ansible-playbook playbooks/alloy.yaml --check --diff \
+		$(if $(LIMIT),--limit=$(LIMIT)) \
+		$(if $(VERBOSITY),-$(VERBOSITY)) \
+		$(if $(EXTRA_VARS),--extra-vars='$(EXTRA_VARS)')
+
+.PHONY: apply-alloy
+apply-alloy:
+	$(VENV)/bin/ansible-playbook playbooks/alloy.yaml \
+		$(if $(LIMIT),--limit=$(LIMIT)) \
 		$(if $(VERBOSITY),-$(VERBOSITY)) \
 		$(if $(EXTRA_VARS),--extra-vars='$(EXTRA_VARS)')
 

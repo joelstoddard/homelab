@@ -1,0 +1,24 @@
+---
+# Grafana Alloy on the hosts tagged `alloy` in NetBox (the Proxmox NUCs and
+# the Pi-hole LXC). Its own play: main.yaml targets PXE-installed hosts, and
+# the LXC is not one — docs/design/host-monitoring.md.
+
+# A play whose pattern matches no host is skipped whole, pre_tasks included,
+# and exits 0; only a play on localhost can turn "nothing tagged" into a failure.
+- name: Require at least one host tagged alloy in NetBox.
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tasks:
+    - name: Check the alloy group is not empty.
+      ansible.builtin.assert:
+        that: groups['alloy'] | default([]) | length > 0
+        fail_msg: >-
+          No hosts in the 'alloy' group — tag at least one host 'alloy' in
+          NetBox before running this playbook.
+
+- name: Install and configure Grafana Alloy on the tagged hosts.
+  hosts: alloy:!talos
+  become: true
+  roles:
+    - alloy
