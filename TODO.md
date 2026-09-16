@@ -152,7 +152,25 @@
               chart's `k8sCache` (one shared metadata cache) to shrink it
         - [ ] Cross-service propagation proof (Traefik → Grafana in one
               trace) once the Beyla pod on Grafana's node stays up
-    - [ ] Spec 3: exporters on Proxmox, TrueNAS, Pi-hole, the router
+    - [x] Spec 3: exporters on Proxmox, TrueNAS, Pi-hole, the router
+          (`kubernetes/host-monitoring/` + the write routes in
+          `monitoring/app/ingest/`, `docs/design/host-monitoring.md`)
+        - [ ] The agent half: an `alloy` role installing Grafana Alloy on the
+              four NUCs and the Pi-hole LXC, plus the `monitoring-token`
+              task minting the read-only PVE token (its own PR)
+        - [ ] Curated TrueNAS graphite mapping and a dashboard — the exporter
+              passes collectd paths through as underscored names, so the
+              schema can only be written once the live stream exists
+        - [ ] `smartctl_exporter` on the NUCs for SMART and ZFS detail
+        - [ ] Router data beyond probes and syslog (SNMP, or SSH) if
+              interface and CPU counters are ever wanted
+        - [ ] Measure host monitoring after 24 h (design doc "Measurements"):
+              series added per job, the gateway's and graphite exporter's
+              working sets, Alloy's footprint on a NUC and in the LXC
+        - [ ] A `module` template variable for the blackbox dashboard —
+              james-webb's three probes overlay with identical legends
+        - [ ] Default the syslog `host` label from the source when the
+              sender omits the hostname field
     - [ ] Vendor the Alloy mixin dashboards (alloy-resources, alloy-controller) once compiled JSON is obtainable without jsonnet
 - [ ] Renovate for automated version-bump PRs
 - [ ] Pin all tool versions (talosctl/kubectl/talhelper/flux) — likely nix flakes
