@@ -58,6 +58,7 @@
     - not terraform_token_exists
     - not ansible_check_mode
   delegate_to: localhost
+  become: false
   run_once: true
 
 - name: Load the existing cluster group_vars before rewriting them.
@@ -86,5 +87,8 @@
     - not terraform_token_exists
     - not ansible_check_mode
   delegate_to: localhost
+  # The play escalates for the hosts; a sops write on the operator needs no
+  # root and a workstation has no passwordless sudo to give it.
+  become: false
   run_once: true
   no_log: true
