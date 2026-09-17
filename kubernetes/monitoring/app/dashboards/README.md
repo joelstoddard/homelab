@@ -32,3 +32,4 @@ the sidecar watches every namespace.
 | Hosts/pihole.json | Hosts | grafana.com/grafana/dashboards/10176 | 3 | datasource UIDs pinned; cleared a leftover LAN IP default from the `node` template variable; the `hostname` label it lists is rewritten to `pihole` by the gateway's relabel — the exporter would otherwise emit the address |
 | Hosts/blackbox.json | Hosts | grafana.com/grafana/dashboards/7587 | 3 | datasource UIDs pinned |
 | Hosts/host-logs.json | Hosts | hand-written | — | — |
+| Services/searxng.json | Services | hand-written | — | — |

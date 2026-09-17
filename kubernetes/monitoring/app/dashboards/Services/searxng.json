@@ -1,0 +1,65 @@
+{
+  "id": null,
+  "uid": "homelab-searxng",
+  "title": "SearXNG",
+  "tags": ["searxng", "homelab"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "time": {"from": "now-6h", "to": "now"},
+  "panels": [
+    {"id": 1, "type": "table", "title": "Engine reliability (worst first)", "gridPos": {"h": 9, "w": 8, "x": 0, "y": 0},
+     "description": "SearXNG's own reliability score per engine, 0-100. Accumulated since the pod started, not a windowed rate.",
+     "datasource": {"type": "prometheus", "uid": "prometheus"},
+     "targets": [{"refId": "A", "expr": "sort(searxng_engines_reliability_total{job=\"searxng\"})", "instant": true, "format": "table"}],
+     "transformations": [{"id": "organize", "options": {"excludeByName": {"Time": true, "job": true, "instance": true, "namespace": true, "pod": true, "node": true, "__name__": true}}}],
+     "fieldConfig": {"defaults": {"unit": "percent", "min": 0, "max": 100}, "overrides": []}},
+
+    {"id": 2, "type": "bargauge", "title": "Slowest engines (total response time)", "gridPos": {"h": 9, "w": 8, "x": 8, "y": 0},
+     "description": "Average total response time per engine since the pod started.",
+     "datasource": {"type": "prometheus", "uid": "prometheus"},
+     "targets": [{"refId": "A", "expr": "topk(10, searxng_engines_response_time_total_seconds{job=\"searxng\"})", "instant": true, "legendFormat": "{{engine_name}}"}],
+     "options": {"orientation": "horizontal", "displayMode": "gradient"},
+     "fieldConfig": {"defaults": {"unit": "s"}, "overrides": []}},
+
+    {"id": 3, "type": "bargauge", "title": "HTTP vs processing time", "gridPos": {"h": 9, "w": 8, "x": 16, "y": 0},
+     "description": "Where an engine's time goes: network wait versus SearXNG's own parsing. Averages since pod start.",
+     "datasource": {"type": "prometheus", "uid": "prometheus"},
+     "targets": [
+       {"refId": "A", "expr": "topk(10, searxng_engines_response_time_http_seconds{job=\"searxng\"})", "instant": true, "legendFormat": "http {{engine_name}}"},
+       {"refId": "B", "expr": "topk(10, searxng_engines_response_time_processing_seconds{job=\"searxng\"})", "instant": true, "legendFormat": "processing {{engine_name}}"}
+     ],
+     "options": {"orientation": "horizontal", "displayMode": "gradient"},
+     "fieldConfig": {"defaults": {"unit": "s"}, "overrides": []}},
+
+    {"id": 4, "type": "timeseries", "title": "Requests per engine", "gridPos": {"h": 8, "w": 12, "x": 0, "y": 9},
+     "description": "A true counter; it resets to zero when the pod restarts, which rate() handles.",
+     "datasource": {"type": "prometheus", "uid": "prometheus"},
+     "targets": [{"refId": "A", "expr": "topk(10, rate(searxng_engines_request_count_total{job=\"searxng\"}[$__rate_interval]))", "legendFormat": "{{engine_name}}"}],
+     "fieldConfig": {"defaults": {"unit": "reqps"}, "overrides": []}},
+
+    {"id": 5, "type": "timeseries", "title": "Results per request", "gridPos": {"h": 8, "w": 12, "x": 12, "y": 9},
+     "description": "An engine trending toward zero results is being blocked or has broken parsing.",
+     "datasource": {"type": "prometheus", "uid": "prometheus"},
+     "targets": [{"refId": "A", "expr": "topk(10, rate(searxng_engines_result_count_total{job=\"searxng\"}[$__rate_interval]) / rate(searxng_engines_request_count_total{job=\"searxng\"}[$__rate_interval]))", "legendFormat": "{{engine_name}}"}],
+     "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []}},
+
+    {"id": 6, "type": "timeseries", "title": "Served requests (Beyla)", "gridPos": {"h": 8, "w": 8, "x": 0, "y": 17},
+     "description": "eBPF RED metrics for the pod itself, by response code. Nothing is instrumented inside SearXNG.",
+     "datasource": {"type": "prometheus", "uid": "prometheus"},
+     "targets": [{"refId": "A", "expr": "sum by (http_response_status_code) (rate({__name__=~\"http_server_request_duration_seconds_count|http_server_request_duration_count\", k8s_namespace_name=\"searxng\"}[$__rate_interval]))", "legendFormat": "{{http_response_status_code}}"}],
+     "fieldConfig": {"defaults": {"unit": "reqps"}, "overrides": []}},
+
+    {"id": 7, "type": "timeseries", "title": "Pod CPU and memory", "gridPos": {"h": 8, "w": 8, "x": 8, "y": 17},
+     "datasource": {"type": "prometheus", "uid": "prometheus"},
+     "targets": [
+       {"refId": "A", "expr": "sum by (pod) (rate(container_cpu_usage_seconds_total{namespace=\"searxng\", container!=\"\"}[$__rate_interval]))", "legendFormat": "cpu {{pod}}"},
+       {"refId": "B", "expr": "sum by (pod) (container_memory_working_set_bytes{namespace=\"searxng\", container!=\"\"})", "legendFormat": "mem {{pod}}"}
+     ],
+     "fieldConfig": {"defaults": {}, "overrides": [{"matcher": {"id": "byRegexp", "options": "mem.*"}, "properties": [{"id": "unit", "value": "bytes"}]}]}},
+
+    {"id": 8, "type": "logs", "title": "Logs", "gridPos": {"h": 8, "w": 8, "x": 16, "y": 17},
+     "datasource": {"type": "loki", "uid": "loki"},
+     "options": {"showTime": true, "wrapLogMessage": true, "sortOrder": "Descending", "dedupStrategy": "none", "enableLogDetails": true},
+     "targets": [{"refId": "A", "expr": "{namespace=\"searxng\"}"}]}
+  ]
+}
