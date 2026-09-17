@@ -1,0 +1,98 @@
+{
+  "id": null,
+  "uid": "homelab-tailscale",
+  "title": "Tailscale",
+  "tags": ["tailscale", "homelab"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "time": {"from": "now-6h", "to": "now"},
+  "panels": [
+    {"id": 1, "type": "stat", "title": "Routes advertised / approved", "gridPos": {"h": 4, "w": 5, "x": 0, "y": 0},
+     "description": "Advertised is what the pod asks for (TS_ROUTES); approved is what the tailnet granted. A mismatch means the subnet route is not carrying traffic even though the node looks healthy.",
+     "datasource": {"type": "prometheus", "uid": "prometheus"},
+     "targets": [
+       {"refId": "A", "expr": "tailscaled_advertised_routes{job=\"tailscale\"}", "instant": true, "legendFormat": "advertised"},
+       {"refId": "B", "expr": "tailscaled_approved_routes{job=\"tailscale\"}", "instant": true, "legendFormat": "approved"}
+     ],
+     "options": {"textMode": "value_and_name", "colorMode": "none", "graphMode": "none"},
+     "fieldConfig": {"defaults": {"unit": "short", "decimals": 0}, "overrides": []}},
+
+    {"id": 2, "type": "stat", "title": "Health warnings", "gridPos": {"h": 4, "w": 4, "x": 5, "y": 0},
+     "description": "tailscaled's own health checks — the same ones `tailscale status` prints. Nonzero means it is reporting a problem; the logs panel says which.",
+     "datasource": {"type": "prometheus", "uid": "prometheus"},
+     "targets": [{"refId": "A", "expr": "tailscaled_health_messages{job=\"tailscale\", type=\"warning\"}", "instant": true, "legendFormat": "warnings"}],
+     "options": {"textMode": "value", "colorMode": "value", "graphMode": "none"},
+     "fieldConfig": {"defaults": {"unit": "short", "decimals": 0,
+       "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "red", "value": 1}]}}, "overrides": []}},
+
+    {"id": 3, "type": "stat", "title": "Home DERP region", "gridPos": {"h": 4, "w": 5, "x": 9, "y": 0},
+     "description": "The relay this node falls back to when a direct path cannot be built. Codes are Tailscale's region codes (`tailscale debug derp-map`); an unmapped ID shows as a bare number.",
+     "datasource": {"type": "prometheus", "uid": "prometheus"},
+     "targets": [{"refId": "A", "expr": "tailscaled_home_derp_region_id{job=\"tailscale\"}", "instant": true, "legendFormat": "home relay"}],
+     "options": {"textMode": "value", "colorMode": "none", "graphMode": "none"},
+     "fieldConfig": {"defaults": {"mappings": [{"type": "value", "options": {
+       "1": {"text": "nyc"}, "2": {"text": "sfo"}, "3": {"text": "sin"}, "4": {"text": "fra"}, "5": {"text": "syd"},
+       "6": {"text": "blr"}, "7": {"text": "tok"}, "8": {"text": "lhr"}, "9": {"text": "dfw"}, "10": {"text": "sea"},
+       "11": {"text": "sao"}, "12": {"text": "ord"}, "13": {"text": "den"}, "14": {"text": "ams"}, "15": {"text": "jnb"},
+       "16": {"text": "mia"}, "17": {"text": "lax"}, "18": {"text": "par"}, "19": {"text": "mad"}, "20": {"text": "hkg"},
+       "21": {"text": "tor"}, "22": {"text": "waw"}, "23": {"text": "dbi"}, "24": {"text": "hnl"}, "25": {"text": "nai"},
+       "26": {"text": "nue"}, "27": {"text": "iad"}, "28": {"text": "hel"}}}]}, "overrides": []}},
+
+    {"id": 4, "type": "stat", "title": "Running on node", "gridPos": {"h": 4, "w": 4, "x": 14, "y": 0},
+     "description": "One replica, Recreate strategy, so this is where remote access terminates. Red means the pod is up but tailscaled does not answer on :9002.",
+     "datasource": {"type": "prometheus", "uid": "prometheus"},
+     "targets": [{"refId": "A", "expr": "up{job=\"tailscale\"}", "instant": true, "legendFormat": "{{node}}"}],
+     "options": {"textMode": "name", "colorMode": "value", "graphMode": "none"},
+     "fieldConfig": {"defaults": {
+       "thresholds": {"mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "green", "value": 1}]}}, "overrides": []}},
+
+    {"id": 5, "type": "stat", "title": "Uptime", "gridPos": {"h": 4, "w": 3, "x": 18, "y": 0},
+     "description": "Time since the container started, so a reschedule resets it. The node key survives in the tailscale-state Secret, so the tailnet still sees one node.",
+     "datasource": {"type": "prometheus", "uid": "prometheus"},
+     "targets": [{"refId": "A", "expr": "time() - container_start_time_seconds{namespace=\"tailscale\", container=\"tailscale\"}", "instant": true, "legendFormat": "uptime"}],
+     "options": {"textMode": "value", "colorMode": "none", "graphMode": "none"},
+     "fieldConfig": {"defaults": {"unit": "s", "decimals": 0}, "overrides": []}},
+
+    {"id": 6, "type": "stat", "title": "Restarts", "gridPos": {"h": 4, "w": 3, "x": 21, "y": 0},
+     "description": "Liveness-probe restarts of the current pod. A reschedule starts a fresh pod at zero, so a climbing count means tailscaled wedges in place.",
+     "datasource": {"type": "prometheus", "uid": "prometheus"},
+     "targets": [{"refId": "A", "expr": "max(kube_pod_container_status_restarts_total{exported_namespace=\"tailscale\", container=\"tailscale\"})", "instant": true, "legendFormat": "restarts"}],
+     "options": {"textMode": "value", "colorMode": "value", "graphMode": "none"},
+     "fieldConfig": {"defaults": {"unit": "short", "decimals": 0,
+       "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "orange", "value": 1}]}}, "overrides": []}},
+
+    {"id": 7, "type": "timeseries", "title": "Traffic by path", "gridPos": {"h": 8, "w": 12, "x": 0, "y": 4},
+     "description": "direct_ipv4 and direct_ipv6 mean NAT traversal works; derp means Tailscale relays the traffic and adds latency. These counters only move on real peer traffic, so an idle tailnet reads zero.",
+     "datasource": {"type": "prometheus", "uid": "prometheus"},
+     "targets": [
+       {"refId": "A", "expr": "rate(tailscaled_inbound_bytes_total{job=\"tailscale\"}[$__rate_interval])", "legendFormat": "in {{path}}"},
+       {"refId": "B", "expr": "rate(tailscaled_outbound_bytes_total{job=\"tailscale\"}[$__rate_interval])", "legendFormat": "out {{path}}"}
+     ],
+     "fieldConfig": {"defaults": {"unit": "Bps", "custom": {"fillOpacity": 10}}, "overrides": []}},
+
+    {"id": 8, "type": "timeseries", "title": "Dropped packets by reason", "gridPos": {"h": 8, "w": 12, "x": 12, "y": 4},
+     "description": "unknown_protocol is non-IP frames reaching the tun device and is harmless; error is the one to watch. tailscaled declares the inbound counter but emits no series until it first fires.",
+     "datasource": {"type": "prometheus", "uid": "prometheus"},
+     "targets": [
+       {"refId": "A", "expr": "rate(tailscaled_outbound_dropped_packets_total{job=\"tailscale\"}[$__rate_interval])", "legendFormat": "out {{reason}}"},
+       {"refId": "B", "expr": "rate(tailscaled_inbound_dropped_packets_total{job=\"tailscale\"}[$__rate_interval])", "legendFormat": "in {{reason}}"}
+     ],
+     "fieldConfig": {"defaults": {"unit": "pps", "custom": {"fillOpacity": 10}}, "overrides": []}},
+
+    {"id": 9, "type": "timeseries", "title": "Pod CPU and memory", "gridPos": {"h": 8, "w": 12, "x": 0, "y": 12},
+     "description": "Limits are 1 CPU and 256Mi. Exit-node throughput pushes CPU, so read this panel before you change them.",
+     "datasource": {"type": "prometheus", "uid": "prometheus"},
+     "targets": [
+       {"refId": "A", "expr": "sum by (pod) (rate(container_cpu_usage_seconds_total{namespace=\"tailscale\", container!=\"\"}[$__rate_interval]))", "legendFormat": "cpu {{pod}}"},
+       {"refId": "B", "expr": "sum by (pod) (container_memory_working_set_bytes{namespace=\"tailscale\", container!=\"\"})", "legendFormat": "mem {{pod}}"}
+     ],
+     "fieldConfig": {"defaults": {}, "overrides": [
+       {"matcher": {"id": "byRegexp", "options": "mem.*"}, "properties": [{"id": "unit", "value": "bytes"}]}
+     ]}},
+
+    {"id": 10, "type": "logs", "title": "Logs", "gridPos": {"h": 8, "w": 12, "x": 12, "y": 12},
+     "datasource": {"type": "loki", "uid": "loki"},
+     "options": {"showTime": true, "wrapLogMessage": true, "sortOrder": "Descending", "dedupStrategy": "none", "enableLogDetails": true},
+     "targets": [{"refId": "A", "expr": "{namespace=\"tailscale\"}"}]}
+  ]
+}
