@@ -163,8 +163,11 @@
               four NUCs and the Pi-hole LXC, plus the `monitoring-token`
               task minting the read-only PVE token (its own PR)
         - [ ] Curated TrueNAS graphite mapping and a dashboard — the exporter
-              passes collectd paths through as underscored names, so the
-              schema can only be written once the live stream exists
+              passes collectd paths through as underscored names; the live
+              stream (494 series since 2026-09-16) is
+              `servers_Voyager_local_<plugin>_<instance>_<type>`, e.g.
+              `servers_Voyager_local_cpu_0_cpu_idle`, so the mapping is a
+              glob per plugin turning `<instance>` and `<type>` into labels
         - [ ] `smartctl_exporter` on the NUCs for SMART and ZFS detail
         - [ ] Router data beyond probes and syslog (SNMP, or SSH) if
               interface and CPU counters are ever wanted
@@ -173,8 +176,12 @@
               working sets, Alloy's footprint on a NUC and in the LXC
         - [ ] A `module` template variable for the blackbox dashboard —
               james-webb's three probes overlay with identical legends
-        - [ ] Default the syslog `host` label from the source when the
-              sender omits the hostname field
+        - [ ] The two Services sharing `${INGEST_LB_IP}` each hold their own
+              Cilium L2 announcement lease, on different nodes, so two nodes
+              answer ARP for one address. Works (both forward to any backend),
+              but it is ARP flapping by design — watch for dropped UDP syslog,
+              and consider a single Service if Cilium ever allows mixed
+              selectors
         - [ ] Move the push credential to Alloy's `basic_auth`
               `password_file` (a 0600 one-liner) so `config.alloy` can be
               0644 and `--check --diff` shows config changes again

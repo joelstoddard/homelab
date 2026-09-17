@@ -95,9 +95,11 @@ throughout: a public repo (no address or domain in plaintext), PodSecurity
   and publishes syslog alone, so Alloy's `:12345` UI never reaches the LAN.
 - **Only RFC3164 is listened for.** Both senders — TrueNAS CORE's FreeBSD
   syslogd and the router's ASUS stock firmware — speak it; a sender using
-  RFC5424 instead would need a second port. ASUS stock firmware often omits
-  the hostname field, which would leave `host` empty for the router until a
-  relabel defaults it from the source — a follow-up, not done here.
+  RFC5424 instead would need a second port. Neither sender uses the name the
+  rest of the stack does: the router announces its model name plus a serial
+  suffix and TrueNAS capitalises its hostname, so the syslog relabel maps the
+  first to `james-webb` and lowercases the rest, and `host` joins with the
+  metrics' `instance` values.
 - **Both LB Services keep `externalTrafficPolicy: Cluster`.** Source IPs
   arrive SNAT'd; harmless here because `host` comes from the syslog message
   itself, not the connection's source address.
@@ -175,7 +177,9 @@ prober). Logs: `job="journal"` with `host`, `unit`, `priority` — the `job`
 comes from a `loki.relabel` rule, because `loki.source.journal` stamps its
 own component id over the static `labels` map (the first rollout shipped
 `job="loki.source.journal.journal"` and the dashboard stayed empty);
-`job="syslog"` with `host`, `severity`, `facility`, `app`. Host names, never
+`job="syslog"` with `host`, `severity`, `facility`, `app`, where `host` is
+lowercased and the router's self-reported name mapped to `james-webb`, so a
+syslog `host` always equals some metric's `instance`. Host names, never
 addresses, in labels.
 
 ## Failure modes

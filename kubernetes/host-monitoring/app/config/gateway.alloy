@@ -47,6 +47,21 @@ loki.relabel "syslog" {
 		target_label  = "host"
 	}
 
+	// The router announces itself as its model name plus a serial suffix and
+	// TrueNAS capitalises; the dashboards join on the metrics' instance names.
+	rule {
+		source_labels = ["host"]
+		regex         = "(?i)james-webb.*"
+		replacement   = "james-webb"
+		target_label  = "host"
+	}
+
+	rule {
+		source_labels = ["host"]
+		action        = "lowercase"
+		target_label  = "host"
+	}
+
 	rule {
 		source_labels = ["__syslog_message_severity"]
 		target_label  = "severity"
