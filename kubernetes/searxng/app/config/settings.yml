@@ -1,0 +1,6 @@
+# Anything upstream exposes as a SEARXNG_* variable is set on the Deployment
+# instead; open_metrics is the exception, with no env override, so the metrics
+# password can only arrive here (docs/design/searxng.md).
+use_default_settings: true
+general:
+  open_metrics: "${SEARXNG_OPEN_METRICS}"

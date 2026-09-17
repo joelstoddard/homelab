@@ -182,7 +182,7 @@ kubernetes/
     └── app/
         ├── kustomization.yaml    # namespace searxng
         ├── namespace.yaml        # searxng; no PodSecurity label (both pods satisfy "restricted")
-        ├── configmap.yaml        # settings.yml: use_default_settings + the substituted open_metrics password
+        ├── config/               # settings.yml + limiter.toml, generated WITH a name hash so an edit rolls the pod
         ├── secret.sops.yaml      # SEARXNG_SECRET, the cookie-signing key
         ├── deployment.yaml       # one replica; base URL, limiter and Valkey URL as SEARXNG_* env
         ├── service.yaml          # searxng:8080, no scrape annotation (the metrics job is in alloy/)
@@ -551,10 +551,13 @@ Consequences:
   search engine unusable from the URL bar and breaks the OpenSearch
   registration flow, so the LAN and the tailnet are the boundary. This is the
   documented exception to the per-service rule under "Traefik".
-- **Most settings are environment variables, not the ConfigMap.** Upstream
+- **Most settings are environment variables, not the config files.** Upstream
   gives `SEARXNG_*` overrides for the base URL, the limiter and the Valkey
   URL; `general.open_metrics` is the one key with no override, which is the
   only reason `settings.yml` exists here.
+- **`app/config/` is generated with a name hash, on purpose.** SearXNG reads
+  both files once at startup, so without the hash an edit lands on disk and
+  the running pod ignores it. Do not add `disableNameSuffixHash` here.
 - **The metrics scrape is explicit, in `alloy/app/config/config.alloy`.**
   `/metrics` is behind basic auth, which the `prometheus.io/scrape` path
   cannot carry, so the pod carries no annotation — do not add one, it would

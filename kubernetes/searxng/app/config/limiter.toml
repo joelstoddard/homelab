@@ -1,0 +1,7 @@
+# Upstream trusts X-Forwarded-For only from loopback, so behind Traefik every
+# client is attributed to one pod IP and the instance shares a single
+# rate-limit bucket. See docs/design/searxng.md, "Traps".
+[botdetection]
+trusted_proxies = [
+  '10.244.0.0/16',
+]
