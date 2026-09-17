@@ -185,7 +185,8 @@ Ingress and TLS are five more layers. Root order is
 `traefik-middlewares` (the
 full list is `flux-system`, `cilium`, `cilium-lb`, `cluster-secrets`, `cert-manager`,
 `cert-manager-issuers`, `traefik`, `traefik-middlewares`, `lan-services`,
-`tailscale`, `longhorn`, `monitoring`, `alloy`, `beyla`, `host-monitoring`).
+`tailscale`, `longhorn`, `monitoring`, `alloy`, `beyla`, `host-monitoring`,
+`searxng`).
 `cluster-secrets/` is one SOPS Secret in `flux-system` holding `DOMAIN`,
 `TRAEFIK_LB_IP` and `ACME_EMAIL`; consumers (`cert-manager-issuers`,
 `traefik`, `longhorn`) add `dependsOn: cluster-secrets` +
@@ -269,6 +270,19 @@ only ever `${…}` from `cluster-secrets`, listed in
 `/etc/alloy-targets`, outside the chart's read-only `/etc/alloy`. No ICMP
 probes: PodSecurity baseline forbids `NET_RAW`. See
 `docs/design/host-monitoring.md`.
+`searxng/` (`dependsOn: traefik, traefik-middlewares, cluster-secrets`,
+substituted) is the first user-facing app: one stateless SearXNG pod on
+`searx.${DOMAIN}` plus a Valkey for the bot-detection limiter, and the
+documented exception to the per-service basic-auth rule — a prompt on every
+keyword query makes a search engine unusable and breaks the OpenSearch flow.
+Most settings are `SEARXNG_*` env vars on the Deployment; `settings.yml`
+exists only because `general.open_metrics` has no env override. That password
+is one `cluster-secrets` key with two consumers: substituted into the settings
+file, and read at runtime by the `alloy` layer's explicit `searxng` scrape
+through `remote.kubernetes.secret` — the annotation path cannot carry basic
+auth, so the pod carries no `prometheus.io/scrape`. `GRANIAN_WORKERS` is
+pinned to 1 because the engine counters live in the worker process. See
+`docs/design/searxng.md`.
 Never `kubectl delete kustomization flux-system` — prune would remove Flux
 itself; use `flux uninstall`. Pruning `cilium/` removes the CNI; pruning
 `traefik/` takes every route in the cluster. See `kubernetes/README.md`.

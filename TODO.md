@@ -223,7 +223,11 @@
 ### Home Automation
 - [ ] Home Assistant
 - [ ] Shlink
-- [ ] Searx
+- [x] Searx (`kubernetes/searxng/`, `docs/design/searxng.md`) — SearXNG +
+      Valkey on `searx.${DOMAIN}`, no auth; engine metrics scraped with basic
+      auth from a `cluster-secrets` key
+    - [ ] Measure and tighten SearXNG's and Valkey's limits after a week
+    - [ ] `search.formats: [html, json]` when Ollama or Open WebUI wants the API
 - [ ] Vaultwarden?
 - [ ] Flame
 - [ ] Code Server?

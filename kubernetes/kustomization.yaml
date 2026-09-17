@@ -19,3 +19,4 @@ resources:
   - alloy
   - beyla
   - host-monitoring
+  - searxng

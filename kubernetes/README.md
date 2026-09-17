@@ -35,7 +35,8 @@ install that gets Flux running in the first place.
       exporters and receivers for Proxmox, Pi-hole, TrueNAS and the router
       (`host-monitoring/`, write routes in `monitoring/`) — see
       "Host monitoring"
-- [ ] Workloads
+- [-] Workloads — SearXNG, the first user-facing application (`searxng/`) —
+      see "SearXNG"
 
 ## Layout
 
@@ -161,20 +162,32 @@ kubernetes/
 │       ├── helmrepository.yaml   # https://grafana.github.io/helm-charts
 │       ├── helmrelease.yaml      # chart beyla 1.16.11, values from the ConfigMap
 │       └── values.yaml           # instrument everything but kube-system + collectors; traces OTLP to Tempo, 10% sampled
-└── host-monitoring/
+├── host-monitoring/
+│   ├── kustomization.yaml
+│   ├── ks.yaml                   # Flux Kustomization, dependsOn monitoring + cilium-lb + cluster-secrets, postBuild, sops
+│   └── app/
+│       ├── kustomization.yaml    # namespace host-monitoring; the blackbox/graphite/values/targets generators
+│       ├── namespace.yaml        # host-monitoring; no PodSecurity label (baseline default)
+│       ├── helmrepository.yaml   # https://grafana.github.io/helm-charts
+│       ├── pve-exporter.yaml     # Deployment + Service, multi-target /pve; secret-pve-exporter.sops.yaml holds the token
+│       ├── pihole-exporter.yaml  # Deployment + Service, Pi-hole v6 API; secret-pihole-exporter.sops.yaml holds the password
+│       ├── blackbox-exporter.yaml # Deployment + Service; blackbox/blackbox.yml: tcp_connect, http_2xx, dns_lookup
+│       ├── graphite-exporter.yaml # Deployment + Service + the LoadBalancer "graphite" (TCP 2003)
+│       ├── alloy-gateway/        # HelmRelease + values + the hand-written LoadBalancer "syslog" (UDP/TCP 514)
+│       ├── config/               # gateway.alloy, substitute disabled
+│       └── targets/targets.json  # the substituted probe/poll target list, mounted at /etc/alloy-targets
+└── searxng/
     ├── kustomization.yaml
-    ├── ks.yaml                   # Flux Kustomization, dependsOn monitoring + cilium-lb + cluster-secrets, postBuild, sops
+    ├── ks.yaml                   # Flux Kustomization, dependsOn traefik + traefik-middlewares + cluster-secrets, postBuild, sops
     └── app/
-        ├── kustomization.yaml    # namespace host-monitoring; the blackbox/graphite/values/targets generators
-        ├── namespace.yaml        # host-monitoring; no PodSecurity label (baseline default)
-        ├── helmrepository.yaml   # https://grafana.github.io/helm-charts
-        ├── pve-exporter.yaml     # Deployment + Service, multi-target /pve; secret-pve-exporter.sops.yaml holds the token
-        ├── pihole-exporter.yaml  # Deployment + Service, Pi-hole v6 API; secret-pihole-exporter.sops.yaml holds the password
-        ├── blackbox-exporter.yaml # Deployment + Service; blackbox/blackbox.yml: tcp_connect, http_2xx, dns_lookup
-        ├── graphite-exporter.yaml # Deployment + Service + the LoadBalancer "graphite" (TCP 2003)
-        ├── alloy-gateway/        # HelmRelease + values + the hand-written LoadBalancer "syslog" (UDP/TCP 514)
-        ├── config/               # gateway.alloy, substitute disabled
-        └── targets/targets.json  # the substituted probe/poll target list, mounted at /etc/alloy-targets
+        ├── kustomization.yaml    # namespace searxng
+        ├── namespace.yaml        # searxng; no PodSecurity label (both pods satisfy "restricted")
+        ├── configmap.yaml        # settings.yml: use_default_settings + the substituted open_metrics password
+        ├── secret.sops.yaml      # SEARXNG_SECRET, the cookie-signing key
+        ├── deployment.yaml       # one replica; base URL, limiter and Valkey URL as SEARXNG_* env
+        ├── service.yaml          # searxng:8080, no scrape annotation (the metrics job is in alloy/)
+        ├── valkey.yaml           # Deployment + Service; no persistence, 64 MB, allkeys-lru
+        └── ingressroute.yaml     # Host(searx.<domain>), default-headers only — no auth middleware
 ```
 
 `flux-system/gotk-sync.yaml` declares a `GitRepository` for this repo
@@ -523,6 +536,40 @@ Consequences:
 flux --context homelab get ks host-monitoring
 kubectl --context homelab -n host-monitoring get pods,svc          # two LB Services, one address
 kubectl --context homelab -n host-monitoring logs deploy/alloy-gateway --tail=50
+```
+
+## SearXNG
+
+`searxng/` is a private metasearch instance on `searx.<domain>`, and the
+cluster's first user-facing application: one stateless pod, a Valkey the
+bot-detection limiter needs, and an `IngressRoute` with no auth middleware.
+Rationale: [`docs/design/searxng.md`](../docs/design/searxng.md).
+
+Consequences:
+
+- **No basic auth, deliberately.** A prompt on every keyword query makes a
+  search engine unusable from the URL bar and breaks the OpenSearch
+  registration flow, so the LAN and the tailnet are the boundary. This is the
+  documented exception to the per-service rule under "Traefik".
+- **Most settings are environment variables, not the ConfigMap.** Upstream
+  gives `SEARXNG_*` overrides for the base URL, the limiter and the Valkey
+  URL; `general.open_metrics` is the one key with no override, which is the
+  only reason `settings.yml` exists here.
+- **The metrics scrape is explicit, in `alloy/app/config/config.alloy`.**
+  `/metrics` is behind basic auth, which the `prometheus.io/scrape` path
+  cannot carry, so the pod carries no annotation — do not add one, it would
+  only log 401s.
+- **One credential, two consumers.** `SEARXNG_OPEN_METRICS` in
+  `cluster-secrets` is substituted into the settings file and read at runtime
+  by Alloy through `remote.kubernetes.secret`. Rotating it is one `sops set`
+  and two reconciles.
+- **Nothing to add for DNS or TLS.** The Pi-hole wildcard resolves the name
+  and `TLSStore/default` serves the certificate.
+
+```bash
+flux --context homelab get ks searxng
+kubectl --context homelab -n searxng get pods,svc
+kubectl --context homelab -n searxng exec deploy/valkey -- valkey-cli keys '*'   # limiter is live
 ```
 
 ## Cluster secrets

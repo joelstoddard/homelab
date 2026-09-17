@@ -1,0 +1,15 @@
+# Carries no prometheus.io/scrape annotation for the same reason the pod does
+# not: the metrics endpoint needs credentials the annotation path cannot carry.
+apiVersion: v1
+kind: Service
+metadata:
+  name: searxng
+  labels:
+    app.kubernetes.io/name: searxng
+spec:
+  selector:
+    app.kubernetes.io/name: searxng
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http

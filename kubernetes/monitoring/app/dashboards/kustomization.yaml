@@ -58,3 +58,6 @@ configMapGenerator:
   - name: dashboard-host-logs
     files: [Hosts/host-logs.json]
     options: {annotations: {grafana_folder: Hosts}}
+  - name: dashboard-searxng
+    files: [Services/searxng.json]
+    options: {annotations: {grafana_folder: Services}}

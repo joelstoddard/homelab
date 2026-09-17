@@ -1,0 +1,14 @@
+# Every resource here is namespaced, so a top-level namespace: is safe — unlike
+# cert-manager-issuers, which must set none because kustomize would stamp one
+# onto its cluster-scoped ClusterIssuers.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: searxng
+resources:
+  - namespace.yaml
+  - configmap.yaml
+  - secret.sops.yaml
+  - deployment.yaml
+  - service.yaml
+  - valkey.yaml
+  - ingressroute.yaml
