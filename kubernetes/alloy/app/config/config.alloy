@@ -634,6 +634,71 @@ prometheus.scrape "etcd" {
 	}
 }
 
+// --------------------------------------------------- cluster-wide: SearXNG --
+
+// SearXNG's /metrics needs basic auth, which the annotation-driven scrapes
+// cannot carry — hence an explicit job, reading the same cluster-secrets key
+// the searxng layer substitutes into settings.yml. Reading it at runtime needs
+// no RBAC (the chart grants secrets cluster-wide already) and keeps envsubst
+// away from this file, which has no postBuild on purpose — docs/design/searxng.md.
+remote.kubernetes.secret "cluster_secrets" {
+	namespace = "flux-system"
+	name      = "cluster-secrets"
+}
+
+discovery.kubernetes "searxng" {
+	role = "endpoints"
+
+	namespaces {
+		names = ["searxng"]
+	}
+
+	selectors {
+		role  = "endpoints"
+		field = "metadata.name=searxng"
+	}
+}
+
+discovery.relabel "searxng" {
+	targets = discovery.kubernetes.searxng.targets
+
+	rule {
+		source_labels = ["__meta_kubernetes_namespace"]
+		target_label  = "namespace"
+	}
+
+	rule {
+		source_labels = ["__meta_kubernetes_pod_name"]
+		target_label  = "pod"
+	}
+
+	rule {
+		source_labels = ["__meta_kubernetes_pod_name"]
+		target_label  = "instance"
+	}
+
+	rule {
+		source_labels = ["__meta_kubernetes_pod_node_name"]
+		target_label  = "node"
+	}
+}
+
+prometheus.scrape "searxng" {
+	targets         = discovery.relabel.searxng.output
+	forward_to      = [prometheus.remote_write.prometheus.receiver]
+	job_name        = "searxng"
+	scrape_interval = "60s"
+
+	basic_auth {
+		username = "metrics"
+		password = remote.kubernetes.secret.cluster_secrets.data["SEARXNG_OPEN_METRICS"]
+	}
+
+	clustering {
+		enabled = true
+	}
+}
+
 // -------------------------------------------------- this node: pod logs --
 
 discovery.kubernetes "pods_local" {
