@@ -1,7 +1,7 @@
 # TODO
 
 ## Structure
-- [ ] Move top level scripts to `scripts/`
+
 - [x] Write `docs/`
 
 ## Ansible
@@ -14,6 +14,7 @@
 - [x] Configure Cluster
 - [ ] Configure Networks
 - [ ] Configure Volumes
+    - [ ] Voyager
 - [x] Configure Cloud-init template
 - [-] Configure LXCs
     - [x] Pi-hole
@@ -63,6 +64,7 @@
           disk again. Adjacent minor, so the VMs can go in place: `talosctl
           upgrade` + `upgrade-k8s` — the `playbooks/upgrade.yaml` placeholder
 - [x] Bootstrap Flux (kubernetes/ GitOps layer, SOPS-at-runtime)
+- [x] Rename the context from admin@homelab to just homelab
 
 ## Post-cluster (deferred — get the cluster up first)
 - [x] Cilium CNI, kube-proxy-free (`talos` role seeds, Flux owns —
@@ -72,6 +74,10 @@
 - [x] Tailscale subnet router + exit node as a Deployment (`kubernetes/tailscale/`,
       policy in a private repo — `docs/design/tailscale-router.md`)
     - [ ] Benchmark and tighten the router's resource limits
+    - [ ] Descheduler (`RemovePodsHavingTooManyRestarts`) as a Flux layer: k8s never
+          moves a CrashLoopBackOff pod off a node that still reports Ready — the
+          router sat broken ~15 min on a power-cut VM whose runtime could no longer
+          exec fresh images (fixed with a Talos EPHEMERAL wipe)
     - [x] Scrape `:9002/metrics` (alloy layer, pod annotations)
     - [ ] Un-encrypt bare `10.0.0.0/20` mentions repo-wide (host addresses/ranges stay encrypted)
 - [x] Ingress + TLS — Traefik on a pinned LB IP, one cert-manager wildcard
@@ -188,6 +194,57 @@
     - [ ] Vendor the Alloy mixin dashboards (alloy-resources, alloy-controller) once compiled JSON is obtainable without jsonnet
 - [ ] Renovate for automated version-bump PRs
 - [ ] Pin all tool versions (talosctl/kubectl/talhelper/flux) — likely nix flakes
+- [ ] Enroll Skylab as part of the cluster
 
 ## OpenTofu
 - [x] Bootstrap Tofu
+
+## Deployments
+- [ ] Actual
+- [ ] Ollama
+- [x] Cert Manager
+- [ ] Minio?
+- [x] Tailscale Subnet Router (`kubernetes/tailscale/`)
+- [ ] Pterodactyl
+### DNS/DHCP
+- [ ] LANCache
+- [-] Pihole
+- [ ] Bind9
+- [ ] Netboot.xyz
+### Monitoring
+- [x] Prometheus
+- [x] Grafana
+- [x] Loki
+- [x] Alloy
+- [x] Beyla
+- [ ] Uptime Kuma
+- [ ] NUT Server
+
+### Home Automation
+- [ ] Home Assistant
+- [ ] Shlink
+- [ ] Searx
+- [ ] Vaultwarden?
+- [ ] Flame
+- [ ] Code Server?
+- [ ] Guacamole
+- [x] Traefik
+- [x] Longhorn
+- [ ] Transmission
+- [ ] Arr Stack
+    - [ ] Prowlarr
+    - [ ] Overseerr
+    - [ ] Sonarr
+    - [ ] Radarr
+    - [ ] Lidarr
+- [ ] YouTube-DL
+- [ ] Discord Bot
+- [ ] TeslaMate
+- [ ] Kanidm
+- [-] NetBox
+- [ ] Bind9
+- [-] PiHole
+- [ ] Cloudflare DDNS
+- [ ] GitHub Actions Runner
+- [ ] Jellyfin
+- [ ] Rennovate
