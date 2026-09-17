@@ -33,3 +33,4 @@ the sidecar watches every namespace.
 | Hosts/blackbox.json | Hosts | grafana.com/grafana/dashboards/7587 | 3 | datasource UIDs pinned |
 | Hosts/host-logs.json | Hosts | hand-written | — | — |
 | Services/searxng.json | Services | hand-written | — | — |
+| Services/tailscale.json | Services | hand-written | — | tailscaled's built-in metrics only; the traffic counters read zero until a peer actually sends. kube-state-metrics series are matched on `exported_namespace`, not `namespace` |

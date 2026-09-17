@@ -61,3 +61,6 @@ configMapGenerator:
   - name: dashboard-searxng
     files: [Services/searxng.json]
     options: {annotations: {grafana_folder: Services}}
+  - name: dashboard-tailscale
+    files: [Services/tailscale.json]
+    options: {annotations: {grafana_folder: Services}}
