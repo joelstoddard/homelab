@@ -1,10 +1,8 @@
 # Limiter backend; state is disposable, so an emptyDir and no persistence — a
 # restart costs nothing but a cleared rate-limit window.
 #
-# The uid is pinned because the upstream image sets no USER: started as root it
-# chowns /data and drops to valkey via setpriv, while running as 999 directly
-# takes the branch that only warns when the working directory is unwritable —
-# which fsGroup 1000 (the image's valkey group) makes sure it is not.
+# The uid and fsGroup are pinned because the image sets no USER and starts as
+# root. See docs/design/searxng.md, "Traps".
 apiVersion: apps/v1
 kind: Deployment
 metadata:

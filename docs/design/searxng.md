@@ -118,6 +118,15 @@ cannot quietly break the metrics.
 manifest. `openssl rand -hex` has no `$` in its alphabet. The same rule is why
 the ingest htpasswd hash must be bcrypt rather than `$apr1$`.
 
+**Valkey's uid is pinned, and that is not cosmetic.** The upstream image
+declares no `USER`. Started as root, its entrypoint chowns `/data` and drops to
+`valkey` through `setpriv`; that path is closed here, because the pod must
+satisfy PodSecurity `restricted`. Running as 999 directly takes the
+entrypoint's other branch, which warns if the working directory is unwritable —
+so `fsGroup: 1000`, the image's `valkey` group, makes the `emptyDir`
+group-writable. Drop the `fsGroup` and Valkey still runs, with a warning in
+every restart's logs.
+
 **`WARNING: /etc/searxng is not owned by searxng:searxng` at every boot is
 expected.** The image entrypoint chowns its config directory, which is a
 read-only ConfigMap mount here. The script runs under `set -u`, not `set -e`,
