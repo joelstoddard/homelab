@@ -73,8 +73,14 @@ second person uses the instance, unnecessary for one operator.
 SearXNG exposes real OpenMetrics at `/metrics`: six families
 (`searxng_engines_response_time_{total,processing,http}_seconds`,
 `searxng_engines_{result,request}_count_total`,
-`searxng_engines_reliability_total`), every one labelled `engine_name`. About
-540 series, and exactly the per-engine view the Problem section asks for.
+`searxng_engines_reliability_total`), every one labelled `engine_name` — exactly
+the per-engine view the Problem section asks for.
+
+The series count is much smaller than the engine count suggests: the exporter
+skips any data point whose value is zero, so only engines that have actually
+answered a search appear. Six families across five active engines measured 26
+series on the live instance, against a worst case near 540 if every default
+engine were exercised.
 
 It is gated on `general.open_metrics` being a non-empty string, checked as an
 HTTP basic-auth password (the username is ignored). This cluster scrapes
@@ -117,6 +123,34 @@ cannot quietly break the metrics.
 `$` inside a decrypted value would be eaten by envsubst on its way into the
 manifest. `openssl rand -hex` has no `$` in its alphabet. The same rule is why
 the ingest htpasswd hash must be bcrypt rather than `$apr1$`.
+
+**`limiter.toml` exists to name the pod CIDR as a trusted proxy, or rate
+limiting is instance-wide rather than per client.** Upstream's packaged
+defaults trust `X-Forwarded-For` from `127.0.0.0/8` and `::1` alone, and the
+`ProxyFix` middleware discards the header outright when the peer address is
+not in that list:
+
+```python
+if not self.is_trusted_proxy(orig_remote_ip, trusted_proxies):
+    x_forwarded_for = []
+    x_real_ip = None
+```
+
+Traefik reaches SearXNG from a pod address in `10.244.0.0/16`, so without this
+file every request is attributed to Traefik's own pod IP and the whole instance
+shares one `ip_limit` bucket. Searching still works — one client rarely fills
+it — but a single busy client would rate-limit everyone, which is not what
+turning the limiter on was meant to buy. The trade is that any pod in the
+cluster could forge the header; only Traefik can reach the Service, and this is
+a single-tenant lab.
+
+Two things to know before re-testing this. First, `curl` cannot confirm it:
+`http_sec_fetch` rejects any request whose User-Agent claims a modern browser
+while carrying no `Sec-Fetch-*` headers, so a bare `-A 'Mozilla/...'` gets a
+429 by design — that is the limiter working, not this bug. Second, the Valkey
+`SearXNG_counter_*` keys do **not** identify clients: two searches from one
+client create two keys, so counting them proves nothing either way. The source
+above is the evidence.
 
 **Valkey's uid is pinned, and that is not cosmetic.** The upstream image
 declares no `USER`. Started as root, its entrypoint chowns `/data` and drops to

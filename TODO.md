@@ -228,6 +228,13 @@
       auth from a `cluster-secrets` key
     - [ ] Measure and tighten SearXNG's and Valkey's limits after a week
     - [ ] `search.formats: [html, json]` when Ollama or Open WebUI wants the API
+    - [ ] Blackbox probe of `https://searx.${DOMAIN}/` — deliberately NOT added
+          on 2026-09-17: the cluster cannot resolve the wildcard (CoreDNS
+          forwards to the nodes' DHCP resolvers), so the probe would be
+          permanently red. Blocked on the "hand out Pi-hole as the ONLY
+          resolver over DHCP" item above; add it when that lands
+    - [ ] Two engines fail to register at every boot (`ahmia`, `torch` — Tor
+          engines with no proxy configured), two ERROR lines a restart
 - [ ] Vaultwarden?
 - [ ] Flame
 - [ ] Code Server?
