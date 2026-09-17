@@ -1,0 +1,31 @@
+# SearXNG, the cluster's first user-facing application — docs/design/searxng.md.
+#
+# dependsOn traefik AND traefik-middlewares for the same reason lan-services
+# does: the route references the default-headers Middleware, and Traefik refuses
+# a router whose middleware is missing. dependsOn cluster-secrets for ${DOMAIN}
+# and ${SEARXNG_OPEN_METRICS}, which postBuild substitutes after decryption —
+# which is why the metrics password must be free of $ characters.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: searxng
+  namespace: flux-system
+spec:
+  interval: 10m0s
+  path: ./kubernetes/searxng/app
+  prune: true
+  dependsOn:
+    - name: traefik
+    - name: traefik-middlewares
+    - name: cluster-secrets
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+  decryption:
+    provider: sops
+    secretRef:
+      name: sops-age
+  postBuild:
+    substituteFrom:
+      - kind: Secret
+        name: cluster-secrets

@@ -1,0 +1,8 @@
+# No PodSecurity labels: both workloads here satisfy the "restricted" profile
+# (non-root, no privilege escalation, all capabilities dropped, RuntimeDefault
+# seccomp), so Talos's default "baseline" enforcement passes without an opt-out.
+# The tailscale namespace needs one; this does not.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: searxng
