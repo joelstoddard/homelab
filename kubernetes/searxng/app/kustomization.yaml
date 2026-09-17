@@ -1,14 +1,23 @@
 # Every resource here is namespaced, so a top-level namespace: is safe — unlike
 # cert-manager-issuers, which must set none because kustomize would stamp one
 # onto its cluster-scoped ClusterIssuers.
+#
+# The settings are a generator WITHOUT disableNameSuffixHash, unlike the
+# dashboards and the Alloy config: SearXNG reads both files once at startup, so
+# the content hash in the name is what makes an edit roll the pod rather than
+# land on disk and do nothing.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 namespace: searxng
 resources:
   - namespace.yaml
-  - configmap.yaml
   - secret.sops.yaml
   - deployment.yaml
   - service.yaml
   - valkey.yaml
   - ingressroute.yaml
+configMapGenerator:
+  - name: searxng-settings
+    files:
+      - config/settings.yml
+      - config/limiter.toml

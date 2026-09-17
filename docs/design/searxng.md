@@ -170,11 +170,22 @@ line is worth.
 
 ## Changing it
 
-- **A setting:** edit the ConfigMap or, more often, the Deployment's env; Flux
-  rolls the pod.
+- **A setting:** edit `app/config/settings.yml` or `app/config/limiter.toml`,
+  or more often the Deployment's env; Flux rolls the pod either way.
 - **The engine set, for one browser:** `/preferences` on the instance. For
-  every client: the ConfigMap.
+  every client: `app/config/settings.yml`.
 - **The image:** the tag is pinned to a date-SHA because upstream ships several
   images a day. Bump it deliberately.
 - **Exposing the JSON API** (`search.formats`), for Open WebUI or similar: one
-  line in the ConfigMap. It is off because nothing consumes it yet.
+  line in `app/config/settings.yml`. It is off because nothing consumes it yet.
+
+**Why the settings are a `configMapGenerator` and the dashboards are not.**
+SearXNG reads both config files once, at startup. A plain ConfigMap keeps its
+name when its content changes, so nothing in the Deployment's pod spec
+changes, so no rollout happens and the edit sits on disk doing nothing — which
+is exactly what happened when `limiter.toml` was first added on 2026-09-17: the
+file appeared in the pod within a minute and the running process ignored it for
+three hours. The generator's content hash in the ConfigMap name is what makes
+an edit a rollout. The dashboards and the Alloy config set
+`disableNameSuffixHash: true` for the opposite reason: a sidecar and a chart
+look those up by a fixed name, and both reload without a restart.
