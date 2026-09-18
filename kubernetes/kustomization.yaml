@@ -23,3 +23,4 @@ resources:
   - searxng
   - jellyfin
   - glance
+  - home-assistant

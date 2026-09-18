@@ -1,0 +1,30 @@
+# Home Assistant — docs/design/home-assistant.md.
+#
+# dependsOn traefik AND traefik-middlewares for the reason searxng and glance
+# do: the route names the default-headers Middleware and Traefik refuses a
+# router whose middleware is missing. longhorn for the config claim's default
+# StorageClass, cluster-secrets for ${DOMAIN} and ${HOME_ASSISTANT_LB_IP}.
+#
+# No decryption block: this layer carries no *.sops.yaml, like glance. The one
+# secret it needs is a cluster-secrets key, decrypted in that layer.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: home-assistant
+  namespace: flux-system
+spec:
+  interval: 10m0s
+  path: ./kubernetes/home-assistant/app
+  prune: true
+  dependsOn:
+    - name: traefik
+    - name: traefik-middlewares
+    - name: longhorn
+    - name: cluster-secrets
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+  postBuild:
+    substituteFrom:
+      - kind: Secret
+        name: cluster-secrets

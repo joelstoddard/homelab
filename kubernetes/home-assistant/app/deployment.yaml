@@ -1,0 +1,134 @@
+# One replica, strategy Recreate: Home Assistant is single-writer in two
+# independent places, and a RollingUpdate would deadlock on the ReadWriteOnce
+# claim. See docs/design/home-assistant.md.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: home-assistant
+  labels:
+    app.kubernetes.io/name: home-assistant
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: home-assistant
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: home-assistant
+      # Deliberately no prometheus.io/scrape: the metrics endpoint needs a
+      # long-lived token minted from the web interface, which the annotation
+      # path cannot carry. Beyla reports RED metrics meanwhile.
+    spec:
+      # The only way multicast reaches the LAN, and the only network mode
+      # upstream supports for the container install.
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+      # The recorder database is a steady writer and the Pis boot from slow
+      # USB, so this follows Jellyfin, Loki and Tempo. The image is multi-arch,
+      # so the pin is a placement choice and not a constraint.
+      nodeSelector:
+        kubernetes.io/arch: amd64
+      # 30s replaces the 300s the admission controller would inject, the same
+      # trade the tailscale router makes. See docs/design/tailscale-router.md.
+      tolerations:
+        - key: node.kubernetes.io/not-ready
+          operator: Exists
+          effect: NoExecute
+          tolerationSeconds: 30
+        - key: node.kubernetes.io/unreachable
+          operator: Exists
+          effect: NoExecute
+          tolerationSeconds: 30
+      initContainers:
+        # Supplying configuration.yaml stops Home Assistant writing its own
+        # defaults, and a missing !include target is a hard startup failure, so
+        # without this the first boot never completes. Written without a single
+        # dollar sign: shell variables in a substituted layer are eaten.
+        - name: seed-includes
+          image: busybox:1.37.0
+          command:
+            - sh
+            - -c
+            - |
+              [ -f /config/automations.yaml ] || echo "[]" > /config/automations.yaml
+              [ -f /config/scripts.yaml ] || echo "{}" > /config/scripts.yaml
+              [ -f /config/scenes.yaml ] || echo "[]" > /config/scenes.yaml
+          volumeMounts:
+            - name: config
+              mountPath: /config
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+      containers:
+        - name: home-assistant
+          image: ghcr.io/home-assistant/home-assistant:2026.9.3
+          ports:
+            - name: http
+              containerPort: 8123
+          securityContext:
+            # Runs as root, which upstream requires, and keeps the runtime's
+            # default capability set. drop: [ALL] breaks first boot: the image
+            # is supervised by s6-overlay, which needs CHOWN, SETUID, SETGID
+            # and DAC_OVERRIDE during init, and the DHCP discovery integration
+            # opens a raw socket needing NET_RAW.
+            allowPrivilegeEscalation: false
+          # Every timeoutSeconds here is explicit because the default is 1 s.
+          # Home Assistant runs a single asyncio event loop, so a recorder
+          # write blocking on the replicated Longhorn volume stalls every
+          # other request, this probe included (docs/design/home-assistant.md).
+          #
+          # First boot builds the database and can take minutes, so the startup
+          # probe holds liveness off. /manifest.json is served unauthenticated
+          # and does not redirect, unlike /.
+          startupProbe:
+            httpGet:
+              path: /manifest.json
+              port: http
+            periodSeconds: 10
+            failureThreshold: 30
+            timeoutSeconds: 5
+          readinessProbe:
+            httpGet:
+              path: /manifest.json
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /manifest.json
+              port: http
+            periodSeconds: 30
+            failureThreshold: 3
+            timeoutSeconds: 10
+          volumeMounts:
+            - name: config
+              mountPath: /config
+            # Mounted over the claim, read-only. Kustomize's content hash in
+            # the ConfigMap name is what rolls the pod on an edit: a subPath
+            # mount never updates in place.
+            - name: configuration
+              mountPath: /config/configuration.yaml
+              subPath: configuration.yaml
+              readOnly: true
+          resources:
+            # Requests, not just limits: Talos's OOM controller kills the
+            # besteffort cgroup first, and that is how a memory spike took out
+            # a node's storage transport once already.
+            requests:
+              cpu: 200m
+              memory: 768Mi
+            # TODO: measure a week of real use and cap just above the peak.
+            limits:
+              cpu: "2"
+              memory: 2Gi
+      volumes:
+        - name: config
+          persistentVolumeClaim:
+            claimName: home-assistant-config
+        - name: configuration
+          configMap:
+            name: home-assistant-configuration

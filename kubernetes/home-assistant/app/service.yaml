@@ -1,0 +1,24 @@
+# One Service doing two jobs: Traefik routes to it by name and uses its
+# endpoints, and the LAN reaches the pinned address directly. With hostNetwork
+# the endpoint resolves to the node's own address and port.
+#
+# externalTrafficPolicy Cluster, not Local: Cilium announces a Service address
+# from every node matching the L2 policy, and a node without a local endpoint
+# drops what it receives. No sharing key — this address is not shared.
+apiVersion: v1
+kind: Service
+metadata:
+  name: home-assistant
+  labels:
+    app.kubernetes.io/name: home-assistant
+  annotations:
+    lbipam.cilium.io/ips: "${HOME_ASSISTANT_LB_IP}"
+spec:
+  type: LoadBalancer
+  externalTrafficPolicy: Cluster
+  selector:
+    app.kubernetes.io/name: home-assistant
+  ports:
+    - name: http
+      port: 8123
+      targetPort: http
