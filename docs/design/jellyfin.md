@@ -134,10 +134,33 @@ with `runAsNonRoot: true`.
 
 ## Metrics
 
-None are scraped. Jellyfin serves no Prometheus endpoint without a plugin, and
-Beyla already reports RED metrics and sampled traces for every containerised
-service outside `kube-system`. Do not add `prometheus.io/scrape` — it would only
-log 404s.
+**The Jellyfin pod itself carries no `prometheus.io/scrape` annotation**, and
+must not: it serves no Prometheus endpoint, so a scrape would only log 404s.
+Its request rates and latencies come from Beyla, which instruments every
+containerised service outside `kube-system` without being asked.
+
+Jellyfin's own `EnableMetrics` setting stays `false`. It exposes .NET runtime
+and Kestrel counters through `prometheus-net` and nothing about playback, so it
+would add an endpoint without adding an answer.
+
+Playback data comes from `jellyfin-exporter`, a second Deployment in this layer
+polling Jellyfin's REST API. That endpoint *is* unauthenticated, so the exporter
+pod carries the annotation and Alloy discovers it the ordinary way — unlike
+SearXNG, whose credentialed endpoint needs an explicit scrape block.
+
+Two details are easy to get wrong:
+
+- **Only `media`, `playing`, `system` and `users` collectors run by default.**
+  The stream and transcode detail lives in `transcoding`, which must be enabled
+  explicitly. `tasks` is enabled too, for library-scan visibility.
+- **`jellyfin_up` disappears when authentication fails**, rather than reporting
+  zero, so a panel keyed on it reads "No data" for both a broken token and a
+  missing exporter. `jellyfin_scrape_collector_success` is always present and is
+  what the dashboard's health panel uses.
+
+The exporter needs an API key from Jellyfin's Dashboard → API Keys, held in
+`app/secret-exporter.sops.yaml`. It is the only secret in this layer, and the
+reason the Flux `Kustomization` carries a `decryption` block.
 
 ## Traps
 

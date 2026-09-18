@@ -604,8 +604,14 @@ Consequences:
 - **No basic auth.** Jellyfin has its own login, and a browser prompt breaks
   every native client. This is the second documented exception to the
   per-service rule under "Traefik".
-- **No metrics annotation.** Jellyfin serves no Prometheus endpoint without a
-  plugin; Beyla already reports its RED metrics. Adding one logs 404s.
+- **The Jellyfin pod carries no metrics annotation; the exporter does.**
+  Jellyfin serves no Prometheus endpoint, so annotating it would only log 404s —
+  Beyla covers its RED metrics. Playback and transcode data come from
+  `jellyfin-exporter`, which polls the REST API and is scraped normally.
+- **The exporter's useful collectors are off by default.** Only `media`,
+  `playing`, `system` and `users` run unless enabled; `transcoding` carries the
+  stream detail. `jellyfin_up` vanishes rather than reading zero when the API
+  token is wrong, so health is keyed on `jellyfin_scrape_collector_success`.
 - **Nothing to add for DNS or TLS.** The Pi-hole wildcard resolves the name and
   `TLSStore/default` serves the certificate.
 
