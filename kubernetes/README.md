@@ -132,6 +132,12 @@ kubernetes/
 │       ├── helmrepository.yaml   # https://charts.longhorn.io
 │       ├── helmrelease.yaml      # chart longhorn 1.12.1, values from the ConfigMap
 │       └── values.yaml           # 3 replicas, hard zone anti-affinity, default class
+├── longhorn-jobs/
+│   ├── kustomization.yaml
+│   ├── ks.yaml                   # Flux Kustomization "longhorn-jobs", dependsOn longhorn
+│   └── app/
+│       ├── kustomization.yaml    # namespace longhorn-system
+│       └── recurringjob-trim.yaml # RecurringJob; the CRD ships in the chart, so it cannot share longhorn's pass
 ├── monitoring/
 │   ├── kustomization.yaml
 │   ├── ks.yaml                   # Flux Kustomization "monitoring", dependsOn cilium + longhorn + cluster-secrets + traefik-middlewares, wait
@@ -191,6 +197,20 @@ kubernetes/
         ├── service.yaml          # searxng:8080, no scrape annotation (the metrics job is in alloy/)
         ├── valkey.yaml           # Deployment + Service; no persistence, 64 MB, allkeys-lru
         └── ingressroute.yaml     # Host(searx.<domain>), default-headers only — no auth middleware
+├── jellyfin/
+│   ├── kustomization.yaml
+│   ├── ks.yaml                   # Flux Kustomization, dependsOn traefik + traefik-middlewares + longhorn + cluster-secrets, postBuild, sops
+│   └── app/
+│       ├── kustomization.yaml    # namespace jellyfin
+│       ├── namespace.yaml        # jellyfin
+│       ├── pv.yaml               # static NFS PersistentVolume, media library from voyager, read-only, Retain
+│       ├── pvc-media.yaml        # binds the static PV
+│       ├── pvc-config.yaml       # 10Gi Longhorn claim; must survive a reschedule
+│       ├── deployment.yaml       # one replica; /cache is an emptyDir — transcodes are regenerable
+│       ├── exporter.yaml         # jellyfin-exporter, polls the REST API, scraped normally
+│       ├── secret-exporter.sops.yaml # the exporter's API token
+│       ├── service.yaml          # jellyfin:8096
+│       └── ingressroute.yaml     # Host(jellyfin.<domain>), default-headers
 ├── glance/
 │   ├── kustomization.yaml
 │   ├── ks.yaml                   # Flux Kustomization, dependsOn traefik + traefik-middlewares + cluster-secrets, postBuild, NO sops
@@ -871,10 +891,10 @@ Two things about this pair are load-bearing:
   instead. Any future cluster-scoped CR needs the same care — check the
   `kubectl kustomize` output, not just the apply.
 
-The wildcard `Certificate` deliberately references **staging**: Let's Encrypt
-allows 5 duplicate certificates per week and a wildcard is easy to burn
-through while debugging DNS-01. Flipping to production is a one-line change
-to `traefik/app/certificate.yaml`, gated on the staging chain verifying live.
+The wildcard `Certificate` is on **production**. It started on staging — Let's
+Encrypt allows 5 duplicate certificates per week and a wildcard is easy to burn
+through while debugging DNS-01 — and moved once that chain verified end to end.
+Flipping back is the same one-line change to `traefik/app/certificate.yaml`.
 Rationale, the CAA and token preflight, and the recovery path:
 [`docs/design/ingress-tls.md`](../docs/design/ingress-tls.md).
 
