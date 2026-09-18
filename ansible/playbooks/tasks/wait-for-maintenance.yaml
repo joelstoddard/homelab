@@ -1,0 +1,71 @@
+---
+# Wait for a set of nodes to reboot into Talos maintenance mode, and resolve
+# where each one landed. Imported by pi-cutover.yaml and reset.yaml.
+#
+# In:  maintenance_group   — inventory group holding the pending nodes
+#      maintenance_timeout — seconds to allow for the netboot (default 420:
+#                            firmware timeout + TFTP + HTTP + boot)
+# Out: maintenance_ips     — dict of inventory hostname → live address
+#
+# A netbooted node holds a transient DHCP lease, so it is found by MAC (ARP)
+# rather than at its old address.
+
+- name: Wait for each target to go down (stops answering ping).
+  ansible.builtin.command:
+    cmd: "ping -c 1 -W 2 {{ hostvars[item].ansible_host }}"
+  register: maintenance_down
+  changed_when: false
+  failed_when: false
+  check_mode: false
+  retries: 30
+  delay: 5
+  until: maintenance_down.rc != 0
+  loop: "{{ groups[maintenance_group] | default([]) }}"
+  when: not ansible_check_mode
+
+# A fire-and-forget reboot leaves the old system answering ARP at its old
+# address until the kernel actually restarts, and sshd stopping is NOT that
+# moment — both were tried, and both resolved the MAC to the old lease and
+# probed the wrong host. Only ICMP going dark is: after that the MAC is off
+# the wire until the netbooted system brings it up on a fresh lease.
+- name: Wait for each target's MAC to appear on the LAN.
+  ansible.builtin.command:
+    cmd: arp-scan --localnet --retry=2
+  become: true
+  register: maintenance_arp
+  changed_when: false
+  check_mode: false
+  retries: "{{ ((maintenance_timeout | default(420)) / 10) | int }}"
+  delay: 10
+  until: >-
+    groups[maintenance_group] | default([])
+    | map('extract', hostvars, 'mac_address') | map('lower')
+    | reject('in', maintenance_arp.stdout | lower)
+    | list | length == 0
+  when: not ansible_check_mode
+
+- name: Resolve each target's maintenance IP (NetBox MAC → live lease).
+  ansible.builtin.set_fact:
+    maintenance_ips: >-
+      {{ maintenance_ips | default({})
+         | combine({item: (maintenance_arp.stdout_lines
+                           | select('search', hostvars[item].mac_address | lower)
+                           | map('split') | map('first') | list | first)}) }}
+  loop: "{{ groups[maintenance_group] | default([]) }}"
+  when: not ansible_check_mode
+
+# A u-boot wget occasionally fails and `reset` retries the whole netboot
+# (~60 s), so allow for one retry on top of the normal ~80 s.
+- name: Wait for the Talos API (maintenance mode) on each target.
+  ansible.builtin.wait_for:
+    host: "{{ maintenance_ips[item] }}"
+    port: 50000
+    timeout: 300
+  loop: "{{ groups[maintenance_group] | default([]) }}"
+  when: not ansible_check_mode
+
+- name: Report where each target is waiting.
+  ansible.builtin.debug:
+    msg: "{{ item }} in maintenance at {{ maintenance_ips[item] }} (MAC {{ hostvars[item].mac_address }})"
+  loop: "{{ groups[maintenance_group] | default([]) }}"
+  when: not ansible_check_mode

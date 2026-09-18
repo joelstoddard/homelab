@@ -85,62 +85,10 @@
   connection: local
   gather_facts: false
   vars:
-    reset_maintenance_timeout: 420   # Pi: firmware timeout + TFTP + HTTP + boot
+    maintenance_group: reset_pending
   tasks:
-    # The node keeps answering at its static address until the kernel
-    # actually restarts; only ICMP going dark marks the reboot.
-    - name: Wait for each target to go down (stops answering ping).
-      ansible.builtin.command:
-        cmd: "ping -c 1 -W 2 {{ hostvars[item].ansible_host }}"
-      register: reset_down
-      changed_when: false
-      failed_when: false
-      check_mode: false
-      retries: 30
-      delay: 5
-      until: reset_down.rc != 0
-      loop: "{{ groups['reset_pending'] }}"
-      when: not ansible_check_mode
-
-    - name: Wait for each target's MAC to appear on the LAN.
-      ansible.builtin.command:
-        cmd: arp-scan --localnet --retry=2
-      become: true
-      register: reset_arp
-      changed_when: false
-      check_mode: false
-      retries: "{{ (reset_maintenance_timeout / 10) | int }}"
-      delay: 10
-      until: >-
-        groups['reset_pending']
-        | map('extract', hostvars, 'mac_address') | map('lower')
-        | reject('in', reset_arp.stdout | lower)
-        | list | length == 0
-      when: not ansible_check_mode
-
-    - name: Resolve each target's maintenance IP (NetBox MAC → live lease).
-      ansible.builtin.set_fact:
-        reset_maintenance_ips: >-
-          {{ reset_maintenance_ips | default({})
-             | combine({item: (reset_arp.stdout_lines
-                               | select('search', hostvars[item].mac_address | lower)
-                               | map('split') | map('first') | list | first)}) }}
-      loop: "{{ groups['reset_pending'] }}"
-      when: not ansible_check_mode
-
-    - name: Wait for the Talos API (maintenance mode) on each target.
-      ansible.builtin.wait_for:
-        host: "{{ reset_maintenance_ips[item] }}"
-        port: 50000
-        timeout: 300
-      loop: "{{ groups['reset_pending'] }}"
-      when: not ansible_check_mode
-
-    - name: Report where each target is waiting.
-      ansible.builtin.debug:
-        msg: "{{ item }} in maintenance at {{ reset_maintenance_ips[item] }} (MAC {{ hostvars[item].mac_address }})"
-      loop: "{{ groups['reset_pending'] }}"
-      when: not ansible_check_mode
+    - name: Wait for maintenance mode and resolve each address.
+      ansible.builtin.import_tasks: tasks/wait-for-maintenance.yaml
 
 # Return the gate to its steady state BEFORE reinstalling: with an empty
 # steady state the post-install reboot falls through to disk instead of

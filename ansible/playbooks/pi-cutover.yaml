@@ -110,67 +110,10 @@
   connection: local
   gather_facts: false
   vars:
-    pi_cutover_maintenance_timeout: 420   # firmware timeout + TFTP + HTTP + boot
+    maintenance_group: pi_cutover_pending
   tasks:
-    # The reboot is fire-and-forget, so the old OS keeps answering ARP at its
-    # old address until the kernel actually restarts — sshd stopping is NOT
-    # that moment (both were tried; both resolved the MAC to the old lease and
-    # probed the wrong host). Only ICMP going dark is: after that the MAC is
-    # off the wire until the netbooted system brings it up on a fresh lease.
-    - name: Wait for each target's old OS to go down (stops answering ping).
-      ansible.builtin.command:
-        cmd: "ping -c 1 -W 2 {{ hostvars[item].ansible_host }}"
-      register: cutover_old_down
-      changed_when: false
-      failed_when: false
-      check_mode: false
-      retries: 30
-      delay: 5
-      until: cutover_old_down.rc != 0
-      loop: "{{ groups['pi_cutover_pending'] | default([]) }}"
-      when: not ansible_check_mode
-
-    - name: Wait for each target's MAC to appear on the LAN.
-      ansible.builtin.command:
-        cmd: arp-scan --localnet --retry=2
-      become: true
-      register: cutover_arp
-      changed_when: false
-      check_mode: false
-      retries: "{{ (pi_cutover_maintenance_timeout / 10) | int }}"
-      delay: 10
-      until: >-
-        groups['pi_cutover_pending'] | default([])
-        | map('extract', hostvars, 'mac_address') | map('lower')
-        | reject('in', cutover_arp.stdout | lower)
-        | list | length == 0
-      when: not ansible_check_mode
-
-    - name: Resolve each target's maintenance IP (NetBox MAC → live lease).
-      ansible.builtin.set_fact:
-        cutover_maintenance_ips: >-
-          {{ cutover_maintenance_ips | default({})
-             | combine({item: (cutover_arp.stdout_lines
-                               | select('search', hostvars[item].mac_address | lower)
-                               | map('split') | map('first') | list | first)}) }}
-      loop: "{{ groups['pi_cutover_pending'] | default([]) }}"
-      when: not ansible_check_mode
-
-    # A u-boot wget occasionally fails and `reset` retries the whole netboot
-    # (~60 s), so allow for one retry on top of the normal ~80 s.
-    - name: Wait for the Talos API (maintenance mode) on each target.
-      ansible.builtin.wait_for:
-        host: "{{ cutover_maintenance_ips[item] }}"
-        port: 50000
-        timeout: 300
-      loop: "{{ groups['pi_cutover_pending'] | default([]) }}"
-      when: not ansible_check_mode
-
-    - name: Report where each target is waiting.
-      ansible.builtin.debug:
-        msg: "{{ item }} in maintenance at {{ cutover_maintenance_ips[item] }} (MAC {{ hostvars[item].mac_address }})"
-      loop: "{{ groups['pi_cutover_pending'] | default([]) }}"
-      when: not ansible_check_mode
+    - name: Wait for maintenance mode and resolve each address.
+      ansible.builtin.import_tasks: tasks/wait-for-maintenance.yaml
 
 # Return the gate to its steady state BEFORE installing: with an empty steady
 # state the post-install reboot falls through to disk instead of netbooting
