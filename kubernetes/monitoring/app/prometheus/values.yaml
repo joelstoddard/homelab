@@ -14,7 +14,7 @@ server:
   # RWO Longhorn volume: the old pod must release it before the new one mounts.
   strategy:
     type: Recreate
-  # WAL replay after a restart takes minutes at ~380k series and answers no
+  # WAL replay after a restart takes minutes at 690k series and answers no
   # probe meanwhile; without this the liveness probe killed Prometheus at 75 s
   # and it never came back. 90 x 10 s = 15 min before liveness takes over.
   startupProbe:
@@ -22,19 +22,30 @@ server:
     periodSeconds: 10
     failureThreshold: 90
     timeoutSeconds: 10
+  # The startup probe only guards until it first succeeds. After that, Alloy
+  # flushing a backlog blocks the HTTP handler for minutes, and the stock
+  # 3 x 15 s liveness killed Prometheus mid-catch-up on 2026-09-18.
+  livenessProbePeriodSeconds: 30
+  livenessProbeTimeout: 15
+  livenessProbeFailureThreshold: 15
   # Longhorn from a VM is ~2x the IOPS of a Pi; the TSDB write path notices.
   nodeSelector:
     kubernetes.io/arch: amd64
   podAnnotations:
     prometheus.io/scrape: "true"
     prometheus.io/port: "9090"
+  # Sized against 690k active series, measured 2026-09-18. Requests are honest
+  # rather than minimal: the scheduler places on them, and a 1Gi request put a
+  # 1.8 GiB process onto nodes that could not hold it.
   resources:
     requests:
-      cpu: 500m
-      memory: 1Gi
-    limits:
       cpu: "1"
       memory: 2Gi
+    # Replay peaks above steady state, so 2Gi OOM-killed it mid-replay and it
+    # never finished; 1 CPU throttled it below answering a trivial query.
+    limits:
+      cpu: "2"
+      memory: 3Gi
 # The chart's default jobs are a map, so each must be switched off by name.
 scrapeConfigs:
   prometheus:
