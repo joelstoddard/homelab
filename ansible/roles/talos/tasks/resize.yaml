@@ -56,10 +56,15 @@
 
     # talosctl returns once Talos has halted; QEMU takes a moment longer to
     # exit, and qm start on a still-running VM is an error.
+    # delegate_to does not change the connection plugin, and this play runs
+    # `connection: local` for talosctl — without the override the qm calls
+    # would look for a Proxmox binary on the operator's own machine.
     - name: Wait for the VM to stop on {{ talos_resize_node }}
       ansible.builtin.command:
-        cmd: "qm status {{ talos_resize_vmid }}"
+        cmd: "{{ talos_qm_bin }} status {{ talos_resize_vmid }}"
       delegate_to: "{{ talos_resize_node }}"
+      vars:
+        ansible_connection: ssh
       register: talos_resize_status
       changed_when: false
       retries: 30
@@ -68,8 +73,10 @@
 
     - name: Start the VM on its new geometry — {{ inventory_hostname }}
       ansible.builtin.command:
-        cmd: "qm start {{ talos_resize_vmid }}"
+        cmd: "{{ talos_qm_bin }} start {{ talos_resize_vmid }}"
       delegate_to: "{{ talos_resize_node }}"
+      vars:
+        ansible_connection: ssh
       changed_when: true
 
 - name: Wait until the Kubernetes node is Ready and schedulable — {{ inventory_hostname }}

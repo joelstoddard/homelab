@@ -136,7 +136,9 @@ cilium_values_file: "{{ role_path }}/../../../kubernetes/cilium/app/values.yaml"
 # compares against NetBox with this slack.
 talos_resize_tolerance_mb: 400
 
-# Binaries (overridable if not on PATH).
+# Binaries (overridable if not on PATH). qm is absolute because a
+# non-interactive SSH session on a Proxmox host does not get /usr/sbin.
+talos_qm_bin: "/usr/sbin/qm"
 talhelper_bin: "talhelper"
 talosctl_bin: "talosctl"
 sops_bin: "sops"
