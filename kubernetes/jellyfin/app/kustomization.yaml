@@ -3,9 +3,11 @@ kind: Kustomization
 namespace: jellyfin
 resources:
   - namespace.yaml
+  - secret-exporter.sops.yaml
   - pv.yaml
   - pvc-media.yaml
   - pvc-config.yaml
   - deployment.yaml
   - service.yaml
   - ingressroute.yaml
+  - exporter.yaml
