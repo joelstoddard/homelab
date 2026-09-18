@@ -32,12 +32,18 @@ pxe:
         #   fqdn: "tango.example.lan"
         #   mac_address: "aa:bb:cc:dd:ee:02"
         #   disk_device: "/dev/nvme0n1"
-    # talos:    # placeholder — populated when the talos PXE path lands
+    # The arm64 Pis netboot Talos over u-boot, so they are PXE-managed too.
+    # dnsmasq offers the u-boot chain only to hosts listed in
+    # talos_pi_provision_hosts; every other Pi falls through to local disk.
+    talos:
+      children:
+        pis:
     # truenas:  # placeholder — strategy deferred
 
-# Pis or other non-PXE-managed hosts. Examples follow the same shape but
-# are NOT part of the pxe group, so they don't enter the dnsmasq allowlist
-# or get iPXE/preseed templates rendered for them.
+# Hardware class: nesting it under talos (and so under pxe) above puts each Pi
+# in all three groups from one definition — the membership NetBox derives from
+# device_type, platform and tag. ansible_user is only for the pre-cutover
+# EEPROM play; a Pi on Talos answers no SSH.
 pis:
   hosts:
     # kosmos:
