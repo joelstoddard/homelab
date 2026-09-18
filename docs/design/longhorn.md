@@ -108,6 +108,37 @@ Pods on VMs get VM-class numbers even with Pi-hosted replicas; pods on Pis
 are bounded by the Pi's own USB storage and CPU regardless of where the
 replicas sit.
 
+### Reclaiming deleted space
+
+A volume's allocation only ever grows unless something trims it. The
+filesystem inside frees blocks when a workload deletes data, but Longhorn is
+never told, so it keeps holding them. Measured on 2026-09-18, before any trim
+existed:
+
+| Claim | Filesystem | Longhorn | Held for nothing |
+| --- | --- | --- | --- |
+| monitoring/prometheus-server | 5.3 GiB | 17.4 GiB | 12.1 GiB |
+| monitoring/storage-tempo-0 | 3.4 GiB | 7.2 GiB | 3.8 GiB |
+| monitoring/storage-loki-0 | 1.8 GiB | 5.7 GiB | 3.9 GiB |
+| jellyfin/jellyfin-config | 0.8 GiB | 1.3 GiB | 0.5 GiB |
+
+At three replicas that is about 61 GiB of raw storage. The workloads that
+churn hardest are the worst affected: Prometheus expiring retention, Loki
+compacting, Tempo's 72-hour window.
+
+`longhorn-jobs/` is a weekly `filesystem-trim` RecurringJob on the `default`
+group, which covers every volume including ones added later. It is a separate
+layer because the `RecurringJob` CRD ships inside the chart, the same reason
+`traefik-middlewares` is split from `traefik`.
+
+`removeSnapshotsDuringFilesystemTrim` is what makes it work. A trim can only
+punch holes in the volume head, so blocks held by a snapshot survive it — and
+every rebuild leaves a system snapshot pinning the whole high-water mark. On
+the measurement above, Prometheus's snapshot held 17.19 GiB of its 17.4 GiB,
+so a trim without this setting would have reclaimed almost nothing. The cost
+is that those snapshots stop being revert points, which is acceptable here:
+they are system-generated, and this cluster configures no backup target.
+
 ## Observed behaviour
 
 - A volume follows its pod across architectures (amd64 ↔ arm64) with data

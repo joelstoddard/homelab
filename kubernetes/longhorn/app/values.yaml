@@ -23,6 +23,9 @@ defaultSettings:
   # A stateful pod on a dead node is force-deleted so it can fail over,
   # instead of sitting Terminating until the node returns.
   nodeDownPodDeletionPolicy: delete-both-statefulset-and-deployment-pod
+  # Without this a trim only reclaims the volume head, and a rebuild snapshot
+  # pins the whole high-water mark forever (docs/design/longhorn.md).
+  removeSnapshotsDuringFilesystemTrim: true
 ingress:
   # The UI behind Traefik. This chart emits a plain Ingress rather than an
   # IngressRoute, which is why traefik keeps its kubernetesIngress provider on.

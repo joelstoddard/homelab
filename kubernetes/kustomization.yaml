@@ -15,6 +15,7 @@ resources:
   - lan-services
   - tailscale
   - longhorn
+  - longhorn-jobs
   - monitoring
   - alloy
   - beyla

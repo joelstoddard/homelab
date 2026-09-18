@@ -1,0 +1,20 @@
+# Nothing else tells Longhorn that deleted blocks are free, so allocation only
+# ever grows: Prometheus held 17.4 GiB for 5.3 GiB of data before this existed.
+# Reasoning and the measurements are in docs/design/longhorn.md.
+apiVersion: longhorn.io/v1beta2
+kind: RecurringJob
+metadata:
+  name: filesystem-trim
+spec:
+  # Sunday 03:00 UTC. Trim is online, but it is still I/O on storage the Pis
+  # share with their replicas.
+  cron: "0 3 * * 0"
+  task: filesystem-trim
+  # A volume with no job label of its own belongs to "default", so this covers
+  # every volume in the cluster, including ones added later.
+  groups:
+    - default
+  # One volume at a time, for the same reason.
+  concurrency: 1
+  # Retention counts snapshots and backups; a trim keeps nothing.
+  retain: 0
