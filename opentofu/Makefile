@@ -83,6 +83,12 @@ build: check-secrets
 # next one's tofu run; the shared TF_VARs above are exported before the loop
 # and so are inherited by every subshell.
 #
+# `plan` carries -detailed-exitcode, whose 2 means "changes present", not
+# failure — treating it as failure aborted the loop at the first dir with
+# drift, and since resources/pihole sorts first and has standing drift, the
+# four NUC dirs were never planned at all. Collect it and keep going; a real
+# error (1) still stops immediately.
+#
 # `apply` retries once on the bpg/proxmox provider's "Provider produced
 # inconsistent final plan": when the Talos ISO does not exist yet, the VM
 # attributes that depend on its id are unknown at plan time and the provider
@@ -103,8 +109,10 @@ define run_tofu
 	export TF_VAR_netbox_token="$$NETBOX_TOKEN"; \
 	export TF_VAR_talos_version="$$(. $(VERSIONS_ENV) && echo $$TALOS_VERSION)"; \
 	export TF_VAR_talos_schematic_id="$$(. $(VERSIONS_ENV) && echo $$TALOS_SCHEMATIC_ID)"; \
+	worst=0; \
 	for d in $(RESOURCE_DIRS); do \
 		echo ">> tofu $(1) in $$d"; \
+		rc=0; \
 		( \
 			if [ -f $$d/secrets.env ]; then \
 				set -a; eval "$$(sops -d $$d/secrets.env)"; set +a; \
@@ -117,8 +125,14 @@ define run_tofu
 				tofu -chdir=$$d $(1) $(2); rc=$$?; \
 			fi; \
 			exit $$rc \
-		) || exit $$?; \
-	done
+		) || rc=$$?; \
+		if [ "$$rc" -eq 2 ] && [ "$(1)" = plan ]; then \
+			worst=2; \
+		elif [ "$$rc" -ne 0 ]; then \
+			exit $$rc; \
+		fi; \
+	done; \
+	exit $$worst
 endef
 
 # init is idempotent and quick once providers are cached, so every real
