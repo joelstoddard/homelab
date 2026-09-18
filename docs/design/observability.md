@@ -144,6 +144,42 @@ Prometheus outage in between; peaks are `max_over_time[3d]`):
 | Alloy, peak | 512 MiB, i.e. the limit, on the Pis during the outage | 1Gi now |
 | Scrape targets down at steady state | none (21 `alloy`, 14 `beyla`, 20 `kubelet`) | — |
 
+One week live (2026-09-18), taken from `/api/v1/status/tsdb` — the
+`__name__` breakdown the first table called a follow-up:
+
+| What | Measured | Note |
+| --- | --- | --- |
+| Active series | 688,510 | Nearly double the 370k the limits were sized for |
+| Label pairs / chunks | 33,153 / 786,644 | — |
+| Prometheus working set | 1.8 GiB | 3 GiB limit, raised from 2 |
+| WAL segments replayed on restart | 663 | Minutes of blindness per restart |
+
+Where the series are. The top 18 families are only 43% of the total, so
+there is a long tail, but four groups dominate and none of them is read by
+any dashboard in this repo except the vendored Beyla one:
+
+| Series | Share | Family |
+| --- | --- | --- |
+| 137,629 | 20.0% | Beyla `http_client_*` buckets (the server-side equivalent is 6,740) |
+| 27,426 | 4.0% | `hubble_port_distribution_total` — its `port` label has 15,622 values |
+| ~52,000 | 7.5% | `longhorn_workqueue_*` and `longhorn_rest_client_*` buckets |
+| ~21,400 | 3.1% | `apiserver_watch_*` buckets |
+
+Dropping those at Alloy would remove roughly a third of the database, which
+buys back memory and, more usefully, replay time.
+
+### Sizing, and why it went wrong
+
+The limits above were correct for 370k series and silently stopped being
+correct at 690k. On 2026-09-18 the failure surfaced as four constraints in
+sequence, each hidden behind the one before: the node's own memory (3.7 GB,
+since resized to 6 GB), then the 2Gi container limit OOM-killing it during
+WAL replay, then the 3 x 15 s liveness probe killing it while Alloy flushed
+a backlog, then a 1 CPU limit throttling it below answering a
+constant-expression query. Prometheus reported `Ready` through parts of this
+while serving nothing, so readiness alone is not evidence that it works —
+assert on a real query.
+
 ## Observed behaviour
 
 - **Rumba OOM-killed `k8s-server-01` as the stack landed.** The four NUCs sat
