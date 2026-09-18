@@ -81,26 +81,36 @@ replicated Longhorn volume stalls every other request, including the
 probe, the same class of problem Jellyfin's probes hit for a different
 reason.
 
-**`trusted_proxies` starts at the pod range, corrected by measurement.**
-Without `use_x_forwarded_for` and a matching `trusted_proxies`, Home
-Assistant refuses to honour the forwarded header and every client shows up
-as Traefik's own pod address. The committed value is `10.244.0.0/16`, the
-cluster's pod CIDR — the published answers for this setting all assume a
-different CNI, so this one is checked against what Cilium and Traefik
-actually present rather than copied from a blog post.
+**HTTP settings are not in git, and cannot be.** This is the one place the
+layer's "git owns `configuration.yaml`" rule does not hold, and it is worth
+understanding before someone tries to put the block back.
 
-Measured on first boot, 2026-09-18: Traefik presents a **node** address, not
-a pod address. Requests arrived from `10.0.1.121` and `10.0.1.126`, the LAN
-addresses of the two nodes holding Traefik replicas, so traffic from a pod to
-a host-network pod on another node is masqueraded to the sending node. Until
-this was corrected every request through the ingress failed with HTTP 400 and
-`Received X-Forwarded-For header from an untrusted proxy`.
+Home Assistant migrates an `http:` block out of `configuration.yaml` into
+`.storage/http` **once** and ignores YAML on every boot after that
+(`components/http/config.py`: "YAML config is only migrated once. Subsequent
+boots will ignore YAML and use the store exclusively"). Worse for an
+unattended deploy, a migrated config lands in a `pending` slot, which is a
+trial: unless a human promotes it within five minutes, Home Assistant marks
+it `not_promoted`, reverts to the `stable` slot, and never applies it again.
+Leaving a dead block in the file also raises a `yaml_still_present_after_
+migration` repair issue, and the YAML path is flagged for removal in 2027.2.
 
-`trusted_proxies` therefore carries the LAN prefix. It also keeps the pod
-range, which is not belt-and-braces: Traefik has no node affinity, so a
-replica can land on the node running Home Assistant, and same-node pod to
-host-network traffic is not masqueraded. Dropping the pod range would work
-until a reschedule, then fail intermittently — the worst available outcome.
+Both boots on 2026-09-18 demonstrated it. The first ran the migrated YAML and
+rejected requests with `Received X-Forwarded-For header from an untrusted
+proxy`; nobody promoted it, so the second ran bare defaults and rejected them
+with `A request from a reverse proxy was received ... but your HTTP
+integration is not set-up for reverse proxies`. Both were HTTP 400 at the
+ingress while the pinned LoadBalancer address kept serving 200, which is the
+signature to recognise.
+
+**Trusted proxies must cover node addresses, not pod addresses.** Measured
+the same day: Traefik reaches this host-network pod from the LAN addresses of
+whichever nodes hold its replicas, never from a pod address, because
+pod-to-host-network traffic across nodes is masqueraded to the sending node.
+The pod range is still needed alongside it — Traefik has no node affinity, so
+a replica can land on this very node, and same-node traffic is not
+masqueraded. Setting only one of the two works until a reschedule and then
+fails intermittently, which is the worst available outcome.
 
 **The whole layer is substituted; a bare `$` anywhere in it is eaten.**
 `${DOMAIN}` appears in `configuration.yaml`'s two URLs and in
@@ -198,15 +208,28 @@ device nobody configured by hand within a few minutes of first boot. No
 discoveries means `hostNetwork` isn't doing its job — check the namespace
 labels and that `default_config:` is still present.
 
-**The trusted-proxies observation.** Settled on first boot: Traefik presented
-a node address, so `trusted_proxies` carries the LAN prefix alongside the pod
-range. The reasoning is under "Design" above. If this ever regresses, the
-symptom is HTTP 400 through the ingress while the pinned LoadBalancer address
-still answers 200, and the pod log names the address it refused:
+**Setting trusted proxies, which is a one-off manual step.** Required after a
+first install or any rebuild that wipes the volume, because the setting lives
+in `.storage` rather than in git — the reasoning is under "Design" above.
+
+The ingress cannot be used for this: it is the thing that is broken. Reach
+the instance on its pinned LoadBalancer address instead, which bypasses
+Traefik and so sends no forwarded header, and complete onboarding there.
+Then Settings → System → Network, add both the LAN prefix and the pod range,
+and save. Home Assistant stages the change as a trial and restarts, so
+**confirm it within five minutes** or it reverts and refuses to apply that
+config again.
+
+The symptom, if it regresses or is never done, is HTTP 400 through the
+ingress while the pinned address still answers 200. The pod log says which of
+the two failure modes it is:
 
 ```
-kubectl -n home-assistant logs deploy/home-assistant | grep untrusted
+kubectl -n home-assistant logs deploy/home-assistant | grep -i "reverse proxy"
 ```
+
+`untrusted proxy` means the setting exists but does not cover the address.
+`not set-up for reverse proxies` means it was never applied at all.
 
 **Failover.** Drop the link on the node holding the pod — never a hard
 reset, the same method the Tailscale and Longhorn work established — and
@@ -236,8 +259,10 @@ report up through its in-cluster probe once the above all hold.
 container didn't run, or its script had a `$` eaten by substitution. The pod
 log names the missing file.
 
-**Every client looks like Traefik.** `trusted_proxies` doesn't match what's
-actually arriving. See the trusted-proxies observation under Operations.
+**HTTP 400 on every request through the ingress, while the pinned address
+still serves.** Trusted proxies were never set, or no longer cover what is
+arriving. See "Setting trusted proxies" under Operations. Putting an `http:`
+block back into `configuration.yaml` does not fix it and never will.
 
 **Discovery finds nothing.** Either `hostNetwork` is missing, the namespace
 lost its `privileged` labels (the pod is then rejected outright, not merely
@@ -292,8 +317,13 @@ announcements; see Design.
   can't ship with the rest of this layer. It will follow the SearXNG
   pattern — an explicit Alloy scrape reading the credential from
   `cluster-secrets`, because the annotation path can't carry a bearer
-  token. Beyla already reports RED metrics for the namespace in the
-  meantime.
+  token. Beyla cannot cover the gap in the meantime: `containers_only: true`
+  (`kubernetes/beyla/app/values.yaml`) compares a process's network
+  namespace against Beyla's own, and both Beyla and this pod run
+  `hostNetwork: true`, so the process reads as a host process, not a
+  container, and is never instrumented. The dashboard's request panels come
+  from Traefik's per-service metrics instead — see
+  `kubernetes/monitoring/app/dashboards/README.md`.
 - **Thread and Matter.** The one accepted capability gap. Upstream ships
   the Thread/Matter border router as a Supervisor add-on; container
   installs are left to self-hosted community images with no first-party

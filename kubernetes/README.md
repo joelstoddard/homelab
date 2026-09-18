@@ -739,6 +739,12 @@ Consequences:
   seeding `automations.yaml`, `scripts.yaml` and `scenes.yaml` — supplying a
   config file stops Home Assistant writing its own defaults, and a missing
   `!include` target is a hard startup failure.
+- **Trusted proxies are set in the UI, not in git, and a fresh install needs
+  it doing.** Home Assistant migrates an `http:` block into `.storage` once
+  and ignores YAML afterwards, so a block in git is inert. Until it is set,
+  every request through the ingress returns HTTP 400 while the pinned address
+  still serves — onboard on the pinned address, then Settings → System →
+  Network, and confirm within five minutes or it reverts.
 - **The whole layer is substituted.** `${DOMAIN}` and `${HOME_ASSISTANT_LB_IP}`
   are the only `$` permitted anywhere in it, comments included; the init
   container's shell script carries none at all, the same trap as Glance's
