@@ -1,8 +1,8 @@
 ---
-# Network config (used by Debian preseed)
-gateway: "{{ ansible_default_ipv4.gateway }}"
+# Network config (used by Debian preseed). cidr_subnet and gateway are
+# repo-wide and live in inventory/group_vars/all.yaml — one definition, so
+# they cannot drift apart from the proxmox role's copy again.
 dns_server: "192.168.1.2"
-cidr_subnet: "/24"
 ntp_server: "192.168.1.1"
 preferred_keyboard_layout: "us"
 country_code: "GB"
