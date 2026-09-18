@@ -47,13 +47,15 @@ Two stages, two playbook entry points:
 - **`playbooks/reset.yaml`** — wipes named Talos nodes back to maintenance mode (`talosctl reset --wipe-mode all`, working the Pi netboot gate around it) so `talos.yaml` can reinstall them. The rebuild path for version bumps; deliberately not part of `make homelab`. See `docs/talos-bootstrap.md` "Rebuild / bumping versions".
 - **`playbooks/upgrade.yaml`** — rolls a config change / new installer image onto RUNNING Talos nodes one at a time (authenticated apply-config; talosctl upgrade for VMs, reboot into refreshed netboot assets for Pis; health between nodes). `make -C ansible apply-upgrade EXTRA_VARS='{"upgrade_hosts": [...]|"all"}'`. The day-2 path; `reset.yaml` is for multi-minor jumps.
 - **`playbooks/resize.yaml`** — picks up a Proxmox hardware change (memory, cores) on RUNNING Talos VMs one at a time: halt, stop, start, gated on node Ready + no degraded Longhorn volume + cluster health, then verifies the guest's own reported total. `make -C ansible apply-resize EXTRA_VARS='{"resize_hosts": [...]|"agents"|"all"}'`, after `make -C opentofu`. Renders no machine config (a power cycle pushes none), so unlike the other Talos playbooks it needs only a talosconfig — the rendered one, else `~/.talos/config`. Refuses control-plane targets unless `resize_allow_controlplane=true`: the agents run overcommitted on zram and etcd must stay resident (`docs/design/zram-swap.md`).
+- **`playbooks/pi-eeprom-netboot.yaml`** — one-time per Pi: flips the Raspberry Pi 4 bootloader EEPROM to `BOOT_ORDER=0xf42` (network, then USB, then restart), after which the `00-pxe` dnsmasq gate decides each boot. Runs over SSH against the Pi's *current* OS, and only stages the change — the firmware flashes it on the next boot. `EXTRA_VARS='pi_reboot=true'` reboots fire-and-forget, because a successful cutover leaves no SSH to come back to. `make -C ansible apply-pi-eeprom LIMIT=<Pi>`.
+- **`playbooks/pi-cutover.yaml`** — drives a Pi the rest of the way to Talos: EEPROM → netboot into maintenance → install to `/dev/sda` → boot from disk. One-way for the old OS. It probes SSH to build its own pending set, so Pis already on Talos (which answer none) are skipped and the play is safe to re-run — which is why the root `make talos` target calls it before `apply-talos`. Narrow it with `EXTRA_VARS='{"pi_cutover_hosts": [...]}'`, NOT `--limit`: the localhost and SOPS plays need every host. See `docs/netbooting-pis.md`.
 
 Roles split into two layers:
 
-- **Numbered orchestrators** (`00-pxe`, `01-wake-on-lan`, `02-preflights`, future
-  `03-k3s` / `04-external` / `05-tests` / `06-extras`) are OS-agnostic lifecycle
-  phases. Each numbered role dispatches into per-OS task libraries based on
-  group membership.
+- **Numbered orchestrators** (`00-pxe`, `01-wake-on-lan`, `02-preflights`) are
+  OS-agnostic lifecycle phases; the number encodes execution order, and a later
+  phase takes the next free number when it lands. Each numbered role dispatches
+  into per-OS task libraries based on group membership.
 - **OS-named libraries** (`proxmox`, `talos`, future `truenas`) are non-numbered
   and contain task files invoked via `include_role: tasks_from: ...` from the
   numbered orchestrators (or, for `talos`, from `playbooks/talos.yaml`).
@@ -126,9 +128,11 @@ Current implementation:
   `make -C ansible apply-alloy` as the targeted entry point; the read-only
   PVE token the cluster's exporter uses comes from the `proxmox` library's
   `monitoring-token` task.
-- `04-external`, `05-extras`, `06-tests` — Planned post-cluster
-  roles, not yet implemented. (Cluster bootstrap, once handled by a planned
-  `03-k3s`, is now the `talos` library + `playbooks/talos.yaml`.)
+- Post-cluster orchestrators (external services, extras, tests) are planned,
+  not yet implemented and so not yet numbered. Cluster bootstrap is
+  deliberately not one of them: it is the `talos` library +
+  `playbooks/talos.yaml`, because it drives nodes from `localhost` over the
+  Talos API rather than over SSH.
 
 Per-host secrets (e.g., `root_password`) live in `ansible/inventory/host_vars/<hostname>.sops.yaml`, SOPS+Age encrypted. Each play loads them via a `community.sops.load_vars` pre-task that maps the NetBox-capitalized inventory hostname to the lowercase filename on disk. Recipients are configured in the repo-root `.sops.yaml`.
 
@@ -191,6 +195,10 @@ the machine config), default StorageClass. Talos prerequisites (extensions,
 kubelet mount) are in `versions.env` + the talos role. Pin the chart version
 in the HelmRelease only; re-run the multi-arch image check in
 `docs/design/longhorn.md` before bumping. See `docs/design/longhorn.md`.
+`longhorn-jobs/` (`dependsOn: longhorn`) carries Longhorn's `RecurringJob`
+CRs, split out for the reason `traefik-middlewares` is split from `traefik`:
+the CRD ships inside the chart, so a CR of that kind cannot be in the same
+apply pass.
 Ingress and TLS are five more layers. Root order is
 `cluster-secrets` → `cert-manager` → `cert-manager-issuers` → `traefik` →
 `traefik-middlewares` (the
@@ -233,9 +241,16 @@ reference them as `traefik-<name>@kubernetescrd`; an `Ingress` annotation
 naming that qualified form resolves through the `kubernetesIngress` provider
 with nothing else set, while a Traefik CR referencing them by name +
 namespace needs `providers.kubernetesCRD.allowCrossNamespace`.
-The wildcard `Certificate` is on `letsencrypt-staging` until the chain
-verifies on the live cluster; the flip to `letsencrypt-production` is a
-one-line change. LAN DNS is not in this tree: the `address=` wildcard plus a
+`lan-services/` (`dependsOn: traefik, traefik-middlewares, cluster-secrets`,
+substituted) fronts the seven off-cluster LAN hosts — the four Proxmox nodes,
+TrueNAS, Pi-hole and the router — so each gets the wildcard certificate
+instead of its own self-signed one, or none at all. Traefik cannot route to a
+bare IP, so every backend is a headless `Service` (no selector — there is no
+pod to select) paired with a hand-maintained `EndpointSlice` naming its one
+address: a re-addressed host needs a `cluster-secrets` edit, not just a DHCP
+change.
+The wildcard `Certificate` is on `letsencrypt-production`. LAN DNS is not in
+this tree: the `address=` wildcard plus a
 `server=/<name>/#` passthrough per publicly-hosted name is
 `opentofu/resources/pihole/`, and a missing passthrough gives a valid
 certificate and a Traefik 404. See `docs/design/ingress-tls.md`.
@@ -294,6 +309,14 @@ through `remote.kubernetes.secret` — the annotation path cannot carry basic
 auth, so the pod carries no `prometheus.io/scrape`. `GRANIAN_WORKERS` is
 pinned to 1 because the engine counters live in the worker process. See
 `docs/design/searxng.md`.
+`jellyfin/` (`dependsOn: traefik, traefik-middlewares, longhorn,
+cluster-secrets`, substituted) is the media server on `jellyfin.${DOMAIN}` and
+the cluster's first NFS consumer. Three kinds of data go three places: the
+terabyte library is a static read-only `PersistentVolume` against TrueNAS,
+`/config` is a Longhorn claim that must survive a reschedule, and `/cache` is
+an `emptyDir` because transcodes are regenerable and Longhorn would replicate
+them three times. That split is the precedent for every media app that
+follows. See `docs/design/jellyfin.md`.
 `glance/` (`dependsOn: traefik, traefik-middlewares, cluster-secrets`,
 substituted, and the only app layer with **no `decryption`** — it carries no
 `*.sops.yaml`) is the browser start page on `home.${DOMAIN}`: one stateless
