@@ -231,6 +231,7 @@ ordering) rather than by growing the root tree — see "Adding workloads".
 | `VOYAGER_IP` | same Secret | TrueNAS's LAN address, for `voyager.yaml`. |
 | `PIHOLE_IP` | same Secret | Pi-hole's LAN address, for `pihole.yaml`. |
 | `ROUTER_IP` | same Secret | The router's LAN address, for `james-webb.yaml`. |
+| `NETBOX_URL` | same Secret | The NetBox Cloud tenant URL, for the Glance bookmark. Encrypted for the same reason the repo only ever refers to it as `$NETBOX_API` elsewhere: the tenant name identifies the account. |
 | `INGEST_LB_IP` | same Secret | The address TrueNAS and the router send graphite and syslog to — reserved in the `cilium-lb` pool, shared by the two receiver Services. The seven addresses above are also the `host-monitoring` probe and poll targets. |
 
 ## Bootstrap
@@ -669,10 +670,11 @@ Consequences:
 - **The off-cluster probes reuse `lan-services`.** Its headless Services
   already resolve to the real LAN addresses, so no `${*_IP}` is copied in and
   `${DOMAIN}` is the only variable this layer needs.
-- **`${DOMAIN}` is the only `$` allowed in `app/config/glance.yml`, comments
-  included.** Glance does its own `${VAR}` expansion with the same sigil and
-  Flux runs first, so a second variable is silently blanked. A generator input
-  is embedded verbatim, which is why comments count.
+- **`${DOMAIN}` and `${NETBOX_URL}` are the only `$` allowed in
+  `app/config/glance.yml`, comments included.** Glance does its own `${VAR}`
+  expansion with the same sigil and Flux runs first, so any other variable is
+  silently blanked. A generator input is embedded verbatim, which is why
+  comments count.
 - **`app/config/` is generated with a name hash, on purpose.** Glance reads the
   file once at startup. Do not add `disableNameSuffixHash` here.
 - **No `timezones:` on the clock.** Glance resolves named zones at startup and
