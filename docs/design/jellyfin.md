@@ -162,6 +162,21 @@ The exporter needs an API key from Jellyfin's Dashboard → API Keys, held in
 `app/secret-exporter.sops.yaml`. It is the only secret in this layer, and the
 reason the Flux `Kustomization` carries a `decryption` block.
 
+### Probe timeouts
+
+Every probe sets `timeoutSeconds` explicitly, because Kubernetes defaults it to
+one second and that is not enough for this workload. A library scan runs
+`ffprobe` over NFS for every file while the HTTP handler competes for the same
+CPU, so `/health` answering in over a second is normal and healthy. The stock
+default killed the container on 2026-09-18 with
+`Liveness probe failed: context deadline exceeded`, which cost a partially
+written library index.
+
+The scan is also the reason this matters more than it looks: an interrupted
+scan leaves Jellyfin's ancestry index incomplete, and the symptom is a library
+that holds every item but shows a fraction of them in the UI — the rows are
+there and the index is not.
+
 ## Traps
 
 - **NFS ignores `fsGroup`, and the export's owners do not map.** The kernel does
