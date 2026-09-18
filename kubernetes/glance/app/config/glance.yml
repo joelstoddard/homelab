@@ -116,6 +116,15 @@ pages:
                 check-url: http://jellyfin.jellyfin.svc:8096/health
                 icon: di:jellyfin
 
+              - title: Home Assistant
+                url: https://homeassistant.${DOMAIN}
+                # hostNetwork, but the ClusterIP still reaches it (confirmed
+                # against the identically-topologied Alloy Service).
+                # /manifest.json answers unauthenticated with no redirect,
+                # unlike /.
+                check-url: http://home-assistant.home-assistant.svc:8123/manifest.json
+                icon: di:home-assistant
+
           - type: monitor
             title: Hypervisors
             cache: 1m
