@@ -70,3 +70,6 @@ configMapGenerator:
   - name: dashboard-glance
     files: [Services/glance.json]
     options: {annotations: {grafana_folder: Services}}
+  - name: dashboard-home-assistant
+    files: [Services/home-assistant.json]
+    options: {annotations: {grafana_folder: Services}}
