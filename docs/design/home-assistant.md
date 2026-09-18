@@ -89,9 +89,18 @@ cluster's pod CIDR — the published answers for this setting all assume a
 different CNI, so this one is checked against what Cilium and Traefik
 actually present rather than copied from a blog post.
 
-TODO(measure): the address Traefik actually presents to the pod, and
-whether the committed pod-range CIDR is right or needs to become the LAN
-prefix instead.
+Measured on first boot, 2026-09-18: Traefik presents a **node** address, not
+a pod address. Requests arrived from `10.0.1.121` and `10.0.1.126`, the LAN
+addresses of the two nodes holding Traefik replicas, so traffic from a pod to
+a host-network pod on another node is masqueraded to the sending node. Until
+this was corrected every request through the ingress failed with HTTP 400 and
+`Received X-Forwarded-For header from an untrusted proxy`.
+
+`trusted_proxies` therefore carries the LAN prefix. It also keeps the pod
+range, which is not belt-and-braces: Traefik has no node affinity, so a
+replica can land on the node running Home Assistant, and same-node pod to
+host-network traffic is not masqueraded. Dropping the pod range would work
+until a reschedule, then fail intermittently — the worst available outcome.
 
 **The whole layer is substituted; a bare `$` anywhere in it is eaten.**
 `${DOMAIN}` appears in `configuration.yaml`'s two URLs and in
@@ -189,14 +198,15 @@ device nobody configured by hand within a few minutes of first boot. No
 discoveries means `hostNetwork` isn't doing its job — check the namespace
 labels and that `default_config:` is still present.
 
-**The trusted-proxies observation.** Read the pod log for the reverse-proxy
-warning on first boot. If the address it names falls inside the committed
-`10.244.0.0/16`, the committed value is right and nothing changes. If it
-names a node address instead, `trusted_proxies` needs to become the LAN
-prefix.
+**The trusted-proxies observation.** Settled on first boot: Traefik presented
+a node address, so `trusted_proxies` carries the LAN prefix alongside the pod
+range. The reasoning is under "Design" above. If this ever regresses, the
+symptom is HTTP 400 through the ingress while the pinned LoadBalancer address
+still answers 200, and the pod log names the address it refused:
 
-TODO(measure): the address Traefik actually presented to the pod on
-first boot, and which of the two outcomes above it turned out to be.
+```
+kubectl -n home-assistant logs deploy/home-assistant | grep untrusted
+```
 
 **Failover.** Drop the link on the node holding the pod — never a hard
 reset, the same method the Tailscale and Longhorn work established — and
