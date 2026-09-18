@@ -397,6 +397,14 @@ Consequences:
   deliberately *not* `dependsOn: traefik`: an `Ingress` with no controller is
   inert and starts routing when Traefik appears, whereas making storage wait
   on ingress would let a broken `traefik` reconcile block Longhorn's.
+- **The CSI components and `longhorn-manager` carry resource requests so they
+  are not BestEffort.** Talos's OOM controller kills the `besteffort` cgroup
+  first, and the chart ships these with no resources — so memory pressure from
+  any other pod on the node takes out that node's storage transport, aborting
+  the filesystem on every Longhorn volume mounted there. Requests only: a
+  memory limit would let the kernel kill storage when the node is busiest.
+  Changing them restarts the CSI components, which briefly pauses
+  attach/detach. See [`docs/design/longhorn.md`](../docs/design/longhorn.md).
 - **`longhorn-jobs/` is a separate layer** (`dependsOn: longhorn`) holding the
   weekly `filesystem-trim` RecurringJob. The `RecurringJob` CRD ships inside
   the chart, so a CR of that kind cannot be in the same apply pass — the same

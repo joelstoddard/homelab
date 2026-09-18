@@ -55,6 +55,35 @@ disabled). 1 GbE throughout.
   CSI plugin's mounts propagate into the kubelet. Applied without a reboot.
 - Namespace `longhorn-system` at PodSecurity `privileged`.
 
+### Why these pods carry requests
+
+Talos runs its own OOM controller, and it kills the `besteffort` cgroup
+first — before the kernel OOM killer, and regardless of PriorityClass, which
+only governs Kubernetes preemption. The chart ships almost everything with no
+resources at all: 61 of 76 pods in `longhorn-system` were BestEffort, the CSI
+plugin and `longhorn-manager` among them, on all 15 nodes.
+
+That makes storage the first casualty of memory pressure caused by anything
+else on the node. On 2026-09-18 a Jellyfin library scan — one `ffprobe` with
+`-probesize 1G`, 1.4 GiB resident — exhausted `k8s-agent-01` (3,790 MiB
+total). The OOM controller killed `longhorn-csi-plugin`, which tore down the
+node's iSCSI session; `sdb` timed out after 360 s with
+`DID_TRANSPORT_DISRUPTED`, ext4 aborted its journal under the running
+container, and the node stopped posting status. The VM never died and the
+NAS was never down: the storage plane was killed from inside.
+
+Requests, not limits, and only large enough to leave BestEffort. Any request
+moves the pod to Burstable, which is the whole objective; a memory *limit*
+would hand the kernel a reason to kill the node's storage control plane
+exactly when the node is busiest. Measured p95 across the fleet was 198 MiB
+and 56 m for `longhorn-manager` and under 25 MiB for each CSI sidecar.
+
+The chart exposes two knobs — `longhornManager.resources` and
+`defaultSettings.systemManagedCSIComponentsResourceLimits` — which together
+cover 42 of the 61. `engine-image`, `longhorn-ui` and the driver deployer
+have no knob and stay BestEffort; losing an engine-image pod is survivable,
+which is why this is not worth a fork.
+
 ### Mixed architectures
 
 An earlier attempt on the k3s-era cluster failed with wrong-architecture
