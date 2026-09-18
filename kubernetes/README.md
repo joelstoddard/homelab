@@ -397,6 +397,14 @@ Consequences:
   deliberately *not* `dependsOn: traefik`: an `Ingress` with no controller is
   inert and starts routing when Traefik appears, whereas making storage wait
   on ingress would let a broken `traefik` reconcile block Longhorn's.
+- **`longhorn-jobs/` is a separate layer** (`dependsOn: longhorn`) holding the
+  weekly `filesystem-trim` RecurringJob. The `RecurringJob` CRD ships inside
+  the chart, so a CR of that kind cannot be in the same apply pass — the same
+  reason `traefik-middlewares` is split from `traefik`. Without the job a
+  volume's allocation only grows: Prometheus held 17.4 GiB for 5.3 GiB of
+  data. `removeSnapshotsDuringFilesystemTrim` in `values.yaml` is what lets a
+  trim get past the snapshot a rebuild leaves behind, and without it the job
+  reclaims almost nothing.
 
 ```bash
 flux --context homelab get ks longhorn
