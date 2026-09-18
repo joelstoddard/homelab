@@ -1,6 +1,6 @@
 # Second release of the same chart: loki.source.kubernetes_events cannot be
 # sharded across the DaemonSet (every member would emit every event), so it
-# runs once, here. Version pinned alongside alloy/helmrelease.yaml — bump both.
+# runs once, here. Version pinned in versions.env as ALLOY_CHART_VERSION; `make lint` checks.
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
