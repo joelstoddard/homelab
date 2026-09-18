@@ -131,6 +131,11 @@ cilium_release_name: "cilium"
 cilium_release_namespace: "kube-system"
 cilium_values_file: "{{ role_path }}/../../../kubernetes/cilium/app/values.yaml"
 
+# A guest reports less RAM than Proxmox configures, because firmware and the
+# kernel reserve some (~210 MB on a 4000 MB Talos VM). tasks/resize.yaml
+# compares against NetBox with this slack.
+talos_resize_tolerance_mb: 400
+
 # Binaries (overridable if not on PATH).
 talhelper_bin: "talhelper"
 talosctl_bin: "talosctl"

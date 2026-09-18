@@ -1,0 +1,126 @@
+---
+# Roll a Proxmox hardware change (memory, cores) onto RUNNING Talos VMs one
+# at a time: a clean halt, stop and start, with health gates between nodes.
+# OpenTofu writes the new geometry from NetBox but never applies it, because
+# the provider's own reboot is a hard parallel kill — docs/design/zram-swap.md.
+#
+#   make apply-resize EXTRA_VARS='{"resize_hosts": ["k8s-agent-05", "k8s-agent-06"]}'
+#   make apply-resize EXTRA_VARS='{"resize_hosts": "agents"}'
+#
+# Run `make -C opentofu` first, or the VMs have no pending change to pick up.
+# Control-plane nodes are refused unless resize_allow_controlplane is set:
+# etcd is the one workload that must stay fully resident, so its VMs are
+# deliberately excluded from the overcommit this was built for.
+- name: Resolve the resize targets.
+  hosts: localhost
+  connection: local
+  gather_facts: true
+  gather_subset:
+    - "!all"
+    - "!min"
+    - network
+  vars:
+    resize_allow_controlplane: false
+    resize_agents: "{{ groups['talos'] | default([]) | select('search', '^k8s-agent-') | list }}"
+    resize_candidates: "{{ resize_agents if resize_hosts == 'agents' else (groups['talos'] | default([]) if resize_hosts == 'all' else resize_hosts) }}"
+  tasks:
+    - name: Require an explicit target list.
+      ansible.builtin.assert:
+        that: resize_hosts is defined
+        fail_msg: >-
+          resize_hosts is required — a JSON list of NetBox names, "agents", or
+          "all": make apply-resize EXTRA_VARS='{"resize_hosts": ["k8s-agent-05"]}'
+
+    # A power cycle pushes no machine config, so unlike talos.yaml and
+    # upgrade.yaml this playbook renders none — it needs only credentials and
+    # control-plane membership, and stays runnable wherever talosctl is set up.
+    - name: Load the talos role defaults (bins, paths, tag names).
+      ansible.builtin.include_vars:
+        file: "{{ playbook_dir }}/../roles/talos/defaults/main.yaml"
+
+    - name: Derive control-plane membership from the NetBox tag.
+      ansible.builtin.set_fact:
+        talos_controlplane_hosts: "{{ resize_cp_derived }}"
+      vars:
+        resize_cp_derived: >-
+          {{ groups['talos'] | default([]) | map('extract', hostvars)
+             | selectattr('tags', 'defined')
+             | selectattr('tags', 'contains', talos_controlplane_netbox_tag)
+             | map(attribute='inventory_hostname') | list }}
+      when: resize_cp_derived | length > 0
+
+    # A failed render leaves a stub behind, so presence is not usability:
+    # ask talosctl which candidate it can actually open.
+    - name: Probe the candidate talosconfigs.
+      ansible.builtin.command:
+        cmd: "{{ talosctl_bin }} --talosconfig {{ item }} config info"
+      register: resize_talosconfig_probe
+      changed_when: false
+      failed_when: false
+      check_mode: false
+      loop:
+        - "{{ talos_talosconfig }}"
+        - "{{ lookup('env', 'HOME') }}/.talos/config"
+
+    - name: Use the first talosconfig that works.
+      ansible.builtin.set_fact:
+        talos_talosconfig: >-
+          {{ resize_talosconfig_probe.results | selectattr('rc', 'eq', 0)
+             | map(attribute='item') | first | default('') }}
+
+    - name: Require a usable talosconfig.
+      ansible.builtin.assert:
+        that: talos_talosconfig | length > 0
+        fail_msg: >-
+          No usable talosconfig. Run `make apply-talos` to render one, or set
+          talos_talosconfig to a config talosctl can open.
+
+    - name: Refuse an empty list or targets that are not Talos VMs.
+      ansible.builtin.assert:
+        that:
+          - resize_candidates | length > 0
+          - resize_candidates | difference(groups['talos'] | default([])) | length == 0
+          - resize_candidates | intersect(groups['pis'] | default([])) | length == 0
+        fail_msg: >-
+          Not Talos VMs (NetBox platform talos, excluding bare-metal Pis):
+          {{ resize_candidates | difference(groups['talos'] | default([]))
+             + (resize_candidates | intersect(groups['pis'] | default([]))) }}
+
+    - name: Refuse control-plane targets unless explicitly allowed.
+      ansible.builtin.assert:
+        that: resize_candidates | intersect(talos_controlplane_hosts) | length == 0
+        fail_msg: >-
+          Control-plane nodes in the target list:
+          {{ resize_candidates | intersect(talos_controlplane_hosts) }}.
+          etcd must stay fully resident — see docs/design/zram-swap.md. Pass
+          resize_allow_controlplane=true only for a change that is not an
+          overcommit.
+      when: not (resize_allow_controlplane | bool)
+
+    # These ride along for the same reason playbooks/upgrade.yaml passes
+    # them: tasks/health.yaml runs in the per-node play, which cannot see
+    # the facts localhost derived.
+    - name: Register the targets in roll order.
+      ansible.builtin.add_host:
+        name: "{{ item }}"
+        groups: resize_pending
+        talos_controlplane_hosts: "{{ talos_controlplane_hosts }}"
+        talos_talosconfig: "{{ talos_talosconfig }}"
+      loop: "{{ resize_candidates | sort }}"
+      changed_when: false
+
+    - name: Roll plan.
+      ansible.builtin.debug:
+        msg: "resizing, one at a time: {{ resize_candidates | sort | join(', ') }}"
+
+- name: Power-cycle each target onto its new geometry, one at a time.
+  hosts: resize_pending
+  connection: local
+  gather_facts: false
+  serial: 1
+  order: inventory
+  tasks:
+    - name: Resize this node.
+      ansible.builtin.import_role:
+        name: talos
+        tasks_from: resize

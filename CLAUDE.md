@@ -46,6 +46,7 @@ Two stages, two playbook entry points:
 - **`playbooks/talos.yaml`** — bootstraps the Kubernetes cluster. Targets `hosts: talos` but runs `connection: local`, driving nodes over the Talos API (`talosctl`) because Talos nodes have no SSH or Python. This is why the Talos lifecycle is its own play rather than a branch of `02-preflights`. Dispatches the `talos` library's `config`/`apply`/`bootstrap`/`kubeconfig` tasks.
 - **`playbooks/reset.yaml`** — wipes named Talos nodes back to maintenance mode (`talosctl reset --wipe-mode all`, working the Pi netboot gate around it) so `talos.yaml` can reinstall them. The rebuild path for version bumps; deliberately not part of `make homelab`. See `docs/talos-bootstrap.md` "Rebuild / bumping versions".
 - **`playbooks/upgrade.yaml`** — rolls a config change / new installer image onto RUNNING Talos nodes one at a time (authenticated apply-config; talosctl upgrade for VMs, reboot into refreshed netboot assets for Pis; health between nodes). `make -C ansible apply-upgrade EXTRA_VARS='{"upgrade_hosts": [...]|"all"}'`. The day-2 path; `reset.yaml` is for multi-minor jumps.
+- **`playbooks/resize.yaml`** — picks up a Proxmox hardware change (memory, cores) on RUNNING Talos VMs one at a time: halt, stop, start, gated on node Ready + no degraded Longhorn volume + cluster health, then verifies the guest's own reported total. `make -C ansible apply-resize EXTRA_VARS='{"resize_hosts": [...]|"agents"|"all"}'`, after `make -C opentofu`. Renders no machine config (a power cycle pushes none), so unlike the other Talos playbooks it needs only a talosconfig — the rendered one, else `~/.talos/config`. Refuses control-plane targets unless `resize_allow_controlplane=true`: the agents run overcommitted on zram and etcd must stay resident (`docs/design/zram-swap.md`).
 
 Roles split into two layers:
 
@@ -146,7 +147,11 @@ per-NUC placement, deterministic vm_id/MAC/IP per the convention in
 `modules/k8s-vm/main.tf`) so both OpenTofu and the Ansible inventory can see
 them — NetBox is the source of truth, not a generator script. The
 `talos_version` comes from repo-root `versions.env` (the Makefile injects it as
-`TF_VAR_talos_version`).
+`TF_VAR_talos_version`). `modules/vm` sets `reboot_after_update = false`: the
+provider's own reboot is a hard `qmstop` + `qmstart` fired at every changed VM
+in parallel, so a geometry change (memory, cores) is left pending in the
+Proxmox config and picked up serially by `make -C ansible apply-resize` — see
+`docs/design/zram-swap.md`.
 
 ### Kubernetes (kubernetes/)
 

@@ -90,3 +90,79 @@ is Proxmox-specific.
   lands directly on the critical path of a guest page fault.
 - **More host RAM, and right-sized VMs.** Both correct, and both tracked in
   `TODO.md`. zram is what runs until then, and it stays useful afterwards.
+
+## Deliberate overcommit: agents at 6 GB
+
+With zram in place the hosts can carry more guest memory than they have
+physical RAM. The worker VMs went from 4000 to 6000 MB in NetBox; the four
+control-plane VMs stayed at 4000.
+
+### The measurement it rests on
+
+A cgroup squeeze on a live worker (`memory.high` on its `qemu.slice` scope,
+768 MB, 60 s) pushed 855.7 MB of real Talos guest memory into zram and it
+compressed to 339.3 MB:
+
+| | |
+| --- | --- |
+| Compression ratio | **2.52x raw, 2.32x effective** (allocator overhead included) |
+| Host PSI `some` during reclaim | 0.00 → 1.75 % |
+| Kubernetes impact | none — node stayed Ready, no pod disruption |
+
+Guest memory is mostly page cache, which is both the coldest thing on the
+node and the most compressible. Repeat the squeeze after any workload shift
+that changes that mix.
+
+### What the ratio allows
+
+Fitting demand `W` into physical `T` needs `S` swapped at ratio `r`, where
+`(W − S) + S/r ≤ T`. At the measured 2.32x, on a 15.5 GB host carrying
+~2.3 GB of Proxmox itself:
+
+| Per-host config | Demand | Compressed | Share of guest RAM |
+| --- | --- | --- | --- |
+| 3 × 4 GB (before) | 14.3 GB | — | 0 % |
+| **4 + 6 + 6 (now)** | 18.3 GB | **4.9 GB** | **31 %** |
+| 3 × 6 GB | 20.3 GB | 8.4 GB | 47 % |
+| 3 × 8 GB | 26.3 GB | 19.0 GB | 79 % |
+
+79 % leaves ~1.7 GB resident per VM, which is thrashing rather than
+headroom — 8 GB per VM is not available on a 16 GB host at this ratio.
+
+### Why the control plane is excluded
+
+etcd is the one workload that must stay fully resident: Raft is sensitive to
+fsync latency, and compressed pages on the critical path show up as leader
+elections. Keeping the control-plane VMs at 4000 MB also keeps one
+uncompressed node per physical host. `playbooks/resize.yaml` refuses
+control-plane targets unless `resize_allow_controlplane` is set.
+
+### The failure mode to watch
+
+kubelet advertises the guest's full memory and cannot see host overcommit, so
+the scheduler will pack pods the host may not be able to back. When a host
+runs out, the OOM killer takes a QEMU process — the whole node, not a pod —
+and Kubernetes handles node loss far worse than eviction. zram is what makes
+that unlikely rather than impossible; the overcommit is deliberately kept to
+31 % of guest RAM to preserve the margin.
+
+Watch host PSI (`some` sustained above a few per cent), zram `DATA` against
+the 15.5 GB device, and per-service latency from the Beyla RED metrics.
+Roll back by returning NetBox to 4000 MB and re-running the resize.
+
+### Applying a geometry change
+
+Proxmox holds a memory change as a PENDING config: the running QEMU process
+keeps its old geometry and a guest-side reboot re-enters the same process, so
+only a full stop and start applies it. `reboot_after_update` is therefore
+`false` in `opentofu/modules/vm` — the provider's own reboot is a hard
+`qmstop` + `qmstart` fired at every changed VM in parallel, which is the hard
+kill that can leave a corrupt Talos image behind (`docs/talos-bootstrap.md`,
+"Recovery").
+
+So `tofu apply` only writes the config, and
+`make -C ansible apply-resize EXTRA_VARS='{"resize_hosts": "agents"}'` picks
+it up: halt, stop, start, one node at a time, gated on node Ready, no
+degraded Longhorn volume, and cluster health — the same gates
+`playbooks/upgrade.yaml` uses. It verifies the guest's own reported total
+afterwards, because a node returning proves only that it booted.

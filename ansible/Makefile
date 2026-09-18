@@ -38,6 +38,8 @@ help:
 	@echo "  apply-reset	- Wipe Talos nodes back to maintenance mode for a reinstall (EXTRA_VARS reset_hosts)."
 	@echo "  check-upgrade	- Dry run an in-place Talos node upgrade (EXTRA_VARS upgrade_hosts)."
 	@echo "  apply-upgrade	- Roll config + installer image onto running Talos nodes, serially (EXTRA_VARS upgrade_hosts)."
+	@echo "  check-resize	- Dry run a Proxmox memory/core change pickup (EXTRA_VARS resize_hosts)."
+	@echo "  apply-resize	- Power-cycle Talos VMs onto a new Proxmox geometry, serially (EXTRA_VARS resize_hosts)."
 	@echo "  check-alloy	- Dry run the Grafana Alloy install on the tagged hosts."
 	@echo "  apply-alloy	- Install Grafana Alloy on the Proxmox NUCs and the Pi-hole LXC."
 	@echo "  kubeconfig	- Merge the cluster context into this machine's ~/.kube/config (OPERATOR_SSH=user@host)."
@@ -156,6 +158,23 @@ check-upgrade:
 .PHONY: apply-upgrade
 apply-upgrade:
 	$(VENV)/bin/ansible-playbook playbooks/upgrade.yaml \
+		$(if $(VERBOSITY),-$(VERBOSITY)) \
+		$(if $(EXTRA_VARS),--extra-vars='$(EXTRA_VARS)')
+
+# Pick up a Proxmox hardware change (memory, cores) on RUNNING Talos VMs, one
+# at a time. Run `make -C opentofu` first; control-plane nodes are refused by
+# default. resize_hosts is required — see playbooks/resize.yaml:
+#   make apply-resize EXTRA_VARS='{"resize_hosts": ["k8s-agent-05"]}'
+#   make apply-resize EXTRA_VARS='{"resize_hosts": "agents"}'
+.PHONY: check-resize
+check-resize:
+	$(VENV)/bin/ansible-playbook playbooks/resize.yaml --check --diff \
+		$(if $(VERBOSITY),-$(VERBOSITY)) \
+		$(if $(EXTRA_VARS),--extra-vars='$(EXTRA_VARS)')
+
+.PHONY: apply-resize
+apply-resize:
+	$(VENV)/bin/ansible-playbook playbooks/resize.yaml \
 		$(if $(VERBOSITY),-$(VERBOSITY)) \
 		$(if $(EXTRA_VARS),--extra-vars='$(EXTRA_VARS)')
 
