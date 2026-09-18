@@ -47,6 +47,17 @@ apt-get install -y \
     python3 python3-pip python3-venv \
     git make rsync arp-scan
 
+# Every download below is a pinned version, so re-fetching one already
+# installed buys nothing. Matching the bare number ignores a leading v on
+# either side, and a missing or broken binary fails the probe and reinstalls
+# — argv mirrors the verify() calls at the end of this script.
+have_version() {
+    local want="${1#v}"
+    shift
+    command -v "$1" >/dev/null 2>&1 || return 1
+    "$@" 2>&1 | grep -qF -- "$want"
+}
+
 # age + sops decrypt the per-host secrets under
 # ansible/inventory/host_vars/*.sops.yaml at apply time, via the
 # community.sops.load_vars pre-task in each playbook.
@@ -57,21 +68,29 @@ apt-get install -y age
 
 SOPS_VERSION="v3.12.2"
 SOPS_ARCH="$(dpkg --print-architecture)"
-echo ">> Installing sops ${SOPS_VERSION} from upstream release"
-curl -fsSL -o /usr/local/bin/sops \
-    "https://github.com/getsops/sops/releases/download/${SOPS_VERSION}/sops-${SOPS_VERSION}.linux.${SOPS_ARCH}"
-chmod +x /usr/local/bin/sops
+if have_version "$SOPS_VERSION" sops --version; then
+    echo ">> sops ${SOPS_VERSION} already installed"
+else
+    echo ">> Installing sops ${SOPS_VERSION} from upstream release"
+    curl -fsSL -o /usr/local/bin/sops \
+        "https://github.com/getsops/sops/releases/download/${SOPS_VERSION}/sops-${SOPS_VERSION}.linux.${SOPS_ARCH}"
+    chmod +x /usr/local/bin/sops
+fi
 
 # tofu isn't in apt for Debian/Ubuntu; pull the upstream .deb release.
 # Bump TOFU_VERSION when operator workstations move.
 TOFU_VERSION="1.10.6"
 TOFU_ARCH="$(dpkg --print-architecture)"
-echo ">> Installing OpenTofu ${TOFU_VERSION} from upstream .deb release"
-TOFU_DEB="$(mktemp --suffix=.deb)"
-curl -fsSL -o "$TOFU_DEB" \
-    "https://github.com/opentofu/opentofu/releases/download/v${TOFU_VERSION}/tofu_${TOFU_VERSION}_${TOFU_ARCH}.deb"
-apt-get install -y "$TOFU_DEB"
-rm -f "$TOFU_DEB"
+if have_version "$TOFU_VERSION" tofu --version; then
+    echo ">> OpenTofu ${TOFU_VERSION} already installed"
+else
+    echo ">> Installing OpenTofu ${TOFU_VERSION} from upstream .deb release"
+    TOFU_DEB="$(mktemp --suffix=.deb)"
+    curl -fsSL -o "$TOFU_DEB" \
+        "https://github.com/opentofu/opentofu/releases/download/v${TOFU_VERSION}/tofu_${TOFU_VERSION}_${TOFU_ARCH}.deb"
+    apt-get install -y "$TOFU_DEB"
+    rm -f "$TOFU_DEB"
+fi
 
 # talosctl drives Talos config generation, apply, bootstrap, and kubeconfig
 # retrieval (ansible/roles/talos). kubectl talks to the resulting cluster.
@@ -89,22 +108,34 @@ case "$(dpkg --print-architecture)" in
     *) echo "Unsupported arch for talosctl/kubectl: $(dpkg --print-architecture)" >&2; exit 1 ;;
 esac
 
-echo ">> Installing talosctl ${TALOSCTL_VERSION} from upstream release"
-curl -fsSL -o /usr/local/bin/talosctl \
-    "https://github.com/siderolabs/talos/releases/download/${TALOSCTL_VERSION}/talosctl-linux-${GOARCH}"
-chmod +x /usr/local/bin/talosctl
+if have_version "$TALOSCTL_VERSION" talosctl version --client; then
+    echo ">> talosctl ${TALOSCTL_VERSION} already installed"
+else
+    echo ">> Installing talosctl ${TALOSCTL_VERSION} from upstream release"
+    curl -fsSL -o /usr/local/bin/talosctl \
+        "https://github.com/siderolabs/talos/releases/download/${TALOSCTL_VERSION}/talosctl-linux-${GOARCH}"
+    chmod +x /usr/local/bin/talosctl
+fi
 
-echo ">> Installing kubectl ${KUBECTL_VERSION} from upstream release"
-curl -fsSL -o /usr/local/bin/kubectl \
-    "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/${GOARCH}/kubectl"
-chmod +x /usr/local/bin/kubectl
+if have_version "$KUBECTL_VERSION" kubectl version --client; then
+    echo ">> kubectl ${KUBECTL_VERSION} already installed"
+else
+    echo ">> Installing kubectl ${KUBECTL_VERSION} from upstream release"
+    curl -fsSL -o /usr/local/bin/kubectl \
+        "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/${GOARCH}/kubectl"
+    chmod +x /usr/local/bin/kubectl
+fi
 
 # flux regenerates kubernetes/flux-system/gotk-components.yaml on version bumps
 # and drives day-2 GitOps operations (kubernetes/Makefile). The release tarball
 # is not v-prefixed and holds a single `flux` binary.
-echo ">> Installing flux ${FLUX_VERSION} from upstream release"
-curl -fsSL "https://github.com/fluxcd/flux2/releases/download/${FLUX_VERSION}/flux_${FLUX_VERSION#v}_linux_${GOARCH}.tar.gz" \
-    | tar -xz -C /usr/local/bin flux
+if have_version "$FLUX_VERSION" flux --version; then
+    echo ">> flux ${FLUX_VERSION} already installed"
+else
+    echo ">> Installing flux ${FLUX_VERSION} from upstream release"
+    curl -fsSL "https://github.com/fluxcd/flux2/releases/download/${FLUX_VERSION}/flux_${FLUX_VERSION#v}_linux_${GOARCH}.tar.gz" \
+        | tar -xz -C /usr/local/bin flux
+fi
 
 # helm seeds Cilium once, right after `talosctl bootstrap` (ansible/roles/talos
 # tasks/cni.yaml) — Flux owns it afterwards, see docs/design/cilium-bootstrap.md.
@@ -112,17 +143,25 @@ curl -fsSL "https://github.com/fluxcd/flux2/releases/download/${FLUX_VERSION}/fl
 # kubernetes.core >= 6.5.0 (ansible/collections/requirements.yaml). The tarball
 # nests the binary under linux-<arch>/.
 HELM_VERSION="v4.2.4"
-echo ">> Installing helm ${HELM_VERSION} from upstream release"
-curl -fsSL "https://get.helm.sh/helm-${HELM_VERSION}-linux-${GOARCH}.tar.gz" \
-    | tar -xz -C /usr/local/bin --strip-components=1 "linux-${GOARCH}/helm"
+if have_version "$HELM_VERSION" helm version; then
+    echo ">> helm ${HELM_VERSION} already installed"
+else
+    echo ">> Installing helm ${HELM_VERSION} from upstream release"
+    curl -fsSL "https://get.helm.sh/helm-${HELM_VERSION}-linux-${GOARCH}.tar.gz" \
+        | tar -xz -C /usr/local/bin --strip-components=1 "linux-${GOARCH}/helm"
+fi
 
 # talhelper generates the Talos machine configs from talconfig.yaml
 # (ansible/roles/talos). The jpillora redirector resolves the right
 # release asset for this OS/arch; version pinned in versions.env.
-echo ">> Installing talhelper ${TALHELPER_VERSION}"
-curl -fsSL "https://i.jpillora.com/budimanjojo/talhelper@${TALHELPER_VERSION}!" | bash
-install -m 0755 talhelper /usr/local/bin/talhelper 2>/dev/null || true
-rm -f talhelper
+if have_version "$TALHELPER_VERSION" talhelper --version; then
+    echo ">> talhelper ${TALHELPER_VERSION} already installed"
+else
+    echo ">> Installing talhelper ${TALHELPER_VERSION}"
+    curl -fsSL "https://i.jpillora.com/budimanjojo/talhelper@${TALHELPER_VERSION}!" | bash
+    install -m 0755 talhelper /usr/local/bin/talhelper 2>/dev/null || true
+    rm -f talhelper
+fi
 
 echo ">> Installing Docker apt key + repo (${DOCKER_REPO_DISTRO}/${CODENAME})"
 install -m 0755 -d /etc/apt/keyrings
