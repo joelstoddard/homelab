@@ -90,8 +90,13 @@
   force_handlers: true
   vars:
     talos_pi_provision_hosts: "{{ talos_pi_netboot_steady_state | union(groups['pi_cutover_pending'] | default([])) }}"
-  roles:
-    - 00-pxe
+  tasks:
+    # With nothing pending the gate already equals the steady state, so the
+    # render is a no-op and the whole role is wasted work.
+    - name: Run the PXE role at the widened gate.
+      ansible.builtin.include_role:
+        name: 00-pxe
+      when: groups['pi_cutover_pending'] | default([]) | length > 0
 
 - name: Reboot the targets into netboot.
   hosts: pi_cutover_pending
@@ -182,8 +187,12 @@
   force_handlers: true
   vars:
     talos_pi_provision_hosts: "{{ talos_pi_netboot_steady_state }}"
-  roles:
-    - 00-pxe
+  tasks:
+    # Nothing to close if nothing opened it.
+    - name: Run the PXE role back at the steady-state gate.
+      ansible.builtin.include_role:
+        name: 00-pxe
+      when: groups['pi_cutover_pending'] | default([]) | length > 0
 
 # Regenerate first so any talconfig change (e.g. the USB quirk) is picked up.
 - name: Generate Talos machine configs.
@@ -196,9 +205,10 @@
     - network
   tasks:
     - name: Render configs.
-      ansible.builtin.import_role:
+      ansible.builtin.include_role:
         name: talos
         tasks_from: config
+      when: groups['pi_cutover_pending'] | default([]) | length > 0
 
 - name: Apply Talos config to the targets (installs to /dev/sda).
   hosts: pi_cutover_pending
