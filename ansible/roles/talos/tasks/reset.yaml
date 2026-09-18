@@ -11,7 +11,7 @@
 # (VMs) instead of the installed system.
 
 # check_mode: false — the probe is read-only and the skip below reads its rc.
-- name: "Probe {{ inventory_hostname }}'s secured Talos API."
+- name: "Probe the secured Talos API of {{ inventory_hostname }}"
   ansible.builtin.command:
     cmd: >-
       {{ talosctl_bin }} --talosconfig {{ talos_talosconfig }}
@@ -24,7 +24,7 @@
 # --wait=false: talosctl's own progress tracking outlives the API it tracks
 # (the node reboots into maintenance mode) and sits until its 30 m timeout.
 # The playbook waits for the node to come back by other means.
-- name: "Reset {{ inventory_hostname }} ({{ ansible_host }}): wipe every partition and reboot."
+- name: "Wipe every partition and reboot {{ inventory_hostname ~ ' at ' ~ ansible_host }}"
   ansible.builtin.command:
     cmd: >-
       {{ talosctl_bin }} --talosconfig {{ talos_talosconfig }}
@@ -35,7 +35,7 @@
 
 # A node already back in maintenance mode (or powered off) refuses the
 # secured API, so a re-run skips it instead of failing.
-- name: "Note: {{ inventory_hostname }} does not answer the secured API. Skipping."
+- name: "Skip the node that does not answer the secured API: {{ inventory_hostname }}"
   ansible.builtin.debug:
     msg: "{{ talos_reset_probe.stderr | default('') | trim | default('no response', true) }}"
   when: talos_reset_probe.rc != 0

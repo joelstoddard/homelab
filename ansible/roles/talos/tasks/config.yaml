@@ -65,7 +65,9 @@
     msg:
       - "VIP / endpoint: {{ talos_vip }} ({{ talos_cluster_endpoint }})"
       - "Control plane ({{ talos_controlplane_hosts | length }}): {{ talos_controlplane_hosts | join(', ') }}"
-      - "Workers ({{ (groups['talos'] | default([]) | difference(talos_controlplane_hosts)) | length }}): {{ groups['talos'] | default([]) | difference(talos_controlplane_hosts) | join(', ') }}"
+      - >-
+        Workers ({{ (groups['talos'] | default([]) | difference(talos_controlplane_hosts)) | length }}):
+        {{ groups['talos'] | default([]) | difference(talos_controlplane_hosts) | join(', ') }}
 
 # --- talhelper secret bundle: reuse if committed, else generate + persist
 - name: Check for the committed (SOPS-encrypted) talsecret bundle.

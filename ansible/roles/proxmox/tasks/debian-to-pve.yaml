@@ -132,9 +132,12 @@
 # template would render `bridge-ports vmbr0` — a circular reference that
 # breaks networking on the next ifreload.
 - name: Detect existing vmbr0 bridge member (if any).
-  ansible.builtin.shell: |
-    bridge link show 2>/dev/null \
-      | awk '/master vmbr0/{gsub(/[:@].*/, "", $2); print $2; exit}'
+  ansible.builtin.shell:
+    executable: /bin/bash
+    cmd: |
+      set -o pipefail
+      bridge link show 2>/dev/null \
+        | awk '/master vmbr0/{gsub(/[:@].*/, "", $2); print $2; exit}'
   register: vmbr0_member
   changed_when: false
   check_mode: false

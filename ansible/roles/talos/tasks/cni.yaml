@@ -32,7 +32,7 @@
   delay: 10
   until: cilium_release is succeeded
 
-- name: Seed Cilium {{ cilium_version }} (one-shot; Flux owns it afterwards).
+- name: "Seed Cilium one-shot, Flux owns it afterwards: {{ cilium_version }}"
   kubernetes.core.helm:
     binary_path: "{{ helm_bin }}"
     kubeconfig: "{{ talos_kubeconfig_dest }}"

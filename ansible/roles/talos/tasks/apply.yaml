@@ -31,7 +31,7 @@
   changed_when: false
   check_mode: false
 
-- name: "Resolve {{ inventory_hostname }}'s maintenance IP (NetBox MAC → live lease)."
+- name: "Resolve the maintenance IP (NetBox MAC → live lease) of {{ inventory_hostname }}"
   ansible.builtin.set_fact:
     talos_maintenance_ip: >-
       {{ (talos_arp_scan.stdout_lines
@@ -40,7 +40,7 @@
          | default(ansible_host, true) }}
   when: talos_node_ip is not defined
 
-- name: "Apply Talos config to {{ inventory_hostname }} ({{ talos_node_ip | default(talos_maintenance_ip) | default(ansible_host) }})."
+- name: "Apply Talos config to {{ inventory_hostname ~ ' at ' ~ (talos_node_ip | default(talos_maintenance_ip) | default(ansible_host)) }}"
   ansible.builtin.command:
     cmd: >-
       {{ talosctl_bin }} apply-config --insecure
@@ -61,7 +61,7 @@
   retries: 3
   delay: 2
 
-- name: "Note: {{ inventory_hostname }} is already past maintenance mode (config previously applied)."
+- name: "Note the node already past maintenance mode, config previously applied: {{ inventory_hostname }}"
   ansible.builtin.debug:
     msg: >-
       {{ inventory_hostname }} no longer accepts --insecure config — it has
