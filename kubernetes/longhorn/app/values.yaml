@@ -26,6 +26,25 @@ defaultSettings:
   # Without this a trim only reclaims the volume head, and a rebuild snapshot
   # pins the whole high-water mark forever (docs/design/longhorn.md).
   removeSnapshotsDuringFilesystemTrim: true
+  # Requests, not limits, and only to escape BestEffort: Talos's OOM controller
+  # kills the besteffort cgroup first, and killing these breaks storage on the
+  # node (docs/design/longhorn.md "Why these pods carry requests").
+  systemManagedCSIComponentsResourceLimits: >-
+    {"longhorn-csi-plugin":{"requests":{"cpu":"10m","memory":"32Mi"}},
+     "node-driver-registrar":{"requests":{"cpu":"10m","memory":"24Mi"}},
+     "longhorn-liveness-probe":{"requests":{"cpu":"10m","memory":"32Mi"}},
+     "csi-attacher":{"requests":{"cpu":"10m","memory":"24Mi"}},
+     "csi-provisioner":{"requests":{"cpu":"10m","memory":"24Mi"}},
+     "csi-resizer":{"requests":{"cpu":"10m","memory":"24Mi"}},
+     "csi-snapshotter":{"requests":{"cpu":"10m","memory":"24Mi"}}}
+longhornManager:
+  # Measured p95 is 198 MiB and 56 m across the fleet; the request rounds up.
+  # No memory limit: a limit would have the kernel kill the node's Longhorn
+  # control plane exactly when the node is busiest.
+  resources:
+    requests:
+      cpu: 50m
+      memory: 256Mi
 ingress:
   # The UI behind Traefik. This chart emits a plain Ingress rather than an
   # IngressRoute, which is why traefik keeps its kubernetesIngress provider on.
