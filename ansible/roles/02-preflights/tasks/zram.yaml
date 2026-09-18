@@ -1,0 +1,66 @@
+---
+# The hypervisors install without swap, so the kernel answers memory pressure
+# by OOM-killing a QEMU process. A compressed in-RAM device gives it somewhere
+# to reclaim to first — docs/design/zram-swap.md.
+
+- name: Install the zram swap generator.
+  ansible.builtin.apt:
+    name: systemd-zram-generator
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Configure the zram swap device.
+  ansible.builtin.template:
+    src: zram-generator.conf.j2
+    dest: /etc/systemd/zram-generator.conf
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart zram swap
+
+- name: Tune the kernel for RAM-backed swap.
+  ansible.posix.sysctl:
+    name: "{{ item.name }}"
+    value: "{{ item.value }}"
+    sysctl_file: /etc/sysctl.d/90-zram.conf
+    sysctl_set: true
+    state: present
+    reload: true
+  loop:
+    - {name: vm.swappiness, value: "{{ zram_swappiness }}"}
+    - {name: vm.page-cluster, value: "{{ zram_page_cluster }}"}
+  loop_control:
+    label: "{{ item.name }}"
+
+# The handler regenerates the unit from the config above. Flushing here keeps
+# the assertion below correct on the run that changes it.
+- name: Apply a changed zram configuration before verifying it.
+  ansible.builtin.meta: flush_handlers
+
+# systemd derives the unit from a config file that check mode never wrote, so
+# a dry run has no device to start or assert against.
+- name: Bring the zram device up and confirm it.
+  when: not ansible_check_mode
+  block:
+    - name: Start the zram swap device.
+      # A generated unit cannot be enabled; the generator wires it into
+      # swap.target on each daemon-reload, which is what starts it at boot.
+      ansible.builtin.systemd_service:
+        name: dev-zram0.swap
+        state: started
+        daemon_reload: true
+
+    - name: Read the active swap devices.
+      ansible.builtin.command: swapon --show=NAME,SIZE,PRIO --noheadings
+      register: zram_swapon
+      changed_when: false
+
+    - name: Assert zram carries the host's swap.
+      ansible.builtin.assert:
+        that: "'/dev/zram0' in zram_swapon.stdout"
+        fail_msg: >-
+          /dev/zram0 is absent from swapon. Check
+          `journalctl -u systemd-zram-setup@zram0`; the PVE kernel must supply
+          the zram module.
+        success_msg: "zram swap active — {{ zram_swapon.stdout }}"

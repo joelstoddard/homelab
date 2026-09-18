@@ -46,6 +46,9 @@
           a reboot and a re-pull; only the EPHEMERAL wipe clears it
           (`docs/talos-bootstrap.md` "Recovery" — `k8s-agent-02` was wiped
           on 2026-09-15 and its `beyla-repair` taint dropped).
+          zram swap landed on the hosts 2026-09-18
+          (`docs/design/zram-swap.md`) as a floor under the OOM killer —
+          it buys headroom, it does not replace right-sizing.
 
 ## Raspberry Pis
 - [x] Bootstrap with TalOS (arm64 PXE netboot via 00-pxe `talos.yaml`)

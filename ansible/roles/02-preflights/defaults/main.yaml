@@ -1,0 +1,13 @@
+---
+# Compressed in-RAM swap for the hypervisors. The NUCs install without swap,
+# so memory pressure goes straight to the OOM killer — docs/design/zram-swap.md.
+zram_size: "ram"  # A virtual cap. The device costs RAM only for what it holds.
+zram_compression_algorithm: "lz4"  # Lower ratio than zstd, several times faster to decompress.
+zram_swap_priority: 100
+
+# 180 of a possible 200. Lower this to 100 first if etcd on the control-plane
+# VMs starts losing Raft leader elections — docs/design/zram-swap.md.
+zram_swappiness: 180
+# zram is random access, so swap readahead only decompresses pages nothing
+# asked for.
+zram_page_cluster: 0

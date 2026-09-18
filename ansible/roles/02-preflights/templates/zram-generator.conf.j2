@@ -1,0 +1,7 @@
+# Managed by Ansible — roles/02-preflights/tasks/zram.yaml.
+# See docs/design/zram-swap.md.
+[zram0]
+zram-size = {{ zram_size }}
+compression-algorithm = {{ zram_compression_algorithm }}
+swap-priority = {{ zram_swap_priority }}
+fs-type = swap

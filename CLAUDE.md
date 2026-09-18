@@ -73,10 +73,16 @@ Current implementation:
 - `02-preflights` — OS-agnostic orchestrator. Generic hygiene first:
   `resolv.yaml` writes `/etc/resolv.conf` with the Pi-hole LXC (looked up by
   its NetBox name, `dns_primary_host`) ahead of a public fallback, because only
-  Pi-hole answers the LAN wildcard the hosts push metrics and logs to. Then
+  Pi-hole answers the LAN wildcard the hosts push metrics and logs to.
+  `zram.yaml` (tag `zram`, proxmox-group only) then gives the hypervisors a
+  compressed in-RAM swap device via `systemd-zram-generator`, because the
+  preseed installs them with no swap at all and the kernel's only answer to
+  memory pressure was OOM-killing a QEMU process; the tuning is deliberately
+  aggressive and `zram_swappiness` is the dial to turn back — see
+  `docs/design/zram-swap.md`. Then
   the `proxmox` library's `debian-to-pve`, `cluster`, `api-token`, and
   `monitoring-token` tasks for proxmox-group hosts, and the `alloy` role for
-  alloy-group hosts. Further Debian hygiene (admin user, swap, fail2ban) is
+  alloy-group hosts. Further Debian hygiene (admin user, fail2ban) is
   planned, not yet implemented.
 - `proxmox` — OS library. Four task files: `debian-to-pve.yaml` (Debian →
   Proxmox VE conversion: adds the Proxmox apt repo, installs `pve-manager`,
