@@ -79,36 +79,11 @@
         ansible_connection: ssh
       changed_when: true
 
-- name: Wait until the Kubernetes node is Ready and schedulable — {{ inventory_hostname }}
-  ansible.builtin.command:
-    cmd: >-
-      {{ kubectl_bin }} --context {{ talos_cluster_name }} get node {{ inventory_hostname | lower }}
-      -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}/{.spec.unschedulable}'
-  register: talos_resize_node_ready
-  changed_when: false
-  retries: 60
-  delay: 10
-  until: talos_resize_node_ready.stdout == 'True/'
-  when: not ansible_check_mode
+- name: Gate on the node being Ready and schedulable again.
+  ansible.builtin.import_tasks: gate-node-ready.yaml
 
-# Same reasoning as tasks/upgrade.yaml: a returned node still has replicas
-# rebuilding behind it, and cycling the next storage node meanwhile could
-# leave a volume on one healthy replica.
-- name: Wait until no Longhorn volume is degraded or faulted — {{ inventory_hostname }}
-  ansible.builtin.command:
-    cmd: >-
-      {{ kubectl_bin }} --context {{ talos_cluster_name }} get volumes.longhorn.io -A
-      -o jsonpath='{range .items[?(@.status.robustness=="degraded")]}{.metadata.name}={.status.robustness}{"\n"}{end}
-      {range .items[?(@.status.robustness=="faulted")]}{.metadata.name}={.status.robustness}{"\n"}{end}'
-  register: talos_resize_volumes
-  changed_when: false
-  failed_when: false
-  retries: 90
-  delay: 20
-  until: >-
-    (talos_resize_volumes.rc != 0 and "doesn't have a resource type" in talos_resize_volumes.stderr)
-    or (talos_resize_volumes.rc == 0 and (talos_resize_volumes.stdout | trim | length) == 0)
-  when: not ansible_check_mode
+- name: Gate on Longhorn being fully replicated again.
+  ansible.builtin.import_tasks: gate-longhorn-healthy.yaml
 
 # The node returning proves it booted; only the guest's own total proves the
 # new geometry took. Talos reports slightly less than configured (firmware

@@ -1,0 +1,16 @@
+---
+# Shared health gate: block until this node is back in the cluster and taking
+# pods again. Imported between nodes by tasks/upgrade.yaml and tasks/resize.yaml,
+# which both roll one node at a time.
+
+- name: Wait until the Kubernetes node is Ready and schedulable — {{ inventory_hostname }}
+  ansible.builtin.command:
+    cmd: >-
+      {{ kubectl_bin }} --context {{ talos_cluster_name }} get node {{ inventory_hostname | lower }}
+      -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}/{.spec.unschedulable}'
+  register: talos_gate_node
+  changed_when: false
+  retries: 60
+  delay: 10
+  until: talos_gate_node.stdout == 'True/'
+  when: not ansible_check_mode

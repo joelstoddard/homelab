@@ -1,0 +1,27 @@
+---
+# Shared health gate: a node returning is not the end of the disruption. Its
+# Longhorn replicas rebuild afterwards, and rolling the next storage node while
+# a volume is still degraded could leave that volume with one healthy replica.
+#
+# Waits for every volume to be neither degraded nor faulted; detached volumes
+# report robustness "unknown" and are not waited on. A missing CRD means
+# Longhorn is absent and is skipped, while any other kubectl failure (API blip,
+# expired cert, wrong context) is retried and fails the roll after the budget.
+#
+# Imported between nodes by tasks/upgrade.yaml and tasks/resize.yaml.
+
+- name: Wait until no Longhorn volume is degraded or faulted — {{ inventory_hostname }}
+  ansible.builtin.command:
+    cmd: >-
+      {{ kubectl_bin }} --context {{ talos_cluster_name }} get volumes.longhorn.io -A
+      -o jsonpath='{range .items[?(@.status.robustness=="degraded")]}{.metadata.name}={.status.robustness}{"\n"}{end}
+      {range .items[?(@.status.robustness=="faulted")]}{.metadata.name}={.status.robustness}{"\n"}{end}'
+  register: talos_gate_volumes
+  changed_when: false
+  failed_when: false
+  retries: 90
+  delay: 20
+  until: >-
+    (talos_gate_volumes.rc != 0 and "doesn't have a resource type" in talos_gate_volumes.stderr)
+    or (talos_gate_volumes.rc == 0 and (talos_gate_volumes.stdout | trim | length) == 0)
+  when: not ansible_check_mode
