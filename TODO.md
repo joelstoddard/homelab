@@ -257,5 +257,5 @@
 - [-] PiHole
 - [ ] Cloudflare DDNS
 - [ ] GitHub Actions Runner
-- [ ] Jellyfin
+- [x] Jellyfin
 - [ ] Rennovate

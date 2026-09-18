@@ -20,3 +20,4 @@ resources:
   - beyla
   - host-monitoring
   - searxng
+  - jellyfin

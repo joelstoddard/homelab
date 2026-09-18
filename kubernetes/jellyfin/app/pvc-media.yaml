@@ -1,0 +1,17 @@
+# volumeName and the empty storageClassName bind this to the jellyfin-media
+# PersistentVolume. Without them the default StorageClass would provision an
+# empty Longhorn volume instead.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: jellyfin-media
+  labels:
+    app.kubernetes.io/name: jellyfin
+spec:
+  accessModes:
+    - ReadOnlyMany
+  storageClassName: ""
+  volumeName: jellyfin-media
+  resources:
+    requests:
+      storage: 16Ti

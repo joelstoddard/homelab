@@ -1,0 +1,16 @@
+# Carries no prometheus.io/scrape annotation for the same reason the pod does
+# not: Jellyfin serves no Prometheus endpoint without a plugin, and Beyla
+# already reports its RED metrics.
+apiVersion: v1
+kind: Service
+metadata:
+  name: jellyfin
+  labels:
+    app.kubernetes.io/name: jellyfin
+spec:
+  selector:
+    app.kubernetes.io/name: jellyfin
+  ports:
+    - name: http
+      port: 8096
+      targetPort: http
