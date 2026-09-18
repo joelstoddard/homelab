@@ -34,3 +34,4 @@ the sidecar watches every namespace.
 | Hosts/host-logs.json | Hosts | hand-written | — | — |
 | Services/searxng.json | Services | hand-written | — | — |
 | Services/tailscale.json | Services | hand-written | — | tailscaled's built-in metrics only; the traffic counters read zero until a peer actually sends. kube-state-metrics series are matched on `exported_namespace`, not `namespace` |
+| Services/jellyfin.json | Services | hand-written | — | Jellyfin exposes no Prometheus endpoint, so request panels come from Beyla, matched on `k8s_namespace_name` — Beyla stamps `namespace` with its own. kube-state-metrics series use `exported_namespace`, as tailscale's do. Longhorn robustness is `max()` because every manager reports the volume and only its owner knows the real state |

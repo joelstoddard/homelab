@@ -2,7 +2,7 @@
   "id": null,
   "uid": "homelab-searxng",
   "title": "SearXNG",
-  "tags": ["searxng", "homelab"],
+  "tags": ["searxng"],
   "timezone": "browser",
   "schemaVersion": 39,
   "time": {"from": "now-6h", "to": "now"},

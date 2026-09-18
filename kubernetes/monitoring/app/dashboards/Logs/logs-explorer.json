@@ -2,7 +2,7 @@
   "id": null,
   "uid": "homelab-logs-explorer",
   "title": "Logs explorer",
-  "tags": ["logs", "homelab"],
+  "tags": ["logs"],
   "timezone": "browser",
   "schemaVersion": 39,
   "time": {"from": "now-1h", "to": "now"},
