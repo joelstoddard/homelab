@@ -43,6 +43,10 @@ spec:
           ports:
             - name: http
               containerPort: 8096
+          # Every timeoutSeconds here is explicit because the default is 1 s,
+          # and a library scan makes /health slower than that routinely
+          # (docs/design/jellyfin.md "Probe timeouts").
+          #
           # First start creates the database and can take minutes, so the
           # startup probe holds the liveness probe off for up to five.
           startupProbe:
@@ -51,17 +55,20 @@ spec:
               port: http
             periodSeconds: 10
             failureThreshold: 30
+            timeoutSeconds: 5
           readinessProbe:
             httpGet:
               path: /health
               port: http
             periodSeconds: 10
+            timeoutSeconds: 5
           livenessProbe:
             httpGet:
               path: /health
               port: http
             periodSeconds: 30
             failureThreshold: 3
+            timeoutSeconds: 10
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
