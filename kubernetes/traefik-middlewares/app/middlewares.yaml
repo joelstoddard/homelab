@@ -20,11 +20,11 @@ spec:
 ---
 # Basic auth for services with no authentication of their own. One middleware
 # and one Secret PER SERVICE, deliberately: a shared credential means a leak
-# from either exposes both, and neither can be rotated without disrupting the
-# other. They are not equivalent risks — the Traefik dashboard is read-only,
-# while Longhorn's UI can delete volumes — so they do not share a secret.
+# from one exposes the others, and none can be rotated without disrupting the
+# rest. They are not equivalent risks — the Traefik dashboard is read-only,
+# Longhorn's UI can delete volumes, and Glance indexes every other service.
 #
-# Both Secrets live in the traefik layer, which runs Flux variable
+# All three Secrets live in the traefik layer, which runs Flux variable
 # substitution: envsubst replaces a classic $apr1$… hash with an empty string,
 # so every htpasswd line here must be bcrypt (htpasswd -nB).
 #
@@ -46,3 +46,11 @@ metadata:
 spec:
   basicAuth:
     secret: longhorn-auth-users
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: glance-auth
+spec:
+  basicAuth:
+    secret: glance-auth-users
