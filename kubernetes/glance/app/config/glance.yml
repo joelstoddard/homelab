@@ -76,6 +76,14 @@ pages:
                 check-url: http://searxng.searxng.svc:8080/healthz
                 icon: di:searxng
 
+              - title: Jellyfin
+                url: https://jellyfin.${DOMAIN}
+                # Path taken from the jellyfin layer's own probes, not measured
+                # here — that layer is suspended, so this reads down until it is
+                # running again.
+                check-url: http://jellyfin.jellyfin.svc:8096/health
+                icon: di:jellyfin
+
           - type: monitor
             title: Hypervisors
             cache: 1m

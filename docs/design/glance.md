@@ -7,7 +7,7 @@ Deployment, no volume — and every link is in git.
 
 ## Problem
 
-The homelab exposes eleven web UIs under one wildcard certificate, and nothing
+The homelab exposes a dozen web UIs under one wildcard certificate, and nothing
 listed them. The names are guessable but not memorable, and there was no single
 page that answered "what is running, and is it up".
 
@@ -116,7 +116,7 @@ endpoint is healthy. `alt-status-codes` then re-admits a specific failing code.
 Predicting these is unreliable — a first pass guessed 404 for Traefik and 200
 for Pi-hole, and both were wrong. Every value below was measured with `curl -L`
 from a pod in this cluster, and any change to this table should be re-measured
-the same way:
+the same way — with one exception, noted in the table and explained under it:
 
 | Site | `check-url` | Final | Notes |
 | --- | --- | --- | --- |
@@ -128,6 +128,16 @@ the same way:
 | TrueNAS | `https://voyager.lan-services.svc/ui/` | 200 | `/` redirects to `/ui/` |
 | Pi-hole | `https://pihole.lan-services.svc/admin/` | 200 | `/` is 403; settles on `/admin/login` |
 | Router | `http://james-webb.lan-services.svc/` | 200 | plain HTTP |
+| Jellyfin | `http://jellyfin.jellyfin.svc:8096/health` | — | **not measured** — see below |
+
+**Jellyfin is the one unmeasured entry.** That layer was suspended with no
+running pod when this page was built, so there was nothing to probe. Its path
+is not a guess either: `/health` on the `http` port is taken from the Jellyfin
+layer's own startup, readiness and liveness probes, which Kubernetes requires
+to answer 2xx. The tile therefore reads down until that deployment is running,
+which is accurate rather than wrong — a start page that omits a service because
+the service is broken is the one thing it must not do. Confirm it goes green
+once the layer is unsuspended; there is a `TODO.md` entry for exactly that.
 
 **Traefik is the one override.** Its Service publishes only the `web` and
 `websecure` entrypoints, so a request carrying no Host that matches a router
@@ -230,12 +240,12 @@ every URL in it is an in-cluster Service name.
   outbound requests to a third party, which is a poor fit for a homelab that
   runs its own search engine and DNS sink. Self-hosting them means setting
   `assets-path` and mounting the files, which trades the stateless pod for a
-  volume; that trade was not worth making for eleven icons, and it is the
+  volume; that trade was not worth making for a dozen icons, and it is the
   first thing to revisit if the CDN dependency starts to grate.
 - **Tiles are hand-maintained.** A new service does not appear until it is
   added here. Kubernetes service discovery was rejected because it needs a
   ClusterRole over several namespaces and scatters each tile's metadata into
-  the layer that owns it; with eleven tiles the drift is cheaper than the
+  the layer that owns it; with a dozen tiles the drift is cheaper than the
   machinery.
 - v0.8.6 fixed an `X-Forwarded-For` spoof that bypassed rate limiting on
   **Glance's own** auth. That auth is unset here and Traefik does the work, so

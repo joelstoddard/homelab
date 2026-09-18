@@ -252,10 +252,10 @@
           Flux, Cilium, Longhorn, Traefik) — turns "is a bump waiting" into a
           glance. Makes outbound GitHub API calls, which nothing else on this
           page does
-    - [ ] A Jellyfin tile — `jellyfin.${DOMAIN}` landed after this page was
-          built. Left out deliberately: the layer is suspended and the pod is
-          not running, so its check-url cannot be measured, and this page's
-          rule is that status codes are measured rather than assumed
+    - [ ] Confirm the Jellyfin tile goes green once that layer is
+          unsuspended and its pod runs — its check-url is the only one on the
+          page taken from another layer's probes rather than measured live,
+          because Jellyfin was down when the page was built
     - [ ] Measure and tighten Glance's limits after a week
     - [ ] Self-host the tile icons via `assets-path` if the jsdelivr CDN
           dependency grates — costs the stateless pod a volume

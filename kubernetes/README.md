@@ -653,7 +653,7 @@ Consequences:
 - **Tiles are static YAML in git.** Kubernetes service discovery was rejected:
   it wants a ClusterRole over several namespaces and scatters each tile's
   metadata into the layer that owns it. A new service does not appear until it
-  is added here, which is the intended trade at eleven tiles.
+  is added here, which is the intended trade at a dozen tiles.
 - **Every tile carries two URLs.** `url` is followed by the browser and is
   public; `check-url` is fetched by the pod and must be an in-cluster name,
   because CoreDNS forwards to the nodes' DHCP resolvers and cannot resolve the
