@@ -67,3 +67,6 @@ configMapGenerator:
   - name: dashboard-jellyfin
     files: [Services/jellyfin.json]
     options: {annotations: {grafana_folder: Services}}
+  - name: dashboard-glance
+    files: [Services/glance.json]
+    options: {annotations: {grafana_folder: Services}}

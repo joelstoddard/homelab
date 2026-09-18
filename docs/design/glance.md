@@ -222,6 +222,24 @@ config across files — put the metrics widgets in a second ConfigMap carrying
 dashboard JSON. That file then cannot use `${DOMAIN}`, which is fine because
 every URL in it is an in-cluster Service name.
 
+## Observing it
+
+Glance serves no Prometheus endpoint, so nothing scrapes the pod and it carries
+no `prometheus.io/scrape` annotation. That costs less than it sounds: Beyla
+already instruments every namespace except `kube-system`, `kube-node-lease`,
+`alloy` and `beyla`, so RED metrics and traces arrive without configuration,
+and cAdvisor plus kube-state-metrics cover resources and pod health.
+
+`monitoring/app/dashboards/Services/glance.json` assembles those into one
+dashboard. The label to remember is that **Beyla stamps `namespace` with its
+own**, so its series are matched on `k8s_namespace_name`, while
+kube-state-metrics series are matched on `exported_namespace` — the same split
+the Jellyfin and Tailscale dashboards carry.
+
+Expect long flat stretches: a start page is opened a few times a day, not
+continuously. Sustained 4xx is the `glance-auth` middleware refusing a request,
+not Glance failing.
+
 ## Known limitations
 
 - **Glance is pre-1.0** (v0.8.6). Configuration schema changes between minor

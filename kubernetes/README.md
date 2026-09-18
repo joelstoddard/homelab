@@ -675,6 +675,10 @@ Consequences:
 - **Nothing to add for DNS or TLS.** The Pi-hole wildcard resolves the name and
   `TLSStore/default` serves the certificate — and `home.` must NOT be added to
   `pihole_dns_passthrough_names`, which would break it.
+- **No metrics endpoint, and no annotation.** Glance exposes none, so the
+  dashboard (`monitoring/app/dashboards/Services/glance.json`) is built from
+  Beyla, cAdvisor and kube-state-metrics. Beyla series match on
+  `k8s_namespace_name`, kube-state-metrics on `exported_namespace`.
 
 ```bash
 flux --context homelab get ks glance
