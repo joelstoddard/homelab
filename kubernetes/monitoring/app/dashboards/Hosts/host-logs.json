@@ -2,7 +2,7 @@
   "id": null,
   "uid": "homelab-host-logs",
   "title": "Host logs",
-  "tags": ["logs", "hosts", "homelab"],
+  "tags": ["logs", "hosts"],
   "timezone": "browser",
   "schemaVersion": 39,
   "time": {"from": "now-1h", "to": "now"},
