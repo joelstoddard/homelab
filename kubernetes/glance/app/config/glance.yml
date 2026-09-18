@@ -1,6 +1,6 @@
 # Flux substitution runs before Glance's and both use the same sigil, so DOMAIN
-# must stay the only variable in this file, comments included. See
-# docs/design/glance.md.
+# and NETBOX_URL must stay the only variables in this file, comments included.
+# See docs/design/glance.md.
 #
 # url is followed by the browser; check-url is fetched by this pod, which
 # cannot resolve the wildcard. Status codes below are measured, not assumed —
@@ -42,6 +42,38 @@ pages:
               - title: Grafana
                 shortcut: "!g"
                 url: https://grafana.${DOMAIN}/?search=open&query={QUERY}
+
+          # Off-cluster, so no check-url and no status dot — nothing here is
+          # ours to probe. NETBOX_URL is encrypted for the reason the tenant
+          # name never appears in this repo: it identifies the account.
+          - type: bookmarks
+            groups:
+              - title: Repos
+                links:
+                  - title: homelab
+                    url: https://github.com/joelstoddard/homelab
+                    icon: di:github
+                  - title: dotfiles
+                    url: https://github.com/joelstoddard/dotfiles
+                    icon: di:github
+
+              - title: Cloud
+                links:
+                  - title: Cloudflare
+                    url: https://dash.cloudflare.com
+                    icon: di:cloudflare
+                  - title: Hetzner
+                    url: https://console.hetzner.cloud
+                    icon: di:hetzner
+                  - title: NetBox
+                    url: ${NETBOX_URL}
+                    icon: di:netbox
+                  - title: Bitwarden
+                    url: https://vault.bitwarden.eu
+                    icon: di:bitwarden
+                  - title: Tailscale
+                    url: https://login.tailscale.com/admin
+                    icon: di:tailscale
 
       - size: full
         widgets:

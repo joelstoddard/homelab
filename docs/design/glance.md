@@ -60,9 +60,9 @@ an unknown variable becomes the empty string rather than passing through — the
 same hazard `docs/design/ingress-tls.md` documents for `${DOMIAN}`.
 
 The rule is that **Flux owns every substitution in this layer and Glance's own
-is never used.** `${DOMAIN}` is the only variable in `app/config/glance.yml`
-and must remain the only use of that sigil anywhere in the file, *comments
-included*: a `configMapGenerator` input is embedded verbatim, so its comments
+is never used.** `${DOMAIN}` and `${NETBOX_URL}` are the only variables in
+`app/config/glance.yml` and must remain the only uses of that sigil anywhere
+in the file, *comments included*: a `configMapGenerator` input is embedded verbatim, so its comments
 reach envsubst, unlike ordinary manifests where kustomize strips them first.
 
 Glance documents `\${...}` as an escape. Do not rely on it — the escape is
@@ -105,6 +105,21 @@ variable this layer needs.
 
 **A red tile is a wrong `check-url` until proven otherwise.** Confirm from
 inside the cluster before investigating the service itself.
+
+## Bookmarks carry no status
+
+The `bookmarks` widget holds links that are not ours: two GitHub repos and the
+cloud consoles for DNS, the VPS, IPAM, passwords and the tailnet. They get no
+`check-url` and no status dot, deliberately — probing a third party from this
+pod tells you nothing you can act on and makes the page's dots mean two
+different things.
+
+`${NETBOX_URL}` is the one bookmark from `cluster-secrets`. The tenant URL
+identifies the account, and this repo refers to it only as `$NETBOX_API`
+everywhere else, deliberately kept out of YAML; a plaintext bookmark would
+undo that in a public repo's permanent history. The rest are generic console
+addresses that name no account. For the same reason the Hetzner tile is just
+"Hetzner": the repo names the VPS elsewhere, but not which provider hosts it.
 
 ## The status codes are measured, not assumed
 

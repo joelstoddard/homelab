@@ -306,10 +306,10 @@ Every tile carries two URLs: a public `url` the browser follows, and an
 in-cluster `.svc` `check-url` the pod probes — the cluster cannot resolve the
 LAN wildcard, the same constraint that kept a blackbox probe off
 `searx.${DOMAIN}`. The off-cluster probes reuse the `lan-services` headless
-Services, so `${DOMAIN}` is the only variable the layer needs, and it is the
-only `$` permitted anywhere in `glance.yml`, comments included: Glance does
-its own `${VAR}` expansion with the same sigil, Flux runs first, and an
-unknown variable is silently blanked. Two Glance-specific traps: the Traefik
+Services, so the layer needs only `${DOMAIN}` plus `${NETBOX_URL}` for the
+bookmark, and those are the only `$` permitted anywhere in `glance.yml`,
+comments included: Glance does its own `${VAR}` expansion with the same
+sigil, Flux runs first, and an unknown variable is silently blanked. Two Glance-specific traps: the Traefik
 tile needs `alt-status-codes: [404]` because that Service publishes only the
 entrypoints and a Host-less request matches no router; and the clock carries
 no `timezones:` list, because Glance resolves named zones at startup while the
