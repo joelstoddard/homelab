@@ -11,6 +11,7 @@ resources:
   # reads them. One per service, never shared — middlewares.yaml explains why.
   - secret-dashboard-auth.sops.yaml
   - secret-longhorn-auth.sops.yaml
+  - secret-glance-auth.sops.yaml
 configMapGenerator:
   - name: traefik-values
     files:

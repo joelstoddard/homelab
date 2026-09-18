@@ -239,7 +239,31 @@
     - [ ] Two engines fail to register at every boot (`ahmia`, `torch` — Tor
           engines with no proxy configured), two ERROR lines a restart
 - [ ] Vaultwarden?
-- [ ] Flame
+- [x] Glance (`kubernetes/glance/`, `docs/design/glance.md`) — browser start
+      page on `home.${DOMAIN}`, behind its own basic auth. Replaces the Flame
+      entry that stood here: Flame's last release is 2.3.1 and its maintainer
+      calls it abandoned, it has no metrics, and its links live in a UI-edited
+      SQLite file outside git. gethomepage/homepage was rejected on appearance
+      and on the CSS-maintenance burden of fixing it
+    - [ ] Live infra metrics: `custom-api` widgets against
+          `http://prometheus-server.monitoring.svc/api/v1/query`, which needs
+          no credentials in-cluster. Needs its own ConfigMap carrying
+          `kustomize.toolkit.fluxcd.io/substitute: disabled`, pulled in with
+          Glance's `$include` — Go templates use `$` for variables and would
+          be eaten by envsubst, the same split `alloy/app/config/` uses
+    - [ ] A `releases` widget for the `versions.env` set (Talos, Kubernetes,
+          Flux, Cilium, Longhorn, Traefik) — turns "is a bump waiting" into a
+          glance. Makes outbound GitHub API calls, which nothing else on this
+          page does
+    - [ ] Confirm the Jellyfin tile goes green once that layer is
+          unsuspended and its pod runs — its check-url is the only one on the
+          page taken from another layer's probes rather than measured live,
+          because Jellyfin was down when the page was built
+    - [ ] Measure and tighten Glance's limits after a week
+    - [ ] Self-host the tile icons via `assets-path` if the jsdelivr CDN
+          dependency grates — costs the stateless pod a volume
+    - [ ] Replace basic auth with forward-auth when Kanidm lands; the start
+          page is the strongest case in the cluster for per-user identity
 - [ ] Code Server?
 - [ ] Guacamole
 - [x] Traefik

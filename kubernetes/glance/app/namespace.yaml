@@ -1,0 +1,7 @@
+# No PodSecurity labels: the workload satisfies the "restricted" profile
+# (non-root, no privilege escalation, all capabilities dropped, RuntimeDefault
+# seccomp), so Talos's default "baseline" enforcement passes without an opt-out.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: glance

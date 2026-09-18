@@ -1,0 +1,30 @@
+# Glance, the start page — docs/design/glance.md.
+#
+# dependsOn traefik AND traefik-middlewares for the reason lan-services and
+# searxng do: the route references the default-headers and glance-auth
+# Middlewares, and Traefik refuses a router whose middleware is missing.
+# dependsOn cluster-secrets for DOMAIN, which postBuild substitutes into both
+# the route and the config.
+#
+# No decryption block: this layer carries no *.sops.yaml. The basic-auth
+# credential lives in the traefik layer beside dashboard-auth and longhorn-auth.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: glance
+  namespace: flux-system
+spec:
+  interval: 10m0s
+  path: ./kubernetes/glance/app
+  prune: true
+  dependsOn:
+    - name: traefik
+    - name: traefik-middlewares
+    - name: cluster-secrets
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+  postBuild:
+    substituteFrom:
+      - kind: Secret
+        name: cluster-secrets

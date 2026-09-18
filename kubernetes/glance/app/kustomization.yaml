@@ -1,0 +1,20 @@
+# Every resource here is namespaced, so a top-level namespace: is safe — unlike
+# cert-manager-issuers, which must set none because kustomize would stamp one
+# onto its cluster-scoped ClusterIssuers.
+#
+# The config is a generator WITHOUT disableNameSuffixHash, for the same reason
+# SearXNG's is: Glance reads the file at startup, so the content hash in the
+# name is what makes an edit roll the pod rather than land on disk and do
+# nothing.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: glance
+resources:
+  - namespace.yaml
+  - deployment.yaml
+  - service.yaml
+  - ingressroute.yaml
+configMapGenerator:
+  - name: glance-config
+    files:
+      - config/glance.yml

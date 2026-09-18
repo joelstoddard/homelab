@@ -35,8 +35,9 @@ install that gets Flux running in the first place.
       exporters and receivers for Proxmox, Pi-hole, TrueNAS and the router
       (`host-monitoring/`, write routes in `monitoring/`) — see
       "Host monitoring"
-- [-] Workloads — SearXNG, the first user-facing application (`searxng/`) —
-      see "SearXNG"
+- [-] Workloads — SearXNG, the first user-facing application (`searxng/`),
+      Jellyfin (`jellyfin/`), and the Glance start page on `home.<domain>`
+      (`glance/`) — see "SearXNG", "Jellyfin" and "Glance"
 
 ## Layout
 
@@ -176,7 +177,7 @@ kubernetes/
 │       ├── alloy-gateway/        # HelmRelease + values + the hand-written LoadBalancer "syslog" (UDP/TCP 514)
 │       ├── config/               # gateway.alloy, substitute disabled
 │       └── targets/targets.json  # the substituted probe/poll target list, mounted at /etc/alloy-targets
-└── searxng/
+├── searxng/
     ├── kustomization.yaml
     ├── ks.yaml                   # Flux Kustomization, dependsOn traefik + traefik-middlewares + cluster-secrets, postBuild, sops
     └── app/
@@ -188,6 +189,16 @@ kubernetes/
         ├── service.yaml          # searxng:8080, no scrape annotation (the metrics job is in alloy/)
         ├── valkey.yaml           # Deployment + Service; no persistence, 64 MB, allkeys-lru
         └── ingressroute.yaml     # Host(searx.<domain>), default-headers only — no auth middleware
+└── glance/
+    ├── kustomization.yaml
+    ├── ks.yaml                   # Flux Kustomization, dependsOn traefik + traefik-middlewares + cluster-secrets, postBuild, NO sops
+    └── app/
+        ├── kustomization.yaml    # namespace glance
+        ├── namespace.yaml        # glance; no PodSecurity label (the pod satisfies "restricted")
+        ├── config/               # glance.yml, generated WITH a name hash so an edit rolls the pod
+        ├── deployment.yaml       # one replica; no command or env — the image entrypoint reads /app/config/glance.yml
+        ├── service.yaml          # glance:8080, no scrape annotation (Glance exposes no metrics)
+        └── ingressroute.yaml     # Host(home.<domain>), default-headers + glance-auth
 ```
 
 `flux-system/gotk-sync.yaml` declares a `GitRepository` for this repo
@@ -638,6 +649,53 @@ kubectl --context homelab get pv jellyfin-media                 # Bound, Retain
 kubectl --context homelab -n jellyfin exec deploy/jellyfin -- ls /media
 ```
 
+## Glance
+
+`glance/` is the browser start page on `home.<domain>`: one stateless pod whose
+entire configuration is `app/config/glance.yml`, listing every service with a
+reachability dot, behind its own basic-auth middleware. Rationale:
+[`docs/design/glance.md`](../docs/design/glance.md).
+
+Consequences:
+
+- **Tiles are static YAML in git.** Kubernetes service discovery was rejected:
+  it wants a ClusterRole over several namespaces and scatters each tile's
+  metadata into the layer that owns it. A new service does not appear until it
+  is added here, which is the intended trade at a dozen tiles.
+- **Every tile carries two URLs.** `url` is followed by the browser and is
+  public; `check-url` is fetched by the pod and must be an in-cluster name,
+  because CoreDNS forwards to the nodes' DHCP resolvers and cannot resolve the
+  LAN wildcard. **A red tile is a wrong `check-url` until proven otherwise.**
+- **The off-cluster probes reuse `lan-services`.** Its headless Services
+  already resolve to the real LAN addresses, so no `${*_IP}` is copied in and
+  `${DOMAIN}` is the only variable this layer needs.
+- **`${DOMAIN}` is the only `$` allowed in `app/config/glance.yml`, comments
+  included.** Glance does its own `${VAR}` expansion with the same sigil and
+  Flux runs first, so a second variable is silently blanked. A generator input
+  is embedded verbatim, which is why comments count.
+- **`app/config/` is generated with a name hash, on purpose.** Glance reads the
+  file once at startup. Do not add `disableNameSuffixHash` here.
+- **No `timezones:` on the clock.** Glance resolves named zones at startup and
+  the image ships no tzdata, so one entry crash-loops the pod.
+- **Its own basic auth**, `glance-auth` with the Secret in `traefik/app/`
+  beside the dashboard's and Longhorn's. This is the rule; SearXNG is the
+  exception.
+- **Nothing to add for DNS or TLS.** The Pi-hole wildcard resolves the name and
+  `TLSStore/default` serves the certificate — and `home.` must NOT be added to
+  `pihole_dns_passthrough_names`, which would break it.
+- **No metrics endpoint, and no annotation.** Glance exposes none, so the
+  dashboard (`monitoring/app/dashboards/Services/glance.json`) is built from
+  Beyla, cAdvisor and kube-state-metrics. Beyla series match on
+  `k8s_namespace_name`, kube-state-metrics on `exported_namespace`.
+
+```bash
+flux --context homelab get ks glance
+kubectl --context homelab -n glance get pods,svc,cm
+kubectl --context homelab -n glance get cm -o name | grep glance-config   # hashed name changes on every config edit
+kubectl --context homelab -n glance exec deploy/glance -- \
+  wget -qS -O /dev/null http://grafana.monitoring.svc/api/health 2>&1 | head -1
+```
+
 ## Cluster secrets
 
 `cluster-secrets/` is one SOPS-encrypted `Secret` in `flux-system` holding
@@ -658,7 +716,8 @@ manifests *after* SOPS decryption. The Secret lives in `flux-system` because
 `substituteFrom` resolves Secrets in the **consuming** Kustomization's
 namespace, not in the namespace being written to; `wait: true` on the layer
 is what makes a consumer's `dependsOn` mean "the keys are there".
-Consumers today: `cert-manager-issuers`, `traefik`, `longhorn`, `lan-services`.
+Consumers today: `cert-manager-issuers`, `traefik`, `longhorn`, `lan-services`,
+`monitoring`, `host-monitoring`, `searxng`, `jellyfin`, `glance`.
 
 This is why the domain and the LB address are not simply SOPS-encrypted:
 `TRAEFIK_LB_IP` has to reach Traefik's Helm values, which are a
