@@ -1,11 +1,21 @@
 ---
 # OS-agnostic post-PXE lifecycle orchestrator. Generic Debian hygiene runs
-# first (resolv.yaml today; admin user, swap, fail2ban planned), then the
-# per-OS task libraries by group membership.
+# first (resolv.yaml and zram.yaml today; admin user and fail2ban planned),
+# then the per-OS task libraries by group membership.
 
 - name: Point the Debian-based hosts at Pi-hole for name resolution.
   ansible.builtin.include_tasks: resolv.yaml
   when: "'proxmox' in group_names or 'debian' in group_names"
+
+- name: Give the hypervisors compressed in-RAM swap.
+  # `apply` is load-bearing: a tag on a dynamic include selects the include
+  # alone, so without it `TAGS=zram` runs nothing.
+  ansible.builtin.include_tasks:
+    file: zram.yaml
+    apply:
+      tags: [zram]
+  when: "'proxmox' in group_names"
+  tags: [zram]
 
 - name: Run the proxmox-group lifecycle (debian-to-pve, cluster, api-token, monitoring-token).
   ansible.builtin.include_role:
