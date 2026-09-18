@@ -20,14 +20,12 @@
     update_cache: true
     cache_valid_time: 3600
   become: true
-  when: talos_pxe_hosts | length > 0
 
 - name: Ensure the operator-local build directory exists.
   ansible.builtin.file:
     path: "{{ role_path }}/files/build"
     state: directory
     mode: "0755"
-  when: talos_pxe_hosts | length > 0
 
 # The version is a pinned tag, so once cloned there is nothing to fetch:
 # update=false keeps the operator's apply working when source.denx.de is slow
@@ -39,14 +37,12 @@
     version: "{{ uboot_version }}"
     depth: 1
     update: false
-  when: talos_pxe_hosts | length > 0
 
 - name: Render the u-boot Kconfig fragment.
   ansible.builtin.template:
     src: uboot-fragment.config.j2
     dest: "{{ uboot_build_dir }}/homelab.config"
     mode: "0644"
-  when: talos_pxe_hosts | length > 0
 
 # The stamp name encodes what the binary was built from, so a version bump,
 # a fragment edit or an operator IP change all invalidate it automatically.
@@ -55,7 +51,6 @@
     uboot_stamp: >-
       {{ uboot_build_dir }}/.built-{{ ((uboot_version ~ lookup('template', 'uboot-fragment.config.j2'))
                                         | hash('sha256'))[:12] }}
-  when: talos_pxe_hosts | length > 0
 
 # No native module drives a make build; `creates:` keeps this idempotent.
 # With `creates:` set, shell DOES run in check mode (to report would-change)
@@ -73,7 +68,7 @@
     creates: "{{ uboot_stamp }}"
   environment:
     CROSS_COMPILE: "{{ uboot_cross_compile }}"
-  when: talos_pxe_hosts | length > 0 and not ansible_check_mode
+  when: not ansible_check_mode
 
 - name: Install u-boot.bin into the TFTP root.
   ansible.builtin.copy:
@@ -81,7 +76,7 @@
     dest: "{{ role_path }}/files/tftp/u-boot.bin"
     remote_src: true
     mode: "0644"
-  when: talos_pxe_hosts | length > 0 and not ansible_check_mode
+  when: not ansible_check_mode
 
 # The default env is stored as plain strings in the binary, so the boot
 # command can be verified without running it.
@@ -90,7 +85,7 @@
     cmd: "strings {{ role_path }}/files/tftp/u-boot.bin"
   register: uboot_strings
   changed_when: false
-  when: talos_pxe_hosts | length > 0 and not ansible_check_mode
+  when: not ansible_check_mode
 
 - name: Verify u-boot.bin carries this PXE server's boot command and no preboot.
   ansible.builtin.assert:
@@ -100,7 +95,7 @@
     fail_msg: >-
       tftp/u-boot.bin was not built from the current fragment (stale binary or
       operator IP drift). Remove {{ uboot_build_dir }}/.built-* and re-run.
-  when: talos_pxe_hosts | length > 0 and not ansible_check_mode
+  when: not ansible_check_mode
 
 - name: Stage the Raspberry Pi 4 boot firmware into the TFTP root.
   ansible.builtin.get_url:
@@ -108,14 +103,12 @@
     dest: "{{ role_path }}/files/tftp/{{ item }}"
     mode: "0644"
   loop: "{{ rpi_firmware_files }}"
-  when: talos_pxe_hosts | length > 0
 
 - name: Render the Pi firmware config.txt (hands off to u-boot).
   ansible.builtin.template:
     src: rpi-config.txt.j2
     dest: "{{ role_path }}/files/tftp/config.txt"
     mode: "0644"
-  when: talos_pxe_hosts | length > 0
 
 - name: Ensure the Talos asset directory exists.
   ansible.builtin.file:
@@ -125,7 +118,6 @@
   # Creating an empty directory is harmless in --check and lets the asset
   # checks below run instead of failing on a schematic-keyed dir that's new.
   check_mode: false
-  when: talos_pxe_hosts | length > 0
 
 # Image Factory assets are immutable for a given schematic + version (the
 # directory is keyed on both), so download each one once. Without a checksum,
@@ -141,7 +133,6 @@
     - vmlinuz-arm64
     - initramfs-arm64.xz
   register: talos_asset_stat
-  when: talos_pxe_hosts | length > 0
 
 - name: Download Talos arm64 kernel.
   ansible.builtin.get_url:
@@ -149,7 +140,7 @@
     dest: "{{ role_path }}/files/http/talos/{{ talos_pi_asset_dir }}/vmlinuz-arm64"
     mode: "0644"
     timeout: 120
-  when: talos_pxe_hosts | length > 0 and not talos_asset_stat.results[0].stat.exists
+  when: not talos_asset_stat.results[0].stat.exists
 
 - name: Download Talos arm64 initramfs.
   ansible.builtin.get_url:
@@ -157,7 +148,7 @@
     dest: "{{ role_path }}/files/http/talos/{{ talos_pi_asset_dir }}/initramfs-arm64.xz"
     mode: "0644"
     timeout: 120
-  when: talos_pxe_hosts | length > 0 and not talos_asset_stat.results[1].stat.exists
+  when: not talos_asset_stat.results[1].stat.exists
 
 # The Image Factory arm64 kernel is an EFI zboot PE, which u-boot's booti
 # rejects; unwrap it once per version. initramfs-arm64.xz is served as-is
@@ -169,14 +160,12 @@
       {{ role_path }}/files/http/talos/{{ talos_pi_asset_dir }}/vmlinuz-arm64
       {{ role_path }}/files/http/talos/{{ talos_pi_asset_dir }}/vmlinuz-arm64.raw
     creates: "{{ role_path }}/files/http/talos/{{ talos_pi_asset_dir }}/vmlinuz-arm64.raw"
-  when: talos_pxe_hosts | length > 0
 
 - name: Render the u-boot dispatcher script source.
   ansible.builtin.template:
     src: uboot.cmd.j2
     dest: "{{ role_path }}/files/build/uboot.cmd"
     mode: "0644"
-  when: talos_pxe_hosts | length > 0
 
 # SOURCE_DATE_EPOCH pins the header timestamp so the image only changes when
 # its content does, and the copy below reports `changed` honestly.
@@ -188,7 +177,7 @@
   environment:
     SOURCE_DATE_EPOCH: "0"
   changed_when: false
-  when: talos_pxe_hosts | length > 0 and not ansible_check_mode
+  when: not ansible_check_mode
 
 - name: Publish the dispatcher to /boot/uboot.scr.
   ansible.builtin.copy:
@@ -196,7 +185,7 @@
     dest: "{{ role_path }}/files/http/boot/uboot.scr"
     remote_src: true
     mode: "0644"
-  when: talos_pxe_hosts | length > 0 and not ansible_check_mode
+  when: not ansible_check_mode
 
 # Earlier designs rendered a per-Pi iPXE script; nothing requests them now.
 # `item` is a [host, suffix] pair from the product() below.
@@ -208,4 +197,3 @@
   loop: "{{ talos_pxe_hosts | product(['.ipxe', '.install.ipxe']) | list }}"
   loop_control:
     label: "{{ item[0] }}{{ item[1] }}"
-  when: talos_pxe_hosts | length > 0
