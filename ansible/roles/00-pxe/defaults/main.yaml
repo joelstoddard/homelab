@@ -47,6 +47,9 @@ rpi_firmware_files:
   - start4.elf
   - fixup4.dat
   - bcm2711-rpi-4-b.dtb
+# Marks which release is staged in the flat TFTP root, so a version bump
+# re-downloads and an unchanged version does not.
+rpi_firmware_stamp: "{{ role_path }}/files/tftp/.firmware-{{ rpi_firmware_version }}"
 
 # Debian packages the Pi netboot path needs on the operator: the u-boot
 # cross-build, mkimage (u-boot-tools) for the dispatcher script, zstd for

@@ -97,12 +97,29 @@
       operator IP drift). Remove {{ uboot_build_dir }}/.built-* and re-run.
   when: not ansible_check_mode
 
+# The URL is pinned to a release tag, so these ~9 MB never change — but the
+# TFTP root is flat, so presence alone would pin the fleet to whatever landed
+# first. Stamp on the version instead, the same trick the u-boot build uses.
+- name: Check whether the pinned Pi firmware is already staged.
+  ansible.builtin.stat:
+    path: "{{ rpi_firmware_stamp }}"
+    get_checksum: false
+  register: rpi_firmware_stamp_stat
+
 - name: Stage the Raspberry Pi 4 boot firmware into the TFTP root.
   ansible.builtin.get_url:
     url: "{{ rpi_firmware_base_url }}/{{ item }}"
     dest: "{{ role_path }}/files/tftp/{{ item }}"
     mode: "0644"
   loop: "{{ rpi_firmware_files }}"
+  when: not rpi_firmware_stamp_stat.stat.exists
+
+- name: Record which Pi firmware release is staged.
+  ansible.builtin.file:
+    path: "{{ rpi_firmware_stamp }}"
+    state: touch
+    mode: "0644"
+  when: not rpi_firmware_stamp_stat.stat.exists
 
 - name: Render the Pi firmware config.txt (hands off to u-boot).
   ansible.builtin.template:
