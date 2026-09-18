@@ -55,13 +55,8 @@
   gather_facts: false
   connection: local
   tasks:
-    - name: Load SOPS-encrypted host vars (lowercase filename)
-      community.sops.load_vars:
-        file: "{{ host_vars_file }}"
-      vars:
-        host_vars_file: "{{ inventory_dir }}/host_vars/{{ inventory_hostname | lower }}.sops.yaml"
-      when: host_vars_file is file
-      no_log: true
+    - name: Load this host's SOPS-encrypted vars.
+      ansible.builtin.import_tasks: tasks/load-host-sops-vars.yaml
 
 - name: Open the netboot gate for the Pi targets.
   hosts: localhost
