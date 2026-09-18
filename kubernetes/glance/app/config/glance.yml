@@ -1,0 +1,130 @@
+# Flux substitution runs before Glance's and both use the same sigil, so DOMAIN
+# must stay the only variable in this file, comments included. See
+# docs/design/glance.md.
+#
+# url is followed by the browser; check-url is fetched by this pod, which
+# cannot resolve the wildcard. Status codes below are measured, not assumed —
+# re-measure with curl -L from a pod before changing one.
+server:
+  host: 0.0.0.0
+  port: 8080
+  proxied: true
+
+theme:
+  background-color: 240 8 9
+  primary-color: 200 55 65
+  contrast-multiplier: 1.2
+
+branding:
+  app-name: homelab
+  logo-text: h
+  hide-footer: true
+
+pages:
+  - name: Home
+    columns:
+      - size: small
+        widgets:
+          # No timezones list: Glance resolves named zones at startup and the
+          # image ships no tzdata, so one entry crash-loops the pod.
+          - type: clock
+            hour-format: 24h
+
+          - type: search
+            search-engine: https://searx.${DOMAIN}/search?q={QUERY}
+            placeholder: Search
+            autofocus: true
+            target: _self
+            bangs:
+              - title: GitHub
+                shortcut: "!gh"
+                url: https://github.com/search?q={QUERY}
+              - title: Grafana
+                shortcut: "!g"
+                url: https://grafana.${DOMAIN}/?search=open&query={QUERY}
+
+      - size: full
+        widgets:
+          # Icons are slugs the browser loads from a public CDN, so a wrong one
+          # is a missing image rather than a startup error.
+          - type: monitor
+            title: Cluster
+            cache: 1m
+            sites:
+              - title: Grafana
+                url: https://grafana.${DOMAIN}
+                # / redirects to the login page; this answers 200 without auth.
+                check-url: http://grafana.monitoring.svc/api/health
+                icon: di:grafana
+
+              - title: Longhorn
+                url: https://longhorn.${DOMAIN}
+                check-url: http://longhorn-frontend.longhorn-system.svc/
+                icon: di:longhorn
+
+              - title: Traefik
+                url: https://traefik.${DOMAIN}/dashboard/
+                # A request with no matching Host rule ends at 404, which still
+                # proves Traefik routes. See docs/design/glance.md.
+                check-url: https://traefik.traefik.svc/
+                allow-insecure: true
+                alt-status-codes: [404]
+                icon: di:traefik
+
+              - title: Search
+                url: https://searx.${DOMAIN}
+                check-url: http://searxng.searxng.svc:8080/healthz
+                icon: di:searxng
+
+          - type: monitor
+            title: Hypervisors
+            cache: 1m
+            # Self-signed certificates on every node, the same ones that make
+            # the lan-insecure ServersTransport necessary.
+            sites:
+              - title: rumba
+                url: https://rumba.${DOMAIN}
+                check-url: https://rumba.lan-services.svc:8006/
+                allow-insecure: true
+                icon: di:proxmox
+
+              - title: tango
+                url: https://tango.${DOMAIN}
+                check-url: https://tango.lan-services.svc:8006/
+                allow-insecure: true
+                icon: di:proxmox
+
+              - title: salsa
+                url: https://salsa.${DOMAIN}
+                check-url: https://salsa.lan-services.svc:8006/
+                allow-insecure: true
+                icon: di:proxmox
+
+              - title: samba
+                url: https://samba.${DOMAIN}
+                check-url: https://samba.lan-services.svc:8006/
+                allow-insecure: true
+                icon: di:proxmox
+
+          - type: monitor
+            title: Network and storage
+            cache: 1m
+            sites:
+              - title: TrueNAS
+                url: https://voyager.${DOMAIN}
+                # / redirects to /ui/; probing it directly skips the hop.
+                check-url: https://voyager.lan-services.svc/ui/
+                allow-insecure: true
+                icon: di:truenas
+
+              - title: Pi-hole
+                url: https://pihole.${DOMAIN}/admin
+                # / answers 403; /admin/ settles on 200 at /admin/login.
+                check-url: https://pihole.lan-services.svc/admin/
+                allow-insecure: true
+                icon: di:pi-hole
+
+              - title: Router
+                url: https://james-webb.${DOMAIN}
+                check-url: http://james-webb.lan-services.svc/
+                icon: mdi:router-network

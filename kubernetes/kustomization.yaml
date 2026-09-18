@@ -22,3 +22,4 @@ resources:
   - host-monitoring
   - searxng
   - jellyfin
+  - glance
