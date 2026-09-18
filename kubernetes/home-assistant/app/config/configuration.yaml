@@ -20,14 +20,9 @@ homeassistant:
   external_url: "https://homeassistant.${DOMAIN}"
   internal_url: "https://homeassistant.${DOMAIN}"
 
-http:
-  # Measured, not chosen: Traefik reaches this host-network pod masqueraded to
-  # the sending node's LAN address, and the pod range covers a Traefik replica
-  # landing on this node. See docs/design/home-assistant.md.
-  use_x_forwarded_for: true
-  trusted_proxies:
-    - 10.0.0.0/20
-    - 10.244.0.0/16
+# No http: block, deliberately: Home Assistant migrates it into .storage once
+# and ignores YAML forever after. Trusted proxies live in the UI — see
+# docs/design/home-assistant.md.
 
 automation: !include automations.yaml
 script: !include scripts.yaml
