@@ -1,5 +1,5 @@
 # GNU make required.
-.PHONY: default help build dev lint check apply clean check-secrets
+.PHONY: default help build dev fmt lint check apply clean check-secrets
 
 # LIMIT=<dirname> filters iteration to one resources/<dirname>/.
 LIMIT ?=
@@ -31,7 +31,8 @@ help:
 	@echo "Targets:"
 	@echo "  build   - Verify tofu + sops binaries present."
 	@echo "  dev     - tofu init in each resources/*/."
-	@echo "  lint    - tofu fmt -check + tofu validate."
+	@echo "  fmt     - tofu fmt -check, recursive. No init, no credentials."
+	@echo "  lint    - fmt + tofu validate."
 	@echo "  check   - tofu plan -detailed-exitcode."
 	@echo "  apply   - tofu apply -auto-approve. Default."
 	@echo "  clean   - Remove .terraform/ in each dir."
@@ -126,13 +127,13 @@ endef
 dev: check-secrets
 	$(call run_tofu,init,)
 
-lint: dev
-	@set -e; \
-	if [ -z "$(strip $(RESOURCE_DIRS))" ]; then exit 0; fi; \
-	for d in $(RESOURCE_DIRS); do \
-		echo ">> tofu fmt -check in $$d"; \
-		tofu fmt -check $$d || exit $$?; \
-	done
+# Split from lint so the repo-root `make lint` can call it: no `tofu init`,
+# so it needs neither credentials nor network. Recursive, unlike the old
+# per-resource-dir loop, which never reached modules/.
+fmt:
+	tofu fmt -check -recursive .
+
+lint: fmt dev
 	$(call run_tofu,validate,)
 
 check: dev
