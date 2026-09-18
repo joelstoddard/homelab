@@ -185,8 +185,8 @@ Ingress and TLS are five more layers. Root order is
 `traefik-middlewares` (the
 full list is `flux-system`, `cilium`, `cilium-lb`, `cluster-secrets`, `cert-manager`,
 `cert-manager-issuers`, `traefik`, `traefik-middlewares`, `lan-services`,
-`tailscale`, `longhorn`, `monitoring`, `alloy`, `beyla`, `host-monitoring`,
-`searxng`).
+`tailscale`, `longhorn`, `longhorn-jobs`, `monitoring`, `alloy`, `beyla`,
+`host-monitoring`, `searxng`, `jellyfin`, `glance`).
 `cluster-secrets/` is one SOPS Secret in `flux-system` holding `DOMAIN`,
 `TRAEFIK_LB_IP` and `ACME_EMAIL`; consumers (`cert-manager-issuers`,
 `traefik`, `longhorn`) add `dependsOn: cluster-secrets` +
@@ -283,6 +283,29 @@ through `remote.kubernetes.secret` — the annotation path cannot carry basic
 auth, so the pod carries no `prometheus.io/scrape`. `GRANIAN_WORKERS` is
 pinned to 1 because the engine counters live in the worker process. See
 `docs/design/searxng.md`.
+`glance/` (`dependsOn: traefik, traefik-middlewares, cluster-secrets`,
+substituted, and the only app layer with **no `decryption`** — it carries no
+`*.sops.yaml`) is the browser start page on `home.${DOMAIN}`: one stateless
+pod whose entire configuration is `app/config/glance.yml`, behind its own
+`glance-auth` basic-auth Middleware whose Secret lives in `traefik/app/`
+beside the dashboard's and Longhorn's. Tiles are static YAML in git, chosen
+over Kubernetes service discovery, which wants a ClusterRole over several
+namespaces and scatters each tile's metadata into the layer that owns it.
+Every tile carries two URLs: a public `url` the browser follows, and an
+in-cluster `.svc` `check-url` the pod probes — the cluster cannot resolve the
+LAN wildcard, the same constraint that kept a blackbox probe off
+`searx.${DOMAIN}`. The off-cluster probes reuse the `lan-services` headless
+Services, so `${DOMAIN}` is the only variable the layer needs, and it is the
+only `$` permitted anywhere in `glance.yml`, comments included: Glance does
+its own `${VAR}` expansion with the same sigil, Flux runs first, and an
+unknown variable is silently blanked. Two Glance-specific traps: the Traefik
+tile needs `alt-status-codes: [404]` because that Service publishes only the
+entrypoints and a Host-less request matches no router; and the clock carries
+no `timezones:` list, because Glance resolves named zones at startup while the
+image ships no tzdata. Live metrics are deliberately deferred — they are
+`custom-api` widgets against Prometheus, and they need their own
+substitution-disabled ConfigMap because Go templates use `$` too. See
+`docs/design/glance.md`.
 Never `kubectl delete kustomization flux-system` — prune would remove Flux
 itself; use `flux uninstall`. Pruning `cilium/` removes the CNI; pruning
 `traefik/` takes every route in the cluster. See `kubernetes/README.md`.
