@@ -47,8 +47,13 @@
           (`docs/talos-bootstrap.md` "Recovery" — `k8s-agent-02` was wiped
           on 2026-09-15 and its `beyla-repair` taint dropped).
           zram swap landed on the hosts 2026-09-18
-          (`docs/design/zram-swap.md`) as a floor under the OOM killer —
-          it buys headroom, it does not replace right-sizing.
+          (`docs/design/zram-swap.md`) as a floor under the OOM killer.
+          Sizing is now settled: the agents went to 6000 MB on the measured
+          2.32x compression ratio and the control plane stayed at 4000 MB,
+          so what is left of this item is balloon minimums and the fact
+          that DDR4-3200 SODIMMs are in a shortage (~$120 per 16 GB,
+          ~$178 per 32 GB as of 2026-09) — the NUC12WSKi5 takes 64 GB in
+          two slots, and only Rumba has a free one.
 
 ## Raspberry Pis
 - [x] Bootstrap with TalOS (arm64 PXE netboot via 00-pxe `talos.yaml`)

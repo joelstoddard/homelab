@@ -1,0 +1,122 @@
+---
+# Power-cycle ONE running Talos VM so it picks up a hardware change already
+# written to its Proxmox config. Invoked per node from playbooks/resize.yaml
+# (serial: 1, connection: local).
+#
+# A memory or CPU change lands in Proxmox as a PENDING config: the running
+# QEMU process keeps its old geometry, and a guest-side reboot re-enters the
+# same process, so only a full stop + start applies it. `reboot_after_update`
+# is false in opentofu/modules/vm, so tofu never does this itself — it would
+# hard-kill every changed VM in parallel (docs/design/zram-swap.md).
+#
+# `talosctl shutdown` halts the guest cleanly; qm stop/start run on the NUC
+# that owns the VM, which NetBox names in cluster_device. The health gates
+# are the same three used by tasks/upgrade.yaml.
+
+- name: Set the resize context for {{ inventory_hostname }}
+  ansible.builtin.set_fact:
+    talos_resize_node: "{{ cluster_device.name }}"
+    # Same convention modules/k8s-vm/main.tf encodes: servers 100+N, agents 200+N.
+    talos_resize_vmid: >-
+      {{ (100 if inventory_hostname is search('^k8s-server-') else 200)
+         + (inventory_hostname[-2:] | int) }}
+    talos_resize_ctl: >-
+      {{ talosctl_bin }} --talosconfig {{ talos_talosconfig }}
+      --nodes {{ ansible_host }} --endpoints {{ ansible_host }}
+
+- name: Read the memory currently seen by {{ inventory_hostname }}
+  ansible.builtin.command:
+    cmd: "{{ talos_resize_ctl }} memory"
+  register: talos_resize_before
+  changed_when: false
+  check_mode: false
+
+# NetBox drives both the Proxmox config (via OpenTofu) and this comparison,
+# so a node already carrying its target size is skipped rather than cycled.
+- name: Decide whether the power cycle is needed — {{ inventory_hostname }}
+  ansible.builtin.set_fact:
+    talos_resize_needed: "{{ (talos_resize_seen | int) < (memory | int) - talos_resize_tolerance_mb }}"
+  vars:
+    talos_resize_seen: "{{ talos_resize_before.stdout_lines[1].split()[1] | default(0) }}"
+
+- name: Report the plan for {{ inventory_hostname }}
+  ansible.builtin.debug:
+    msg: >-
+      {{ inventory_hostname }} on {{ talos_resize_node }} (vmid {{ talos_resize_vmid }}):
+      guest sees {{ talos_resize_before.stdout_lines[1].split()[1] }} MB, NetBox says
+      {{ memory }} MB — {{ 'power-cycling' if talos_resize_needed | bool else 'already sized, skipping' }}.
+
+- name: Apply the pending geometry to {{ inventory_hostname }}
+  when: talos_resize_needed | bool and not ansible_check_mode
+  block:
+    - name: Halt the guest cleanly — {{ inventory_hostname }}
+      ansible.builtin.command:
+        cmd: "{{ talos_resize_ctl }} shutdown --wait --timeout 10m"
+      changed_when: true
+
+    # talosctl returns once Talos has halted; QEMU takes a moment longer to
+    # exit, and qm start on a still-running VM is an error.
+    - name: Wait for the VM to stop on {{ talos_resize_node }}
+      ansible.builtin.command:
+        cmd: "qm status {{ talos_resize_vmid }}"
+      delegate_to: "{{ talos_resize_node }}"
+      register: talos_resize_status
+      changed_when: false
+      retries: 30
+      delay: 10
+      until: "'status: stopped' in talos_resize_status.stdout"
+
+    - name: Start the VM on its new geometry — {{ inventory_hostname }}
+      ansible.builtin.command:
+        cmd: "qm start {{ talos_resize_vmid }}"
+      delegate_to: "{{ talos_resize_node }}"
+      changed_when: true
+
+- name: Wait until the Kubernetes node is Ready and schedulable — {{ inventory_hostname }}
+  ansible.builtin.command:
+    cmd: >-
+      {{ kubectl_bin }} --context {{ talos_cluster_name }} get node {{ inventory_hostname | lower }}
+      -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}/{.spec.unschedulable}'
+  register: talos_resize_node_ready
+  changed_when: false
+  retries: 60
+  delay: 10
+  until: talos_resize_node_ready.stdout == 'True/'
+  when: not ansible_check_mode
+
+# Same reasoning as tasks/upgrade.yaml: a returned node still has replicas
+# rebuilding behind it, and cycling the next storage node meanwhile could
+# leave a volume on one healthy replica.
+- name: Wait until no Longhorn volume is degraded or faulted — {{ inventory_hostname }}
+  ansible.builtin.command:
+    cmd: >-
+      {{ kubectl_bin }} --context {{ talos_cluster_name }} get volumes.longhorn.io -A
+      -o jsonpath='{range .items[?(@.status.robustness=="degraded")]}{.metadata.name}={.status.robustness}{"\n"}{end}
+      {range .items[?(@.status.robustness=="faulted")]}{.metadata.name}={.status.robustness}{"\n"}{end}'
+  register: talos_resize_volumes
+  changed_when: false
+  failed_when: false
+  retries: 90
+  delay: 20
+  until: >-
+    (talos_resize_volumes.rc != 0 and "doesn't have a resource type" in talos_resize_volumes.stderr)
+    or (talos_resize_volumes.rc == 0 and (talos_resize_volumes.stdout | trim | length) == 0)
+  when: not ansible_check_mode
+
+# The node returning proves it booted; only the guest's own total proves the
+# new geometry took. Talos reports slightly less than configured (firmware
+# reservation), hence the tolerance.
+- name: Verify the guest now sees the configured memory — {{ inventory_hostname }}
+  ansible.builtin.command:
+    cmd: "{{ talos_resize_ctl }} memory"
+  register: talos_resize_after
+  changed_when: false
+  failed_when: >-
+    (talos_resize_after.stdout_lines[1].split()[1] | int) < (memory | int) - talos_resize_tolerance_mb
+  retries: 30
+  delay: 10
+  until: talos_resize_after is not failed
+  when: not ansible_check_mode
+
+- name: Wait for the whole cluster to be healthy before the next node.
+  ansible.builtin.import_tasks: health.yaml

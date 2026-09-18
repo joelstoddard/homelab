@@ -18,6 +18,11 @@ resource "proxmox_virtual_environment_vm" "vm" {
   # Talos requires UEFI.
   bios = "ovmf"
 
+  # The provider's default reboot is a hard qmstop + qmstart, in parallel
+  # across every changed VM. Let apply write the pending config and pick it
+  # up with `make -C ansible apply-resize` — docs/design/zram-swap.md.
+  reboot_after_update = false
+
   # Talos does not ship QEMU guest agent.
   agent {
     enabled = false
