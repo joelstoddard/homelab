@@ -317,8 +317,13 @@ announcements; see Design.
   can't ship with the rest of this layer. It will follow the SearXNG
   pattern — an explicit Alloy scrape reading the credential from
   `cluster-secrets`, because the annotation path can't carry a bearer
-  token. Beyla already reports RED metrics for the namespace in the
-  meantime.
+  token. Beyla cannot cover the gap in the meantime: `containers_only: true`
+  (`kubernetes/beyla/app/values.yaml`) compares a process's network
+  namespace against Beyla's own, and both Beyla and this pod run
+  `hostNetwork: true`, so the process reads as a host process, not a
+  container, and is never instrumented. The dashboard's request panels come
+  from Traefik's per-service metrics instead — see
+  `kubernetes/monitoring/app/dashboards/README.md`.
 - **Thread and Matter.** The one accepted capability gap. Upstream ships
   the Thread/Matter border router as a Supervisor add-on; container
   installs are left to self-hosted community images with no first-party
