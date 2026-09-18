@@ -65,8 +65,10 @@ dev:
 
 # Lint playbooks
 .PHONY: lint
+# Explicit paths, not `.`: auto-discovery from this directory finds one file
+# and passes, so the gate was a no-op. Exclusions live in .ansible-lint.
 lint:
-	$(VENV)/bin/ansible-lint .
+	$(VENV)/bin/ansible-lint playbooks roles pxe.yaml
 
 # Check (dry run)
 .PHONY: check-pxe
