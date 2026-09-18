@@ -197,7 +197,7 @@ Ingress and TLS are five more layers. Root order is
 full list is `flux-system`, `cilium`, `cilium-lb`, `cluster-secrets`, `cert-manager`,
 `cert-manager-issuers`, `traefik`, `traefik-middlewares`, `lan-services`,
 `tailscale`, `longhorn`, `longhorn-jobs`, `monitoring`, `alloy`, `beyla`,
-`host-monitoring`, `searxng`, `jellyfin`, `glance`).
+`host-monitoring`, `searxng`, `jellyfin`, `glance`, `home-assistant`).
 `cluster-secrets/` is one SOPS Secret in `flux-system` holding `DOMAIN`,
 `TRAEFIK_LB_IP` and `ACME_EMAIL`; consumers (`cert-manager-issuers`,
 `traefik`, `longhorn`) add `dependsOn: cluster-secrets` +
@@ -317,6 +317,25 @@ image ships no tzdata. Live metrics are deliberately deferred — they are
 `custom-api` widgets against Prometheus, and they need their own
 substitution-disabled ConfigMap because Go templates use `$` too. See
 `docs/design/glance.md`.
+`home-assistant/` (`dependsOn: traefik, traefik-middlewares, longhorn,
+cluster-secrets`, substituted, no `decryption`) is the home automation
+server on `homeassistant.${DOMAIN}`: one replica, `Recreate`, on
+`hostNetwork` in a PodSecurity `privileged` namespace, because mDNS and
+SSDP multicast do not traverse a Service and the container install
+supports no other network mode. A pinned `${HOME_ASSISTANT_LB_IP}` from
+the `cilium-lb` pool gives it a LAN address that survives the pod moving,
+with `externalTrafficPolicy: Cluster` — Cilium announces a Service address
+from every node matching the L2 policy, and `Local` would have nodes
+without the endpoint drop what they receive. `/config` is a Longhorn
+claim; `configuration.yaml` alone is git-owned, mounted read-only over it,
+with an init container seeding `automations.yaml`, `scripts.yaml` and
+`scenes.yaml` because supplying a config file stops Home Assistant writing
+its own defaults and a missing `!include` target is a hard startup
+failure. That init script contains no `$`: the layer is substituted, so a
+shell variable would be eaten, the same trap as Glance's comments. No auth
+middleware — Home Assistant has its own login, the third documented
+exception after SearXNG and Jellyfin. Two replicas are impossible, not
+merely unwise. See `docs/design/home-assistant.md`.
 Never `kubectl delete kustomization flux-system` — prune would remove Flux
 itself; use `flux uninstall`. Pruning `cilium/` removes the CNI; pruning
 `traefik/` takes every route in the cluster. See `kubernetes/README.md`.

@@ -1,0 +1,11 @@
+# PodSecurity privileged, like tailscale, alloy and beyla: Talos enforces
+# baseline by default and baseline forbids hostNetwork, which is the only way
+# mDNS and SSDP reach the LAN. Nothing else runs in this namespace.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: home-assistant
+  labels:
+    pod-security.kubernetes.io/enforce: privileged
+    pod-security.kubernetes.io/audit: privileged
+    pod-security.kubernetes.io/warn: privileged

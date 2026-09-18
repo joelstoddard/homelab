@@ -1,0 +1,19 @@
+# Every resource here is namespaced, so a top-level namespace: is safe.
+#
+# The generator carries NO disableNameSuffixHash, like searxng's settings and
+# unlike the dashboards: Home Assistant reads configuration.yaml once at
+# startup and the mount is a subPath, so the content hash in the name is the
+# only thing that rolls the pod when the file changes.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: home-assistant
+resources:
+  - namespace.yaml
+  - pvc.yaml
+  - deployment.yaml
+  - service.yaml
+  - ingressroute.yaml
+configMapGenerator:
+  - name: home-assistant-configuration
+    files:
+      - config/configuration.yaml

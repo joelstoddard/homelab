@@ -1,0 +1,36 @@
+# Git owns this file; Home Assistant owns everything else under /config.
+# Flux substitution runs over this layer, so the only dollar sign permitted
+# anywhere in this file, comments included, is the one in the domain
+# substitution used below.
+#
+# No latitude, longitude or house name: this repo is public. Location is set
+# once at onboarding and lives in .storage.
+
+# Pulls in zeroconf, ssdp, dhcp, usb and backup. Removing it removes discovery,
+# which is the entire reason this pod runs on the node's network stack.
+default_config:
+
+homeassistant:
+  # Set here rather than left to onboarding so it is deterministic; this means
+  # the web interface cannot override it.
+  time_zone: Europe/London
+  # Home Assistant embeds internal_url verbatim in its own mDNS TXT records and
+  # hands it to the companion app, so it must be the ingress name and never a
+  # node address.
+  external_url: "https://homeassistant.${DOMAIN}"
+  internal_url: "https://homeassistant.${DOMAIN}"
+
+http:
+  # Without both keys Home Assistant refuses to honour the forwarded header and
+  # every client looks like Traefik. trusted_proxies must be a network address,
+  # not a host address with a mask.
+  #
+  # The pod range is the starting value, corrected by measurement on first boot
+  # — published answers for this all run a different CNI. See the design doc.
+  use_x_forwarded_for: true
+  trusted_proxies:
+    - 10.244.0.0/16
+
+automation: !include automations.yaml
+script: !include scripts.yaml
+scene: !include scenes.yaml

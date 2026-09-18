@@ -1,0 +1,19 @@
+# The entity and device registries under .storage, the recorder database and
+# Home Assistant's own backups. No storageClassName: Longhorn is the cluster
+# default, and its three replicas with hard zone anti-affinity are what keep
+# the registries alive when a physical host dies.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: home-assistant-config
+  labels:
+    app.kubernetes.io/name: home-assistant
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    # Deliberately generous rather than tight: expanding this under a live
+    # SQLite recorder is a maintenance job, and the database grows with
+    # retention rather than with anything a person chooses.
+    requests:
+      storage: 10Gi

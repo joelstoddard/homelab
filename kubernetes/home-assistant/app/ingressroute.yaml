@@ -1,0 +1,24 @@
+# No Certificate and no tls.secretName: TLSStore/default serves the wildcard,
+# and Pi-hole's address=/<domain>/ already resolves the name, so a new service
+# needs one route and nothing else (docs/design/ingress-tls.md).
+#
+# No auth middleware, deliberately: Home Assistant has accounts, sessions and
+# optional two-factor of its own, and a basic-auth prompt in front breaks the
+# companion app, webhooks and push. Third documented exception to the
+# per-service basic-auth rule, after SearXNG and Jellyfin.
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: home-assistant
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - kind: Rule
+      match: Host(`homeassistant.${DOMAIN}`)
+      middlewares:
+        - name: default-headers
+          namespace: traefik
+      services:
+        - name: home-assistant
+          port: 8123

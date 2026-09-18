@@ -36,8 +36,10 @@ install that gets Flux running in the first place.
       (`host-monitoring/`, write routes in `monitoring/`) — see
       "Host monitoring"
 - [-] Workloads — SearXNG, the first user-facing application (`searxng/`),
-      Jellyfin (`jellyfin/`), and the Glance start page on `home.<domain>`
-      (`glance/`) — see "SearXNG", "Jellyfin" and "Glance"
+      Jellyfin (`jellyfin/`), the Glance start page on `home.<domain>`
+      (`glance/`), and Home Assistant on `homeassistant.<domain>`
+      (`home-assistant/`) — see "SearXNG", "Jellyfin", "Glance" and "Home
+      Assistant"
 
 ## Layout
 
@@ -189,16 +191,27 @@ kubernetes/
         ├── service.yaml          # searxng:8080, no scrape annotation (the metrics job is in alloy/)
         ├── valkey.yaml           # Deployment + Service; no persistence, 64 MB, allkeys-lru
         └── ingressroute.yaml     # Host(searx.<domain>), default-headers only — no auth middleware
-└── glance/
+├── glance/
+│   ├── kustomization.yaml
+│   ├── ks.yaml                   # Flux Kustomization, dependsOn traefik + traefik-middlewares + cluster-secrets, postBuild, NO sops
+│   └── app/
+│       ├── kustomization.yaml    # namespace glance
+│       ├── namespace.yaml        # glance; no PodSecurity label (the pod satisfies "restricted")
+│       ├── config/               # glance.yml, generated WITH a name hash so an edit rolls the pod
+│       ├── deployment.yaml       # one replica; no command or env — the image entrypoint reads /app/config/glance.yml
+│       ├── service.yaml          # glance:8080, no scrape annotation (Glance exposes no metrics)
+│       └── ingressroute.yaml     # Host(home.<domain>), default-headers + glance-auth
+└── home-assistant/
     ├── kustomization.yaml
-    ├── ks.yaml                   # Flux Kustomization, dependsOn traefik + traefik-middlewares + cluster-secrets, postBuild, NO sops
+    ├── ks.yaml                   # Flux Kustomization, dependsOn traefik + traefik-middlewares + longhorn + cluster-secrets, postBuild, NO sops
     └── app/
-        ├── kustomization.yaml    # namespace glance
-        ├── namespace.yaml        # glance; no PodSecurity label (the pod satisfies "restricted")
-        ├── config/               # glance.yml, generated WITH a name hash so an edit rolls the pod
-        ├── deployment.yaml       # one replica; no command or env — the image entrypoint reads /app/config/glance.yml
-        ├── service.yaml          # glance:8080, no scrape annotation (Glance exposes no metrics)
-        └── ingressroute.yaml     # Host(home.<domain>), default-headers + glance-auth
+        ├── kustomization.yaml    # namespace home-assistant; configuration.yaml generated WITH a name hash
+        ├── namespace.yaml        # home-assistant, PodSecurity "privileged" — hostNetwork for mDNS/SSDP
+        ├── pvc.yaml              # home-assistant-config, 10Gi, no storageClassName (Longhorn default)
+        ├── config/               # configuration.yaml, mounted read-only over the claim via subPath
+        ├── deployment.yaml       # one replica, Recreate, hostNetwork; init container seeds automations/scripts/scenes
+        ├── service.yaml          # LoadBalancer on ${HOME_ASSISTANT_LB_IP}, externalTrafficPolicy Cluster
+        └── ingressroute.yaml     # Host(homeassistant.<domain>), default-headers only — no auth middleware
 ```
 
 `flux-system/gotk-sync.yaml` declares a `GitRepository` for this repo
@@ -233,6 +246,7 @@ ordering) rather than by growing the root tree — see "Adding workloads".
 | `ROUTER_IP` | same Secret | The router's LAN address, for `james-webb.yaml`. |
 | `NETBOX_URL` | same Secret | The NetBox Cloud tenant URL, for the Glance bookmark. Encrypted for the same reason the repo only ever refers to it as `$NETBOX_API` elsewhere: the tenant name identifies the account. |
 | `INGEST_LB_IP` | same Secret | The address TrueNAS and the router send graphite and syslog to — reserved in the `cilium-lb` pool, shared by the two receiver Services. The seven addresses above are also the `host-monitoring` probe and poll targets. |
+| `HOME_ASSISTANT_LB_IP` | same Secret | Home Assistant's pinned LAN address — reserved in the `cilium-lb` pool, the same pattern as `TRAEFIK_LB_IP` and `INGEST_LB_IP`, so mDNS/SSDP discovery keeps working across a pod reschedule. |
 
 ## Bootstrap
 
@@ -698,6 +712,49 @@ kubectl --context homelab -n glance exec deploy/glance -- \
   wget -qS -O /dev/null http://grafana.monitoring.svc/api/health 2>&1 | head -1
 ```
 
+## Home Assistant
+
+`home-assistant/` is the home automation server on `homeassistant.<domain>`:
+one replica, `Recreate`, on `hostNetwork` in a PodSecurity `privileged`
+namespace, because mDNS and SSDP multicast do not traverse a Service and
+the container install supports no other network mode. Rationale:
+[`docs/design/home-assistant.md`](../docs/design/home-assistant.md).
+
+Consequences:
+
+- **`hostNetwork`, not a pinned address, is what makes discovery work.** A
+  `${HOME_ASSISTANT_LB_IP}` LoadBalancer from the `cilium-lb` pool still
+  fronts it with `externalTrafficPolicy: Cluster`, giving it an address that
+  survives the pod moving — but that address is unicast and mDNS/SSDP are
+  not, so it fixes every inbound connection except discovery itself.
+- **No basic auth.** Home Assistant has its own login, and a prompt in front
+  breaks the companion app, webhooks and push. This is the third documented
+  exception to the per-service rule under "Traefik", after SearXNG and
+  Jellyfin.
+- **Two replicas are impossible, not merely unwise.** The entity/device
+  registries and the recorder database are both single-writer, and two live
+  instances collide on the same mDNS name regardless.
+- **`/config` is a Longhorn claim; `configuration.yaml` alone is git-owned.**
+  It mounts read-only over the claim via `subPath`, with an init container
+  seeding `automations.yaml`, `scripts.yaml` and `scenes.yaml` — supplying a
+  config file stops Home Assistant writing its own defaults, and a missing
+  `!include` target is a hard startup failure.
+- **The whole layer is substituted.** `${DOMAIN}` and `${HOME_ASSISTANT_LB_IP}`
+  are the only `$` permitted anywhere in it, comments included; the init
+  container's shell script carries none at all, the same trap as Glance's
+  comments.
+- **The runtime keeps its default capability set.** `drop: [ALL]` breaks
+  first boot: `s6-overlay` needs `CHOWN`/`SETUID`/`SETGID`/`DAC_OVERRIDE`
+  during init, and the DHCP discovery integration needs `NET_RAW`.
+- **Nothing to add for DNS or TLS.** The Pi-hole wildcard resolves the name
+  and `TLSStore/default` serves the certificate.
+
+```bash
+flux --context homelab get ks home-assistant
+kubectl --context homelab -n home-assistant get pods,pvc,svc
+kubectl --context homelab -n home-assistant get svc home-assistant   # EXTERNAL-IP = the reserved address
+```
+
 ## Cluster secrets
 
 `cluster-secrets/` is one SOPS-encrypted `Secret` in `flux-system` holding
@@ -719,7 +776,8 @@ manifests *after* SOPS decryption. The Secret lives in `flux-system` because
 namespace, not in the namespace being written to; `wait: true` on the layer
 is what makes a consumer's `dependsOn` mean "the keys are there".
 Consumers today: `cert-manager-issuers`, `traefik`, `longhorn`, `lan-services`,
-`monitoring`, `host-monitoring`, `searxng`, `jellyfin`, `glance`.
+`monitoring`, `host-monitoring`, `searxng`, `jellyfin`, `glance`,
+`home-assistant`.
 
 This is why the domain and the LB address are not simply SOPS-encrypted:
 `TRAEFIK_LB_IP` has to reach Traefik's Helm values, which are a

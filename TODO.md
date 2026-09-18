@@ -229,7 +229,14 @@
 - [ ] NUT Server
 
 ### Home Automation
-- [ ] Home Assistant
+- [x] Home Assistant (`kubernetes/home-assistant/`,
+      `docs/design/home-assistant.md`) — one-replica, `hostNetwork` home
+      automation server on `homeassistant.${DOMAIN}` with a pinned LAN
+      address from the `cilium-lb` pool; no basic-auth middleware — it
+      has its own login
+    - [ ] Prometheus metrics scrape: needs a long-lived token minted
+          from the web interface after first login
+    - [ ] Measure and tighten the memory limit after a week of real use
 - [ ] Shlink
 - [x] Searx (`kubernetes/searxng/`, `docs/design/searxng.md`) — SearXNG +
       Valkey on `searx.${DOMAIN}`, no auth; engine metrics scraped with basic
