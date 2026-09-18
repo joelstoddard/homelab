@@ -64,3 +64,6 @@ configMapGenerator:
   - name: dashboard-tailscale
     files: [Services/tailscale.json]
     options: {annotations: {grafana_folder: Services}}
+  - name: dashboard-jellyfin
+    files: [Services/jellyfin.json]
+    options: {annotations: {grafana_folder: Services}}
