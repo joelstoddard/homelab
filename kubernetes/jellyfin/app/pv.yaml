@@ -1,0 +1,38 @@
+# The media library on the TrueNAS box, read-only. This is the cluster's first
+# NFS volume, and docs/design/jellyfin.md carries the reasoning for a static
+# PersistentVolume over an inline volume or a CSI driver.
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: jellyfin-media
+  labels:
+    app.kubernetes.io/name: jellyfin
+spec:
+  capacity:
+    # NFS enforces no quota from here, so this number is documentation.
+    storage: 16Ti
+  accessModes:
+    - ReadOnlyMany
+  # Retain, so pruning this layer never proposes deleting the library.
+  persistentVolumeReclaimPolicy: Retain
+  # Empty, not absent: an absent class means "use the default", which would hand
+  # this volume to Longhorn.
+  storageClassName: ""
+  # nfsvers=4.1 because Talos runs no rpcbind and no rpc.statd, so NFSv3 locking
+  # is unavailable. soft because the mount is read-only and Talos has no host
+  # shell to clear a hung hard mount (docs/design/jellyfin.md).
+  mountOptions:
+    - nfsvers=4.1
+    - soft
+    - timeo=600
+    - retrans=2
+    - noatime
+    - nodiratime
+  nfs:
+    server: ${VOYAGER_IP}
+    path: /mnt/Voyager/public
+    readOnly: true
+  # Pre-bound, so no other claim in the cluster can take the volume.
+  claimRef:
+    name: jellyfin-media
+    namespace: jellyfin

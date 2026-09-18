@@ -1,0 +1,108 @@
+# One replica with strategy Recreate: the config claim is ReadWriteOnce and the
+# database is SQLite, so a second pod either deadlocks on the volume or corrupts
+# the database (docs/design/jellyfin.md).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: jellyfin
+  labels:
+    app.kubernetes.io/name: jellyfin
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: jellyfin
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: jellyfin
+      # Deliberately no prometheus.io/scrape: Jellyfin serves no Prometheus
+      # endpoint without a plugin, and Beyla already reports its RED metrics.
+    spec:
+      # The Pis cannot transcode and their USB storage is slow, so this follows
+      # the Loki and Tempo precedent and stays on the amd64 workers.
+      nodeSelector:
+        kubernetes.io/arch: amd64
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: jellyfin
+          image: docker.io/jellyfin/jellyfin:12.1.20260915-010956
+          env:
+            # Jellyfin builds client-facing URLs from this, so it must be the
+            # ingress name rather than the pod address.
+            - name: JELLYFIN_PublishedServerUrl
+              value: https://jellyfin.${DOMAIN}
+          ports:
+            - name: http
+              containerPort: 8096
+          # First start creates the database and can take minutes, so the
+          # startup probe holds the liveness probe off for up to five.
+          startupProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 10
+            failureThreshold: 30
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 30
+            failureThreshold: 3
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: config
+              mountPath: /config
+            - name: cache
+              mountPath: /cache
+            - name: media
+              mountPath: /media
+              readOnly: true
+            - name: tmp
+              mountPath: /tmp
+          resources:
+            requests:
+              cpu: 200m
+              memory: 512Mi
+            # TODO: measure a week of real use and cap just above the peak.
+            # A tight CPU limit stutters playback and a runaway cache starves
+            # the Longhorn replicas on EPHEMERAL (docs/design/jellyfin.md).
+            limits:
+              cpu: "3"
+              memory: 2Gi
+              ephemeral-storage: 10Gi
+      volumes:
+        - name: config
+          persistentVolumeClaim:
+            claimName: jellyfin-config
+        - name: media
+          persistentVolumeClaim:
+            claimName: jellyfin-media
+            readOnly: true
+        # Transcodes and the image cache are regenerable, so they stay on the
+        # node instead of costing three replicated writes on Longhorn.
+        - name: cache
+          emptyDir:
+            sizeLimit: 8Gi
+        # The .NET runtime writes its shared-memory files here, which a
+        # read-only root filesystem would otherwise refuse.
+        - name: tmp
+          emptyDir:
+            sizeLimit: 256Mi

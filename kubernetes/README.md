@@ -575,6 +575,47 @@ kubectl --context homelab -n searxng get pods,svc
 kubectl --context homelab -n searxng exec deploy/valkey -- valkey-cli keys '*'   # limiter is live
 ```
 
+## Jellyfin
+
+`jellyfin/` is the media server on `jellyfin.<domain>`, and the cluster's first
+consumer of NFS: the library is mounted read-only from `voyager` through a
+static `PersistentVolume`, while its database sits on Longhorn.
+Rationale: [`docs/design/jellyfin.md`](../docs/design/jellyfin.md).
+
+Consequences:
+
+- **The media volume is `Retain` and pre-bound.** Pruning this layer never
+  proposes deleting the library, and the `claimRef` stops any other claim in
+  the cluster taking the volume. The config claim is a different story — see
+  "Footguns".
+- **`storageClassName: ""` is not the same as omitting it.** Omitted means "use
+  the default", which would hand the media volume to Longhorn and provision an
+  empty one. Both the volume and its claim set it explicitly.
+- **NFSv4.1 is pinned, and the export must offer it.** Talos runs no `rpcbind`
+  and no `rpc.statd`, so NFSv3 locking is unavailable. TrueNAS defaults to v3.
+- **`soft`, not `hard`, and only because the mount is read-only.** Talos has no
+  host shell, so a hung `hard` mount cannot be cleared with `umount -l` — the
+  only recovery is rebooting the node. Making this volume read-write means
+  moving back to `hard`.
+- **NFS ignores `fsGroup`.** The export's own permissions decide whether the
+  pod's UID can read it; `maproot`/`mapall` on the share are the levers.
+- **One replica, `Recreate`, deliberately.** ReadWriteOnce plus SQLite: a
+  rolling update deadlocks on the volume and two pods corrupt the database.
+- **No basic auth.** Jellyfin has its own login, and a browser prompt breaks
+  every native client. This is the second documented exception to the
+  per-service rule under "Traefik".
+- **No metrics annotation.** Jellyfin serves no Prometheus endpoint without a
+  plugin; Beyla already reports its RED metrics. Adding one logs 404s.
+- **Nothing to add for DNS or TLS.** The Pi-hole wildcard resolves the name and
+  `TLSStore/default` serves the certificate.
+
+```bash
+flux --context homelab get ks jellyfin
+kubectl --context homelab -n jellyfin get pods,pvc,svc
+kubectl --context homelab get pv jellyfin-media                 # Bound, Retain
+kubectl --context homelab -n jellyfin exec deploy/jellyfin -- ls /media
+```
+
 ## Cluster secrets
 
 `cluster-secrets/` is one SOPS-encrypted `Secret` in `flux-system` holding
@@ -883,3 +924,7 @@ merge lands on `main`. `make -C kubernetes` afterwards is still a no-op.
   the chart owns that path read-only and a nested mount fails.
 - **A new probe's `module` must exist in `blackbox/blackbox.yml`**, or the
   scrape returns 400 with no other signal.
+- **Pruning `jellyfin/` deletes its config claim** (Longhorn reclaims with
+  `Delete`), taking the users and the watch history. The media volume is
+  `Retain` and holds no data of its own, so the library on `voyager` survives
+  any mistake made here.

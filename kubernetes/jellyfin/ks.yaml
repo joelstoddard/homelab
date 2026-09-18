@@ -1,0 +1,25 @@
+# Jellyfin, the media server — docs/design/jellyfin.md. The route needs the
+# default-headers Middleware, the config claim needs Longhorn's default
+# StorageClass, and the route and the media volume need ${DOMAIN} and
+# ${VOYAGER_IP} from cluster-secrets.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: jellyfin
+  namespace: flux-system
+spec:
+  interval: 10m0s
+  path: ./kubernetes/jellyfin/app
+  prune: true
+  dependsOn:
+    - name: traefik
+    - name: traefik-middlewares
+    - name: longhorn
+    - name: cluster-secrets
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+  postBuild:
+    substituteFrom:
+      - kind: Secret
+        name: cluster-secrets
