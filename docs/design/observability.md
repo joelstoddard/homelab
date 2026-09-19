@@ -100,6 +100,17 @@ defaults that hide the control-plane components.
 Logs: `namespace`, `pod`, `container`, `app`, `node`, `stream`,
 `job=<namespace>/<app>`; events: `job="loki.source.kubernetes_events"`.
 
+**kube-state-metrics series describe one pod but are scraped from another, and
+the collision renames the subject.** On those series `namespace` and `pod` are
+kube-state-metrics itself, while the pod being described is `exported_namespace`
+and `exported_pod`.
+
+Filter them on the `exported_` names. A bare `pod=~"..."` matches the
+kube-state-metrics pod, so the query returns nothing and the panel reads "No
+data" rather than erroring — the failure is silent, and it bit the Jellyfin
+dashboard's Availability panel. cAdvisor and kubelet series are unaffected:
+there `namespace` and `pod` are already the subject.
+
 ## Failure modes
 
 - Prometheus or Loki pod lost with its node: single replicas; data on
