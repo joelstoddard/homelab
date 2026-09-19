@@ -81,9 +81,32 @@ replicated Longhorn volume stalls every other request, including the
 probe, the same class of problem Jellyfin's probes hit for a different
 reason.
 
-**HTTP settings are not in git, and cannot be.** This is the one place the
-layer's "git owns `configuration.yaml`" rule does not hold, and it is worth
-understanding before someone tries to put the block back.
+**Almost nothing belongs in `configuration.yaml`, and that is the surprise
+of this layer.** The file holds `default_config:` and three `!include`
+lines. Every setting that looked like it should be git-owned turned out to
+be owned by `.storage` instead, for two unrelated upstream reasons, and both
+were discovered only by running it. What remains is load-bearing:
+`default_config:` is what pulls in discovery, and the includes are what stop
+startup failing.
+
+**Core settings are not in git, because one key locks all of them.** There
+is no `homeassistant:` block. `core_config.py` reads
+`if any(k in config for k in (...))` over twelve keys — country, currency,
+elevation, external URL, internal URL, language, latitude, longitude, name,
+radius, time zone, unit system — and a single one of them flips the whole of
+core config to YAML-managed, which greys out the UI including the location
+picker. Setting the two URLs and a timezone in git therefore cost the
+ability to set a home location at all, with the error "You cannot change
+these settings in the UI, as you have config stored in 'configuration.yaml'
+under the 'homeassistant' key". There is no per-key middle ground, so the
+block is gone and all twelve live in `.storage`.
+
+That also suits the public-repo constraint better than the original design
+did: latitude and longitude were never going in git, and the old block made
+them unsettable anywhere else.
+
+**HTTP settings are not in git either, and cannot be.** A second, unrelated
+mechanism, worth understanding before someone tries to put that block back.
 
 Home Assistant migrates an `http:` block out of `configuration.yaml` into
 `.storage/http` **once** and ignores YAML on every boot after that
@@ -113,11 +136,11 @@ masqueraded. Setting only one of the two works until a reschedule and then
 fails intermittently, which is the worst available outcome.
 
 **The whole layer is substituted; a bare `$` anywhere in it is eaten.**
-`${DOMAIN}` appears in `configuration.yaml`'s two URLs and in
-`ingressroute.yaml`'s `Host` match. `${HOME_ASSISTANT_LB_IP}` — a new
-`cluster-secrets` key this layer adds — appears only in `service.yaml`'s
-annotation. Those two are the only `$` characters anywhere in the layer; the
-init container's shell script carries none at all, deliberately, since a
+`${DOMAIN}` appears only in `ingressroute.yaml`'s `Host` match, and
+`${HOME_ASSISTANT_LB_IP}` — a new `cluster-secrets` key this layer adds —
+only in `service.yaml`'s annotation. Those two are the only `$` characters
+anywhere in the layer; `configuration.yaml` now contains none at all, and
+the init container's shell script carries none deliberately, since a
 substituted layer would eat any variable it tried to use. This is the trap
 that cost a fix round in the Glance layer.
 
@@ -207,6 +230,15 @@ without the second path in.
 device nobody configured by hand within a few minutes of first boot. No
 discoveries means `hostNetwork` isn't doing its job — check the namespace
 labels and that `default_config:` is still present.
+
+**What a rebuild costs, since `.storage` is wiped with the volume.** Three
+things live there rather than in git and have to be set by hand afterwards:
+trusted proxies (below), the home location under Settings → System → General,
+and the two URLs in the same place. Onboarding guesses the URLs from the
+address it was reached on, which is the pinned LoadBalancer address if that
+is where you onboarded, so check them: Home Assistant embeds `internal_url`
+verbatim in its own mDNS records and hands it to the companion app, and a
+node address there is wrong the moment the pod moves.
 
 **Setting trusted proxies, which is a one-off manual step.** Required after a
 first install or any rebuild that wipes the volume, because the setting lives
