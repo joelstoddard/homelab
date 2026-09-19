@@ -11,5 +11,7 @@ spec:
   accessModes:
     - ReadWriteOnce
   resources:
+    # Artwork and subtitles under metadata/ dominate this volume and grow with
+    # the library, and expanding it under a live database is a maintenance job.
     requests:
       storage: 20Gi

@@ -282,6 +282,10 @@
 - [x] Longhorn
 - [ ] Transmission
 - [ ] Arr Stack
+    - The foundation lands with this PR: the shared `media` namespace and its
+      read-write NFS volume over the library export (`kubernetes/media/`,
+      `docs/design/arr-stack.md`). What is left below is application
+      deployment, not infrastructure
     - [ ] Prowlarr
     - [ ] Overseerr
     - [ ] Sonarr

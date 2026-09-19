@@ -182,8 +182,13 @@ there and the index is not.
 - **NFS ignores `fsGroup`, and the export's owners do not map.** The kernel does
   no ownership management on an NFS mount, and the library presents as owned by
   `4294967294` — the anonymous identity — so only the world permission bits
-  grant access. Access works because the tree is mode 0775; tightening it to
-  0750 locks Jellyfin out no matter which UID the pod runs as.
+  grant *read* access. Access works because the tree is mode 0775; tightening it
+  to 0750 locks Jellyfin out no matter which UID the pod runs as. Writes are a
+  different mechanism, and the mode bits mispredict them: the share has
+  **Mapall** configured, so a pod writing as UID 1000 produces a file owned by
+  the anonymous identity, mode 775, whether or not *other* carries a write bit
+  (`docs/design/arr-stack.md`). Irrelevant to this read-only mount, load-bearing
+  for the read-write one beside it.
 - **An undefined `${VOYAGER_IP}` substitutes to the empty string**, not to a
   literal. The Kustomization goes green and the volume points at nothing. Assert
   on the rendered volume, never on the absence of `${`.
