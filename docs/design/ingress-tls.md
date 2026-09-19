@@ -259,12 +259,21 @@ beats the wildcard, and `#` means "use the configured upstreams".
 **Trap 1 — DNS-01 self-checks.** That `address=` line makes dnsmasq
 *authoritative* for the whole domain: every name under it is answered from that
 one line and none are forwarded, so a `TXT` query returns NODATA rather than a
-referral. Cluster DNS reaches Pi-hole (CoreDNS forwards to the resolvers the
-nodes got over DHCP), so cert-manager's self-check on
-`_acme-challenge.example.com` asks Pi-hole, gets NODATA, and concludes the record
-has not propagated — while it sits at Cloudflare, correct. Expect a `Challenge`
-stuck at **`Waiting for DNS-01 challenge propagation`** indefinitely; search
-that string, this is its cause. Hence `dns01RecursiveNameservers:
+referral. A self-check that asked Pi-hole would therefore get NODATA for
+`_acme-challenge.example.com` and conclude the record had not propagated — while
+it sits at Cloudflare, correct. Expect a `Challenge` stuck at
+**`Waiting for DNS-01 challenge propagation`** indefinitely; search that string,
+this is its cause.
+
+**The earlier reasoning here was wrong** about how the cluster would reach that
+NODATA: it said cluster DNS reaches Pi-hole over DHCP-learned resolvers. It does
+not. The nodes carry no `nameservers` and no DHCP, so CoreDNS forwards to
+Talos's built-in `1.1.1.1` and `8.8.8.8` (`talosctl get resolverstatus`), which
+read the record from Cloudflare correctly. The two settings below are therefore
+insurance today rather than the only thing between here and a hung order — and
+they become load-bearing the day cluster DNS is pointed at the LAN's own
+resolver. Do not remove them on the grounds that challenges currently pass.
+Hence `dns01RecursiveNameservers:
 "1.1.1.1:53,9.9.9.9:53"` + `dns01RecursiveNameserversOnly: true` in
 `cert-manager/app/values.yaml`, which must land before the Pi-hole apply.
 

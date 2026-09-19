@@ -729,8 +729,12 @@ Consequences:
   is added here, which is the intended trade at a dozen tiles.
 - **Every tile carries two URLs.** `url` is followed by the browser and is
   public; `check-url` is fetched by the pod and must be an in-cluster name,
-  because CoreDNS forwards to the nodes' DHCP resolvers and cannot resolve the
-  LAN wildcard. **A red tile is a wrong `check-url` until proven otherwise.**
+  because CoreDNS forwards to the nodes' own resolvers and those cannot resolve
+  the LAN wildcard. Those resolvers are Talos's built-in `1.1.1.1` and
+  `8.8.8.8`, not anything DHCP handed out: `talconfig.yaml.j2` renders static
+  addressing with no `nameservers` key, so the nodes fall through to the
+  defaults. `talosctl get resolverstatus` is the check.
+  **A red tile is a wrong `check-url` until proven otherwise.**
 - **The off-cluster probes reuse `lan-services`.** Its headless Services
   already resolve to the real LAN addresses, so no `${*_IP}` is copied in and
   `${DOMAIN}` is the only variable this layer needs.
