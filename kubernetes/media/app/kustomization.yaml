@@ -3,5 +3,9 @@ kind: Kustomization
 namespace: media
 resources:
   - namespace.yaml
+  - secret-jellyfin-exporter.sops.yaml
   - pv-library.yaml
   - pvc-library.yaml
+  - pvc-jellyfin-config.yaml
+  - jellyfin.yaml
+  - jellyfin-exporter.yaml

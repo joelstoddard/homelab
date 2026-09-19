@@ -1,0 +1,15 @@
+# The SQLite database, the metadata and the logs. No storageClassName: longhorn
+# is the cluster default, and three replicas across three physical hosts is what
+# keeps watch history alive when a node dies.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: jellyfin-config
+  labels:
+    app.kubernetes.io/name: jellyfin
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 20Gi
