@@ -10,8 +10,10 @@ skip_list:
   - var-naming[no-role-prefix]
 
 exclude_paths:
-  # Galaxy roles vendored at runtime by `make dev` (gitignored, vendor.name
-  # shape). Upstream's lint debt is not ours to carry.
+  # Galaxy roles vendored into roles/ by `make dev`, one line each: a
+  # `roles/*.*/` glob would be shorter, but ansible-lint matches `*` across
+  # `/` and drops this repo's own roles with them.
+  - roles/geerlingguy.swap/
   - roles/robertdebock.fail2ban/
   # SOPS ciphertext: every line is one base64 blob, so yaml[line-length]
   # cannot be satisfied without corrupting the file.
