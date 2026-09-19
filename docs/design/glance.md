@@ -143,16 +143,16 @@ the same way — with one exception, noted in the table and explained under it:
 | TrueNAS | `https://voyager.lan-services.svc/ui/` | 200 | `/` redirects to `/ui/` |
 | Pi-hole | `https://pihole.lan-services.svc/admin/` | 200 | `/` is 403; settles on `/admin/login` |
 | Router | `http://james-webb.lan-services.svc/` | 200 | plain HTTP |
-| Jellyfin | `http://jellyfin.jellyfin.svc:8096/health` | — | **not measured** — see below |
+| Jellyfin | `http://jellyfin.media.svc:8096/health` | — | **not measured** — see below |
 
-**Jellyfin is the one unmeasured entry.** That layer was suspended with no
-running pod when this page was built, so there was nothing to probe. Its path
-is not a guess either: `/health` on the `http` port is taken from the Jellyfin
-layer's own startup, readiness and liveness probes, which Kubernetes requires
-to answer 2xx. The tile therefore reads down until that deployment is running,
-which is accurate rather than wrong — a start page that omits a service because
-the service is broken is the one thing it must not do. Confirm it goes green
-once the layer is unsuspended; there is a `TODO.md` entry for exactly that.
+**Jellyfin is the one unmeasured entry**, and the one whose path needs no
+measuring. `/health` on the `http` port is what Jellyfin's own startup,
+readiness and liveness probes use, and Kubernetes requires those to answer 2xx.
+
+The Service lives in the `media` namespace since the 2026-09-19 cutover, hence
+`jellyfin.media.svc`. A tile reading down while the service really is down is
+correct rather than wrong — a start page that omits a service because the
+service is broken is the one thing it must not do.
 
 **Traefik is the one override.** Its Service publishes only the `web` and
 `websecure` entrypoints, so a request carrying no Host that matches a router

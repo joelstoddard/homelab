@@ -5,22 +5,22 @@ two download clients, and Jellyfin, all sharing one read-write NFS volume from
 `voyager` so that an import is a hardlink rather than a copy. This document is
 the design for all of that.
 
-Only the foundation is deployed, as of this PR merging. Everything else here is
-intent, and is written in the future tense to keep the two apart.
+The foundation and Jellyfin are deployed. Everything else here is intent, and
+is written in the future tense to keep the two apart.
 
 | Piece | State |
 | --- | --- |
 | `media` namespace, PodSecurity `baseline` | deployed |
 | `media-library` PersistentVolume and claim — the export, read-write | deployed |
-| Jellyfin in `media`, `replicas: 0`, on a temporary hostname | deployed, stood down |
-| Migrating Jellyfin's config volume across, and the cutover | designed; not run |
+| Jellyfin in `media`, `replicas: 1`, on `jellyfin.${DOMAIN}` | deployed, serving |
+| Migrating Jellyfin's config volume across, and the cutover | done, 2026-09-19 |
 | The `downloads/` tree and the narrower volume over it | designed |
 | `media-downloads`, qBittorrent behind Mullvad via Tailscale | designed |
 | The seven \*arr applications and SABnzbd | designed |
 
-Nothing below the third row exists in the cluster. In particular, no \*arr
-application is deployed, no download client is deployed, and
-`jellyfin.${DOMAIN}` is still served by the separate `jellyfin/` layer.
+Nothing below the fourth row exists in the cluster: no \*arr application is
+deployed and no download client is deployed. The old `jellyfin/` layer is gone,
+and `media` serves `jellyfin.${DOMAIN}`.
 
 ## Problem
 
@@ -107,15 +107,14 @@ is not in its mount namespace at all.
 nfsvers=4.1,hard,timeo=600,retrans=2,noatime,nodiratime
 ```
 
-These are identical on every mount of this export **once PR-2 lands** —
-deliberately. Several NFS mount options are properties of the *superblock*,
-shared per client, server and export — so two mounts of one export with
-differing options do not produce two policies, they produce whichever policy
-the first pod on that node established. Keeping the options identical makes the
-question moot rather than answered. Until PR-2 deletes it,
-`kubernetes/jellyfin/app/pv.yaml` still specifies `soft` against this same
-export, which is exactly why the two Jellyfins must never run at the same time
-during the cutover — see "The Jellyfin cutover" below.
+These are identical on every mount of this export, deliberately. Several NFS
+mount options are properties of the *superblock*, shared per client, server and
+export — so two mounts of one export with differing options do not produce two
+policies, they produce whichever policy the first pod on that node established.
+
+Keeping the options identical makes the question moot rather than answered.
+`media-library` is the only volume over this export now that the old Jellyfin
+layer and its `soft` mount are gone.
 
 `nfsvers=4.1` is pinned for the reason the Jellyfin doc gives: Talos runs no
 `rpcbind` and no `rpc.statd`, so NFSv3 locking is unavailable, and pinning stops
@@ -290,54 +289,66 @@ Every deployment is `replicas: 1` with `strategy: Recreate`. All of these
 applications keep a SQLite database on a ReadWriteOnce volume, so a rolling
 update deadlocks on the volume and two live pods corrupt the database.
 
-### The Jellyfin cutover
+### The Jellyfin cutover, as performed
 
 A PersistentVolumeClaim cannot cross namespaces and no Longhorn backup target is
-configured, so backup-and-restore is unavailable. The config volume will be
-staged through the NFS export instead — infrastructure that already exists.
+configured, so backup-and-restore was unavailable. The config volume was staged
+through the NFS export instead — infrastructure that already existed.
 
 The counter-intuitive part: the obvious optimisation is to copy only the
 database and settings and let the 4.4 GiB of artwork regenerate. **Do not.**
+
 Regenerating metadata means a full library scan, and a library scan running
 `ffprobe` over NFS is exactly the workload that held 1.4 GiB on a node, got
-`longhorn-csi-plugin` OOM-killed and wedged it. Copying the artwork is incident
+`longhorn-csi-plugin` OOM-killed and wedged it. Copying the artwork was incident
 avoidance, not convenience.
 
-**The two Jellyfins must never run at the same time, for two independent
-reasons.** First, `kubernetes/jellyfin/app/pv.yaml` still specifies `soft`
-while `media-library` specifies `hard`; several NFS mount options are
-superblock properties shared per client, server and export, so while both
-layers exist, two pods mounting this export on one node means whichever lands
-first sets policy for the other. Second, the copy needs a quiescent SQLite
-database — the old Jellyfin has to be stopped before the stage-out Job runs,
-or the copied database can be torn.
+**The two Jellyfins never ran at the same time, for two independent reasons.**
+First, the old layer's `PersistentVolume` specified `soft` while `media-library`
+specifies `hard`, and superblock options are shared per client, server and
+export — two pods mounting it on one node means whichever lands first sets
+policy for the other.
 
-The sequence, designed so every step before the last is reversible:
+Second, the copy needed a quiescent SQLite database: the old Jellyfin was
+stopped before the stage-out Job ran, or the copied database could have been
+torn.
 
-1. This layer merges with Jellyfin at `replicas: 0`. The old `jellyfin`
-   namespace keeps serving throughout. **This is where the work stands.**
+The sequence, run on 2026-09-19, was designed so every step before the last was
+reversible:
+
+1. The `media` layer merged with Jellyfin at `replicas: 0`, the old `jellyfin`
+   namespace serving throughout.
 2. Suspend the `jellyfin` Flux Kustomization, then scale the old Jellyfin to
    0. Suspend first — Flux re-applies its manifests on its interval and would
    revert a manual scale.
-3. A `Job` in `jellyfin` copies `/config` to a staging directory on the share.
-4. A `Job` in `media` copies it into the new Longhorn claim.
+3. A `Job` in `jellyfin` copied `/config` to a staging directory on the share.
+4. A `Job` in `media` copied it into the new Longhorn claim.
 5. Suspend the `media` Kustomization, scale the new Jellyfin to 1, and verify
-   it on `jellyfin-new.${DOMAIN}`.
+   it on a temporary hostname.
 6. Scale the new one back to 0, resume both Kustomizations, and restore the
    old Jellyfin to serving.
-7. A later PR sets `replicas: 1` and the real hostname and deletes
-   `kubernetes/jellyfin/`; Flux prunes the old namespace and its claim.
+7. The cutover PR set `replicas: 1` and the real hostname and deleted the old
+   `jellyfin/` layer; Flux pruned the old namespace and its claim.
+
+**Measured results.** 15,903 files and 4.4 GiB copied, with `jellyfin.db` at
+97,902,592 bytes byte-identical across source, staged and restored. The
+migrated instance started in 6.5 s with no library scan and its plugins intact,
+and ran nine hours on the temporary hostname before the cutover.
+
+The database shrank from about 105 MB on the way out, because the clean
+shutdown checkpointed the write-ahead log into it. Size is therefore not the
+gate — the matching source/staged/restored triple is what proves nothing was
+lost.
 
 **Why the temporary hostname.** Two `IngressRoute` objects matching the same
 `Host()` rule leave Traefik to choose between them nondeterministically.
-Verifying on a second name keeps the cutover an explicit step rather than a
-race.
+Verifying on a second name kept the cutover an explicit step rather than a race.
 
-**Why the deletion is a separate PR.** If one change both added `media` and
-removed `jellyfin`, Flux would prune the old namespace — and with it the config
-claim, whose Longhorn reclaim policy is `Delete` — on the same reconcile that
-created the empty new volume. The copy would never happen. The split is the
-safety property, not bookkeeping.
+**Why the deletion was a separate PR.** If one change had both added `media`
+and removed `jellyfin`, Flux would have pruned the old namespace — and with it
+the config claim, whose Longhorn reclaim policy is `Delete` — on the same
+reconcile that created the empty new volume. The copy would never have
+happened, so the split was the safety property, not bookkeeping.
 
 ## Traps
 
@@ -369,6 +380,22 @@ safety property, not bookkeeping.
   out of scope: it would invalidate Jellyfin's existing library paths.
 - **`$` in a substituted values file is eaten by envsubst, comments included.**
   `${DOMAIN}` and `${VOYAGER_IP}` are the only ones permitted in this layer.
+- **`flux suspend` takes no context from `kubectl`.** Every `flux
+  suspend`/`resume` in the migration runbook omitted `--context homelab` and so
+  acted on an unrelated cluster; a `flux` command in a runbook needs the flag
+  its `kubectl` neighbours carry.
+- **Scaling a Deployment to zero returns before its pod is gone.** The
+  stand-down step had no `kubectl wait --for=delete pod`, so the replacement
+  could have started while the old pod still held the export — exactly the
+  `soft`/`hard` superblock overlap above.
+- **Nothing in the cluster can delete a directory on the NAS.** "Remove the
+  staging directory" was written without a command; it takes a throwaway pod
+  with a read-write mount of the export, the same way the tree was created.
+- **The migration left nothing behind.** The two stage Jobs, the
+  `jellyfin-migration-staging` claim and the hand-applied `PersistentVolume`
+  under it, and `/mnt/Voyager/public/.jellyfin-migration` were all removed on
+  2026-09-19, with the library trees verified intact afterwards. A reference to
+  any of them is history, not a task.
 
 ## Changing it
 

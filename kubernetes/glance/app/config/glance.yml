@@ -110,10 +110,9 @@ pages:
 
               - title: Jellyfin
                 url: https://jellyfin.${DOMAIN}
-                # Path taken from the jellyfin layer's own probes, not measured
-                # here — that layer is suspended, so this reads down until it is
-                # running again.
-                check-url: http://jellyfin.jellyfin.svc:8096/health
+                # Path taken from Jellyfin's own probes, not measured here.
+                # The Service moved to the media namespace on 2026-09-19.
+                check-url: http://jellyfin.media.svc:8096/health
                 icon: di:jellyfin
 
               - title: Home Assistant

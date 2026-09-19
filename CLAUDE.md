@@ -197,7 +197,7 @@ Ingress and TLS are five more layers. Root order is
 full list is `flux-system`, `cilium`, `cilium-lb`, `cluster-secrets`, `cert-manager`,
 `cert-manager-issuers`, `traefik`, `traefik-middlewares`, `lan-services`,
 `tailscale`, `longhorn`, `longhorn-jobs`, `monitoring`, `alloy`, `beyla`,
-`host-monitoring`, `searxng`, `jellyfin`, `media`, `glance`, `home-assistant`).
+`host-monitoring`, `searxng`, `media`, `glance`, `home-assistant`).
 `cluster-secrets/` is one SOPS Secret in `flux-system` holding `DOMAIN`,
 `TRAEFIK_LB_IP` and `ACME_EMAIL`; consumers (`cert-manager-issuers`,
 `traefik`, `longhorn`) add `dependsOn: cluster-secrets` +
@@ -343,21 +343,21 @@ No auth middleware — Home Assistant has its own login, the third documented
 exception after SearXNG and Jellyfin. Two replicas are impossible, not
 merely unwise. See `docs/design/home-assistant.md`.
 `media/` (`dependsOn: traefik, traefik-middlewares, longhorn, cluster-secrets`,
-substituted) is the shared namespace for the future \*arr stack: one
-read-write `PersistentVolume` over the same TrueNAS export Jellyfin already
-used, mounted at `/media` by every workload that lives here so an \*arr
-import can hardlink into the library instead of copying it. Read-write
-forces `mountOptions: hard`, replacing Jellyfin's `soft` — a `soft` timeout
-on a write that later lands on the server is silent corruption, a risk
-`soft` never carried while the mount was read-only. Jellyfin, reproduced in
-this namespace, keeps its old read-only semantics anyway, through
-`readOnly: true` on its own volumeMount rather than a second
-PersistentVolume. The namespace is PSA `baseline`, not `restricted`,
-because the LinuxServer.io \*arr images start as root and drop to
-`PUID`/`PGID` through s6-overlay. Jellyfin here currently ships at
-`replicas: 0`: the old `jellyfin/` layer keeps serving `jellyfin.${DOMAIN}`
-until a later PR migrates its config volume and cuts over. See
-`docs/design/arr-stack.md`.
+substituted) is the shared namespace for Jellyfin and the future \*arr
+stack: one read-write `PersistentVolume` over the TrueNAS export, mounted at
+`/media` by every workload that lives here so an \*arr import can hardlink
+into the library instead of copying it. Read-write forces
+`mountOptions: hard`, replacing the `soft` the old read-only volume used — a
+`soft` timeout on a write that later lands on the server is silent
+corruption, a risk `soft` never carried while the mount was read-only.
+Jellyfin keeps read-only semantics anyway, through `readOnly: true` on its
+own volumeMount rather than a second PersistentVolume. The namespace is PSA
+`baseline`, not `restricted`, because the LinuxServer.io \*arr images start
+as root and drop to `PUID`/`PGID` through s6-overlay. Jellyfin serves
+`jellyfin.${DOMAIN}` from here at `replicas: 1`: its config volume was staged
+through the NFS export out of the standalone `jellyfin/` layer on 2026-09-19,
+verified, and that layer deleted. The \*arr applications and the download
+clients are designed, not deployed. See `docs/design/arr-stack.md`.
 Never `kubectl delete kustomization flux-system` — prune would remove Flux
 itself; use `flux uninstall`. Pruning `cilium/` removes the CNI; pruning
 `traefik/` takes every route in the cluster. See `kubernetes/README.md`.

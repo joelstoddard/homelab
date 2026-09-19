@@ -36,10 +36,10 @@ install that gets Flux running in the first place.
       (`host-monitoring/`, write routes in `monitoring/`) — see
       "Host monitoring"
 - [-] Workloads — SearXNG, the first user-facing application (`searxng/`),
-      Jellyfin (`jellyfin/`), the Glance start page on `home.<domain>`
-      (`glance/`), and Home Assistant on `homeassistant.<domain>`
-      (`home-assistant/`) — see "SearXNG", "Jellyfin", "Glance" and "Home
-      Assistant"
+      Jellyfin in the shared media namespace (`media/`), the Glance start page
+      on `home.<domain>` (`glance/`), and Home Assistant on
+      `homeassistant.<domain>` (`home-assistant/`) — see "SearXNG", "Media",
+      "Glance" and "Home Assistant"
 
 ## Layout
 
@@ -618,62 +618,15 @@ kubectl --context homelab -n searxng get pods,svc
 kubectl --context homelab -n searxng exec deploy/valkey -- valkey-cli keys '*'   # limiter is live
 ```
 
-## Jellyfin
-
-`jellyfin/` is the media server on `jellyfin.<domain>`, and the cluster's first
-consumer of NFS: the library is mounted read-only from `voyager` through a
-static `PersistentVolume`, while its database sits on Longhorn.
-Rationale: [`docs/design/jellyfin.md`](../docs/design/jellyfin.md).
-
-Consequences:
-
-- **The media volume is `Retain` and pre-bound.** Pruning this layer never
-  proposes deleting the library, and the `claimRef` stops any other claim in
-  the cluster taking the volume. The config claim is a different story — see
-  "Footguns".
-- **`storageClassName: ""` is not the same as omitting it.** Omitted means "use
-  the default", which would hand the media volume to Longhorn and provision an
-  empty one. Both the volume and its claim set it explicitly.
-- **NFSv4.1 is pinned, and the export must offer it.** Talos runs no `rpcbind`
-  and no `rpc.statd`, so NFSv3 locking is unavailable. TrueNAS defaults to v3.
-- **`soft`, not `hard`, and only because the mount is read-only.** Talos has no
-  host shell, so a hung `hard` mount cannot be cleared with `umount -l` — the
-  only recovery is rebooting the node. Making this volume read-write means
-  moving back to `hard`.
-- **NFS ignores `fsGroup`.** The export's own permissions decide whether the
-  pod's UID can read it; `maproot`/`mapall` on the share are the levers.
-- **One replica, `Recreate`, deliberately.** ReadWriteOnce plus SQLite: a
-  rolling update deadlocks on the volume and two pods corrupt the database.
-- **No basic auth.** Jellyfin has its own login, and a browser prompt breaks
-  every native client. This is the second documented exception to the
-  per-service rule under "Traefik".
-- **The Jellyfin pod carries no metrics annotation; the exporter does.**
-  Jellyfin serves no Prometheus endpoint, so annotating it would only log 404s —
-  Beyla covers its RED metrics. Playback and transcode data come from
-  `jellyfin-exporter`, which polls the REST API and is scraped normally.
-- **The exporter's useful collectors are off by default.** Only `media`,
-  `playing`, `system` and `users` run unless enabled; `transcoding` carries the
-  stream detail. `jellyfin_up` vanishes rather than reading zero when the API
-  token is wrong, so health is keyed on `jellyfin_scrape_collector_success`.
-- **Nothing to add for DNS or TLS.** The Pi-hole wildcard resolves the name and
-  `TLSStore/default` serves the certificate.
-
-```bash
-flux --context homelab get ks jellyfin
-kubectl --context homelab -n jellyfin get pods,pvc,svc
-kubectl --context homelab get pv jellyfin-media                 # Bound, Retain
-kubectl --context homelab -n jellyfin exec deploy/jellyfin -- ls /media
-```
-
 ## Media
 
 `media/` is the shared namespace for everything that reads or writes the media
 library: one read-write `PersistentVolume` over the export on `voyager`, one
-claim, and every application deploying into it. Today it holds that volume and
-Jellyfin at `replicas: 0` on a temporary hostname — the \*arr applications and
-the download clients are designed but not deployed, and `jellyfin/` still serves
-`jellyfin.<domain>` until a later PR folds it in here and deletes it. Rationale:
-[`docs/design/arr-stack.md`](../docs/design/arr-stack.md).
+claim, and every application deploying into it. Today it holds that volume,
+Jellyfin on `jellyfin.<domain>` and its metrics exporter — the \*arr
+applications and the download clients are designed but not deployed. Rationale:
+[`docs/design/arr-stack.md`](../docs/design/arr-stack.md) for the namespace,
+[`docs/design/jellyfin.md`](../docs/design/jellyfin.md) for Jellyfin itself.
 
 Consequences:
 
@@ -688,20 +641,39 @@ Consequences:
 - **Mount options must stay byte-identical to every other mount of this
   export.** Several are superblock properties, shared per client, server and
   export, so mismatched options mean the first pod on a node sets the policy.
-- **The export maps writes to the tree's owner.** Mapall is configured, so a
-  pod writing as UID 1000 produces a file owned by `4294967294` mode `775`.
-  Write access does not come from the world permission bits — see "Traps" in
-  the design doc before reasoning about permissions here.
+- **NFSv4.1 is pinned, and the export must offer it.** Talos runs no `rpcbind`
+  and no `rpc.statd`, so NFSv3 locking is unavailable. TrueNAS defaults to v3.
+- **`storageClassName: ""` is not the same as omitting it.** Omitted means "use
+  the default", which would hand the library volume to Longhorn and provision
+  an empty one. Both the volume and its claim set it explicitly.
+- **NFS ignores `fsGroup`, and the export maps writes to the tree's owner.**
+  Reads come from the export's own permission bits; writes do not, because
+  Mapall is configured — a pod writing as UID 1000 produces a file owned by
+  `4294967294` mode `775`. See "Traps" in the design doc before reasoning about
+  permissions here.
 - **PodSecurity `baseline` is stated explicitly.** The LinuxServer.io \*arr
   images start as root and drop to `PUID`/`PGID`, which `restricted` forbids.
   The torrent client needs more than `baseline` and therefore gets its own
   namespace rather than relaxing this one.
-- **Jellyfin is deliberately stood down.** `replicas: 0` until its config
-  volume is copied across, and on `jellyfin-new.<domain>` so that two
-  `IngressRoute`s never match the same `Host()` rule — Traefik would choose
-  between them nondeterministically.
+- **One replica, `Recreate`, for every application here.** ReadWriteOnce plus
+  SQLite: a rolling update deadlocks on the config volume and two pods corrupt
+  the database.
+- **Jellyfin carries no basic auth.** It has its own login, and a browser
+  prompt breaks every native client. This is the second documented exception to
+  the per-service rule under "Traefik".
+- **The Jellyfin pod carries no metrics annotation; the exporter does.**
+  Jellyfin serves no Prometheus endpoint, so annotating it would only log 404s —
+  Beyla covers its RED metrics. Playback and transcode data come from
+  `jellyfin-exporter`, which polls the REST API and is scraped normally.
+- **The exporter's useful collectors are off by default.** Only `media`,
+  `playing`, `system` and `users` run unless enabled; `transcoding` carries the
+  stream detail. `jellyfin_up` vanishes rather than reading zero when the API
+  token is wrong, so health is keyed on `jellyfin_scrape_collector_success`.
+- **Nothing to add for DNS or TLS.** The Pi-hole wildcard resolves the name and
+  `TLSStore/default` serves the certificate.
 - **Pruning this layer deletes the Longhorn config claims in it** (reclaim
-  policy `Delete`). `media-library` is `Retain`, so the library itself survives.
+  policy `Delete`), taking Jellyfin's users and watch history with them.
+  `media-library` is `Retain`, so the library itself survives.
 - **One file per application, not per kind.** `jellyfin.yaml` bundles the
   Deployment, Service and IngressRoute together, unlike sibling layers that
   split by kind — deliberate, since `media` is a multi-application namespace
@@ -712,6 +684,7 @@ Consequences:
 flux --context homelab get ks media
 kubectl --context homelab -n media get pods,pvc,svc
 kubectl --context homelab get pv media-library                  # Bound, Retain
+kubectl --context homelab -n media exec deploy/jellyfin -- ls /media
 ```
 
 ## Glance
@@ -845,7 +818,7 @@ manifests *after* SOPS decryption. The Secret lives in `flux-system` because
 namespace, not in the namespace being written to; `wait: true` on the layer
 is what makes a consumer's `dependsOn` mean "the keys are there".
 Consumers today: `cert-manager-issuers`, `traefik`, `longhorn`, `lan-services`,
-`monitoring`, `host-monitoring`, `searxng`, `jellyfin`, `media`, `glance`,
+`monitoring`, `host-monitoring`, `searxng`, `media`, `glance`,
 `home-assistant`.
 
 This is why the domain and the LB address are not simply SOPS-encrypted:
@@ -1134,7 +1107,7 @@ merge lands on `main`. `make -C kubernetes` afterwards is still a no-op.
   the chart owns that path read-only and a nested mount fails.
 - **A new probe's `module` must exist in `blackbox/blackbox.yml`**, or the
   scrape returns 400 with no other signal.
-- **Pruning `jellyfin/` deletes its config claim** (Longhorn reclaims with
-  `Delete`), taking the users and the watch history. The media volume is
-  `Retain` and holds no data of its own, so the library on `voyager` survives
-  any mistake made here.
+- **Pruning `media/` deletes the Longhorn config claims in it** (Longhorn
+  reclaims with `Delete`), taking Jellyfin's users and watch history. The
+  library volume is `Retain` and holds no data of its own, so the library on
+  `voyager` survives any mistake made here.

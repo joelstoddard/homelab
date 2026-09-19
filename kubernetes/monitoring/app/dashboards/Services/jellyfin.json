@@ -10,7 +10,7 @@
     {"id": 1, "type": "stat", "title": "Availability", "gridPos": {"h": 4, "w": 6, "x": 0, "y": 0},
      "description": "kube-state-metrics series carry the collector's namespace, so the real one is exported_namespace.",
      "datasource": {"type": "prometheus", "uid": "prometheus"},
-     "targets": [{"refId": "A", "expr": "max(kube_pod_status_ready{exported_namespace=\"jellyfin\", condition=\"true\"})"}],
+     "targets": [{"refId": "A", "expr": "max(kube_pod_status_ready{exported_namespace=\"media\", condition=\"true\"})"}],
      "fieldConfig": {"defaults": {"mappings": [
        {"type": "value", "options": {"0": {"text": "Down", "color": "red", "index": 0}, "1": {"text": "Up", "color": "green", "index": 1}}}],
        "noValue": "No data"}, "overrides": []},
@@ -19,21 +19,21 @@
     {"id": 2, "type": "stat", "title": "Restarts", "gridPos": {"h": 4, "w": 6, "x": 6, "y": 0},
      "description": "A climbing count means the pod is crash-looping. The config volume returning I/O errors is the failure that causes it.",
      "datasource": {"type": "prometheus", "uid": "prometheus"},
-     "targets": [{"refId": "A", "expr": "sum(kube_pod_container_status_restarts_total{exported_namespace=\"jellyfin\", container=\"jellyfin\"})"}],
+     "targets": [{"refId": "A", "expr": "sum(kube_pod_container_status_restarts_total{exported_namespace=\"media\", container=\"jellyfin\"})"}],
      "fieldConfig": {"defaults": {"thresholds": {"mode": "absolute", "steps": [
        {"color": "green", "value": null}, {"color": "yellow", "value": 1}, {"color": "red", "value": 5}]}}, "overrides": []},
      "options": {"colorMode": "background", "graphMode": "area", "reduceOptions": {"calcs": ["lastNotNull"]}}},
 
     {"id": 3, "type": "stat", "title": "Uptime", "gridPos": {"h": 4, "w": 6, "x": 12, "y": 0},
      "datasource": {"type": "prometheus", "uid": "prometheus"},
-     "targets": [{"refId": "A", "expr": "time() - max(container_start_time_seconds{namespace=\"jellyfin\", container=\"jellyfin\"})"}],
+     "targets": [{"refId": "A", "expr": "time() - max(container_start_time_seconds{namespace=\"media\", container=\"jellyfin\"})"}],
      "fieldConfig": {"defaults": {"unit": "s", "decimals": 0}, "overrides": []},
      "options": {"colorMode": "none", "graphMode": "none", "reduceOptions": {"calcs": ["lastNotNull"]}}},
 
     {"id": 4, "type": "stat", "title": "Config volume health", "gridPos": {"h": 4, "w": 6, "x": 18, "y": 0},
      "description": "Longhorn robustness for jellyfin-config. Every longhorn-manager reports this volume, and only the one owning it knows the real state, so max() picks the worst non-unknown value. Degraded here preceded an I/O error and a crash loop on 2026-09-18.",
      "datasource": {"type": "prometheus", "uid": "prometheus"},
-     "targets": [{"refId": "A", "expr": "max(longhorn_volume_robustness{pvc=\"jellyfin-config\", pvc_namespace=\"jellyfin\"})"}],
+     "targets": [{"refId": "A", "expr": "max(longhorn_volume_robustness{pvc=\"jellyfin-config\", pvc_namespace=\"media\"})"}],
      "fieldConfig": {"defaults": {"mappings": [
        {"type": "value", "options": {
          "0": {"text": "Unknown", "color": "text", "index": 0},
@@ -104,34 +104,34 @@
     {"id": 5, "type": "timeseries", "title": "Requests by status (Beyla)", "gridPos": {"h": 8, "w": 8, "x": 0, "y": 16},
      "description": "eBPF RED metrics for the pod. Nothing is instrumented inside Jellyfin, and it exposes no Prometheus endpoint without a plugin. Beyla stamps its own namespace, so the pod's is k8s_namespace_name.",
      "datasource": {"type": "prometheus", "uid": "prometheus"},
-     "targets": [{"refId": "A", "expr": "sum by (http_response_status_code) (rate({__name__=~\"http_server_request_duration_seconds_count|http_server_request_duration_count\", k8s_namespace_name=\"jellyfin\"}[$__rate_interval]))", "legendFormat": "{{http_response_status_code}}"}],
+     "targets": [{"refId": "A", "expr": "sum by (http_response_status_code) (rate({__name__=~\"http_server_request_duration_seconds_count|http_server_request_duration_count\", k8s_namespace_name=\"media\"}[$__rate_interval]))", "legendFormat": "{{http_response_status_code}}"}],
      "fieldConfig": {"defaults": {"unit": "reqps"}, "overrides": []}},
 
     {"id": 6, "type": "timeseries", "title": "Response time (Beyla)", "gridPos": {"h": 8, "w": 8, "x": 8, "y": 16},
      "description": "Quantiles over Beyla's histogram. Buckets are coarse, so a quiet instance shows the bucket boundary rather than a true percentile.",
      "datasource": {"type": "prometheus", "uid": "prometheus"},
      "targets": [
-       {"refId": "A", "expr": "histogram_quantile(0.50, sum by (le) (rate(http_server_request_duration_seconds_bucket{k8s_namespace_name=\"jellyfin\"}[$__rate_interval])))", "legendFormat": "p50"},
-       {"refId": "B", "expr": "histogram_quantile(0.95, sum by (le) (rate(http_server_request_duration_seconds_bucket{k8s_namespace_name=\"jellyfin\"}[$__rate_interval])))", "legendFormat": "p95"},
-       {"refId": "C", "expr": "histogram_quantile(0.99, sum by (le) (rate(http_server_request_duration_seconds_bucket{k8s_namespace_name=\"jellyfin\"}[$__rate_interval])))", "legendFormat": "p99"}],
+       {"refId": "A", "expr": "histogram_quantile(0.50, sum by (le) (rate(http_server_request_duration_seconds_bucket{k8s_namespace_name=\"media\"}[$__rate_interval])))", "legendFormat": "p50"},
+       {"refId": "B", "expr": "histogram_quantile(0.95, sum by (le) (rate(http_server_request_duration_seconds_bucket{k8s_namespace_name=\"media\"}[$__rate_interval])))", "legendFormat": "p95"},
+       {"refId": "C", "expr": "histogram_quantile(0.99, sum by (le) (rate(http_server_request_duration_seconds_bucket{k8s_namespace_name=\"media\"}[$__rate_interval])))", "legendFormat": "p99"}],
      "fieldConfig": {"defaults": {"unit": "s"}, "overrides": []}},
 
     {"id": 7, "type": "timeseries", "title": "Busiest routes (Beyla)", "gridPos": {"h": 8, "w": 8, "x": 16, "y": 16},
      "datasource": {"type": "prometheus", "uid": "prometheus"},
-     "targets": [{"refId": "A", "expr": "topk(10, sum by (http_route) (rate(http_server_request_duration_seconds_count{k8s_namespace_name=\"jellyfin\"}[$__rate_interval])))", "legendFormat": "{{http_route}}"}],
+     "targets": [{"refId": "A", "expr": "topk(10, sum by (http_route) (rate(http_server_request_duration_seconds_count{k8s_namespace_name=\"media\"}[$__rate_interval])))", "legendFormat": "{{http_route}}"}],
      "fieldConfig": {"defaults": {"unit": "reqps"}, "overrides": []}},
 
     {"id": 8, "type": "timeseries", "title": "CPU against limit", "gridPos": {"h": 8, "w": 6, "x": 0, "y": 24},
      "datasource": {"type": "prometheus", "uid": "prometheus"},
      "targets": [
-       {"refId": "A", "expr": "sum(rate(container_cpu_usage_seconds_total{namespace=\"jellyfin\", container=\"jellyfin\"}[$__rate_interval]))", "legendFormat": "used"},
-       {"refId": "B", "expr": "max(kube_pod_container_resource_limits{exported_namespace=\"jellyfin\", resource=\"cpu\"})", "legendFormat": "limit"}],
+       {"refId": "A", "expr": "sum(rate(container_cpu_usage_seconds_total{namespace=\"media\", container=\"jellyfin\"}[$__rate_interval]))", "legendFormat": "used"},
+       {"refId": "B", "expr": "max(kube_pod_container_resource_limits{exported_namespace=\"media\", resource=\"cpu\"})", "legendFormat": "limit"}],
      "fieldConfig": {"defaults": {"unit": "none", "decimals": 2}, "overrides": []}},
 
     {"id": 9, "type": "timeseries", "title": "CPU throttling", "gridPos": {"h": 8, "w": 6, "x": 6, "y": 24},
      "description": "Share of CFS periods throttled. Throttling ffmpeg stutters playback rather than slowing it gracefully, which is why the limit is deliberately generous.",
      "datasource": {"type": "prometheus", "uid": "prometheus"},
-     "targets": [{"refId": "A", "expr": "sum(rate(container_cpu_cfs_throttled_periods_total{namespace=\"jellyfin\", container=\"jellyfin\"}[$__rate_interval])) / clamp_min(sum(rate(container_cpu_cfs_periods_total{namespace=\"jellyfin\", container=\"jellyfin\"}[$__rate_interval])), 1)", "legendFormat": "throttled"}],
+     "targets": [{"refId": "A", "expr": "sum(rate(container_cpu_cfs_throttled_periods_total{namespace=\"media\", container=\"jellyfin\"}[$__rate_interval])) / clamp_min(sum(rate(container_cpu_cfs_periods_total{namespace=\"media\", container=\"jellyfin\"}[$__rate_interval])), 1)", "legendFormat": "throttled"}],
      "fieldConfig": {"defaults": {"unit": "percentunit", "min": 0, "thresholds": {"mode": "absolute", "steps": [
        {"color": "green", "value": null}, {"color": "yellow", "value": 0.05}, {"color": "red", "value": 0.25}]}}, "overrides": []}},
 
@@ -139,35 +139,35 @@
      "description": "The workers have about 3.2 GiB allocatable and their limits already sum past 90% of it, so this ceiling is deliberately modest. Sustained approach to the limit is the signal to right-size the VMs, not to raise it.",
      "datasource": {"type": "prometheus", "uid": "prometheus"},
      "targets": [
-       {"refId": "A", "expr": "sum(container_memory_working_set_bytes{namespace=\"jellyfin\", container=\"jellyfin\"})", "legendFormat": "working set"},
-       {"refId": "B", "expr": "max(kube_pod_container_resource_limits{exported_namespace=\"jellyfin\", resource=\"memory\"})", "legendFormat": "limit"}],
+       {"refId": "A", "expr": "sum(container_memory_working_set_bytes{namespace=\"media\", container=\"jellyfin\"})", "legendFormat": "working set"},
+       {"refId": "B", "expr": "max(kube_pod_container_resource_limits{exported_namespace=\"media\", resource=\"memory\"})", "legendFormat": "limit"}],
      "fieldConfig": {"defaults": {"unit": "bytes"}, "overrides": []}},
 
     {"id": 11, "type": "timeseries", "title": "OOM kills", "gridPos": {"h": 8, "w": 6, "x": 18, "y": 24},
      "datasource": {"type": "prometheus", "uid": "prometheus"},
-     "targets": [{"refId": "A", "expr": "sum(increase(container_oom_events_total{namespace=\"jellyfin\"}[$__rate_interval]))", "legendFormat": "oom events"}],
+     "targets": [{"refId": "A", "expr": "sum(increase(container_oom_events_total{namespace=\"media\"}[$__rate_interval]))", "legendFormat": "oom events"}],
      "fieldConfig": {"defaults": {"unit": "short", "min": 0}, "overrides": []}},
 
     {"id": 12, "type": "timeseries", "title": "Network throughput", "gridPos": {"h": 8, "w": 12, "x": 0, "y": 32},
      "description": "Transmit is what clients are streaming. Receive is largely the library arriving over NFS, since the media is not local to the pod.",
      "datasource": {"type": "prometheus", "uid": "prometheus"},
      "targets": [
-       {"refId": "A", "expr": "sum(rate(container_network_transmit_bytes_total{namespace=\"jellyfin\"}[$__rate_interval]))", "legendFormat": "to clients"},
-       {"refId": "B", "expr": "sum(rate(container_network_receive_bytes_total{namespace=\"jellyfin\"}[$__rate_interval]))", "legendFormat": "from NAS"}],
+       {"refId": "A", "expr": "sum(rate(container_network_transmit_bytes_total{namespace=\"media\"}[$__rate_interval]))", "legendFormat": "to clients"},
+       {"refId": "B", "expr": "sum(rate(container_network_receive_bytes_total{namespace=\"media\"}[$__rate_interval]))", "legendFormat": "from NAS"}],
      "fieldConfig": {"defaults": {"unit": "Bps"}, "overrides": []}},
 
     {"id": 13, "type": "timeseries", "title": "Container filesystem I/O", "gridPos": {"h": 8, "w": 12, "x": 12, "y": 32},
      "description": "The config volume and the transcode cache. The NFS library is not counted here, it shows up as received network bytes.",
      "datasource": {"type": "prometheus", "uid": "prometheus"},
      "targets": [
-       {"refId": "A", "expr": "sum(rate(container_fs_reads_bytes_total{namespace=\"jellyfin\", container=\"jellyfin\"}[$__rate_interval]))", "legendFormat": "read"},
-       {"refId": "B", "expr": "sum(rate(container_fs_writes_bytes_total{namespace=\"jellyfin\", container=\"jellyfin\"}[$__rate_interval]))", "legendFormat": "write"}],
+       {"refId": "A", "expr": "sum(rate(container_fs_reads_bytes_total{namespace=\"media\", container=\"jellyfin\"}[$__rate_interval]))", "legendFormat": "read"},
+       {"refId": "B", "expr": "sum(rate(container_fs_writes_bytes_total{namespace=\"media\", container=\"jellyfin\"}[$__rate_interval]))", "legendFormat": "write"}],
      "fieldConfig": {"defaults": {"unit": "Bps"}, "overrides": []}},
 
     {"id": 14, "type": "gauge", "title": "Config volume used", "gridPos": {"h": 7, "w": 6, "x": 0, "y": 40},
      "description": "Longhorn, replicated three times. Artwork under metadata/ is what grows it.",
      "datasource": {"type": "prometheus", "uid": "prometheus"},
-     "targets": [{"refId": "A", "expr": "kubelet_volume_stats_used_bytes{namespace=\"jellyfin\", persistentvolumeclaim=\"jellyfin-config\"} / kubelet_volume_stats_capacity_bytes{namespace=\"jellyfin\", persistentvolumeclaim=\"jellyfin-config\"}"}],
+     "targets": [{"refId": "A", "expr": "kubelet_volume_stats_used_bytes{namespace=\"media\", persistentvolumeclaim=\"jellyfin-config\"} / kubelet_volume_stats_capacity_bytes{namespace=\"media\", persistentvolumeclaim=\"jellyfin-config\"}"}],
      "fieldConfig": {"defaults": {"unit": "percentunit", "min": 0, "max": 1, "thresholds": {"mode": "absolute", "steps": [
        {"color": "green", "value": null}, {"color": "yellow", "value": 0.75}, {"color": "red", "value": 0.9}]}}, "overrides": []},
      "options": {"reduceOptions": {"calcs": ["lastNotNull"]}}},
@@ -175,19 +175,19 @@
     {"id": 15, "type": "gauge", "title": "Media library used", "gridPos": {"h": 7, "w": 6, "x": 6, "y": 40},
      "description": "Reported by the NAS over NFS, so this is the real filesystem size rather than the nominal capacity on the PersistentVolume.",
      "datasource": {"type": "prometheus", "uid": "prometheus"},
-     "targets": [{"refId": "A", "expr": "kubelet_volume_stats_used_bytes{namespace=\"jellyfin\", persistentvolumeclaim=\"jellyfin-media\"} / kubelet_volume_stats_capacity_bytes{namespace=\"jellyfin\", persistentvolumeclaim=\"jellyfin-media\"}"}],
+     "targets": [{"refId": "A", "expr": "kubelet_volume_stats_used_bytes{namespace=\"media\", persistentvolumeclaim=\"media-library\"} / kubelet_volume_stats_capacity_bytes{namespace=\"media\", persistentvolumeclaim=\"media-library\"}"}],
      "fieldConfig": {"defaults": {"unit": "percentunit", "min": 0, "max": 1, "thresholds": {"mode": "absolute", "steps": [
        {"color": "green", "value": null}, {"color": "yellow", "value": 0.85}, {"color": "red", "value": 0.95}]}}, "overrides": []},
      "options": {"reduceOptions": {"calcs": ["lastNotNull"]}}},
 
     {"id": 16, "type": "timeseries", "title": "Volume usage over time", "gridPos": {"h": 7, "w": 12, "x": 12, "y": 40},
      "datasource": {"type": "prometheus", "uid": "prometheus"},
-     "targets": [{"refId": "A", "expr": "kubelet_volume_stats_used_bytes{namespace=\"jellyfin\"}", "legendFormat": "{{persistentvolumeclaim}}"}],
+     "targets": [{"refId": "A", "expr": "kubelet_volume_stats_used_bytes{namespace=\"media\"}", "legendFormat": "{{persistentvolumeclaim}}"}],
      "fieldConfig": {"defaults": {"unit": "bytes"}, "overrides": []}},
 
     {"id": 17, "type": "logs", "title": "Logs", "gridPos": {"h": 10, "w": 24, "x": 0, "y": 47},
      "datasource": {"type": "loki", "uid": "loki"},
      "options": {"showTime": true, "wrapLogMessage": true, "sortOrder": "Descending", "dedupStrategy": "none", "enableLogDetails": true},
-     "targets": [{"refId": "A", "expr": "{namespace=\"jellyfin\"}"}]}
+     "targets": [{"refId": "A", "expr": "{namespace=\"media\"}"}]}
   ]
 }
