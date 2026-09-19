@@ -21,7 +21,6 @@ resources:
   - beyla
   - host-monitoring
   - searxng
-  - jellyfin
   - media
   - glance
   - home-assistant
