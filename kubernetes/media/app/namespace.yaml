@@ -1,0 +1,11 @@
+# PodSecurity "baseline" is stated explicitly even though it matches the
+# cluster default, because it is a requirement here rather than an accident:
+# the LinuxServer.io *arr images start as root and drop to PUID/PGID through
+# s6-overlay, which "restricted" forbids. The torrent client needs more than
+# baseline and therefore lives in its own namespace (docs/design/arr-stack.md).
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: media
+  labels:
+    pod-security.kubernetes.io/enforce: baseline

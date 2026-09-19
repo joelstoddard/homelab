@@ -1,0 +1,29 @@
+# The media stack — docs/design/arr-stack.md. Jellyfin and the *arr
+# applications share one read-write NFS volume from voyager and therefore one
+# namespace, whose volume needs ${VOYAGER_IP} and whose routes need ${DOMAIN},
+# both from cluster-secrets.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: media
+  namespace: flux-system
+spec:
+  interval: 10m0s
+  path: ./kubernetes/media/app
+  prune: true
+  dependsOn:
+    - name: traefik
+    - name: traefik-middlewares
+    - name: longhorn
+    - name: cluster-secrets
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+  decryption:
+    provider: sops
+    secretRef:
+      name: sops-age
+  postBuild:
+    substituteFrom:
+      - kind: Secret
+        name: cluster-secrets
