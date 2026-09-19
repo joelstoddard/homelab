@@ -332,10 +332,13 @@ with an init container seeding `automations.yaml`, `scripts.yaml` and
 `scenes.yaml` because supplying a config file stops Home Assistant writing
 its own defaults and a missing `!include` target is a hard startup
 failure. That init script contains no `$`: the layer is substituted, so a
-shell variable would be eaten, the same trap as Glance's comments. The one
-setting that is NOT git-owned is `http:` — Home Assistant migrates that
-block into `.storage` once, then ignores YAML forever, so trusted proxies
-are set in the UI after onboarding and an `http:` block in git is inert.
+shell variable would be eaten, the same trap as Glance's comments. That
+file holds only `default_config:` and the includes, deliberately: an
+`http:` block is migrated into `.storage` once and then ignored forever,
+and a `homeassistant:` block locks ALL core config to YAML on any one of
+its twelve keys, which greys out the location picker. Trusted proxies,
+location and the URLs are therefore set in the UI and survive in
+`.storage`, and a rebuild that wipes the volume means setting them again.
 No auth middleware — Home Assistant has its own login, the third documented
 exception after SearXNG and Jellyfin. Two replicas are impossible, not
 merely unwise. See `docs/design/home-assistant.md`.

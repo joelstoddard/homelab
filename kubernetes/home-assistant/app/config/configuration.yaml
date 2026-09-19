@@ -1,28 +1,16 @@
 # Git owns this file; Home Assistant owns everything else under /config.
-# Flux substitution runs over this layer, so the only dollar sign permitted
-# anywhere in this file, comments included, is the one in the domain
-# substitution used below.
-#
-# No latitude, longitude or house name: this repo is public. Location is set
-# once at onboarding and lives in .storage.
+# What belongs here turned out to be narrow — see docs/design/home-assistant.md.
 
 # Pulls in zeroconf, ssdp, dhcp, usb and backup. Removing it removes discovery,
 # which is the entire reason this pod runs on the node's network stack.
 default_config:
 
-homeassistant:
-  # Set here rather than left to onboarding so it is deterministic; this means
-  # the web interface cannot override it.
-  time_zone: Europe/London
-  # Home Assistant embeds internal_url verbatim in its own mDNS TXT records and
-  # hands it to the companion app, so it must be the ingress name and never a
-  # node address.
-  external_url: "https://homeassistant.${DOMAIN}"
-  internal_url: "https://homeassistant.${DOMAIN}"
+# No homeassistant: block. Any one of its twelve core keys makes Home Assistant
+# treat ALL core config as YAML-managed and locks the UI, including the location
+# picker (core_config.py, the `any(k in config ...)` guard).
 
-# No http: block, deliberately: Home Assistant migrates it into .storage once
-# and ignores YAML forever after. Trusted proxies live in the UI — see
-# docs/design/home-assistant.md.
+# No http: block either: Home Assistant migrates it into .storage once and
+# ignores YAML forever after. Trusted proxies live in the UI.
 
 automation: !include automations.yaml
 script: !include scripts.yaml
