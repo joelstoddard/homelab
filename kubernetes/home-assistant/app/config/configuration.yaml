@@ -12,6 +12,11 @@ default_config:
 # No http: block either: Home Assistant migrates it into .storage once and
 # ignores YAML forever after. Trusted proxies live in the UI.
 
+# YAML-only, unlike the two blocks above: the integration ships no config flow,
+# so this is the one place it can be set. Serves /api/prometheus behind a
+# bearer token, scraped by the alloy layer — docs/design/observability.md.
+prometheus:
+
 automation: !include automations.yaml
 script: !include scripts.yaml
 scene: !include scenes.yaml

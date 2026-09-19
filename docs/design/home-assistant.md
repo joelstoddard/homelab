@@ -284,6 +284,18 @@ TODO(measure): the measured failover time.
 **Confirming the Glance tile.** The dashboard's Home Assistant tile should
 report up through its in-cluster probe once the above all hold.
 
+**Rotating or replacing the metrics token.** `prometheus:` serves
+`/api/prometheus` behind a bearer token, which the `alloy` layer reads from
+`cluster-secrets` at runtime rather than through substitution. The token is a
+long-lived access token minted under the user's profile, Security tab, and it
+is per-user: deleting that user, or revoking the token there, stops the
+scrape. Mint a new one, update `HOME_ASSISTANT_TOKEN` with `sops`, and Alloy
+picks it up on its next reload without a config change.
+
+A rebuild that wipes the volume destroys the token with the user database, so
+it joins trusted proxies, the location and the URLs on the list of things to
+set again afterwards.
+
 ## Failure modes
 
 **First boot never completes.** Almost always a missing `!include` target —
@@ -344,18 +356,6 @@ announcements; see Design.
 
 ## Out of scope
 
-- **Prometheus metrics.** Home Assistant's metrics endpoint needs a
-  long-lived token minted from the web interface after first login, so it
-  can't ship with the rest of this layer. It will follow the SearXNG
-  pattern — an explicit Alloy scrape reading the credential from
-  `cluster-secrets`, because the annotation path can't carry a bearer
-  token. Beyla cannot cover the gap in the meantime: `containers_only: true`
-  (`kubernetes/beyla/app/values.yaml`) compares a process's network
-  namespace against Beyla's own, and both Beyla and this pod run
-  `hostNetwork: true`, so the process reads as a host process, not a
-  container, and is never instrumented. The dashboard's request panels come
-  from Traefik's per-service metrics instead — see
-  `kubernetes/monitoring/app/dashboards/README.md`.
 - **Thread and Matter.** The one accepted capability gap. Upstream ships
   the Thread/Matter border router as a Supervisor add-on; container
   installs are left to self-hosted community images with no first-party

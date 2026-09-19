@@ -699,6 +699,67 @@ prometheus.scrape "searxng" {
 	}
 }
 
+// -------------------------------------------- cluster-wide: Home Assistant --
+
+// Home Assistant's /api/prometheus needs a bearer token, which the
+// annotation-driven scrapes cannot carry — the same reason SearXNG gets an
+// explicit job. Beyla covers neither: it runs containers_only, which compares a
+// process's network namespace against its own, so a hostNetwork pod looks like a
+// host process and is skipped (docs/design/home-assistant.md).
+discovery.kubernetes "home_assistant" {
+	role = "endpoints"
+
+	namespaces {
+		names = ["home-assistant"]
+	}
+
+	selectors {
+		role  = "endpoints"
+		field = "metadata.name=home-assistant"
+	}
+}
+
+// The endpoint address is the node's own, because the pod is hostNetwork. Label
+// it as the pod anyway so the dashboard can match on the same labels as any
+// other workload.
+discovery.relabel "home_assistant" {
+	targets = discovery.kubernetes.home_assistant.targets
+
+	rule {
+		source_labels = ["__meta_kubernetes_namespace"]
+		target_label  = "namespace"
+	}
+
+	rule {
+		source_labels = ["__meta_kubernetes_pod_name"]
+		target_label  = "pod"
+	}
+
+	rule {
+		source_labels = ["__meta_kubernetes_pod_name"]
+		target_label  = "instance"
+	}
+
+	rule {
+		source_labels = ["__meta_kubernetes_pod_node_name"]
+		target_label  = "node"
+	}
+}
+
+prometheus.scrape "home_assistant" {
+	targets         = discovery.relabel.home_assistant.output
+	forward_to      = [prometheus.remote_write.prometheus.receiver]
+	job_name        = "home-assistant"
+	metrics_path    = "/api/prometheus"
+	scrape_interval = "60s"
+
+	bearer_token = remote.kubernetes.secret.cluster_secrets.data["HOME_ASSISTANT_TOKEN"]
+
+	clustering {
+		enabled = true
+	}
+}
+
 // -------------------------------------------------- this node: pod logs --
 
 discovery.kubernetes "pods_local" {

@@ -234,8 +234,11 @@
       automation server on `homeassistant.${DOMAIN}` with a pinned LAN
       address from the `cilium-lb` pool; no basic-auth middleware — it
       has its own login
-    - [ ] Prometheus metrics scrape: needs a long-lived token minted
-          from the web interface after first login
+    - [x] Prometheus metrics scrape (`prometheus:` + an explicit Alloy job
+          reading `HOME_ASSISTANT_TOKEN`) — Beyla can't cover a `hostNetwork`
+          pod, so this is the only source of entity-level metrics
+    - [ ] Dashboard panels for the entity metrics, once there is real data
+          to pick queries from
     - [ ] Measure and tighten the memory limit after a week of real use
 - [ ] Shlink
 - [x] Searx (`kubernetes/searxng/`, `docs/design/searxng.md`) — SearXNG +
