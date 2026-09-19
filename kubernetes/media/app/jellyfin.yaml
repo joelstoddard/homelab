@@ -1,10 +1,6 @@
 # One replica with strategy Recreate: the config claim is ReadWriteOnce and the
 # database is SQLite, so a second pod either deadlocks on the volume or corrupts
 # the database (docs/design/jellyfin.md).
-#
-# replicas: 0 until the config volume is migrated: an empty-library scan
-# previously ran ffprobe hard enough to OOM-kill longhorn-csi-plugin and
-# wedge a node (docs/design/arr-stack.md). PR-2 sets this to 1.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -12,7 +8,7 @@ metadata:
   labels:
     app.kubernetes.io/name: jellyfin
 spec:
-  replicas: 0
+  replicas: 1
   strategy:
     type: Recreate
   selector:
@@ -40,10 +36,8 @@ spec:
         - name: jellyfin
           image: docker.io/jellyfin/jellyfin:12.1.20260915-010956
           env:
-            # Temporary hostname while the old namespace still owns
-            # jellyfin.${DOMAIN}. PR-2 flips this with the route below.
             - name: JELLYFIN_PublishedServerUrl
-              value: https://jellyfin-new.${DOMAIN}
+              value: https://jellyfin.${DOMAIN}
           ports:
             - name: http
               containerPort: 8096
@@ -139,11 +133,6 @@ spec:
       port: 8096
       targetPort: http
 ---
-# Temporary hostname: two IngressRoutes matching the same Host() rule leave
-# Traefik to choose between them nondeterministically, so the cutover stays an
-# explicit step rather than a race. PR-2 changes this to jellyfin.${DOMAIN} and
-# deletes the old layer.
-#
 # No Certificate and no tls.secretName: TLSStore/default serves the wildcard,
 # and Pi-hole's address=/<domain>/ already resolves it.
 #
@@ -158,7 +147,7 @@ spec:
     - websecure
   routes:
     - kind: Rule
-      match: Host(`jellyfin-new.${DOMAIN}`)
+      match: Host(`jellyfin.${DOMAIN}`)
       middlewares:
         - name: default-headers
           namespace: traefik

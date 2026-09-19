@@ -4,6 +4,11 @@ Jellyfin is the media server on `jellyfin.<domain>`. It is the cluster's second
 user-facing application and its first consumer of NFS, so this document carries
 the storage decision for every media application that follows.
 
+It deploys in the shared `media` namespace, from
+`kubernetes/media/app/jellyfin.yaml`, having started in a layer of its own that
+was folded in on 2026-09-19. Where the move revised a decision below, the
+passage says so and points at `docs/design/arr-stack.md`.
+
 ## Problem
 
 The media library is terabytes on `voyager`, the TrueNAS box. The cluster could
@@ -24,7 +29,7 @@ Three kinds of data go to three different places.
 | Data | Destination | Reason |
 | --- | --- | --- |
 | Media library | NFS from `voyager`, read-only | Terabytes. Longhorn is config-sized |
-| `/config` — database, metadata, logs | Longhorn claim, 10Gi, ReadWriteOnce | Must survive a reschedule |
+| `/config` — database, metadata, logs | Longhorn claim, 20Gi, ReadWriteOnce | Must survive a reschedule |
 | `/cache` — transcodes, image cache | `emptyDir`, 8Gi limit | Regenerable. Longhorn would replicate it three times |
 
 ### Why a static PersistentVolume
@@ -45,9 +50,10 @@ plugin structurally cannot do that, because it reports volumes as unmanaged. The
 driver stays the upgrade path if the in-tree plugin is ever removed, or if an
 application needs volumes provisioned on demand.
 
-A static volume binds one-to-one with one claim, so a second namespace gets its
-own `PersistentVolume` against the same export. That is a dozen lines, and it
-can be read-write while Jellyfin's stays read-only.
+A static volume binds one-to-one with one claim, which first suggested a second
+`PersistentVolume` per namespace over the same export. **Superseded** — the
+export is now one read-write volume shared by the whole `media` namespace, for
+the reasons in `docs/design/arr-stack.md`.
 
 The reclaim policy is `Retain` and the claim is pre-bound through `claimRef`.
 Retain means pruning this layer never proposes deleting the library. The
@@ -57,6 +63,11 @@ Retain means pruning this layer never proposes deleting the library. The
 "use the default", which would hand the volume to Longhorn.
 
 ### Mount options
+
+**Superseded.** Jellyfin mounts the shared `media-library` volume, whose options
+are `nfsvers=4.1,hard,timeo=600,retrans=2,noatime,nodiratime`
+(`docs/design/arr-stack.md`). The original read-only reasoning stands below,
+because it is what that reversal reverses.
 
 ```
 nfsvers=4.1,soft,timeo=600,retrans=2,noatime,nodiratime
@@ -80,7 +91,8 @@ the node — possibly one holding the last healthy replica of a Longhorn volume.
 and then returns `EIO`: playback fails, and the node stays healthy.
 
 **If this volume is ever made read-write, `soft` must go.** The read-only
-property is what makes it safe.
+property is what makes it safe — and when the \*arr stack made it read-write,
+`soft` went.
 
 `nconnect` is deliberately absent. One TCP stream saturates 1 GbE, and the
 option is per-client-and-server rather than per-mount: the first mount on a node
@@ -97,9 +109,10 @@ would deadlock on the volume, and two pods sharing one SQLite file corrupt it.
 `nodeSelector: kubernetes.io/arch: amd64`, following Loki, Tempo and Prometheus.
 The Pis cannot transcode and their USB storage is slow.
 
-The memory limit is 1536Mi, which is modest on purpose. An amd64 worker has
-3.2 GiB allocatable and its limits already sum to 92% of that, and the NUCs have
-a history of hypervisor OOM kills.
+The memory limit is 2Gi, modest on purpose against the 5397240Ki an amd64
+worker reports allocatable. The NUCs have a history of hypervisor OOM kills,
+and an over-committed pod on these nodes is what previously took a node's
+storage transport down with it.
 
 ### Ingress
 
@@ -159,8 +172,15 @@ Two details are easy to get wrong:
   what the dashboard's health panel uses.
 
 The exporter needs an API key from Jellyfin's Dashboard → API Keys, held in
-`app/secret-exporter.sops.yaml`. It is the only secret in this layer, and the
-reason the Flux `Kustomization` carries a `decryption` block.
+`kubernetes/media/app/secret-jellyfin-exporter.sops.yaml`. It is the only
+secret in this layer, and the reason the Flux `Kustomization` carries a
+`decryption` block.
+
+That file's plaintext `metadata.namespace` still reads `jellyfin`, and has to:
+kustomize's `namespace: media` transformer overrides it at build time, while
+SOPS computes its MAC over the plaintext leaves too. Hand-editing that line —
+or adding a comment beside it — breaks decryption in-cluster, so leave it
+alone.
 
 ### Probe timeouts
 
@@ -201,7 +221,7 @@ there and the index is not.
 - **A `Retain` volume does not re-bind by itself.** Delete the claim and the
   volume goes `Released` and stays there, because the binder refuses a volume
   whose `claimRef` still names a claim that no longer exists. Recover with
-  `kubectl patch pv jellyfin-media -p '{"spec":{"claimRef":null}}'`.
+  `kubectl patch pv media-library -p '{"spec":{"claimRef":null}}'`.
 - **The NFSv4 pseudo-root can shorten the export path.** TrueNAS writes a `V4:`
   root into its exports, and depending on where that root sits the client may
   need the path without its `/mnt` prefix. This is the likeliest cause of a
@@ -214,25 +234,18 @@ there and the index is not.
 
 ## Changing it
 
-**The image version** is pinned in `app/deployment.yaml` and nowhere else. It is
-not in `versions.env`, which tracks the platform.
+**The image version** is pinned in `kubernetes/media/app/jellyfin.yaml` and
+nowhere else. It is not in `versions.env`, which tracks the platform.
 
-**A second consumer of the same export** — Transmission, the \*arr stack — gets
-its own `PersistentVolume` and claim in its own namespace, because a static
-volume binds one-to-one. Copy `app/pv.yaml`, rename it, and drop `readOnly` if
-it needs to write. Two warnings apply at that point.
+**A second consumer of the same export** was answered, not deferred. This
+document's instruction — move to a shared `media` namespace owning one volume
+and one claim, with each application deploying into it — is what the \*arr
+stack did, and `media-library` is that volume.
 
-Several mount options are properties of the superblock, shared per client,
-server and export. If one application mounts `soft` and another later mounts the
-same export `hard`, the second silently inherits the first. Keep the options
-identical, or accept that whichever pod lands on a node first sets the policy.
-
-The \*arr applications hardlink from the downloads directory into the library on
-import, and a hardlink cannot cross filesystems. They therefore need one mount
-covering both trees, not a volume per application. When they arrive, the shape
-to move to is a shared `media` namespace owning one volume and one claim, with
-each application deploying into it — the way `traefik-middlewares/` deploys into
-the namespace `traefik/` owns.
+**Superseded**, therefore: a new consumer does not get its own
+`PersistentVolume`. It deploys into `media` and mounts the existing claim, which
+is what keeps \*arr imports hardlinks and keeps one set of superblock options
+over the export (`docs/design/arr-stack.md`).
 
 **Hardware transcoding** is deliberately absent. It would need an Image Factory
 schematic carrying `i915` and `intel-ucode`, a `hostpci` block in
