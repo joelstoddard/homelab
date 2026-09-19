@@ -8,9 +8,9 @@
   "time": {"from": "now-6h", "to": "now"},
   "panels": [
     {"id": 1, "type": "stat", "title": "Availability", "gridPos": {"h": 4, "w": 6, "x": 0, "y": 0},
-     "description": "kube-state-metrics series carry the collector's namespace, so the real one is exported_namespace. The pod matchers keep every other workload in the shared media namespace out.",
+     "description": "kube-state-metrics series carry the collector's own namespace AND pod, so the subject is exported_namespace and exported_pod. Matching on bare pod silently selects the kube-state-metrics pod and returns nothing.",
      "datasource": {"type": "prometheus", "uid": "prometheus"},
-     "targets": [{"refId": "A", "expr": "max(kube_pod_status_ready{exported_namespace=\"media\", condition=\"true\", pod=~\"jellyfin-.*\", pod!~\"jellyfin-exporter-.*\"})"}],
+     "targets": [{"refId": "A", "expr": "max(kube_pod_status_ready{exported_namespace=\"media\", condition=\"true\", exported_pod=~\"jellyfin-.*\", exported_pod!~\"jellyfin-exporter-.*\"})"}],
      "fieldConfig": {"defaults": {"mappings": [
        {"type": "value", "options": {"0": {"text": "Down", "color": "red", "index": 0}, "1": {"text": "Up", "color": "green", "index": 1}}}],
        "noValue": "No data"}, "overrides": []},
