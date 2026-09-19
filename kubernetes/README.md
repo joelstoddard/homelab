@@ -181,19 +181,6 @@ kubernetes/
         ├── service.yaml          # searxng:8080, no scrape annotation (the metrics job is in alloy/)
         ├── valkey.yaml           # Deployment + Service; no persistence, 64 MB, allkeys-lru
         └── ingressroute.yaml     # Host(searx.<domain>), default-headers only — no auth middleware
-├── jellyfin/
-│   ├── ks.yaml                   # Flux Kustomization, dependsOn traefik + traefik-middlewares + longhorn + cluster-secrets, postBuild, sops
-│   └── app/
-│       ├── kustomization.yaml    # namespace jellyfin
-│       ├── namespace.yaml        # jellyfin
-│       ├── pv.yaml               # static NFS PersistentVolume, media library from voyager, read-only, Retain
-│       ├── pvc-media.yaml        # binds the static PV
-│       ├── pvc-config.yaml       # 10Gi Longhorn claim; must survive a reschedule
-│       ├── deployment.yaml       # one replica; /cache is an emptyDir — transcodes are regenerable
-│       ├── exporter.yaml         # jellyfin-exporter, polls the REST API, scraped normally
-│       ├── secret-exporter.sops.yaml # the exporter's API token
-│       ├── service.yaml          # jellyfin:8096
-│       └── ingressroute.yaml     # Host(jellyfin.<domain>), default-headers
 ├── glance/
 │   ├── ks.yaml                   # Flux Kustomization, dependsOn traefik + traefik-middlewares + cluster-secrets, postBuild, NO sops
 │   └── app/

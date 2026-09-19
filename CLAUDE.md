@@ -309,14 +309,6 @@ through `remote.kubernetes.secret` — the annotation path cannot carry basic
 auth, so the pod carries no `prometheus.io/scrape`. `GRANIAN_WORKERS` is
 pinned to 1 because the engine counters live in the worker process. See
 `docs/design/searxng.md`.
-`jellyfin/` (`dependsOn: traefik, traefik-middlewares, longhorn,
-cluster-secrets`, substituted) is the media server on `jellyfin.${DOMAIN}` and
-the cluster's first NFS consumer. Three kinds of data go three places: the
-terabyte library is a static read-only `PersistentVolume` against TrueNAS,
-`/config` is a Longhorn claim that must survive a reschedule, and `/cache` is
-an `emptyDir` because transcodes are regenerable and Longhorn would replicate
-them three times. That split is the precedent for every media app that
-follows. See `docs/design/jellyfin.md`.
 `glance/` (`dependsOn: traefik, traefik-middlewares, cluster-secrets`,
 substituted, and the only app layer with **no `decryption`** — it carries no
 `*.sops.yaml`) is the browser start page on `home.${DOMAIN}`: one stateless
