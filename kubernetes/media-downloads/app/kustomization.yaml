@@ -1,0 +1,21 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: media-downloads
+resources:
+  - namespace.yaml
+  - rbac.yaml
+  - secret-tailscale.sops.yaml
+  - pv-downloads.yaml
+  - pvc-downloads.yaml
+  - pvc-config.yaml
+  - qbittorrent.yaml
+# The nftables ruleset, hashed so an edit rolls the pod that applies it.
+# Substitution is disabled on it: envsubst would eat an nft variable, and the
+# file is embedded verbatim rather than parsed as a manifest.
+configMapGenerator:
+  - name: qbittorrent-killswitch
+    files:
+      - config/ruleset.nft
+generatorOptions:
+  labels:
+    kustomize.toolkit.fluxcd.io/substitute: disabled

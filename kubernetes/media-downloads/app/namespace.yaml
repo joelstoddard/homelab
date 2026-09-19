@@ -1,0 +1,14 @@
+# PodSecurity privileged, and exactly one container needs it: tailscaled in TUN
+# mode wants NET_ADMIN, which baseline forbids.
+#
+# This namespace exists for that single requirement. It is why the *arr
+# applications stay in `media` at baseline instead of being dragged up here to
+# satisfy one sidecar (docs/design/arr-stack.md).
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: media-downloads
+  labels:
+    pod-security.kubernetes.io/enforce: privileged
+    pod-security.kubernetes.io/audit: privileged
+    pod-security.kubernetes.io/warn: privileged
