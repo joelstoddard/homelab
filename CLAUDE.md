@@ -205,7 +205,7 @@ Ingress and TLS are five more layers. Root order is
 full list is `flux-system`, `cilium`, `cilium-lb`, `cluster-secrets`, `cert-manager`,
 `cert-manager-issuers`, `traefik`, `traefik-middlewares`, `lan-services`,
 `tailscale`, `longhorn`, `longhorn-jobs`, `monitoring`, `alloy`, `beyla`,
-`host-monitoring`, `searxng`, `media`, `glance`, `home-assistant`).
+`host-monitoring`, `searxng`, `media`, `media-downloads`, `glance`, `home-assistant`).
 `cluster-secrets/` is one SOPS Secret in `flux-system` holding `DOMAIN`,
 `TRAEFIK_LB_IP` and `ACME_EMAIL`; consumers (`cert-manager-issuers`,
 `traefik`, `longhorn`) add `dependsOn: cluster-secrets` +
@@ -232,8 +232,11 @@ redirecting to `websecure`, `TLSStore/default` serving `wildcard-tls` — the
 cluster's only certificate, so a new service needs one `IngressRoute` (or a
 plain `Ingress` with the `router.entrypoints` / `router.tls` annotations)
 and nothing else: no `Certificate`, no `tls.secretName`, no DNS record.
-The shared `default-headers` / `basic-auth` middlewares live in the `traefik`
-namespace but in their own layer, `traefik-middlewares/`
+The shared `default-headers` middleware and one `<service>-auth` basic-auth
+Middleware per service (`dashboard-auth`, `longhorn-auth`, `glance-auth`,
+`qbittorrent-auth` — there is no shared `basic-auth`, and a shared credential
+is deliberately rejected) live in the `traefik` namespace but in their own
+layer, `traefik-middlewares/`
 (`dependsOn: traefik`): the `Middleware` CRD ships inside the chart's `crds/`
 directory, so a CR of that kind cannot be in the same apply pass — the same
 reason `cert-manager` and `cert-manager-issuers` are split. Other namespaces

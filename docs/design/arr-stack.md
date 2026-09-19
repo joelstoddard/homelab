@@ -209,13 +209,30 @@ in-flight work.
 
 ### The VPN boundary
 
-qBittorrent will run as two containers sharing one network namespace: a
-`tailscale` container in TUN mode with `NET_ADMIN` and `/dev/net/tun`,
-authenticating with an OAuth client secret and selecting a Mullvad exit node,
-and the client itself inheriting that network namespace and therefore that
-default route. Node identity persists in a `tailscale-state` Secret, the pattern
-`docs/design/tailscale-router.md` already proves, so a rescheduled pod is the
-same tailnet node and does not consume a second Mullvad device slot.
+qBittorrent will run as three containers sharing one network namespace, and
+their order is the fail-closed design. A `killswitch` init container runs to
+completion first and installs an nftables ruleset — its own `inet
+ts-killswitch` table, so neither it nor tailscaled can reconcile the other
+away — that drops everything not bound for `tailscale0`, the cluster CIDRs, or
+tailscaled's own marked traffic.
+
+`tailscale` follows as a **native sidecar**: an init container with
+`restartPolicy: Always` and a `startupProbe`, so the kubelet holds the client
+back until the tunnel answers `/healthz` and tears the sidecar down last. That
+ordering closes the window in which the LinuxServer image resumes torrents
+while tailscaled is still programming routes, and the kill switch covers the
+other half — the sidecar dying, being OOM-killed or being restarted by its own
+liveness probe, none of which restart the client beside it.
+
+The rules survive all of that because they live in the network namespace, which
+outlives any one container, rather than in the route table tailscaled
+reconciles. qBittorrent itself is an ordinary container inheriting that
+namespace, and therefore that default route.
+
+Node identity persists in a `qbittorrent-tailscale-state` Secret — the pattern
+`docs/design/tailscale-router.md` already proves, under a different name so the
+two nodes never share one key. A rescheduled pod is then the same tailnet node
+and does not consume a second Mullvad device slot.
 
 Three things to design around:
 
@@ -225,14 +242,42 @@ Three things to design around:
   port-forward plumbing will be built. Verify before relying on this.
 - **The return-path trap.** Once the pod's default route is the exit node,
   replies to in-cluster traffic can egress through the tunnel and never reach
-  Traefik — the WebUI goes unreachable while the tunnel looks healthy. The fix is
-  excluding the cluster pod and service CIDRs from the tunnel, and the important
-  part is the test: a leak test and a reachability test must **both** pass,
-  because each passes on its own in exactly the misconfiguration the other
-  catches.
-- **A cross-repo prerequisite.** The device needs a tag and Mullvad exit-node
-  access in the tailnet policy, which lives in a private repository. Per
-  `docs/design/tailscale-router.md`, this repo documents the interface only.
+  Traefik — the WebUI goes unreachable while the tunnel looks healthy. Keeping
+  the cluster's own CIDRs off the tunnel is the fix, the mechanism is less
+  obvious than it looks (see the traps below), and the test is the part that
+  matters: a leak test and a reachability test must **both** pass, because each
+  passes on its own in exactly the misconfiguration the other catches.
+- **A cross-repo prerequisite, now met.** The device needs a tag and Mullvad
+  exit-node access in the tailnet policy, which lives in a private repository.
+  `tag:media-downloads` was added there on 2026-09-19, granted
+  `autogroup:internet` and nothing else; per `docs/design/tailscale-router.md`,
+  this repo documents the interface only.
+
+### Choosing the exit node
+
+The node is pinned in `TS_EXTRA_ARGS` as `de-dus-wg-101.mullvad.ts.net`, and it
+was set before the pod first enrolled. That timing is the whole point:
+`TS_AUTH_ONCE` makes containerboot run `tailscale up` at first enrolment and
+never again, so the flag applies once and then lives in tailnet preferences.
+
+Editing that environment variable afterwards changes nothing. Changing the node
+on a pod that has already enrolled takes `tailscale set --exit-node=<name>`
+against the running pod, which persists in preferences, followed by a matching
+edit to the manifest so git still describes the cluster.
+
+The same `TS_EXTRA_ARGS` carries `--advertise-tags=tag:media-downloads`. An
+OAuth client secret used as an auth key must request its tags, or enrolment is
+rejected.
+
+**A pinned node is not the console's "best available in Germany".** That option
+re-picks when a node drops; a pinned node does not. If `de-dus-wg-101` goes
+offline the pod stays up and torrent egress stops, because the kill switch has
+nowhere to send it.
+
+That is the correct failure, and it presents as a broken client rather than a
+network fault. Run `tailscale exit-node list` inside the pod before debugging
+anything else — a node the subscription no longer serves looks identical to a
+misconfigured tunnel from the outside.
 
 ### Configuration versus state
 
@@ -365,6 +410,45 @@ happened, so the split was the safety property, not bookkeeping.
   the option string verbatim into any new volume over this share.
 - **Mounting a subdirectory that does not exist fails the pod, not the mount.**
   The downloads tree has to be created before anything claims a volume over it.
+- **The return-path trap is dormant until an exit node is named**, because
+  tailscaled programs no default route without one. It arrives with the
+  `--exit-node=` flag, so the exclusion work belongs to that same change rather
+  than to the layer that ships the pod.
+- **`--exit-node-allow-lan-access` is the knob everyone reaches for and is very
+  likely a no-op in a Cilium pod.** Tailscaled builds that exclusion set from
+  the pod's own *interface addresses* and returns early on single-IP prefixes
+  (`internalAndExternalInterfacesFrom`, `ipn/ipnlocal/local.go`), and a Cilium
+  pod's `eth0` carries a `/32`. The set comes back empty and the flag installs
+  nothing, while reading in the manifest exactly like the fix.
+- **What should work instead is a policy rule beneath tailscaled's own.** It
+  sends everything to route table 52 from rule pref 5270, and turns its
+  `LocalRoutes` into `throw` routes *inside* that table — so a hand-added throw
+  route lives in the table it reconciles, whereas
+  `ip rule add to 10.244.0.0/16 lookup main pref 5100` does not, because it
+  only reconciles rules in its own 52xx range. The `killswitch` init container
+  is where it goes: it runs before tailscaled, so there is no race, and it
+  already carries `NET_ADMIN` in its own `securityContext` — capabilities are
+  granted per container, never to a pod.
+- **A Service CIDR rule never sees a Service address.** Cilium runs
+  `kubeProxyReplacement`, so socket-LB rewrites the destination at `connect()`
+  — before the netfilter output hook and before any routing decision. An
+  nftables rule or an `ip rule` that reasons about `10.96.0.0/12` is therefore
+  reasoning about a destination that no longer exists by the time it runs.
+  This generalises past this layer: *any* egress policy in this cluster written
+  against the Service CIDR is wrong for the same reason.
+- **The apiserver is the case where that bites.** containerboot talks to the
+  apiserver continuously to persist its node key in `TS_KUBE_SECRET`, its kube
+  client carries no fwmark, and by the time the kill switch sees the packet the
+  destination is a control-plane node's LAN address. Without
+  `ip daddr 10.0.0.0/20 tcp dport 6443 accept` the daemon is dropped, fatals on
+  `CheckSecretPermissions` and the pod never starts — fail-closed, but bring-up
+  cannot even reach the leak test. The exclusion set for the routing-side rule
+  has the same shape for the same reason: pod CIDR plus the apiserver, not the
+  Service CIDR.
+- **Filtering is not routing, and the pod needs both.** The kill switch decides
+  what may leave; the policy rule decides which way it goes. A pod whose kill
+  switch accepts a reply can still route that reply into the tunnel, which is
+  the return-path trap in its exact form.
 - **An undefined `${VOYAGER_IP}` substitutes to the empty string**, not to a
   literal, and the Kustomization still goes green with the volume pointing at
   nothing. Assert on the rendered value, never on the absence of `${`.
@@ -396,6 +480,41 @@ happened, so the split was the safety property, not bookkeeping.
   under it, and `/mnt/Voyager/public/.jellyfin-migration` were all removed on
   2026-09-19, with the library trees verified intact afterwards. A reference to
   any of them is history, not a task.
+- **The kill switch does not cover DNS metadata.** `TS_ACCEPT_DNS` is `false`,
+  so tracker hostnames are resolved by CoreDNS and leave over the home WAN
+  while the torrent traffic itself goes through the tunnel.
+
+  No swarm peer sees the real address, so this is metadata exposure rather
+  than a leak. Setting it `true` would send lookups through the tunnel but
+  lets tailscaled rewrite `/etc/resolv.conf`, so it is a bring-up decision to
+  test rather than a one-line flip.
+
+## Bring-up
+
+`media-downloads` merges at `replicas: 0`, so merging it starts nothing and
+leaks nothing. Scaling it up is a separate, ordered exercise.
+
+1. Fill `kubernetes/traefik/app/secret-qbittorrent-auth.sops.yaml`. Bcrypt only
+   (`htpasswd -nB`), because the `traefik` layer is substituted.
+2. Scale to 1 and watch the sidecar reach `/healthz`. A crash loop here is the
+   apiserver rule rather than the tunnel — see the socket-LB trap below.
+3. Confirm the pinned node is still served: `tailscale exit-node list` in the
+   pod.
+4. **Leak test.** The apparent egress address from inside the container is the
+   exit node's, not the site's.
+5. **Reachability test.** The WebUI answers through Traefik while the tunnel is
+   up.
+6. **Kill-switch test.** Kill the sidecar; egress stops rather than falling back
+   to the pod's own route.
+
+Steps 4 and 5 are one test, not two. Each passes on its own in exactly the
+misconfiguration the other catches, so a run that skips either proves nothing.
+
+Expect the return-path trap at step 5 and not before: with no exit node
+tailscaled programs no default route, so the WebUI answers today and may stop
+the moment `0.0.0.0/0` enters table 52. One question needs a live pod and has no
+answer until then — whether any destination beyond the pod CIDR and the
+apiserver is routed wrongly once that route exists.
 
 ## Changing it
 
