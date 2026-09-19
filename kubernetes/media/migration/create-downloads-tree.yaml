@@ -1,0 +1,60 @@
+# One-shot. Creates the download client trees inside the library export, which
+# is the same ZFS dataset as Films/Series'/Music — verified with stat -c %d —
+# so that *arr imports are hardlinks rather than copies.
+#
+# Separate subdirectories per client so either can be cleared without touching
+# the other's in-flight work.
+#
+# Not referenced by any kustomization: Job specs are immutable and Flux cannot
+# re-apply a changed one. Apply by hand:
+#   kubectl --context homelab apply -f kubernetes/media/migration/create-downloads-tree.yaml
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: create-downloads-tree
+  namespace: media
+spec:
+  backoffLimit: 2
+  template:
+    spec:
+      restartPolicy: Never
+      nodeSelector:
+        kubernetes.io/arch: amd64
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: mkdir
+          image: busybox:1.36
+          command:
+            - sh
+            - -c
+            - |
+              set -e
+              for c in qbittorrent sabnzbd; do
+                mkdir -p "/media/downloads/complete/$c"
+                mkdir -p "/media/downloads/incomplete/$c"
+              done
+              ls -la /media/downloads/complete /media/downloads/incomplete
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: media
+              mountPath: /media
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              cpu: 100m
+              memory: 64Mi
+      volumes:
+        - name: media
+          persistentVolumeClaim:
+            claimName: media-library

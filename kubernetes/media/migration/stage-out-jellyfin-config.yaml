@@ -1,0 +1,119 @@
+# One-shot, namespace jellyfin. Copies the config volume onto the NFS share so
+# a Job in the media namespace can pick it up: a PersistentVolumeClaim cannot
+# cross namespaces, and no Longhorn backup target is configured.
+#
+# Carries its own read-write PersistentVolume because the jellyfin namespace's
+# only NFS volume is read-only. Mount options are identical to every other
+# mount of this export, deliberately (docs/design/arr-stack.md).
+#
+# ${VOYAGER_IP} is NOT substituted here — this file is applied by hand, outside
+# Flux. Replace it with the address from cluster-secrets at apply time:
+#   VOYAGER_IP=$(kubectl --context homelab get pv media-library \
+#     -o jsonpath='{.spec.nfs.server}')
+#   sed "s|\${VOYAGER_IP}|$VOYAGER_IP|" \
+#     kubernetes/media/migration/stage-out-jellyfin-config.yaml \
+#     | kubectl --context homelab apply -f -
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: jellyfin-migration-staging
+spec:
+  capacity:
+    storage: 16Ti
+  accessModes:
+    - ReadWriteMany
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: ""
+  mountOptions:
+    - nfsvers=4.1
+    - hard
+    - timeo=600
+    - retrans=2
+    - noatime
+    - nodiratime
+  nfs:
+    server: ${VOYAGER_IP}
+    path: /mnt/Voyager/public
+  claimRef:
+    name: jellyfin-migration-staging
+    namespace: jellyfin
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: jellyfin-migration-staging
+  namespace: jellyfin
+spec:
+  accessModes:
+    - ReadWriteMany
+  storageClassName: ""
+  volumeName: jellyfin-migration-staging
+  resources:
+    requests:
+      storage: 16Ti
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: stage-out-jellyfin-config
+  namespace: jellyfin
+spec:
+  backoffLimit: 1
+  template:
+    spec:
+      restartPolicy: Never
+      nodeSelector:
+        kubernetes.io/arch: amd64
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: copy
+          image: busybox:1.36
+          command:
+            - sh
+            - -c
+            - |
+              set -e
+              rm -rf /staging/.jellyfin-migration
+              mkdir -p /staging/.jellyfin-migration
+              cp -a /config/. /staging/.jellyfin-migration/
+              echo "SOURCE: $(du -sh /config | cut -f1)"
+              echo "STAGED: $(du -sh /staging/.jellyfin-migration | cut -f1)"
+              SOURCE_DB=$(stat -c %s /config/data/jellyfin.db)
+              STAGED_DB=$(stat -c %s /staging/.jellyfin-migration/data/jellyfin.db)
+              echo "SOURCE_DB: $SOURCE_DB bytes"
+              echo "STAGED_DB: $STAGED_DB bytes"
+              SOURCE_FILES=$(find /config -type f | wc -l)
+              STAGED_FILES=$(find /staging/.jellyfin-migration -type f | wc -l)
+              echo "SOURCE_FILES: $SOURCE_FILES"
+              echo "STAGED_FILES: $STAGED_FILES"
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: config
+              mountPath: /config
+              readOnly: true
+            - name: staging
+              mountPath: /staging
+          resources:
+            requests:
+              cpu: 100m
+              memory: 64Mi
+            limits:
+              cpu: "2"
+              memory: 256Mi
+      volumes:
+        - name: config
+          persistentVolumeClaim:
+            claimName: jellyfin-config
+            readOnly: true
+        - name: staging
+          persistentVolumeClaim:
+            claimName: jellyfin-migration-staging
