@@ -47,10 +47,8 @@ apt-get install -y \
     python3 python3-pip python3-venv \
     git make rsync arp-scan
 
-# Every download below is a pinned version, so re-fetching one already
-# installed buys nothing. Matching the bare number ignores a leading v on
-# either side, and a missing or broken binary fails the probe and reinstalls
-# — argv mirrors the verify() calls at the end of this script.
+# Skip a download when the installed binary reports the pinned version.
+# Matching the bare number ignores a leading v; argv mirrors verify() below.
 have_version() {
     local want="${1#v}"
     shift

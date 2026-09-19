@@ -1,7 +1,6 @@
 ---
-# Shared health gate: block until this node is back in the cluster and taking
-# pods again. Imported between nodes by tasks/upgrade.yaml and tasks/resize.yaml,
-# which both roll one node at a time.
+# Shared health gate for tasks/upgrade.yaml and tasks/resize.yaml: wait until
+# the node is Ready and schedulable. Both roll one node at a time.
 
 - name: Wait until the Kubernetes node is Ready and schedulable — {{ inventory_hostname }}
   ansible.builtin.command:

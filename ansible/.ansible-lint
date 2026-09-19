@@ -3,10 +3,8 @@
 # the directory name, following khuedoan/homelab's convention. ansible-lint's
 # role-name rule rejects names starting with a digit; skip it project-wide.
 #
-# var-naming[no-role-prefix]: the vars it flags are deliberately shared rather
-# than role-private — `gateway` and `cidr_subnet` are read by 00-pxe, proxmox
-# and talos, `talosctl_bin` by playbooks/resize.yaml. Prefixing them per-role
-# would fork one LAN fact into three copies, the drift sharing exists to stop.
+# var-naming[no-role-prefix]: the vars it flags are shared between roles.
+# A per-role prefix would fork one LAN fact into three copies.
 skip_list:
   - role-name
   - var-naming[no-role-prefix]

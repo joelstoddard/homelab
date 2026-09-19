@@ -40,10 +40,9 @@ pxe:
         pis:
     # truenas:  # placeholder — strategy deferred
 
-# Hardware class: nesting it under talos (and so under pxe) above puts each Pi
-# in all three groups from one definition — the membership NetBox derives from
-# device_type, platform and tag. ansible_user is only for the pre-cutover
-# EEPROM play; a Pi on Talos answers no SSH.
+# Nesting this under talos, and so under pxe, gives each Pi all three
+# memberships from one definition. ansible_user serves the EEPROM play only,
+# because a Pi on Talos answers no SSH.
 pis:
   hosts:
     # kosmos:

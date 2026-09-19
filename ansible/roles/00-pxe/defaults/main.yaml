@@ -1,7 +1,6 @@
 ---
-# Network config (used by Debian preseed). cidr_subnet and gateway are
-# repo-wide and live in inventory/group_vars/all.yaml — one definition, so
-# they cannot drift apart from the proxmox role's copy again.
+# Network config for the Debian preseed. cidr_subnet and gateway are
+# repo-wide and live in inventory/group_vars/all.yaml.
 dns_server: "192.168.1.2"
 ntp_server: "192.168.1.1"
 preferred_keyboard_layout: "us"
@@ -47,8 +46,8 @@ rpi_firmware_files:
   - start4.elf
   - fixup4.dat
   - bcm2711-rpi-4-b.dtb
-# Marks which release is staged in the flat TFTP root, so a version bump
-# re-downloads and an unchanged version does not.
+# Marks which release is staged in the flat TFTP root. A version bump
+# re-downloads; an unchanged version does not.
 rpi_firmware_stamp: "{{ role_path }}/files/tftp/.firmware-{{ rpi_firmware_version }}"
 
 # Debian packages the Pi netboot path needs on the operator: the u-boot

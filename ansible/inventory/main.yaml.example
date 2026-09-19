@@ -2,14 +2,11 @@
 # Copy this file to main.yaml and fill in real values for your environment.
 # main.yaml itself is gitignored — LAN IPs and offsite addresses live here.
 #
-# This is the bootstrap fallback for environments without NetBox. The group
-# names below are the ones the playbooks target, and they mirror what
-# netbox.yaml's keyed_groups derive — see README.md for the full table.
+# Bootstrap fallback for environments without NetBox. The group names match
+# what netbox.yaml derives; README.md has the table.
 
-# Talos nodes: the k8s VMs on the NUCs plus the Pis. playbooks/talos.yaml
-# targets this group but runs `connection: local`, driving each node over the
-# Talos API — Talos has neither SSH nor Python, so ansible_host is what
-# talosctl is pointed at, not something Ansible connects to.
+# Talos nodes: the k8s VMs and the Pis. Talos has no SSH and no Python, so
+# ansible_host is where talosctl connects, not Ansible.
 talos:
   hosts:
     # k8s-server-01:
@@ -45,10 +42,8 @@ proxmox:
   #     ansible_user: root
   #     fqdn: <host>.example.lan
 
-# Hosts running Grafana Alloy outside the cluster: the NUCs, plus the Pi-hole
-# LXC, which has no PXE story of its own. playbooks/alloy.yaml targets
-# `alloy:!talos`; group_vars/alloy.yaml sets ansible_user for the whole group,
-# so only the address is needed per host.
+# Hosts running Grafana Alloy outside the cluster: the NUCs and the Pi-hole
+# LXC. group_vars/alloy.yaml sets ansible_user, so each host needs an address.
 alloy:
   children:
     nucs:

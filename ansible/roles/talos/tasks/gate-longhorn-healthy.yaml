@@ -1,14 +1,10 @@
 ---
-# Shared health gate: a node returning is not the end of the disruption. Its
-# Longhorn replicas rebuild afterwards, and rolling the next storage node while
-# a volume is still degraded could leave that volume with one healthy replica.
+# Shared health gate for tasks/upgrade.yaml and tasks/resize.yaml: wait until
+# no Longhorn volume is degraded or faulted.
 #
-# Waits for every volume to be neither degraded nor faulted; detached volumes
-# report robustness "unknown" and are not waited on. A missing CRD means
-# Longhorn is absent and is skipped, while any other kubectl failure (API blip,
-# expired cert, wrong context) is retried and fails the roll after the budget.
-#
-# Imported between nodes by tasks/upgrade.yaml and tasks/resize.yaml.
+# Rolling the next node early can leave a volume on one replica
+# (docs/design/longhorn.md). Detached volumes report "unknown", and a missing
+# CRD means Longhorn is absent, so neither blocks the roll.
 
 - name: Wait until no Longhorn volume is degraded or faulted — {{ inventory_hostname }}
   ansible.builtin.command:

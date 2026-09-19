@@ -86,8 +86,7 @@
   vars:
     talos_pi_provision_hosts: "{{ talos_pi_netboot_steady_state | union(groups['pi_cutover_pending'] | default([])) }}"
   tasks:
-    # With nothing pending the gate already equals the steady state, so the
-    # render is a no-op and the whole role is wasted work.
+    # With nothing pending, the gate already equals the steady state.
     - name: Run the PXE role at the widened gate.
       ansible.builtin.include_role:
         name: 00-pxe

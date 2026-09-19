@@ -4,19 +4,9 @@ ansible_ssh_private_key_file: "~/.ssh/id_rsa"
 ssh_public_key: "{{ lookup('file', '~/.ssh/id_rsa.pub') }}"
 quad_nine_dns_server: "9.9.9.9"
 
-# LAN prefix length written into every statically-addressed host. The LAN is
-# a /20 — kubernetes/tailscale/app/deployment.yaml advertises 10.0.0.0/20 as
-# TS_ROUTES, the one place the real prefix is deliberately plaintext.
-#
-# Defined here, not in a role, because two roles render it and a per-role copy
-# is how it went stale: both said /24 from before the renumber, so a reimaged
-# NUC would have come up with a netmask 16x too small, reaching only its own
-# /24 of the LAN and silently losing the rest.
-#
-# Consumers:
-#   - 00-pxe preseed: netcfg/get_netmask and the /etc/network/interfaces
-#     late_command write.
-#   - proxmox/debian-to-pve: proxmox_bridge_address for vmbr0.
+# LAN prefix for every statically-addressed host, from TS_ROUTES in
+# kubernetes/tailscale/app/deployment.yaml. One definition keeps the 00-pxe
+# preseed netmask and the proxmox vmbr0 address equal.
 cidr_subnet: "/20"
 gateway: "{{ ansible_default_ipv4.gateway }}"
 

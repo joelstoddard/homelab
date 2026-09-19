@@ -97,9 +97,8 @@
       operator IP drift). Remove {{ uboot_build_dir }}/.built-* and re-run.
   when: not ansible_check_mode
 
-# The URL is pinned to a release tag, so these ~9 MB never change — but the
-# TFTP root is flat, so presence alone would pin the fleet to whatever landed
-# first. Stamp on the version instead, the same trick the u-boot build uses.
+# The URL is pinned to a release tag, so these files never change. The TFTP
+# root is flat, so the gate is a version stamp and not file presence.
 - name: Check whether the pinned Pi firmware is already staged.
   ansible.builtin.stat:
     path: "{{ rpi_firmware_stamp }}"

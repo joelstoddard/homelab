@@ -65,17 +65,14 @@ dev:
 
 # Lint playbooks
 .PHONY: lint
-# Explicit paths, not `.`: auto-discovery from this directory finds one file
-# and passes, so the gate was a no-op. Exclusions live in .ansible-lint.
+# Explicit paths: auto-discovery from this directory finds one file and
+# passes. Exclusions live in .ansible-lint.
 lint:
 	$(VENV)/bin/ansible-lint playbooks roles pxe.yaml
 
-# All eighteen check-*/apply-* targets are the same invocation: a playbook,
-# maybe --check --diff, and the four pass-through variables. $(3) names the
-# scoping flags a playbook honours — LIMIT where a run can be narrowed to
-# hosts, TAGS where tasks are tagged; the Talos lifecycle playbooks take
-# neither, because their localhost and SOPS plays need the whole inventory
-# and scope themselves through EXTRA_VARS instead.
+# $(3) names the scoping flags a playbook honours: LIMIT, TAGS, or neither.
+# The Talos lifecycle playbooks take neither, because their localhost and SOPS
+# plays need the whole inventory.
 define run_playbook
 	$(VENV)/bin/ansible-playbook $(1) $(2) \
 		$(if $(filter LIMIT,$(3)),$(if $(LIMIT),--limit=$(LIMIT))) \

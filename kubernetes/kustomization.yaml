@@ -1,7 +1,6 @@
 # Entry point of the flux-system Kustomization (spec.path ./kubernetes).
-# Every layer Flux reconciles is listed here by its Kustomization CR;
-# flux-system/ first, and as a directory, so Flux manages its own
-# controllers and sync objects alongside the CR.
+# Every layer Flux reconciles, listed by its Kustomization CR. flux-system/
+# is a directory because it also holds the controllers and the sync objects.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:

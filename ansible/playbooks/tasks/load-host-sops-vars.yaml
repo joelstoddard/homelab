@@ -1,11 +1,8 @@
 ---
 # Load a host's SOPS-encrypted vars from its lowercase filename.
 #
-# NetBox inventory hostnames mirror the NetBox device-name field exactly, which
-# the homelab keeps capitalized (Rumba, Tango, …), while Linux hostnames and
-# host_vars filenames are lowercase by convention. community.sops's vars plugin
-# only auto-loads files matching inventory_hostname verbatim, so every play
-# that needs these values bridges the two by importing this file.
+# NetBox names are capitalized and host_vars filenames are lowercase.
+# community.sops auto-loads only files matching inventory_hostname verbatim.
 
 - name: Load SOPS-encrypted host vars (lowercase filename)
   community.sops.load_vars:

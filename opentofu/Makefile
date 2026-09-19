@@ -83,11 +83,9 @@ build: check-secrets
 # next one's tofu run; the shared TF_VARs above are exported before the loop
 # and so are inherited by every subshell.
 #
-# `plan` carries -detailed-exitcode, whose 2 means "changes present", not
-# failure — treating it as failure aborted the loop at the first dir with
-# drift, and since resources/pihole sorts first and has standing drift, the
-# four NUC dirs were never planned at all. Collect it and keep going; a real
-# error (1) still stops immediately.
+# `plan` carries -detailed-exitcode, where 2 means "changes present" and 1
+# means error. Collect a 2 and continue, so one dir with drift cannot hide the
+# dirs behind it.
 #
 # `apply` retries once on the bpg/proxmox provider's "Provider produced
 # inconsistent final plan": when the Talos ISO does not exist yet, the VM
@@ -141,9 +139,8 @@ endef
 dev: check-secrets
 	$(call run_tofu,init,)
 
-# Split from lint so the repo-root `make lint` can call it: no `tofu init`,
-# so it needs neither credentials nor network. Recursive, unlike the old
-# per-resource-dir loop, which never reached modules/.
+# Separate from lint so the repo-root `make lint` can call it: no `tofu init`,
+# so it needs no credentials and no network. Recursive, so modules/ is covered.
 fmt:
 	tofu fmt -check -recursive .
 
