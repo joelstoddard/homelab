@@ -1,0 +1,16 @@
+# qBittorrent's settings, its resume data and the torrent files themselves — a
+# few hundred MiB at most, but losing it loses every torrent's progress. No
+# storageClassName: longhorn is the cluster default, and its three replicas
+# across three physical hosts are the durability story.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: qbittorrent-config
+  labels:
+    app.kubernetes.io/name: qbittorrent
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi

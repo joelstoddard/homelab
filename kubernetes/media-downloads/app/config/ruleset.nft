@@ -1,0 +1,67 @@
+# The kill switch for this pod's network namespace, applied once by the
+# killswitch init container before anything else starts. Everything the
+# torrent client sends leaves through tailscale0 or it does not leave.
+#
+# Its own table, deliberately. tailscaled works in the `filter` and `nat`
+# tables and owns the chains it prefixes with ts-, so a separate table is one
+# thing neither side can reconcile away from the other.
+#
+# Nothing here may contain a dollar sign. This file is a configMapGenerator
+# input, embedded verbatim, and Flux runs envsubst over the result.
+
+# Create-then-delete, so a retried init container converges instead of
+# appending a second copy of every accept. nft applies the whole file as one
+# transaction, so there is no window in which the table is missing.
+table inet ts-killswitch
+delete table inet ts-killswitch
+
+table inet ts-killswitch {
+  chain output {
+    type filter hook output priority 0; policy drop;
+
+    # Loopback first: tailscaled's local API and the s6 supervision inside the
+    # LinuxServer image both talk to themselves.
+    oifname "lo" accept
+
+    # Replies to connections opened from outside the pod — the kubelet's
+    # probes and Traefik's requests to the WebUI.
+    #
+    # Belt-and-braces rather than load-bearing: Cilium routes host-to-local-pod
+    # traffic via cilium_host, so a probe already arrives with a pod-CIDR
+    # source that the rule below covers. `reply` direction only, because a
+    # RELATED accept could match a brand-new outbound flow created by a
+    # conntrack helper expectation.
+    ct state established ct direction reply accept
+
+    # tailscaled's own traffic to the control plane and DERP, which it marks
+    # so that it bypasses its own routing. Mask and value are tailscaled's
+    # LinuxFwmarkMask and LinuxBypassMark; without this rule the daemon cannot
+    # get out through the kill switch it depends on.
+    meta mark and 0xff0000 == 0x80000 accept
+
+    # The tunnel itself. Matching the outbound interface by name rather than
+    # excluding the pod interface keeps this independent of what Cilium calls
+    # the veth, and fails closed before tailscale0 exists.
+    oifname "tailscale0" accept
+
+    # Cluster pod and Service CIDRs: Traefik to the WebUI, and cluster DNS.
+    # These are the cluster's real values — the talos role overrides neither
+    # podSubnets nor serviceSubnets, so the Kubernetes defaults stand.
+    ip daddr 10.244.0.0/16 accept
+    ip daddr 10.96.0.0/12 accept
+
+    # The apiserver, and the least obvious rule here. containerboot talks to
+    # it continuously to persist the node key in TS_KUBE_SECRET, and its kube
+    # client carries no fwmark, so without this it is dropped, it fatals on
+    # CheckSecretPermissions and the pod never starts.
+    #
+    # Accepting the Service CIDR above is NOT enough. Cilium runs
+    # kubeProxyReplacement, so socket-LB rewrites the kubernetes service
+    # address at connect() — before the output hook — and what reaches this
+    # chain is already a control-plane node's LAN address.
+    #
+    # Scoped to the apiserver port, so this buys reachability to an apiserver
+    # and nothing else on the LAN.
+    ip daddr 10.0.0.0/20 tcp dport 6443 accept
+  }
+}

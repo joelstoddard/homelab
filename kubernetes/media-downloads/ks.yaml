@@ -1,0 +1,37 @@
+# qBittorrent behind a Mullvad exit node — docs/design/arr-stack.md. It gets a
+# layer and a namespace of its own because PodSecurity is enforced per
+# namespace and only its Tailscale sidecar needs more than baseline.
+#
+# dependsOn media on top of the usual four: the volume here is a subdirectory
+# of the media layer's export, and mounting a subdirectory that does not exist
+# fails the pod. Ordering the layers is necessary but not sufficient — the tree
+# itself is created by the one-shot Job in kubernetes/media/migration/.
+#
+# decryption for the Tailscale auth key, substituteFrom for the ${VOYAGER_IP}
+# the volume needs and the ${DOMAIN} the route needs.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: media-downloads
+  namespace: flux-system
+spec:
+  interval: 10m0s
+  path: ./kubernetes/media-downloads/app
+  prune: true
+  dependsOn:
+    - name: traefik
+    - name: traefik-middlewares
+    - name: longhorn
+    - name: cluster-secrets
+    - name: media
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+  decryption:
+    provider: sops
+    secretRef:
+      name: sops-age
+  postBuild:
+    substituteFrom:
+      - kind: Secret
+        name: cluster-secrets
