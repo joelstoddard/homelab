@@ -247,6 +247,7 @@ ordering) rather than by growing the root tree — see "Adding workloads".
 | `NETBOX_URL` | same Secret | The NetBox Cloud tenant URL, for the Glance bookmark. Encrypted for the same reason the repo only ever refers to it as `$NETBOX_API` elsewhere: the tenant name identifies the account. |
 | `INGEST_LB_IP` | same Secret | The address TrueNAS and the router send graphite and syslog to — reserved in the `cilium-lb` pool, shared by the two receiver Services. The seven addresses above are also the `host-monitoring` probe and poll targets. |
 | `HOME_ASSISTANT_LB_IP` | same Secret | Home Assistant's pinned LAN address — reserved in the `cilium-lb` pool, the same pattern as `TRAEFIK_LB_IP` and `INGEST_LB_IP`, so mDNS/SSDP discovery keeps working across a pod reschedule. |
+| `HOME_ASSISTANT_TOKEN` | same Secret | Long-lived access token for Home Assistant's `/api/prometheus`. Read at runtime by the `alloy` layer, never substituted. Minted under a user's profile → Security, so it dies with that user and with any rebuild that wipes the volume. |
 
 ## Bootstrap
 
@@ -793,6 +794,13 @@ Consequences:
   a `homeassistant:` block locks ALL core config to YAML on any one of its
   twelve keys — which greys out the location picker with "You cannot change
   these settings in the UI". Both blocks are therefore absent by design.
+- **Metrics are an explicit scrape, like SearXNG's.** `prometheus:` in
+  `configuration.yaml` serves `/api/prometheus` behind a bearer token, which
+  the `prometheus.io/scrape` annotation path cannot carry — so the pod carries
+  no annotation, and `alloy/app/config/config.alloy` reads
+  `HOME_ASSISTANT_TOKEN` at runtime. Beyla cannot substitute for it: it runs
+  `containers_only`, which compares a process's network namespace against
+  Beyla's own, and both it and this pod are `hostNetwork`.
 - **Trusted proxies, location and the URLs are set in the UI, and a rebuild
   that wipes the volume means setting them again.** Until trusted proxies are
   set, every request through the ingress returns HTTP 400 while the pinned
