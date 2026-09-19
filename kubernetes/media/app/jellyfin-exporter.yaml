@@ -1,9 +1,6 @@
 # Session and transcode metrics, polled from Jellyfin's REST API. Jellyfin's own
 # EnableMetrics endpoint carries .NET runtime counters and nothing about
 # playback, so it stays off (docs/design/jellyfin.md).
-#
-# replicas: 0 alongside Jellyfin itself — the exporter polls it and would fail
-# its probes against a Deployment scaled to zero. PR-2 sets this to 1.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -11,7 +8,7 @@ metadata:
   labels:
     app.kubernetes.io/name: jellyfin-exporter
 spec:
-  replicas: 0
+  replicas: 1
   selector:
     matchLabels:
       app.kubernetes.io/name: jellyfin-exporter
@@ -38,7 +35,6 @@ spec:
             - --collector.transcoding
             - --collector.tasks
           env:
-            # The new namespace, not jellyfin.jellyfin.svc.
             - name: JELLYFIN_ADDRESS
               value: http://jellyfin.media.svc.cluster.local:8096
             - name: JELLYFIN_TOKEN
