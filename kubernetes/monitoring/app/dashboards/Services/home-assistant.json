@@ -111,7 +111,58 @@
      "targets": [{"refId": "A", "expr": "kubelet_volume_stats_used_bytes{namespace=\"home-assistant\"}", "legendFormat": "{{persistentvolumeclaim}}"}],
      "fieldConfig": {"defaults": {"unit": "bytes"}, "overrides": []}},
 
-    {"id": 15, "type": "logs", "title": "Logs", "gridPos": {"h": 10, "w": 24, "x": 0, "y": 35},
+    {"id": 16, "type": "stat", "title": "Entities tracked", "gridPos": {"h": 4, "w": 6, "x": 0, "y": 35},
+     "datasource": {"type": "prometheus", "uid": "prometheus"},
+     "targets": [{"refId": "A", "expr": "count(homeassistant_entity_available)"}],
+     "fieldConfig": {"defaults": {"unit": "none"}, "overrides": []},
+     "options": {"colorMode": "none", "graphMode": "none", "reduceOptions": {"calcs": ["lastNotNull"]}}},
+
+    {"id": 17, "type": "stat", "title": "Entities unavailable", "gridPos": {"h": 4, "w": 6, "x": 6, "y": 35},
+     "description": "or vector(0) is load-bearing: without it, a fully-healthy instance shows \"No data\" instead of 0.",
+     "datasource": {"type": "prometheus", "uid": "prometheus"},
+     "targets": [{"refId": "A", "expr": "count(homeassistant_entity_available == 0) or vector(0)"}],
+     "fieldConfig": {"defaults": {"unit": "none", "thresholds": {"mode": "absolute", "steps": [
+       {"color": "green", "value": null}, {"color": "red", "value": 1}]}}, "overrides": []},
+     "options": {"colorMode": "background", "graphMode": "none", "reduceOptions": {"calcs": ["lastNotNull"]}}},
+
+    {"id": 18, "type": "stat", "title": "Lowest battery", "gridPos": {"h": 4, "w": 6, "x": 12, "y": 35},
+     "datasource": {"type": "prometheus", "uid": "prometheus"},
+     "targets": [{"refId": "A", "expr": "min(homeassistant_sensor_battery_percent)"}],
+     "fieldConfig": {"defaults": {"unit": "percent", "thresholds": {"mode": "absolute", "steps": [
+       {"color": "red", "value": null}, {"color": "orange", "value": 20}, {"color": "green", "value": 40}]}}, "overrides": []},
+     "options": {"colorMode": "background", "graphMode": "none", "reduceOptions": {"calcs": ["lastNotNull"]}}},
+
+    {"id": 19, "type": "stat", "title": "Stale over 1h", "gridPos": {"h": 4, "w": 6, "x": 18, "y": 35},
+     "datasource": {"type": "prometheus", "uid": "prometheus"},
+     "targets": [{"refId": "A", "expr": "count(time() - homeassistant_last_updated_time_seconds > 3600) or vector(0)"}],
+     "fieldConfig": {"defaults": {"unit": "none", "thresholds": {"mode": "absolute", "steps": [
+       {"color": "green", "value": null}, {"color": "orange", "value": 1}]}}, "overrides": []},
+     "options": {"colorMode": "background", "graphMode": "none", "reduceOptions": {"calcs": ["lastNotNull"]}}},
+
+    {"id": 20, "type": "timeseries", "title": "Entities by domain", "gridPos": {"h": 8, "w": 8, "x": 0, "y": 39},
+     "datasource": {"type": "prometheus", "uid": "prometheus"},
+     "targets": [{"refId": "A", "expr": "count by (domain) (homeassistant_entity_available)", "legendFormat": "{{domain}}"}],
+     "fieldConfig": {"defaults": {"unit": "none"}, "overrides": []}},
+
+    {"id": 21, "type": "timeseries", "title": "State changes by domain", "gridPos": {"h": 8, "w": 8, "x": 8, "y": 39},
+     "datasource": {"type": "prometheus", "uid": "prometheus"},
+     "targets": [{"refId": "A", "expr": "topk(10, sum by (domain) (rate(homeassistant_state_change_total[$__rate_interval])))", "legendFormat": "{{domain}}"}],
+     "fieldConfig": {"defaults": {"unit": "none"}, "overrides": []}},
+
+    {"id": 22, "type": "timeseries", "title": "Unavailable over time", "gridPos": {"h": 8, "w": 8, "x": 16, "y": 39},
+     "datasource": {"type": "prometheus", "uid": "prometheus"},
+     "targets": [{"refId": "A", "expr": "count(homeassistant_entity_available == 0) or vector(0)"}],
+     "fieldConfig": {"defaults": {"unit": "none"}, "overrides": []}},
+
+    {"id": 23, "type": "table", "title": "Currently unavailable", "gridPos": {"h": 8, "w": 24, "x": 0, "y": 47},
+     "description": "Which entities are down, by the friendly_name and domain labels; the other Prometheus labels are noise here.",
+     "datasource": {"type": "prometheus", "uid": "prometheus"},
+     "targets": [{"refId": "A", "expr": "homeassistant_entity_available == 0", "instant": true, "format": "table"}],
+     "transformations": [{"id": "organize", "options": {"excludeByName": {
+       "__name__": true, "instance": true, "job": true, "namespace": true, "node": true, "pod": true},
+       "indexByName": {}, "renameByName": {}}}]},
+
+    {"id": 15, "type": "logs", "title": "Logs", "gridPos": {"h": 10, "w": 24, "x": 0, "y": 55},
      "datasource": {"type": "loki", "uid": "loki"},
      "options": {"showTime": true, "wrapLogMessage": true, "sortOrder": "Descending", "dedupStrategy": "none", "enableLogDetails": true},
      "targets": [{"refId": "A", "expr": "{namespace=\"home-assistant\"}"}]}
