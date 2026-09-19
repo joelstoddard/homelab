@@ -2,5 +2,17 @@
 # Roles are numbered (00-pxe, 01-wake-on-lan, …) to encode execution order in
 # the directory name, following khuedoan/homelab's convention. ansible-lint's
 # role-name rule rejects names starting with a digit; skip it project-wide.
+#
+# var-naming[no-role-prefix]: the vars it flags are shared between roles.
+# A per-role prefix would fork one LAN fact into three copies.
 skip_list:
   - role-name
+  - var-naming[no-role-prefix]
+
+exclude_paths:
+  # Galaxy roles vendored at runtime by `make dev` (gitignored, vendor.name
+  # shape). Upstream's lint debt is not ours to carry.
+  - roles/robertdebock.fail2ban/
+  # SOPS ciphertext: every line is one base64 blob, so yaml[line-length]
+  # cannot be satisfied without corrupting the file.
+  - roles/talos/files/talsecret.sops.yaml

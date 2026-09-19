@@ -16,8 +16,12 @@ SOPS_AGE_KEY_FILE ?= $(HOME)/.config/sops/age/keys.txt
 VERSIONS_ENV   := $(abspath ../versions.env)
 FLUX_VERSION   := $(shell . $(VERSIONS_ENV) && echo $$FLUX_VERSION)
 CILIUM_VERSION := $(shell . $(VERSIONS_ENV) && echo $$CILIUM_VERSION)
+ALLOY_VERSION  := $(shell . $(VERSIONS_ENV) && echo $$ALLOY_CHART_VERSION)
 COMPONENTS     := flux-system/gotk-components.yaml
 CILIUM_SOURCE  := cilium/app/ocirepository.yaml
+ALLOY_RELEASES := alloy/app/alloy/helmrelease.yaml \
+                  alloy/app/alloy-events/helmrelease.yaml \
+                  host-monitoring/app/alloy-gateway/helmrelease.yaml
 
 default: apply
 
@@ -72,6 +76,12 @@ lint:
 		echo "$(CILIUM_SOURCE) is not at $(CILIUM_VERSION); bump versions.env and the tag together." >&2; \
 		exit 1; }
 	@echo ">> $(CILIUM_SOURCE) at $(CILIUM_VERSION)"
+	@for f in $(ALLOY_RELEASES); do \
+		grep -q '^      version: "$(ALLOY_VERSION)"$$' $$f || { \
+			echo "$$f is not at chart $(ALLOY_VERSION); the three Alloy releases and versions.env bump together." >&2; \
+			exit 1; }; \
+	done
+	@echo ">> the three Alloy HelmReleases at chart $(ALLOY_VERSION)"
 	@kubectl kustomize . >/dev/null
 	@echo ">> kubectl kustomize . builds"
 	@for d in */app; do kubectl kustomize $$d >/dev/null && echo ">> kubectl kustomize $$d builds" || exit 1; done

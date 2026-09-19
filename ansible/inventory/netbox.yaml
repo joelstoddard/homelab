@@ -44,7 +44,7 @@ validate_certs: true
 # Pull every page; we don't have enough hosts for this to matter.
 fetch_all: true
 
-# Pull VMs in addition to devices (Skylab today; future K3s VMs).
+# Pull VMs in addition to devices (Skylab and the 12 Talos k8s VMs).
 fetch_virtual_machines: true
 
 # No filtering: every NetBox device and VM lands in @all. Playbooks scope

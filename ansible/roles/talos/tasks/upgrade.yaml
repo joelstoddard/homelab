@@ -98,41 +98,11 @@
   changed_when: true
   when: talos_upgrade_needed | bool and talos_upgrade_is_pi | bool
 
-- name: Wait until the Kubernetes node is Ready and schedulable — {{ inventory_hostname }}
-  ansible.builtin.command:
-    cmd: >-
-      {{ kubectl_bin }} --context {{ talos_cluster_name }} get node {{ inventory_hostname | lower }}
-      -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}/{.spec.unschedulable}'
-  register: talos_upgrade_node
-  changed_when: false
-  retries: 60
-  delay: 10
-  until: talos_upgrade_node.stdout == 'True/'
-  when: not ansible_check_mode
+- name: Gate on the node being Ready and schedulable again.
+  ansible.builtin.import_tasks: gate-node-ready.yaml
 
-# With Longhorn installed, a node's return is not the end of the disruption:
-# its replicas rebuild afterwards, and rolling the next storage node while a
-# volume is still degraded could leave that volume with one healthy replica.
-# Wait for every volume to be neither degraded nor faulted. Detached volumes
-# report robustness "unknown", so those are not waited on. A missing CRD
-# (kubectl: "the server doesn't have a resource type") means Longhorn is not
-# installed and is skipped; any other kubectl failure (API blip, expired
-# cert, wrong context) is retried and fails the roll after the retry budget.
-- name: Wait until no Longhorn volume is degraded or faulted — {{ inventory_hostname }}
-  ansible.builtin.command:
-    cmd: >-
-      {{ kubectl_bin }} --context {{ talos_cluster_name }} get volumes.longhorn.io -A
-      -o jsonpath='{range .items[?(@.status.robustness=="degraded")]}{.metadata.name}={.status.robustness}{"\n"}{end}
-      {range .items[?(@.status.robustness=="faulted")]}{.metadata.name}={.status.robustness}{"\n"}{end}'
-  register: talos_upgrade_volumes
-  changed_when: false
-  failed_when: false
-  retries: 90
-  delay: 20
-  until: >-
-    (talos_upgrade_volumes.rc != 0 and "doesn't have a resource type" in talos_upgrade_volumes.stderr)
-    or (talos_upgrade_volumes.rc == 0 and (talos_upgrade_volumes.stdout | trim | length) == 0)
-  when: not ansible_check_mode
+- name: Gate on Longhorn being fully replicated again.
+  ansible.builtin.import_tasks: gate-longhorn-healthy.yaml
 
 - name: Verify the build now running on {{ inventory_hostname }}
   ansible.builtin.command:

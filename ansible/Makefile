@@ -65,49 +65,44 @@ dev:
 
 # Lint playbooks
 .PHONY: lint
+# Explicit paths: auto-discovery from this directory finds one file and
+# passes. Exclusions live in .ansible-lint.
 lint:
-	$(VENV)/bin/ansible-lint .
+	$(VENV)/bin/ansible-lint playbooks roles pxe.yaml
+
+# $(3) names the scoping flags a playbook honours: LIMIT, TAGS, or neither.
+# The Talos lifecycle playbooks take neither, because their localhost and SOPS
+# plays need the whole inventory.
+define run_playbook
+	$(VENV)/bin/ansible-playbook $(1) $(2) \
+		$(if $(filter LIMIT,$(3)),$(if $(LIMIT),--limit=$(LIMIT))) \
+		$(if $(filter TAGS,$(3)),$(if $(TAGS),--tags=$(TAGS))) \
+		$(if $(VERBOSITY),-$(VERBOSITY)) \
+		$(if $(EXTRA_VARS),--extra-vars='$(EXTRA_VARS)')
+endef
 
 # Check (dry run)
 .PHONY: check-pxe
 check-pxe:
-	$(VENV)/bin/ansible-playbook pxe.yaml --check --diff \
-		$(if $(LIMIT),--limit=$(LIMIT)) \
-		$(if $(TAGS),--tags=$(TAGS)) \
-		$(if $(VERBOSITY),-$(VERBOSITY)) \
-		$(if $(EXTRA_VARS),--extra-vars='$(EXTRA_VARS)')
+	$(call run_playbook,pxe.yaml,--check --diff,LIMIT TAGS)
 
 .PHONY: check
 check:
-	$(VENV)/bin/ansible-playbook playbooks/main.yaml --check --diff \
-		$(if $(LIMIT),--limit=$(LIMIT)) \
-		$(if $(TAGS),--tags=$(TAGS)) \
-		$(if $(VERBOSITY),-$(VERBOSITY)) \
-		$(if $(EXTRA_VARS),--extra-vars='$(EXTRA_VARS)')
+	$(call run_playbook,playbooks/main.yaml,--check --diff,LIMIT TAGS)
 
 # Apply playbooks
 .PHONY: apply-pxe
 apply-pxe:
-	$(VENV)/bin/ansible-playbook pxe.yaml \
-		$(if $(LIMIT),--limit=$(LIMIT)) \
-		$(if $(TAGS),--tags=$(TAGS)) \
-		$(if $(VERBOSITY),-$(VERBOSITY)) \
-		$(if $(EXTRA_VARS),--extra-vars='$(EXTRA_VARS)')
+	$(call run_playbook,pxe.yaml,,LIMIT TAGS)
 
 # Raspberry Pi EEPROM cutover (one-time per Pi; see playbooks/pi-eeprom-netboot.yaml)
 .PHONY: check-pi-eeprom
 check-pi-eeprom:
-	$(VENV)/bin/ansible-playbook playbooks/pi-eeprom-netboot.yaml --check --diff \
-		$(if $(LIMIT),--limit=$(LIMIT)) \
-		$(if $(VERBOSITY),-$(VERBOSITY)) \
-		$(if $(EXTRA_VARS),--extra-vars='$(EXTRA_VARS)')
+	$(call run_playbook,playbooks/pi-eeprom-netboot.yaml,--check --diff,LIMIT)
 
 .PHONY: apply-pi-eeprom
 apply-pi-eeprom:
-	$(VENV)/bin/ansible-playbook playbooks/pi-eeprom-netboot.yaml \
-		$(if $(LIMIT),--limit=$(LIMIT)) \
-		$(if $(VERBOSITY),-$(VERBOSITY)) \
-		$(if $(EXTRA_VARS),--extra-vars='$(EXTRA_VARS)')
+	$(call run_playbook,playbooks/pi-eeprom-netboot.yaml,,LIMIT)
 
 # Raspberry Pi → Talos cutover, end to end (EEPROM → netboot → install → disk
 # boot). Targets go in EXTRA_VARS as a JSON list, not LIMIT — see
@@ -115,15 +110,11 @@ apply-pi-eeprom:
 #   make apply-pi-cutover EXTRA_VARS='{"pi_cutover_hosts": ["Zond", "Mir"]}'
 .PHONY: check-pi-cutover
 check-pi-cutover:
-	$(VENV)/bin/ansible-playbook playbooks/pi-cutover.yaml --check --diff \
-		$(if $(VERBOSITY),-$(VERBOSITY)) \
-		$(if $(EXTRA_VARS),--extra-vars='$(EXTRA_VARS)')
+	$(call run_playbook,playbooks/pi-cutover.yaml,--check --diff,)
 
 .PHONY: apply-pi-cutover
 apply-pi-cutover:
-	$(VENV)/bin/ansible-playbook playbooks/pi-cutover.yaml \
-		$(if $(VERBOSITY),-$(VERBOSITY)) \
-		$(if $(EXTRA_VARS),--extra-vars='$(EXTRA_VARS)')
+	$(call run_playbook,playbooks/pi-cutover.yaml,,)
 
 # Wipe Talos nodes back to maintenance mode for a reinstall (version bumps,
 # lost cluster secrets). Destructive and deliberately NOT in `make homelab`;
@@ -132,15 +123,11 @@ apply-pi-cutover:
 #   make apply-reset EXTRA_VARS='{"reset_hosts": "all"}'
 .PHONY: check-reset
 check-reset:
-	$(VENV)/bin/ansible-playbook playbooks/reset.yaml --check --diff \
-		$(if $(VERBOSITY),-$(VERBOSITY)) \
-		$(if $(EXTRA_VARS),--extra-vars='$(EXTRA_VARS)')
+	$(call run_playbook,playbooks/reset.yaml,--check --diff,)
 
 .PHONY: apply-reset
 apply-reset:
-	$(VENV)/bin/ansible-playbook playbooks/reset.yaml \
-		$(if $(VERBOSITY),-$(VERBOSITY)) \
-		$(if $(EXTRA_VARS),--extra-vars='$(EXTRA_VARS)')
+	$(call run_playbook,playbooks/reset.yaml,,)
 
 # In-place roll of a config change / new installer image onto RUNNING Talos
 # nodes, one at a time (workers, then control plane). The day-2 counterpart
@@ -151,15 +138,11 @@ apply-reset:
 #   make apply-upgrade EXTRA_VARS='{"upgrade_hosts": "all"}'
 .PHONY: check-upgrade
 check-upgrade:
-	$(VENV)/bin/ansible-playbook playbooks/upgrade.yaml --check --diff \
-		$(if $(VERBOSITY),-$(VERBOSITY)) \
-		$(if $(EXTRA_VARS),--extra-vars='$(EXTRA_VARS)')
+	$(call run_playbook,playbooks/upgrade.yaml,--check --diff,)
 
 .PHONY: apply-upgrade
 apply-upgrade:
-	$(VENV)/bin/ansible-playbook playbooks/upgrade.yaml \
-		$(if $(VERBOSITY),-$(VERBOSITY)) \
-		$(if $(EXTRA_VARS),--extra-vars='$(EXTRA_VARS)')
+	$(call run_playbook,playbooks/upgrade.yaml,,)
 
 # Pick up a Proxmox hardware change (memory, cores) on RUNNING Talos VMs, one
 # at a time. Run `make -C opentofu` first; control-plane nodes are refused by
@@ -168,39 +151,25 @@ apply-upgrade:
 #   make apply-resize EXTRA_VARS='{"resize_hosts": "agents"}'
 .PHONY: check-resize
 check-resize:
-	$(VENV)/bin/ansible-playbook playbooks/resize.yaml --check --diff \
-		$(if $(VERBOSITY),-$(VERBOSITY)) \
-		$(if $(EXTRA_VARS),--extra-vars='$(EXTRA_VARS)')
+	$(call run_playbook,playbooks/resize.yaml,--check --diff,)
 
 .PHONY: apply-resize
 apply-resize:
-	$(VENV)/bin/ansible-playbook playbooks/resize.yaml \
-		$(if $(VERBOSITY),-$(VERBOSITY)) \
-		$(if $(EXTRA_VARS),--extra-vars='$(EXTRA_VARS)')
+	$(call run_playbook,playbooks/resize.yaml,,)
 
 # Grafana Alloy on the hosts tagged `alloy` in NetBox (the four Proxmox NUCs
 # and the Pi-hole LXC) — see roles/alloy/README.md.
 .PHONY: check-alloy
 check-alloy:
-	$(VENV)/bin/ansible-playbook playbooks/alloy.yaml --check --diff \
-		$(if $(LIMIT),--limit=$(LIMIT)) \
-		$(if $(VERBOSITY),-$(VERBOSITY)) \
-		$(if $(EXTRA_VARS),--extra-vars='$(EXTRA_VARS)')
+	$(call run_playbook,playbooks/alloy.yaml,--check --diff,LIMIT)
 
 .PHONY: apply-alloy
 apply-alloy:
-	$(VENV)/bin/ansible-playbook playbooks/alloy.yaml \
-		$(if $(LIMIT),--limit=$(LIMIT)) \
-		$(if $(VERBOSITY),-$(VERBOSITY)) \
-		$(if $(EXTRA_VARS),--extra-vars='$(EXTRA_VARS)')
+	$(call run_playbook,playbooks/alloy.yaml,,LIMIT)
 
 .PHONY: apply
 apply:
-	$(VENV)/bin/ansible-playbook playbooks/main.yaml \
-		$(if $(LIMIT),--limit=$(LIMIT)) \
-		$(if $(TAGS),--tags=$(TAGS)) \
-		$(if $(VERBOSITY),-$(VERBOSITY)) \
-		$(if $(EXTRA_VARS),--extra-vars='$(EXTRA_VARS)')
+	$(call run_playbook,playbooks/main.yaml,,LIMIT TAGS)
 
 # Talos cluster bootstrap. Runs entirely on the operator workstation
 # (connection: local) and talks to nodes via talosctl — Talos has no SSH.
@@ -208,19 +177,11 @@ apply:
 # and the Pis are netbooted (make apply-pxe). See docs/talos-bootstrap.md.
 .PHONY: check-talos
 check-talos:
-	$(VENV)/bin/ansible-playbook playbooks/talos.yaml --check --diff \
-		$(if $(LIMIT),--limit=$(LIMIT)) \
-		$(if $(TAGS),--tags=$(TAGS)) \
-		$(if $(VERBOSITY),-$(VERBOSITY)) \
-		$(if $(EXTRA_VARS),--extra-vars='$(EXTRA_VARS)')
+	$(call run_playbook,playbooks/talos.yaml,--check --diff,LIMIT TAGS)
 
 .PHONY: apply-talos
 apply-talos:
-	$(VENV)/bin/ansible-playbook playbooks/talos.yaml \
-		$(if $(LIMIT),--limit=$(LIMIT)) \
-		$(if $(TAGS),--tags=$(TAGS)) \
-		$(if $(VERBOSITY),-$(VERBOSITY)) \
-		$(if $(EXTRA_VARS),--extra-vars='$(EXTRA_VARS)')
+	$(call run_playbook,playbooks/talos.yaml,,LIMIT TAGS)
 
 # Pull the cluster's kube context off the operator (where apply-talos merged
 # it) into THIS machine's ~/.kube/config. Non-destructive: existing contexts

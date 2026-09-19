@@ -52,7 +52,6 @@ kubernetes/
 │   ├── gotk-components.yaml      # `flux install --export`; generated, DO NOT EDIT
 │   └── gotk-sync.yaml            # GitRepository + Kustomization pointing at this repo
 ├── cilium/
-│   ├── kustomization.yaml
 │   ├── ks.yaml                   # Flux Kustomization "cilium" -> ./kubernetes/cilium/app
 │   └── app/
 │       ├── kustomization.yaml    # namespace kube-system; values.yaml -> ConfigMap
@@ -60,18 +59,15 @@ kubernetes/
 │       ├── helmrelease.yaml      # release "cilium", chartRef -> the OCIRepository
 │       └── values.yaml           # shared with ansible/roles/talos/tasks/cni.yaml
 ├── cilium-lb/
-│   ├── kustomization.yaml
 │   ├── ks.yaml                   # Flux Kustomization "cilium-lb", dependsOn cilium, sops decryption
 │   └── app/
 │       ├── pool.sops.yaml        # CiliumLoadBalancerIPPool "lan"; spec (the LAN bounds) encrypted
 │       └── l2-policy.yaml        # CiliumL2AnnouncementPolicy "lan", workers only
 ├── cluster-secrets/
-│   ├── kustomization.yaml
 │   ├── ks.yaml                   # Flux Kustomization "cluster-secrets", sops decryption, wait
 │   └── app/
 │       └── secrets.sops.yaml     # Secret "cluster-secrets" in flux-system: DOMAIN, TRAEFIK_LB_IP, ACME_EMAIL
 ├── cert-manager/
-│   ├── kustomization.yaml
 │   ├── ks.yaml                   # Flux Kustomization "cert-manager", dependsOn cilium, wait
 │   └── app/
 │       ├── namespace.yaml        # cert-manager, no PodSecurity label
@@ -79,7 +75,6 @@ kubernetes/
 │       ├── helmrelease.yaml      # chart cert-manager v1.21.1, values from the ConfigMap
 │       └── values.yaml           # crds.enabled; DNS-01 self-checks pinned to public resolvers
 ├── cert-manager-issuers/
-│   ├── kustomization.yaml
 │   ├── ks.yaml                   # Flux Kustomization, dependsOn cert-manager + cluster-secrets, postBuild
 │   └── app/
 │       ├── kustomization.yaml    # NO top-level namespace — it would be stamped onto the ClusterIssuers
@@ -87,7 +82,6 @@ kubernetes/
 │       ├── letsencrypt-staging.yaml     # ClusterIssuer, ACME staging directory
 │       └── letsencrypt-production.yaml  # ClusterIssuer, separate account key
 ├── traefik/
-│   ├── kustomization.yaml
 │   ├── ks.yaml                   # Flux Kustomization, dependsOn cert-manager-issuers + cilium-lb + cluster-secrets, postBuild, wait
 │   └── app/
 │       ├── namespace.yaml        # traefik; unprivileged, so no PodSecurity label
@@ -98,13 +92,11 @@ kubernetes/
 │       ├── secret-dashboard-auth.sops.yaml  # dashboard-auth-users: htpasswd, bcrypt only
 │       └── secret-longhorn-auth.sops.yaml   # longhorn-auth-users: a DIFFERENT credential
 ├── traefik-middlewares/
-│   ├── kustomization.yaml
 │   ├── ks.yaml                   # Flux Kustomization, dependsOn traefik — the Middleware CRD ships in the chart
 │   └── app/
 │       ├── kustomization.yaml    # namespace traefik (both CRs are namespaced, unlike the ClusterIssuers)
 │       └── middlewares.yaml      # default-headers (HSTS) + one basic-auth Middleware per service
 ├── lan-services/
-│   ├── kustomization.yaml
 │   ├── ks.yaml                   # Flux Kustomization "lan-services", dependsOn traefik + traefik-middlewares + cluster-secrets, postBuild
 │   └── app/
 │       ├── kustomization.yaml    # namespace lan-services
@@ -117,7 +109,6 @@ kubernetes/
 │       ├── pihole.yaml           # Pi-hole's admin UI
 │       └── james-webb.yaml       # the router; plain HTTP, no serversTransport
 ├── tailscale/
-│   ├── kustomization.yaml
 │   ├── ks.yaml                   # Flux Kustomization "tailscale", sops decryption
 │   └── app/
 │       ├── namespace.yaml        # PodSecurity "privileged" — NET_ADMIN + a privileged sysctl init
@@ -125,15 +116,18 @@ kubernetes/
 │       ├── secret.sops.yaml      # tailscale-auth: TS_AUTHKEY (OAuth client secret)
 │       └── deployment.yaml       # one replica, Recreate, hostname homelab
 ├── longhorn/
-│   ├── kustomization.yaml
 │   ├── ks.yaml                   # Flux Kustomization "longhorn", dependsOn cilium, wait
 │   └── app/
 │       ├── namespace.yaml        # longhorn-system, PodSecurity "privileged"
 │       ├── helmrepository.yaml   # https://charts.longhorn.io
 │       ├── helmrelease.yaml      # chart longhorn 1.12.1, values from the ConfigMap
 │       └── values.yaml           # 3 replicas, hard zone anti-affinity, default class
+├── longhorn-jobs/
+│   ├── ks.yaml                   # Flux Kustomization "longhorn-jobs", dependsOn longhorn
+│   └── app/
+│       ├── kustomization.yaml    # namespace longhorn-system
+│       └── recurringjob-trim.yaml # RecurringJob; the CRD ships in the chart, so it cannot share longhorn's pass
 ├── monitoring/
-│   ├── kustomization.yaml
 │   ├── ks.yaml                   # Flux Kustomization "monitoring", dependsOn cilium + longhorn + cluster-secrets + traefik-middlewares, wait
 │   └── app/
 │       ├── kustomization.yaml    # namespace monitoring; wires the four values.yaml generators + dashboards
@@ -147,7 +141,6 @@ kubernetes/
 │       ├── secret-grafana-admin.sops.yaml  # admin password
 │       └── dashboards/           # JSON dashboards as ConfigMaps, substitute disabled (see its README)
 ├── alloy/
-│   ├── kustomization.yaml
 │   ├── ks.yaml                   # Flux Kustomization "alloy", dependsOn monitoring
 │   └── app/
 │       ├── kustomization.yaml    # namespace alloy; wires namespace, HelmRepository and the three sub-kustomizations
@@ -157,7 +150,6 @@ kubernetes/
 │       ├── alloy-events/         # HelmRelease + values: one-replica Deployment for Kubernetes events
 │       └── config/               # River configs, substitute disabled: config.alloy + events.alloy
 ├── beyla/
-│   ├── kustomization.yaml
 │   ├── ks.yaml                   # Flux Kustomization "beyla", dependsOn monitoring
 │   └── app/
 │       ├── kustomization.yaml    # namespace beyla; wires namespace, HelmRepository, HelmRelease and the values ConfigMap
@@ -166,7 +158,6 @@ kubernetes/
 │       ├── helmrelease.yaml      # chart beyla 1.16.11, values from the ConfigMap
 │       └── values.yaml           # instrument everything but kube-system + collectors; traces OTLP to Tempo, 10% sampled
 ├── host-monitoring/
-│   ├── kustomization.yaml
 │   ├── ks.yaml                   # Flux Kustomization, dependsOn monitoring + cilium-lb + cluster-secrets, postBuild, sops
 │   └── app/
 │       ├── kustomization.yaml    # namespace host-monitoring; the blackbox/graphite/values/targets generators
@@ -180,7 +171,6 @@ kubernetes/
 │       ├── config/               # gateway.alloy, substitute disabled
 │       └── targets/targets.json  # the substituted probe/poll target list, mounted at /etc/alloy-targets
 ├── searxng/
-    ├── kustomization.yaml
     ├── ks.yaml                   # Flux Kustomization, dependsOn traefik + traefik-middlewares + cluster-secrets, postBuild, sops
     └── app/
         ├── kustomization.yaml    # namespace searxng
@@ -192,7 +182,6 @@ kubernetes/
         ├── valkey.yaml           # Deployment + Service; no persistence, 64 MB, allkeys-lru
         └── ingressroute.yaml     # Host(searx.<domain>), default-headers only — no auth middleware
 ├── glance/
-│   ├── kustomization.yaml
 │   ├── ks.yaml                   # Flux Kustomization, dependsOn traefik + traefik-middlewares + cluster-secrets, postBuild, NO sops
 │   └── app/
 │       ├── kustomization.yaml    # namespace glance
@@ -202,7 +191,6 @@ kubernetes/
 │       ├── service.yaml          # glance:8080, no scrape annotation (Glance exposes no metrics)
 │       └── ingressroute.yaml     # Host(home.<domain>), default-headers + glance-auth
 └── home-assistant/
-    ├── kustomization.yaml
     ├── ks.yaml                   # Flux Kustomization, dependsOn traefik + traefik-middlewares + longhorn + cluster-secrets, postBuild, NO sops
     └── app/
         ├── kustomization.yaml    # namespace home-assistant; configuration.yaml generated WITH a name hash
@@ -871,10 +859,10 @@ Two things about this pair are load-bearing:
   instead. Any future cluster-scoped CR needs the same care — check the
   `kubectl kustomize` output, not just the apply.
 
-The wildcard `Certificate` deliberately references **staging**: Let's Encrypt
-allows 5 duplicate certificates per week and a wildcard is easy to burn
-through while debugging DNS-01. Flipping to production is a one-line change
-to `traefik/app/certificate.yaml`, gated on the staging chain verifying live.
+The wildcard `Certificate` is on **production**. It started on staging — Let's
+Encrypt allows 5 duplicate certificates per week and a wildcard is easy to burn
+through while debugging DNS-01 — and moved once that chain verified end to end.
+Flipping back is the same one-line change to `traefik/app/certificate.yaml`.
 Rationale, the CAA and token preflight, and the recovery path:
 [`docs/design/ingress-tls.md`](../docs/design/ingress-tls.md).
 

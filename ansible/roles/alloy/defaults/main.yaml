@@ -1,7 +1,6 @@
 ---
-# Pin to the cluster's Alloy (kubernetes/alloy/app/alloy/helmrelease.yaml
-# chart 1.12.1 = app v1.19.2). `apt-cache madison alloy` lists what the repo
-# offers; bump both together.
+# Pin to the cluster's Alloy: ALLOY_CHART_VERSION in versions.env, where
+# chart 1.12.1 is app v1.19.2. `apt-cache madison alloy` lists what apt has.
 alloy_version: "1.19.2-1"
 alloy_apt_key_url: https://apt.grafana.com/gpg.key
 alloy_apt_repo: "deb [signed-by=/etc/apt/keyrings/grafana.gpg] https://apt.grafana.com stable main"

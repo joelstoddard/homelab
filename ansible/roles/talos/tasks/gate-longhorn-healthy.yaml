@@ -1,0 +1,23 @@
+---
+# Shared health gate for tasks/upgrade.yaml and tasks/resize.yaml: wait until
+# no Longhorn volume is degraded or faulted.
+#
+# Rolling the next node early can leave a volume on one replica
+# (docs/design/longhorn.md). Detached volumes report "unknown", and a missing
+# CRD means Longhorn is absent, so neither blocks the roll.
+
+- name: Wait until no Longhorn volume is degraded or faulted — {{ inventory_hostname }}
+  ansible.builtin.command:
+    cmd: >-
+      {{ kubectl_bin }} --context {{ talos_cluster_name }} get volumes.longhorn.io -A
+      -o jsonpath='{range .items[?(@.status.robustness=="degraded")]}{.metadata.name}={.status.robustness}{"\n"}{end}
+      {range .items[?(@.status.robustness=="faulted")]}{.metadata.name}={.status.robustness}{"\n"}{end}'
+  register: talos_gate_volumes
+  changed_when: false
+  failed_when: false
+  retries: 90
+  delay: 20
+  until: >-
+    (talos_gate_volumes.rc != 0 and "doesn't have a resource type" in talos_gate_volumes.stderr)
+    or (talos_gate_volumes.rc == 0 and (talos_gate_volumes.stdout | trim | length) == 0)
+  when: not ansible_check_mode

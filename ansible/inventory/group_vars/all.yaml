@@ -4,6 +4,12 @@ ansible_ssh_private_key_file: "~/.ssh/id_rsa"
 ssh_public_key: "{{ lookup('file', '~/.ssh/id_rsa.pub') }}"
 quad_nine_dns_server: "9.9.9.9"
 
+# LAN prefix for every statically-addressed host, from TS_ROUTES in
+# kubernetes/tailscale/app/deployment.yaml. One definition keeps the 00-pxe
+# preseed netmask and the proxmox vmbr0 address equal.
+cidr_subnet: "/20"
+gateway: "{{ ansible_default_ipv4.gateway }}"
+
 # Resolver order for /etc/resolv.conf (02-preflights resolv.yaml): the
 # Pi-hole LXC first — it alone answers the LAN wildcard the write routes
 # live under — then the public fallback. The LXC is looked up by its NetBox

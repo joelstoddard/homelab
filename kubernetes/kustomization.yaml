@@ -1,26 +1,26 @@
 # Entry point of the flux-system Kustomization (spec.path ./kubernetes).
-# Every top-level directory Flux reconciles is listed here; flux-system/
-# first so Flux manages its own controllers and sync objects.
+# Every layer Flux reconciles, listed by its Kustomization CR. flux-system/
+# is a directory because it also holds the controllers and the sync objects.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
   - flux-system
-  - cilium
-  - cilium-lb
-  - cluster-secrets
-  - cert-manager
-  - cert-manager-issuers
-  - traefik
-  - traefik-middlewares
-  - lan-services
-  - tailscale
-  - longhorn
-  - longhorn-jobs
-  - monitoring
-  - alloy
-  - beyla
-  - host-monitoring
-  - searxng
-  - media
-  - glance
-  - home-assistant
+  - cilium/ks.yaml
+  - cilium-lb/ks.yaml
+  - cluster-secrets/ks.yaml
+  - cert-manager/ks.yaml
+  - cert-manager-issuers/ks.yaml
+  - traefik/ks.yaml
+  - traefik-middlewares/ks.yaml
+  - lan-services/ks.yaml
+  - tailscale/ks.yaml
+  - longhorn/ks.yaml
+  - longhorn-jobs/ks.yaml
+  - monitoring/ks.yaml
+  - alloy/ks.yaml
+  - beyla/ks.yaml
+  - host-monitoring/ks.yaml
+  - searxng/ks.yaml
+  - media/ks.yaml
+  - glance/ks.yaml
+  - home-assistant/ks.yaml

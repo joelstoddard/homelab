@@ -1,5 +1,5 @@
 .POSIX:
-.PHONY: help homelab install bootstrap-secrets ansible opentofu talos kubernetes kubeconfig \
+.PHONY: default help homelab install bootstrap-secrets ansible opentofu talos kubernetes kubeconfig \
         build dev lint check clean check-env
 .NOTPARALLEL:
 
@@ -137,9 +137,13 @@ build:
 dev:
 	$(MAKE) -C ansible dev
 
+# opentofu's own `lint` depends on `dev`, which runs `tofu init` and so needs
+# SOPS keys, NetBox credentials and the network. Call its `fmt` instead to
+# keep this target cheap and offline; `make check` covers validate.
 lint:
 	$(MAKE) -C ansible lint
 	$(MAKE) -C kubernetes lint
+	$(MAKE) -C opentofu fmt
 
 # Merge the Talos cluster's kube context into this machine's ~/.kube/config.
 kubeconfig:

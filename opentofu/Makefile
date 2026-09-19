@@ -1,5 +1,5 @@
 # GNU make required.
-.PHONY: default help build dev lint check apply clean check-secrets
+.PHONY: default help build dev fmt lint check apply clean check-secrets
 
 # LIMIT=<dirname> filters iteration to one resources/<dirname>/.
 LIMIT ?=
@@ -31,7 +31,8 @@ help:
 	@echo "Targets:"
 	@echo "  build   - Verify tofu + sops binaries present."
 	@echo "  dev     - tofu init in each resources/*/."
-	@echo "  lint    - tofu fmt -check + tofu validate."
+	@echo "  fmt     - tofu fmt -check, recursive. No init, no credentials."
+	@echo "  lint    - fmt + tofu validate."
 	@echo "  check   - tofu plan -detailed-exitcode."
 	@echo "  apply   - tofu apply -auto-approve. Default."
 	@echo "  clean   - Remove .terraform/ in each dir."
@@ -82,6 +83,10 @@ build: check-secrets
 # next one's tofu run; the shared TF_VARs above are exported before the loop
 # and so are inherited by every subshell.
 #
+# `plan` carries -detailed-exitcode, where 2 means "changes present" and 1
+# means error. Collect a 2 and continue, so one dir with drift cannot hide the
+# dirs behind it.
+#
 # `apply` retries once on the bpg/proxmox provider's "Provider produced
 # inconsistent final plan": when the Talos ISO does not exist yet, the VM
 # attributes that depend on its id are unknown at plan time and the provider
@@ -102,8 +107,10 @@ define run_tofu
 	export TF_VAR_netbox_token="$$NETBOX_TOKEN"; \
 	export TF_VAR_talos_version="$$(. $(VERSIONS_ENV) && echo $$TALOS_VERSION)"; \
 	export TF_VAR_talos_schematic_id="$$(. $(VERSIONS_ENV) && echo $$TALOS_SCHEMATIC_ID)"; \
+	worst=0; \
 	for d in $(RESOURCE_DIRS); do \
 		echo ">> tofu $(1) in $$d"; \
+		rc=0; \
 		( \
 			if [ -f $$d/secrets.env ]; then \
 				set -a; eval "$$(sops -d $$d/secrets.env)"; set +a; \
@@ -116,8 +123,14 @@ define run_tofu
 				tofu -chdir=$$d $(1) $(2); rc=$$?; \
 			fi; \
 			exit $$rc \
-		) || exit $$?; \
-	done
+		) || rc=$$?; \
+		if [ "$$rc" -eq 2 ] && [ "$(1)" = plan ]; then \
+			worst=2; \
+		elif [ "$$rc" -ne 0 ]; then \
+			exit $$rc; \
+		fi; \
+	done; \
+	exit $$worst
 endef
 
 # init is idempotent and quick once providers are cached, so every real
@@ -126,13 +139,12 @@ endef
 dev: check-secrets
 	$(call run_tofu,init,)
 
-lint: dev
-	@set -e; \
-	if [ -z "$(strip $(RESOURCE_DIRS))" ]; then exit 0; fi; \
-	for d in $(RESOURCE_DIRS); do \
-		echo ">> tofu fmt -check in $$d"; \
-		tofu fmt -check $$d || exit $$?; \
-	done
+# Separate from lint so the repo-root `make lint` can call it: no `tofu init`,
+# so it needs no credentials and no network. Recursive, so modules/ is covered.
+fmt:
+	tofu fmt -check -recursive .
+
+lint: fmt dev
 	$(call run_tofu,validate,)
 
 check: dev

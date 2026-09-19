@@ -1,0 +1,13 @@
+---
+# Load a host's SOPS-encrypted vars from its lowercase filename.
+#
+# NetBox names are capitalized and host_vars filenames are lowercase.
+# community.sops auto-loads only files matching inventory_hostname verbatim.
+
+- name: Load SOPS-encrypted host vars (lowercase filename)
+  community.sops.load_vars:
+    file: "{{ host_vars_file }}"
+  vars:
+    host_vars_file: "{{ inventory_dir }}/host_vars/{{ inventory_hostname | lower }}.sops.yaml"
+  when: host_vars_file is file
+  no_log: true

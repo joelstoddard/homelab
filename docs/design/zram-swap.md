@@ -80,10 +80,8 @@ is Proxmox-specific.
 
 ### Rejected
 
-- **A disk swapfile** (`geerlingguy.swap`, already pinned in
-  `ansible/collections/requirements.yaml` for the planned hygiene work). NVMe
-  swap is orders of magnitude slower than compressed RAM and writes guest
-  memory churn onto the boot SSD.
+- **A disk swapfile** (`geerlingguy.swap`). NVMe swap is orders of magnitude
+  slower than compressed RAM and writes guest memory churn onto the boot SSD.
 - **`zram-tools`.** A shell init script, where the generator is declarative
   and already part of systemd.
 - **zstd compression.** A better ratio, but the extra decompression latency

@@ -1,35 +1,23 @@
 ---
 # Copy this file to main.yaml and fill in real values for your environment.
 # main.yaml itself is gitignored — LAN IPs and offsite addresses live here.
+#
+# Bootstrap fallback for environments without NetBox. The group names match
+# what netbox.yaml derives; README.md has the table.
 
-masters:
+# Talos nodes: the k8s VMs and the Pis. Talos has no SSH and no Python, so
+# ansible_host is where talosctl connects, not Ansible.
+talos:
   hosts:
-    # k3s-server-01:
+    # k8s-server-01:
     #   ansible_host: 192.168.1.31
-    # k3s-server-02:
-    #   ansible_host: 192.168.1.32
-
-nodes:
-  hosts:
-    # k3s-agent-01:
+    # k8s-agent-01:
     #   ansible_host: 192.168.1.35
-    # k3s-agent-02:
-    #   ansible_host: 192.168.1.36
-
-k3s_cluster:
-  children:
-    masters:
-    nodes:
 
 pis:
   hosts:
     # kosmos:
     #   ansible_host: 192.168.1.21
-
-vms:
-  hosts:
-    # k3s-server-01:
-    #   ansible_host: 192.168.1.31
 
 nucs:
   hosts:
@@ -54,14 +42,14 @@ proxmox:
   #     ansible_user: root
   #     fqdn: <host>.example.lan
 
-servers:
+# Hosts running Grafana Alloy outside the cluster: the NUCs and the Pi-hole
+# LXC. group_vars/alloy.yaml sets ansible_user, so each host needs an address.
+alloy:
   children:
-    pis:
     nucs:
   # hosts:
-  #   voyager:
-  #     ansible_host: 192.168.1.100
-  #     ansible_user: "root"
+  #   pihole:
+  #     ansible_host: 192.168.1.53
 
 # Offsite hosts (e.g., cloud VPS) — public IPs/hostnames go here when
 # you copy this file to main.yaml. Leave commented in the example.
