@@ -664,6 +664,55 @@ kubectl --context homelab get pv jellyfin-media                 # Bound, Retain
 kubectl --context homelab -n jellyfin exec deploy/jellyfin -- ls /media
 ```
 
+## Media
+
+`media/` is the shared namespace for everything that reads or writes the media
+library: one read-write `PersistentVolume` over the export on `voyager`, one
+claim, and every application deploying into it. Today it holds that volume and
+Jellyfin at `replicas: 0` on a temporary hostname — the \*arr applications and
+the download clients are designed but not deployed, and `jellyfin/` still serves
+`jellyfin.<domain>` until a later PR folds it in here and deletes it. Rationale:
+[`docs/design/arr-stack.md`](../docs/design/arr-stack.md).
+
+Consequences:
+
+- **One volume for the whole namespace, not one per application.** An \*arr
+  import is a hardlink from the downloads tree into the library, and the
+  linking process needs both trees under a single mount. A volume per
+  application turns every import into a copy.
+- **`hard`, not `soft`, because this mount is read-write.** A `soft` timeout on
+  a write that later lands on the server is silent corruption. Talos has no
+  host shell, so the cost is a node reboot if a mount wedges; `timeo=600,retrans=2`
+  is what absorbs a short NAS outage.
+- **Mount options must stay byte-identical to every other mount of this
+  export.** Several are superblock properties, shared per client, server and
+  export, so mismatched options mean the first pod on a node sets the policy.
+- **The export maps writes to the tree's owner.** Mapall is configured, so a
+  pod writing as UID 1000 produces a file owned by `4294967294` mode `775`.
+  Write access does not come from the world permission bits — see "Traps" in
+  the design doc before reasoning about permissions here.
+- **PodSecurity `baseline` is stated explicitly.** The LinuxServer.io \*arr
+  images start as root and drop to `PUID`/`PGID`, which `restricted` forbids.
+  The torrent client needs more than `baseline` and therefore gets its own
+  namespace rather than relaxing this one.
+- **Jellyfin is deliberately stood down.** `replicas: 0` until its config
+  volume is copied across, and on `jellyfin-new.<domain>` so that two
+  `IngressRoute`s never match the same `Host()` rule — Traefik would choose
+  between them nondeterministically.
+- **Pruning this layer deletes the Longhorn config claims in it** (reclaim
+  policy `Delete`). `media-library` is `Retain`, so the library itself survives.
+- **One file per application, not per kind.** `jellyfin.yaml` bundles the
+  Deployment, Service and IngressRoute together, unlike sibling layers that
+  split by kind — deliberate, since `media` is a multi-application namespace
+  and splitting eight applications by kind would produce roughly two dozen
+  files.
+
+```bash
+flux --context homelab get ks media
+kubectl --context homelab -n media get pods,pvc,svc
+kubectl --context homelab get pv media-library                  # Bound, Retain
+```
+
 ## Glance
 
 `glance/` is the browser start page on `home.<domain>`: one stateless pod whose
@@ -788,7 +837,7 @@ manifests *after* SOPS decryption. The Secret lives in `flux-system` because
 namespace, not in the namespace being written to; `wait: true` on the layer
 is what makes a consumer's `dependsOn` mean "the keys are there".
 Consumers today: `cert-manager-issuers`, `traefik`, `longhorn`, `lan-services`,
-`monitoring`, `host-monitoring`, `searxng`, `jellyfin`, `glance`,
+`monitoring`, `host-monitoring`, `searxng`, `jellyfin`, `media`, `glance`,
 `home-assistant`.
 
 This is why the domain and the LB address are not simply SOPS-encrypted:

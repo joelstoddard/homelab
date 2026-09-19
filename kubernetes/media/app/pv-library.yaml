@@ -1,0 +1,39 @@
+# The media library on voyager, read-write. Jellyfin's volume was read-only and
+# soft; this one is read-write and therefore hard — a soft timeout on a write
+# that later lands on the server is silent corruption, which is worse than the
+# availability risk hard carries on Talos (docs/design/arr-stack.md).
+#
+# Mount options must stay byte-identical to every other mount of this export:
+# several are properties of the superblock, shared per client, server and
+# export, so mismatched options mean the first pod on a node sets policy.
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: media-library
+  labels:
+    app.kubernetes.io/name: media
+spec:
+  capacity:
+    # NFS enforces no quota from here, so this number is documentation.
+    storage: 16Ti
+  accessModes:
+    - ReadWriteMany
+  # Retain, so pruning this layer never proposes deleting the library.
+  persistentVolumeReclaimPolicy: Retain
+  # Empty, not absent: an absent class means "use the default", which would
+  # hand this volume to Longhorn.
+  storageClassName: ""
+  mountOptions:
+    - nfsvers=4.1
+    - hard
+    - timeo=600
+    - retrans=2
+    - noatime
+    - nodiratime
+  nfs:
+    server: ${VOYAGER_IP}
+    path: /mnt/Voyager/public
+  # Pre-bound, so no other claim in the cluster can take the volume.
+  claimRef:
+    name: media-library
+    namespace: media

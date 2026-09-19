@@ -1,0 +1,17 @@
+# volumeName and the empty storageClassName bind this to the media-library
+# PersistentVolume. Without them the default StorageClass would provision an
+# empty Longhorn volume instead.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: media-library
+  labels:
+    app.kubernetes.io/name: media
+spec:
+  accessModes:
+    - ReadWriteMany
+  storageClassName: ""
+  volumeName: media-library
+  resources:
+    requests:
+      storage: 16Ti
