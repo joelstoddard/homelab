@@ -216,6 +216,7 @@ verify python3
 verify git
 verify make
 verify rsync
+verify arp-scan
 
 # Python 3.11+ matches ansible/Makefile's PYTHON_MIN_VERSION floor.
 if python3 -c 'import sys; sys.exit(0 if sys.version_info[:2] >= (3, 11) else 1)' 2>/dev/null; then
