@@ -775,6 +775,70 @@ properly. All data will be cleared" — the exact warning it was meant to
 prevent. This layer shipped with that init container on 2026-09-20 and it was
 removed the same day. The correct configuration is no init container: mount the
 claim and leave the marker gone.
+### Metrics
+
+Each \*arr exposes nothing Prometheus can read, so metrics come from
+[exportarr](https://github.com/onedr0p/exportarr) polling the same REST API the
+web UI uses, with the key from `arr-apikeys`. One exportarr process gathers
+exactly one application — that is the upstream design, not a configuration
+choice — so there is one `Deployment` per application, identical apart from the
+subcommand, the `URL` and the secret key. They carry `prometheus.io/scrape` and
+`prometheus.io/port: "9707"`, which is all the Alloy annotation path needs
+(`docs/design/observability.md`); no Service, no `ServiceMonitor`, no CRD. `job`
+comes from `app.kubernetes.io/name`, so the series land under
+`prowlarr-exporter`, `sonarr-exporter`, `radarr-exporter`, `lidarr-exporter`.
+They are sized like `jellyfin-exporter` — 10m/32Mi requested, 200m/128Mi limit,
+`amd64` with the rest of the namespace — because the resident set is one decoded
+API response, and that grows with the library rather than with traffic.
+
+**Which applications have one, and why the rest do not.** Prowlarr, Sonarr,
+Radarr and Lidarr are exactly the applications whose API key is declarative,
+which is what lets an exporter hold it. exportarr also speaks Bazarr and
+SABnzbd, and neither has one here for the same reason: their keys are runtime
+state, not configuration. Bazarr ships `auth.type` null and mints its key on
+first start; SABnzbd keeps its in `sabnzbd.ini` on the claim with no environment
+override. Wiring either up means lifting a generated value out of a volume and
+back into git — the boundary "Configuration versus state" draws, from the wrong
+side. Seerr is not an exportarr target at all: it files requests with Sonarr and
+Radarr, whose exporters already count the result.
+
+The key is validated against `^[a-zA-Z0-9]{20,32}$` before the first request, so
+a malformed one crash-loops the exporter instead of failing a scrape. `API_KEY`
+and the older `APIKEY` are both accepted in v2 — `internal/config/config.go`
+maps the latter — but v3 removes the alias, so the manifests use `API_KEY`.
+
+**In v2 a collector error takes the whole scrape down, so `up` is the health
+signal and `<app>_collector_error` is not.** Every collector reports failure by
+sending `prometheus.NewInvalidMetric(errorMetric, err)`, which makes the registry
+fail the render: `/metrics` returns HTTP 500 and the target goes `up == 0`. The
+`<app>_collector_error` names therefore exist only as descriptors — they are
+never exported as series, and a panel or alert querying one reads "No data"
+whether the exporter is healthy or dead. Alert on
+`up{job=~".*-exporter"} == 0`. v3 reverses this: it returns 200 with whatever
+succeeded and sets a real per-collector error gauge, which is a breaking change
+for anything written against v2.
+
+`ENABLE_ADDITIONAL_METRICS` stays off, the default. It adds one API call per
+series, movie and artist on every scrape, which is the cost that grows with the
+library while the scrape interval stays at 60s. What it buys, and what is
+therefore absent: `sonarr_episode_monitored_total`,
+`sonarr_episode_unmonitored_total`, `sonarr_episode_quality_total`,
+`lidarr_albums_monitored_total`, `lidarr_albums_genres_total` and
+`lidarr_songs_quality_total`. Radarr gates nothing behind it. Turn it on only
+with a measurement of scrape duration to back the decision.
+
+Prowlarr is the odd one again: its collector set is the app, history, system
+status and system health — **no queue and no root-folder collector**, because it
+has neither. `PROWLARR__BACKFILL` would replay indexer history into the counters,
+which otherwise start at zero when the exporter starts; it is off because there
+is no history worth replaying and the first request after enabling it can outrun
+the scrape timeout.
+
+Several series are emitted only when the underlying collection is non-empty —
+`<app>_queue_total`, `<app>_system_health_issues`, `<app>_rootfolder_freespace_bytes`,
+and the per-quality, per-tag and per-genre breakdowns. On a library with no
+content they are absent, which looks exactly like a broken query. Distinguish the
+two by checking `up` for the exporter first.
 
 ### The Jellyfin cutover, as performed
 

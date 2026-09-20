@@ -18,9 +18,13 @@ resources:
   - jellyfin.yaml
   - jellyfin-exporter.yaml
   - prowlarr.yaml
+  - prowlarr-exporter.yaml
   - sonarr.yaml
+  - sonarr-exporter.yaml
   - radarr.yaml
+  - radarr-exporter.yaml
   - lidarr.yaml
+  - lidarr-exporter.yaml
   - bazarr.yaml
   - seerr.yaml
   - sabnzbd.yaml

@@ -611,8 +611,10 @@ kubectl --context homelab -n searxng exec deploy/valkey -- valkey-cli keys '*'  
 `media/` is the shared namespace for everything that reads or writes the media
 library: one read-write `PersistentVolume` over the export on `voyager`, one
 claim, and every application deploying into it. Today it holds that volume,
-Jellyfin on `jellyfin.<domain>` and its metrics exporter — the \*arr
-applications and the download clients are designed but not deployed. Rationale:
+Jellyfin on `jellyfin.<domain>`, Prowlarr, Sonarr, Radarr, Lidarr, Bazarr,
+Seerr, SABnzbd and Recyclarr — the torrent client lives next door in
+`media-downloads/`, behind its own VPN. Five of them have a metrics exporter:
+Jellyfin and the four \*arr whose API key is declarative. Rationale:
 [`docs/design/arr-stack.md`](../docs/design/arr-stack.md) for the namespace,
 [`docs/design/jellyfin.md`](../docs/design/jellyfin.md) for Jellyfin itself.
 
@@ -657,6 +659,13 @@ Consequences:
   `playing`, `system` and `users` run unless enabled; `transcoding` carries the
   stream detail. `jellyfin_up` vanishes rather than reading zero when the API
   token is wrong, so health is keyed on `jellyfin_scrape_collector_success`.
+- **Each \*arr with a declarative key gets its own `exportarr`, and `up` is its
+  health signal.** One exportarr process gathers one application, hence four
+  more Deployments. In v2 a failing collector sends an invalid metric, which
+  makes `/metrics` return HTTP 500 and the target go `up == 0`;
+  `<app>_collector_error` is only a descriptor and is never exported, so
+  alerting on it alerts on nothing. Bazarr and SABnzbd have no exporter because
+  their keys are runtime state, not configuration — see the design doc.
 - **Nothing to add for DNS or TLS.** The Pi-hole wildcard resolves the name and
   `TLSStore/default` serves the certificate.
 - **Pruning this layer deletes the Longhorn config claims in it** (reclaim
