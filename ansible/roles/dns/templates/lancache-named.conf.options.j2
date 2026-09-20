@@ -1,0 +1,41 @@
+// Managed by ansible (roles/dns). See docs/design/dns-chain.md.
+//
+// Replaces the image's own file, which ships allow-recursion { any; } and
+// would let a LAN client bypass Pi-hole by querying this container directly.
+//
+// Written with the forwarders already substituted and none of the
+// placeholders dnstool looks for. It string-replaces this file in place at
+// every container start, so a file with nothing left to replace is written
+// back byte-identical and never drifts from what Ansible rendered.
+//
+// Do not name those placeholders here, even in a comment: dnstool would
+// rewrite the comment and reintroduce the drift. See the role README.
+
+acl dns_chain {
+    localhost;
+{% for addr in dns_pihole_addresses.values() | sort %}
+    {{ addr }};
+{% endfor %}
+};
+
+options {
+  directory "/var/cache/bind";
+
+  // Off because this container forges answers for signed CDN domains. Bind9,
+  // the next link down, validates instead.
+  dnssec-validation no;
+
+  auth-nxdomain no;
+  allow-recursion   { dns_chain; };
+  allow-query       { dns_chain; };
+  allow-query-cache { dns_chain; };
+  listen-on { {{ dns_lancache_addresses[inventory_hostname] }}; 127.0.0.1; };
+  listen-on-v6 { none; };
+  forward only;
+
+  // Permit RFC1918 PTR lookups to be recursed upstream.
+  empty-zones-enable no;
+  response-policy { zone "rpz"; };
+  rrset-order { order cyclic; };
+  forwarders { {{ dns_bind9_addresses.values() | sort | join('; ') }}; };
+};

@@ -32,3 +32,8 @@
   ansible.builtin.import_tasks: bind9.yaml
   when: "'bind9' in group_names"
   tags: [bind9]
+
+- name: Divert the game CDNs with lancache-dns.
+  ansible.builtin.import_tasks: lancache.yaml
+  when: "'lancache' in group_names"
+  tags: [lancache]

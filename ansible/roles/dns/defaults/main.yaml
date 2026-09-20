@@ -23,3 +23,13 @@ dns_zone_retry: 600
 dns_zone_expire: 604800
 dns_zone_negative_ttl: 60
 dns_zone_rname: "hostmaster"
+
+# lancache-dns. Pinned by tag; the image regenerates its RPZ from
+# uklans/cache-domains at every start, so the tag is the only version surface.
+dns_lancache_image: "lancachenet/lancache-dns:latest"
+dns_lancache_dir: /opt/lancache-dns
+dns_lancache_probe_domain: "lancache.steamcontent.com"
+
+# The fail-open lever. False stops the container, so Pi-hole's strict-order
+# falls through to Bind9 and the CDN domains resolve to the real CDN.
+dns_lancache_enabled: true
