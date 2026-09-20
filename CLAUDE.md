@@ -375,12 +375,16 @@ as root and drop to `PUID`/`PGID` through s6-overlay. Jellyfin serves
 `jellyfin.${DOMAIN}` from here at `replicas: 1`: its config volume was staged
 through the NFS export out of the standalone `jellyfin/` layer on 2026-09-19,
 verified, and that layer deleted. Prowlarr, Sonarr, Radarr, Lidarr, Bazarr and
-Overseerr are deployed alongside it, each on its own Longhorn `/config` claim;
-the download clients live in `media-downloads/`, and Recyclarr and SABnzbd are
-designed, not deployed. Overseerr is the request portal on
-`requests.${DOMAIN}`, and the one container here that is not a LinuxServer
-image: no `PUID`/`PGID`, config at `/app/config`, and probes on
-`/api/v1/status/appdata` because `/api/v1/status` calls the GitHub API. Bazarr
+Seerr are deployed alongside it, each on its own Longhorn `/config` claim; the
+download clients live in `media-downloads/`, and Recyclarr and SABnzbd are
+designed, not deployed. Seerr is the request portal on `seerr.${DOMAIN}` and
+the one container here that is not a LinuxServer image: it runs as uid 1000 so
+its claim needs `fsGroup`, config is at `/app/config`, and probes use
+`/api/v1/status/appdata` because `/api/v1/status` reaches the GitHub API. It
+must be Seerr (`seerr/seerr`, the renamed Jellyseerr) and not upstream
+Overseerr, which is Plex-only; mounting the claim hides the image's
+`config/DOCKER` marker, and that absence is how Seerr detects the volume, so
+restoring it causes the warning it looks like it would fix. Bazarr
 is the one application here that ships `auth.type` null, so its UI is open
 until Settings > General > Security is set to Form, and its probes use
 `/manifest.webmanifest` because every catch-all path answers 401 once that is

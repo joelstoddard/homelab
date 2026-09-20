@@ -1,59 +1,43 @@
-# Overseerr — the request portal handed to other people, talking to Jellyfin,
+# Seerr — the request portal handed to other people, talking to Jellyfin,
 # Sonarr and Radarr over .svc. It never touches a file, so like Prowlarr it
 # takes no /media mount; docs/design/arr-stack.md carries the rest.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: overseerr
+  name: seerr
   labels:
-    app.kubernetes.io/name: overseerr
+    app.kubernetes.io/name: seerr
 spec:
   replicas: 1
   strategy:
     type: Recreate
   selector:
     matchLabels:
-      app.kubernetes.io/name: overseerr
+      app.kubernetes.io/name: seerr
   template:
     metadata:
       labels:
-        app.kubernetes.io/name: overseerr
+        app.kubernetes.io/name: seerr
     spec:
       nodeSelector:
         kubernetes.io/arch: amd64
-      initContainers:
-        # The image ships config/DOCKER and the claim mounts over it, so
-        # Overseerr's own appDataStatus() check would report the persistent
-        # volume missing. Restoring the marker makes that check accurate.
-        - name: seed-marker
-          image: busybox:1.37.0
-          command:
-            - sh
-            - -c
-            - touch /app/config/DOCKER
-          volumeMounts:
-            - name: config
-              mountPath: /app/config
-          resources:
-            requests:
-              cpu: 10m
-              memory: 16Mi
-            limits:
-              cpu: 100m
-              memory: 32Mi
+      # The image runs as uid 1000 (node), so the Longhorn claim needs a group
+      # the process belongs to or /app/config is read-only to it.
+      securityContext:
+        fsGroup: 1000
       containers:
-        - name: overseerr
-          # Upstream, not LinuxServer: this image is plain node:20-alpine with
-          # no s6-overlay, so it runs as root and honours no PUID/PGID.
-          image: sctx/overseerr:1.35.0
+        - name: seerr
+          # Seerr, not Overseerr: upstream Overseerr is Plex-only, and this
+          # fork is what carries MediaServerType.JELLYFIN.
+          image: seerr/seerr:v3.4.1
           env:
             - name: TZ
               value: Europe/London
           ports:
             - name: http
               containerPort: 5055
-          # /api/v1/status calls the GitHub releases API on every request.
-          # /api/v1/status/appdata keeps the internet out of the liveness probe.
+          # /api/v1/status/appdata, never /api/v1/status: that one reaches the
+          # GitHub releases API, putting the internet behind a liveness probe.
           startupProbe:
             httpGet:
               path: /api/v1/status/appdata
@@ -74,8 +58,9 @@ spec:
             periodSeconds: 30
             failureThreshold: 3
             timeoutSeconds: 10
-          # /app/config, not /config: Overseerr's WORKDIR is /app and its
-          # config directory is relative to it.
+          # /app/config, not /config: Seerr's WORKDIR is /app and its config
+          # directory is relative to it. Mounting here hides the image's
+          # config/DOCKER marker, which is exactly how Seerr detects a volume.
           volumeMounts:
             - name: config
               mountPath: /app/config
@@ -89,37 +74,37 @@ spec:
       volumes:
         - name: config
           persistentVolumeClaim:
-            claimName: overseerr-config
+            claimName: seerr-config
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: overseerr
+  name: seerr
   labels:
-    app.kubernetes.io/name: overseerr
+    app.kubernetes.io/name: seerr
 spec:
   selector:
-    app.kubernetes.io/name: overseerr
+    app.kubernetes.io/name: seerr
   ports:
     - name: http
       port: 5055
       targetPort: http
 ---
-# requests., not overseerr.: this is the name other people are given. No auth
-# middleware — Overseerr authenticates users against their Jellyfin accounts.
+# No auth middleware — Seerr authenticates users against their Jellyfin
+# accounts, which is the whole reason this layer exists.
 apiVersion: traefik.io/v1alpha1
 kind: IngressRoute
 metadata:
-  name: overseerr
+  name: seerr
 spec:
   entryPoints:
     - websecure
   routes:
     - kind: Rule
-      match: Host(`requests.${DOMAIN}`)
+      match: Host(`seerr.${DOMAIN}`)
       middlewares:
         - name: default-headers
           namespace: traefik
       services:
-        - name: overseerr
+        - name: seerr
           port: 5055
