@@ -1,0 +1,15 @@
+# The queue and history SQLite databases, sabnzbd.ini and logs — no artwork and
+# no downloads, which land under /media. No storageClassName: longhorn is the
+# cluster default.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: sabnzbd-config
+  labels:
+    app.kubernetes.io/name: sabnzbd
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 4Gi
