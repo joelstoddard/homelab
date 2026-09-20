@@ -4,8 +4,17 @@ namespace: media
 resources:
   - namespace.yaml
   - secret-jellyfin-exporter.sops.yaml
+  - secret-arr-apikeys.sops.yaml
   - pv-library.yaml
   - pvc-library.yaml
   - pvc-jellyfin-config.yaml
+  - pvc-prowlarr-config.yaml
+  - pvc-sonarr-config.yaml
+  - pvc-radarr-config.yaml
+  - pvc-lidarr-config.yaml
   - jellyfin.yaml
   - jellyfin-exporter.yaml
+  - prowlarr.yaml
+  - sonarr.yaml
+  - radarr.yaml
+  - lidarr.yaml

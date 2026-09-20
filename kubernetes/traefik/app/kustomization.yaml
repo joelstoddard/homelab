@@ -13,6 +13,10 @@ resources:
   - secret-longhorn-auth.sops.yaml
   - secret-glance-auth.sops.yaml
   - secret-qbittorrent-auth.sops.yaml
+  - secret-prowlarr-auth.sops.yaml
+  - secret-sonarr-auth.sops.yaml
+  - secret-radarr-auth.sops.yaml
+  - secret-lidarr-auth.sops.yaml
 configMapGenerator:
   - name: traefik-values
     files:
