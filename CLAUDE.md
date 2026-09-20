@@ -374,8 +374,14 @@ own volumeMount rather than a second PersistentVolume. The namespace is PSA
 as root and drop to `PUID`/`PGID` through s6-overlay. Jellyfin serves
 `jellyfin.${DOMAIN}` from here at `replicas: 1`: its config volume was staged
 through the NFS export out of the standalone `jellyfin/` layer on 2026-09-19,
-verified, and that layer deleted. The \*arr applications and the download
-clients are designed, not deployed. See `docs/design/arr-stack.md`.
+verified, and that layer deleted. Prowlarr, Sonarr, Radarr, Lidarr and Bazarr
+are deployed alongside it, each on its own Longhorn `/config` claim; the
+download clients live in `media-downloads/`, and Recyclarr, Overseerr and
+SABnzbd are designed, not deployed. Bazarr is the one application here that
+ships `auth.type` null, so its UI is open until Settings > General > Security
+is set to Form, and its probes use `/manifest.webmanifest` because every
+catch-all path answers 401 once that is set to Basic. See
+`docs/design/arr-stack.md`.
 Never `kubectl delete kustomization flux-system` — prune would remove Flux
 itself; use `flux uninstall`. Pruning `cilium/` removes the CNI; pruning
 `traefik/` takes every route in the cluster. See `kubernetes/README.md`.
