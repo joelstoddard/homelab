@@ -1,13 +1,7 @@
-# qBittorrent and a Tailscale sidecar in one pod. They share a network
-# namespace, which is the whole mechanism: the client inherits tailscaled's
-# default route and has no other way out (docs/design/arr-stack.md).
-#
-# One replica with strategy Recreate. The config claim is ReadWriteOnce and
-# qBittorrent writes resume data continuously, so a second pod either deadlocks
-# on the volume or corrupts that state.
-#
-# SHIPPED AT ZERO: the three egress tests have not run against a live pod.
-# Scale to 1 only after they pass — docs/design/arr-stack.md, "Bring-up".
+# qBittorrent and a Tailscale sidecar in one network namespace: the client
+# inherits tailscaled's default route and has no other way out, and it ships at
+# replicas 0 so that merging this manifest starts no torrent client.
+# See docs/design/arr-stack.md, "The VPN boundary" and "Bring-up".
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -25,42 +19,28 @@ spec:
     metadata:
       labels:
         app.kubernetes.io/name: qbittorrent
-      # The sidecar's :9002/metrics, for the alloy layer. qBittorrent itself
-      # serves no Prometheus endpoint, and a pod carries one scrape annotation.
+      # The sidecar's metrics port: qBittorrent serves no Prometheus endpoint,
+      # and a pod carries one scrape annotation.
       annotations:
         prometheus.io/scrape: "true"
         prometheus.io/port: "9002"
     spec:
       serviceAccountName: qbittorrent
-      # Following Jellyfin, Loki and Tempo: the Pis' USB-backed Longhorn
-      # replicas are slow under the constant small writes a torrent client
-      # makes to its resume data.
+      # amd64 only, following Jellyfin: the Pis' USB-backed Longhorn replicas
+      # are slow under this client's constant small writes.
       nodeSelector:
         kubernetes.io/arch: amd64
-      # Two init containers, in this order, and the order is the fail-closed
-      # design. The kill switch runs to completion first, so the netns is
-      # already drop-by-default before anything that could leak exists.
-      #
-      # tailscaled follows as a native sidecar — an init container with
-      # restartPolicy Always. The kubelet holds spec.containers until its
-      # startupProbe passes and terminates it last, which closes the window
-      # where qBittorrent resumes torrents while the tunnel is still coming up.
+      # Three init containers, and the order is the fail-closed design: kill
+      # switch, then policy rules, then tailscaled as a native sidecar.
+      # See docs/design/arr-stack.md, "The VPN boundary".
       initContainers:
         - name: killswitch
-          # Distroless, purely for `nft`: the tailscale image ships only the
-          # iptables compatibility binaries, and a rule in the shared `filter`
-          # table would sit in the same table tailscaled manages. No shell in
-          # this image, so the ruleset is a file rather than a command line.
+          # Distroless, purely for `nft`; it ships no shell, so the ruleset is
+          # a file. See docs/design/arr-stack.md, "Inside the ruleset".
           image: registry.k8s.io/build-image/distroless-iptables:v0.9.7
           command: ["/usr/sbin/nft", "-f", "/etc/killswitch/ruleset.nft"]
-          # The rules outlive this container because they live in the pod's
-          # network namespace, which the pause container holds open. They are
-          # not in tailscaled's route table 52 either, so its reconciler never
-          # touches them and a dead or restarting daemon blackholes egress.
-          #
-          # Capabilities are per container, not per pod: this one carries its
-          # own NET_ADMIN, and root because netlink refuses the write without
-          # it (the namespace is PodSecurity privileged for exactly this).
+          # Capabilities are per container, not per pod. Root as well, because
+          # netlink refuses the write without it.
           securityContext:
             runAsUser: 0
             capabilities:
@@ -76,19 +56,40 @@ spec:
             limits:
               cpu: 100m
               memory: 64Mi
-        # No sysctl init container, unlike kubernetes/tailscale/: that one
-        # needs ip_forward because it routes the LAN for other machines. This
-        # node is an exit-node client and forwards nothing.
-        #
-        # No /dev/net/tun mount either. containerboot mknods the device itself
-        # when it is absent, which is how the subnet router already runs on
-        # this cluster — a hostPath CharDevice would be the fallback if that
-        # ever stops working.
+        # Filtering is not routing: the kill switch decides what may leave,
+        # these rules decide which way (docs/design/arr-stack.md, "Traps").
+        - name: iprules
+          image: ghcr.io/tailscale/tailscale:v1.102.3
+          # pref 5100 must stay below tailscaled's 5270 and outside the 52xx
+          # range it reconciles. No dollar sign anywhere in this script: the
+          # manifest is substituted, and envsubst would blank one.
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -eu
+              ip rule del to 10.244.0.0/16 lookup main pref 5100 2>/dev/null || true
+              ip rule add to 10.244.0.0/16 lookup main pref 5100
+              ip rule del to 10.96.0.0/12 lookup main pref 5100 2>/dev/null || true
+              ip rule add to 10.96.0.0/12 lookup main pref 5100
+              ip rule del to 10.0.0.0/20 lookup main pref 5100 2>/dev/null || true
+              ip rule add to 10.0.0.0/20 lookup main pref 5100
+              ip rule list
+          securityContext:
+            runAsUser: 0
+            capabilities:
+              add: ["NET_ADMIN"]
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              cpu: 100m
+              memory: 64Mi
         - name: tailscale
           image: ghcr.io/tailscale/tailscale:v1.102.3
-          # What makes this a native sidecar rather than a second init step:
-          # the kubelet keeps it running alongside spec.containers and stops it
-          # after them.
+          # restartPolicy Always makes this a native sidecar: the kubelet holds
+          # spec.containers until its startupProbe passes, and stops it last.
           restartPolicy: Always
           env:
             - name: TS_AUTHKEY
@@ -106,26 +107,19 @@ spec:
               value: "true"
             - name: TS_USERSPACE
               value: "false"
-            # containerboot already defaults to false; stated because the
-            # default changing would be invisible and expensive. A tailnet DNS
-            # config pushed alongside an exit node rewrites /etc/resolv.conf,
-            # and this pod must keep resolving cluster names.
+            # A tailnet DNS config pushed alongside an exit node rewrites
+            # /etc/resolv.conf, and this pod must resolve cluster names.
             - name: TS_ACCEPT_DNS
               value: "false"
             # Auto-detection picks legacy iptables, whose `filter` table the
-            # Talos kernel does not expose, so tailscaled's rules silently fail
-            # to install. nf_tables is there; use it.
+            # Talos kernel does not expose (docs/design/tailscale-router.md).
             - name: TS_DEBUG_FIREWALL_MODE
               value: nftables
-            # TS_AUTH_ONCE means these flags apply at first enrolment only, so
-            # a later edit here changes nothing on an enrolled pod.
-            #
-            # The pinned node, and the return-path trap that arrives with it:
-            # docs/design/arr-stack.md, "Choosing the exit node" and "Traps".
+            # TS_AUTH_ONCE applies these at first enrolment only. A hostname
+            # exit node needs a netmap, so the postStart hook sets it instead
+            # (docs/design/arr-stack.md, "Choosing the exit node").
             - name: TS_EXTRA_ARGS
-              value: >-
-                --advertise-tags=tag:media-downloads
-                --exit-node=de-dus-wg-101.mullvad.ts.net
+              value: --advertise-tags=tag:media-downloads
             # /healthz and /metrics on TS_LOCAL_ADDR_PORT (default [::]:9002).
             - name: TS_ENABLE_HEALTH_CHECK
               value: "true"
@@ -134,10 +128,26 @@ spec:
           ports:
             - name: metrics
               containerPort: 9002
-          # This is the gate on the whole pod: spec.containers do not start
-          # until /healthz answers 200, which it does once the node has a
-          # tailnet IP. Five minutes of budget, because a first authentication
-          # against the control plane is slower than a reconnect.
+          # The exit node, re-asserted on every start so a recreated state
+          # Secret cannot leave the pod on a bare tailnet
+          # (docs/design/arr-stack.md, "Choosing the exit node").
+          #
+          # 300s matches the startupProbe below and must not be shorter: a
+          # postStart hook gates the container reaching Running, so a smaller
+          # bound would silently pre-empt that probe.
+          #
+          # No dollar sign in this script, so `timeout` around `until` rather
+          # than a counter: envsubst would blank a shell variable.
+          lifecycle:
+            postStart:
+              exec:
+                command:
+                  - /bin/sh
+                  - -c
+                  - |
+                    timeout 300 sh -c 'until tailscale set --exit-node=de-dus-wg-101.mullvad.ts.net; do sleep 5; done'
+          # The gate on the whole pod: spec.containers wait for a tailnet IP.
+          # Five minutes, because first authentication is slower than reconnect.
           startupProbe:
             httpGet:
               path: /healthz
@@ -146,8 +156,7 @@ spec:
             failureThreshold: 60
             timeoutSeconds: 5
           # A wedged tailscaled restarts rather than leaving a tunnel that is
-          # up in name only. The restart is safe to take now: the kill switch
-          # is in the netns, so the gap is dead air rather than a leak.
+          # up in name only; the kill switch makes the gap dead air, not a leak.
           livenessProbe:
             httpGet:
               path: /healthz
@@ -162,10 +171,8 @@ spec:
             requests:
               cpu: 50m
               memory: 64Mi
-            # The subnet router's figures, and they are a floor rather than a
-            # guess: wireguard-go encrypts in userspace, so throughput is
-            # CPU-bound and a throttled container delays the /healthz handler
-            # into a liveness restart.
+            # The subnet router's figures, and a floor: wireguard-go encrypts
+            # in userspace, so throttling delays /healthz into a restart.
             limits:
               cpu: "1"
               memory: 256Mi
@@ -187,8 +194,8 @@ spec:
             - name: http
               containerPort: 8080
           # Every timeoutSeconds is explicit: the 1 s default is not enough for
-          # an application checking its resume data over NFS, which is the
-          # mistake Jellyfin's probes shipped with (docs/design/jellyfin.md).
+          # an application checking resume data over NFS
+          # (docs/design/jellyfin.md).
           readinessProbe:
             httpGet:
               path: /
@@ -203,9 +210,8 @@ spec:
             failureThreshold: 3
             timeoutSeconds: 10
           volumeMounts:
-            # /media/downloads, matching byte for byte what the *arr
-            # applications see through their own root mount. That identity is
-            # what removes every Remote Path Mapping.
+            # Byte for byte what the *arr applications see through their own
+            # root mount, which is what removes every Remote Path Mapping.
             - name: downloads
               mountPath: /media/downloads
             - name: config
@@ -214,9 +220,8 @@ spec:
             requests:
               cpu: 100m
               memory: 256Mi
-            # Both halves on every container, never BestEffort: Talos's OOM
-            # controller kills BestEffort first, and that is how a memory spike
-            # once wedged a node's Longhorn transport.
+            # Never BestEffort: Talos's OOM controller kills BestEffort first,
+            # and that once wedged a node's Longhorn transport.
             limits:
               cpu: "2"
               memory: 1Gi
@@ -247,18 +252,9 @@ spec:
       port: 8080
       targetPort: http
 ---
-# No Certificate and no tls.secretName: TLSStore/default serves the wildcard
-# and Pi-hole's address wildcard already resolves the name, so a new service
-# needs one route and nothing else (docs/design/ingress-tls.md).
-#
-# qbittorrent-auth is this service's own Middleware and credential, following
-# dashboard-auth, longhorn-auth and glance-auth. One per service, never shared:
-# a leak from one would otherwise expose the rest.
-#
-# First-run trap, unrelated to Traefik: qBittorrent validates the Host header
-# and answers a proxied hostname with 401 until the domain is whitelisted in
-# its WebUI settings. It is written at runtime into the config volume, so it is
-# a bring-up step rather than a manifest.
+# One route and nothing else: TLSStore/default serves the wildcard and Pi-hole
+# already resolves the name (docs/design/ingress-tls.md). qbittorrent-auth is
+# this service's own Middleware and credential, never shared.
 apiVersion: traefik.io/v1alpha1
 kind: IngressRoute
 metadata:
