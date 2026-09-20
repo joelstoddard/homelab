@@ -91,6 +91,25 @@ keyed_groups:
     separator: ''
     key: "tags | default([]) | select('eq','alloy') | first | default('')"
 
+  # Tag `dns` → group `dns`, every link of the DNS chain. Same shape again.
+  - prefix: ''
+    separator: ''
+    key: "tags | default([]) | select('eq','dns') | first | default('')"
+
+  # Each link is its own container, so each gets its own group on top of
+  # `dns`: roles/dns dispatches its task files on these.
+  - prefix: ''
+    separator: ''
+    key: "tags | default([]) | select('eq','pihole') | first | default('')"
+
+  - prefix: ''
+    separator: ''
+    key: "tags | default([]) | select('eq','lancache') | first | default('')"
+
+  - prefix: ''
+    separator: ''
+    key: "tags | default([]) | select('eq','bind9') | first | default('')"
+
   # Device type slug → nucs / pis. Non-matching slugs → '' (no group created).
   - prefix: ''
     separator: ''
