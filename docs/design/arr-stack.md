@@ -527,6 +527,30 @@ than an auth check:
 | `/`, and every catch-all path | 200 | 200 | **401** |
 | `/manifest.webmanifest` | 200 | 200 | 200 |
 
+#### Bazarr probes
+
+The path is only half of it; the tolerances are the other half, and the first
+attempt got them wrong. Bazarr serves HTTP from the same thread that syncs from
+Sonarr and searches providers, so a library-wide sync stops it answering
+entirely — not slowly, but not at all. Importing 83 series and 3,892 episode
+files held it silent for minutes at a stretch, a `livenessProbe` of
+`failureThreshold: 3` at `timeoutSeconds: 10` expired, and the kubelet killed
+it. On restart it resumed the same sync and was killed again: four restarts
+before the cause was read off `kubectl describe`.
+
+The kill presents as `Reason: Completed, Exit Code: 0`, because s6 handles the
+SIGTERM cleanly. **That looks like a healthy shutdown and is not one** — the
+evidence is `Liveness probe failed: context deadline exceeded` in the pod
+events, nowhere else.
+
+So liveness now tolerates about five minutes of silence
+(`failureThreshold: 10` at `periodSeconds: 30`, `timeoutSeconds: 30`) and
+startup ten. For a single-replica application on a ReadWriteOnce claim,
+restarting a *busy* process costs more than it recovers: it throws away
+in-progress work and re-enters the same loop. The probe still catches a
+genuinely hung process, just not a working one. Jellyfin's `docs/design/`
+history carries the same lesson from PR #104.
+
 None of this touches inter-application sync either way: Prowlarr → Sonarr and
 Bazarr → Radarr traffic resolves over `.svc` and never traverses Traefik.
 
