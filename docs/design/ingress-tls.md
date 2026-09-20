@@ -55,7 +55,7 @@ not here. Until it lands, a remote client gets NXDOMAIN, not a routing error.
   `kubernetesIngress` for charts that only emit an `Ingress` (Longhorn is the
   first). `wait: true`.
 - **`traefik-middlewares`** — the shared `default-headers` plus one basic-auth
-  `Middleware` per service, `dependsOn: traefik`.
+  `Middleware` per service that has no login of its own, `dependsOn: traefik`.
 
 **Two of those five layers exist only because of one hazard, the `cilium` /
 `cilium-lb` call again: a CR cannot be applied before its CRD is Established,
@@ -172,6 +172,15 @@ volumes.
 Per-service passwords stop reuse; they do not give per-user identity, revocation
 or MFA, and they are a stopgap rather than an auth system. The real answer is
 forward-auth against an IdP — the Kanidm entry in `TODO.md`.
+
+**The rule is scoped to services with no login of their own**, and more of them
+clear that bar than not. Jellyfin, SearXNG, Home Assistant, the four \*arr
+applications and qBittorrent all authenticate themselves, so their routes carry
+`default-headers` alone; `dashboard-auth`, `longhorn-auth` and `glance-auth` are
+the whole of this layer's basic auth. A credential in front of an application
+that already has one is a second prompt and no security — the four \*arr
+middlewares and qBittorrent's were removed on that basis on 2026-09-20
+(`docs/design/arr-stack.md`).
 
 `default-headers` sets HSTS (`stsSeconds: 31536000`, `stsIncludeSubdomains`)
 plus `frameDeny`, `contentTypeNosniff`, `browserXssFilter`. **`stsPreload` is
