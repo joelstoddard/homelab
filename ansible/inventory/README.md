@@ -29,6 +29,8 @@ The dynamic inventory produces these bare-named groups via `keyed_groups`:
 | `proxmox` / `talos` / `truenas` | `platform.slug` |
 | `pxe` | tag `pxe` |
 | `alloy` | tag `alloy` (same mechanism as `pxe`) |
+| `dns` | tag `dns` (same mechanism as `pxe`) |
+| `pihole` / `lancache` / `bind9` | tag of the same name; one per DNS chain link |
 | `nucs` | `device_type` slug matching `^nuc` |
 | `pis` | `device_type` slug matching `^pi-` |
 
@@ -56,6 +58,14 @@ VM with platform `debian`, tagged `alloy` — that tag is all NetBox needs;
 `ansible/inventory/group_vars/alloy.yaml` sets `ansible_user: root` for the
 whole `alloy` group, not per-host. See `ansible/roles/alloy/README.md` for
 the SOPS-encrypted group vars the `alloy` group also needs.
+
+The DNS chain is modelled the same way: VMs with platform `debian`, tagged
+`dns` plus the tag for their link (`pihole`, `lancache` or `bind9`), with
+`group_vars/dns.yaml` setting `ansible_user: root`. Tag
+them `alloy` as well only once the LXC exists — the inventory applies no
+status filter, so a VM still at status `planned` joins its groups
+immediately and `make -C ansible apply-alloy` would then try to reach a host
+that has not been built. See `ansible/roles/dns/README.md`.
 
 ## Bootstrap fallback: static inventory files
 

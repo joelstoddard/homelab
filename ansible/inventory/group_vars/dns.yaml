@@ -1,0 +1,5 @@
+---
+# The appliances are tofu-built Debian containers whose only account is root.
+# This can't live in the SOPS file next to it — sops vars only load at task
+# stage, too late for a connection var.
+ansible_user: root
