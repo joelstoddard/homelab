@@ -1,0 +1,23 @@
+// Managed by ansible (roles/dns). See docs/design/dns-chain.md.
+
+zone "{{ dns_domain }}" IN {
+    type master;
+    file "/etc/bind/db.{{ dns_domain }}";
+    notify no;
+};
+
+{% if dns_passthrough_names | default([]) | length > 0 %}
+// Names under the domain that public DNS really hosts. BIND selects the
+// deepest matching zone, so these beat the wildcard in the zone above.
+{% for name in dns_passthrough_names %}
+zone "{{ name }}" IN {
+    type forward;
+    forward only;
+    forwarders {
+{% for f in dns_public_forwarders %}
+        {{ f }};
+{% endfor %}
+    };
+};
+{% endfor %}
+{% endif %}

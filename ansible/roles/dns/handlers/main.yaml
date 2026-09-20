@@ -1,0 +1,7 @@
+---
+# Debian's named.service maps ExecReload to `rndc reload`, which re-reads the
+# zone without dropping queries. A restart blackholes the LAN for a second.
+- name: Reload named
+  ansible.builtin.systemd:
+    name: named
+    state: reloaded

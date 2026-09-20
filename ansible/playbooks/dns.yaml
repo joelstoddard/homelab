@@ -1,0 +1,29 @@
+---
+# Every link of the DNS chain — the hosts tagged `dns` in NetBox, which
+# main.yaml cannot reach. See docs/design/dns-chain.md.
+
+# A play whose pattern matches no host is skipped whole, pre_tasks included,
+# and exits 0; only a play on localhost can turn "nothing tagged" into a failure.
+- name: Require a pair at every configured link of the chain.
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tasks:
+    - name: Check each link has two hosts.
+      # One instance of any link is a single point of failure for all LAN
+      # name resolution, which is the condition the pairs exist to remove.
+      ansible.builtin.assert:
+        that: groups[item] | default([]) | length > 1
+        fail_msg: >-
+          Fewer than two hosts in the '{{ item }}' group — tag both instances
+          in NetBox before running this playbook.
+      loop: "{{ ['pihole', 'lancache', 'bind9'] | select('in', groups) | list }}"
+
+- name: Configure the DNS chain.
+  hosts: dns:!talos
+  become: true
+  # Never reconfigure both instances of a link at once. upgrade.yaml and
+  # resize.yaml take the same trade.
+  serial: 1
+  roles:
+    - dns

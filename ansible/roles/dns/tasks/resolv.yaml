@@ -1,0 +1,30 @@
+---
+# A link that resolves through the chain deadlocks a cold rebuild. This
+# asserts and never repairs: see docs/design/dns-chain.md.
+
+- name: Collect the chain's own addresses.
+  ansible.builtin.set_fact:
+    _dns_self_addresses: >-
+      {{ ((dns_bind9_addresses | default({}))
+          | combine(dns_pihole_addresses | default({}))
+          | combine(dns_lancache_addresses | default({}))).values() | list
+         + [dns_pihole_vip | default('', true)]
+         | select('string') | reject('equalto', '') | list }}
+
+- name: Check /etc/resolv.conf for a chain address.
+  ansible.builtin.lineinfile:
+    path: /etc/resolv.conf
+    state: absent
+    regexp: "^\\s*nameserver\\s+({{ _dns_self_addresses | map('regex_escape') | join('|') }})\\s*$"
+  check_mode: true
+  changed_when: false
+  register: _dns_resolv_selfref
+
+- name: Fail when the link resolves through the chain.
+  ansible.builtin.assert:
+    that: (_dns_resolv_selfref.found | default(0)) == 0
+    fail_msg: >-
+      /etc/resolv.conf on {{ inventory_hostname }} points into the DNS chain,
+      which deadlocks a cold rebuild. Set the resolvers in the Proxmox
+      container config (opentofu/modules/lxc `dns_servers`) and re-apply the
+      LXC — editing the file here does not survive the next `pct start`.

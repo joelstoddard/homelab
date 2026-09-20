@@ -1,0 +1,25 @@
+---
+# The DNS chain. See docs/design/dns-chain.md.
+
+# Bind9 is the last link before the public resolvers, so it forwards straight
+# out. BIND tries forwarders in the order listed, and Quad9 filters known
+# malicious domains before Mullvad answers.
+dns_public_forwarders:
+  - "9.9.9.9"
+  - "194.242.2.2"
+
+# The hosts allowed to query Bind9: the lancache-dns pair, which forwards to
+# it, and the Pi-hole pair, which reaches it directly when lancache-dns is
+# down. No client ever queries it.
+dns_bind9_clients: >-
+  {{ (dns_lancache_addresses | default({}) | dict2items | map(attribute='value') | list)
+     + (dns_pihole_addresses | default({}) | dict2items | map(attribute='value') | list) }}
+
+# Refresh, retry and expire describe a secondary that does not exist. The
+# record and negative-cache TTLs are short so a changed ingress recovers fast.
+dns_zone_ttl: 300
+dns_zone_refresh: 3600
+dns_zone_retry: 600
+dns_zone_expire: 604800
+dns_zone_negative_ttl: 60
+dns_zone_rname: "hostmaster"

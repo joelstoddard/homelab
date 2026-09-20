@@ -42,6 +42,8 @@ help:
 	@echo "  apply-resize	- Power-cycle Talos VMs onto a new Proxmox geometry, serially (EXTRA_VARS resize_hosts)."
 	@echo "  check-alloy	- Dry run the Grafana Alloy install on the tagged hosts."
 	@echo "  apply-alloy	- Install Grafana Alloy on the Proxmox NUCs and the Pi-hole LXC."
+	@echo "  check-dns	- Dry run the DNS appliance config (bind9)."
+	@echo "  apply-dns	- Configure the DNS appliances tagged dns in NetBox."
 	@echo "  kubeconfig	- Merge the cluster context into this machine's ~/.kube/config (OPERATOR_SSH=user@host)."
 	@echo "  ping     	- Ping hosts."
 	@echo "  clean    	- Clean temporary files."
@@ -190,6 +192,20 @@ check-alloy:
 .PHONY: apply-alloy
 apply-alloy:
 	$(VENV)/bin/ansible-playbook playbooks/alloy.yaml \
+		$(if $(LIMIT),--limit=$(LIMIT)) \
+		$(if $(VERBOSITY),-$(VERBOSITY)) \
+		$(if $(EXTRA_VARS),--extra-vars='$(EXTRA_VARS)')
+
+.PHONY: check-dns
+check-dns:
+	$(VENV)/bin/ansible-playbook playbooks/dns.yaml --check --diff \
+		$(if $(LIMIT),--limit=$(LIMIT)) \
+		$(if $(VERBOSITY),-$(VERBOSITY)) \
+		$(if $(EXTRA_VARS),--extra-vars='$(EXTRA_VARS)')
+
+.PHONY: apply-dns
+apply-dns:
+	$(VENV)/bin/ansible-playbook playbooks/dns.yaml \
 		$(if $(LIMIT),--limit=$(LIMIT)) \
 		$(if $(VERBOSITY),-$(VERBOSITY)) \
 		$(if $(EXTRA_VARS),--extra-vars='$(EXTRA_VARS)')
