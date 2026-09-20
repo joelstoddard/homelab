@@ -1,0 +1,110 @@
+# Seerr — the request portal handed to other people, talking to Jellyfin,
+# Sonarr and Radarr over .svc. It never touches a file, so like Prowlarr it
+# takes no /media mount; docs/design/arr-stack.md carries the rest.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: seerr
+  labels:
+    app.kubernetes.io/name: seerr
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: seerr
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: seerr
+    spec:
+      nodeSelector:
+        kubernetes.io/arch: amd64
+      # The image runs as uid 1000 (node), so the Longhorn claim needs a group
+      # the process belongs to or /app/config is read-only to it.
+      securityContext:
+        fsGroup: 1000
+      containers:
+        - name: seerr
+          # Seerr, not Overseerr: upstream Overseerr is Plex-only, and this
+          # fork is what carries MediaServerType.JELLYFIN.
+          image: seerr/seerr:v3.4.1
+          env:
+            - name: TZ
+              value: Europe/London
+          ports:
+            - name: http
+              containerPort: 5055
+          # /api/v1/status/appdata, never /api/v1/status: that one reaches the
+          # GitHub releases API, putting the internet behind a liveness probe.
+          startupProbe:
+            httpGet:
+              path: /api/v1/status/appdata
+              port: http
+            periodSeconds: 10
+            failureThreshold: 30
+            timeoutSeconds: 5
+          readinessProbe:
+            httpGet:
+              path: /api/v1/status/appdata
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /api/v1/status/appdata
+              port: http
+            periodSeconds: 30
+            failureThreshold: 3
+            timeoutSeconds: 10
+          # /app/config, not /config: Seerr's WORKDIR is /app and its config
+          # directory is relative to it. Mounting here hides the image's
+          # config/DOCKER marker, which is exactly how Seerr detects a volume.
+          volumeMounts:
+            - name: config
+              mountPath: /app/config
+          resources:
+            requests:
+              cpu: 100m
+              memory: 512Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+      volumes:
+        - name: config
+          persistentVolumeClaim:
+            claimName: seerr-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: seerr
+  labels:
+    app.kubernetes.io/name: seerr
+spec:
+  selector:
+    app.kubernetes.io/name: seerr
+  ports:
+    - name: http
+      port: 5055
+      targetPort: http
+---
+# No auth middleware — Seerr authenticates users against their Jellyfin
+# accounts, which is the whole reason this layer exists.
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: seerr
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - kind: Rule
+      match: Host(`seerr.${DOMAIN}`)
+      middlewares:
+        - name: default-headers
+          namespace: traefik
+      services:
+        - name: seerr
+          port: 5055

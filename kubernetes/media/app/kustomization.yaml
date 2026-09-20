@@ -12,12 +12,16 @@ resources:
   - pvc-sonarr-config.yaml
   - pvc-radarr-config.yaml
   - pvc-lidarr-config.yaml
+  - pvc-bazarr-config.yaml
+  - pvc-seerr-config.yaml
   - jellyfin.yaml
   - jellyfin-exporter.yaml
   - prowlarr.yaml
   - sonarr.yaml
   - radarr.yaml
   - lidarr.yaml
+  - bazarr.yaml
+  - seerr.yaml
   - recyclarr.yaml
 # Recyclarr's config, hashed so an edit rolls the next job. Substitution is
 # disabled: the file is embedded verbatim and envsubst would eat its `$schema`.

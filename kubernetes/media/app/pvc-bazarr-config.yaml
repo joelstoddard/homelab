@@ -1,0 +1,14 @@
+# The SQLite database, logs and the provider cache. Bazarr proxies artwork from
+# Sonarr and Radarr instead of storing it, so this claim is smaller than theirs.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: bazarr-config
+  labels:
+    app.kubernetes.io/name: bazarr
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 4Gi

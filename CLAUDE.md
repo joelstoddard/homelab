@@ -374,14 +374,26 @@ own volumeMount rather than a second PersistentVolume. The namespace is PSA
 as root and drop to `PUID`/`PGID` through s6-overlay. Jellyfin serves
 `jellyfin.${DOMAIN}` from here at `replicas: 1`: its config volume was staged
 through the NFS export out of the standalone `jellyfin/` layer on 2026-09-19,
-verified, and that layer deleted. Prowlarr, Sonarr, Radarr and Lidarr are
-deployed alongside it, each `replicas: 1` on its own Longhorn `/config` claim.
-Recyclarr is the one `CronJob` here — it syncs the TRaSH quality profiles and
-custom formats into Sonarr and Radarr daily and exits, so it has no Service,
-route or claim. Its config is a ConfigMap with substitution disabled, and two
-things bite: instance names must be unique **across** services (a duplicate
-syncs nothing and still exits 0), and it needs `tty: true` or it logs no
-report at all. See `docs/design/arr-stack.md`.
+verified, and that layer deleted. Prowlarr, Sonarr, Radarr, Lidarr, Bazarr and
+Seerr are deployed alongside it, each on its own Longhorn `/config` claim; the
+download clients live in `media-downloads/`, and SABnzbd alone is designed, not
+deployed. Seerr is the request portal on `seerr.${DOMAIN}` and, like Recyclarr,
+not a LinuxServer image: it runs as uid 1000 so
+its claim needs `fsGroup`, config is at `/app/config`, and probes use
+`/api/v1/status/appdata` because `/api/v1/status` reaches the GitHub API. It
+must be Seerr (`seerr/seerr`, the renamed Jellyseerr) and not upstream
+Overseerr, which is Plex-only; mounting the claim hides the image's
+`config/DOCKER` marker, and that absence is how Seerr detects the volume, so
+restoring it causes the warning it looks like it would fix. Bazarr
+is the one application here that ships `auth.type` null, so its UI is open
+until Settings > General > Security is set to Form, and its probes use
+`/manifest.webmanifest` because every catch-all path answers 401 once that is
+set to Basic. Recyclarr is the one `CronJob` here — it syncs the TRaSH quality
+profiles and custom formats into Sonarr and Radarr daily and exits, so it has
+no Service, route or claim. Its config is a ConfigMap with substitution
+disabled, and two things bite: instance names must be unique **across**
+services (a duplicate syncs nothing and still exits 0), and it needs
+`tty: true` or it logs no report at all. See `docs/design/arr-stack.md`.
 Never `kubectl delete kustomization flux-system` — prune would remove Flux
 itself; use `flux uninstall`. Pruning `cilium/` removes the CNI; pruning
 `traefik/` takes every route in the cluster. See `kubernetes/README.md`.
