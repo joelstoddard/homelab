@@ -1,0 +1,34 @@
+---
+# The DNS chain. See docs/design/dns-chain.md.
+#
+# An OS-named library role, invoked from playbooks/dns.yaml and dispatched by
+# group membership the way 02-preflights dispatches per-OS work. Each link of
+# the chain is its own container, so each gets its own task file.
+
+- name: Load the dns group vars (SOPS-encrypted).
+  # ansible.cfg does not enable the sops vars plugin, so this file never
+  # auto-loads. roles/alloy/tasks/main.yaml loads its own the same way.
+  community.sops.load_vars:
+    file: "{{ inventory_dir }}/group_vars/dns.sops.yaml"
+  no_log: true
+
+- name: Require the chain inputs.
+  ansible.builtin.assert:
+    that:
+      - dns_domain is defined
+      - dns_domain | length > 0
+      - dns_traefik_lb_ip is defined
+      - dns_traefik_lb_ip | length > 0
+      - dns_bind9_addresses is defined
+      - dns_bind9_addresses | length > 0
+    fail_msg: >-
+      dns_domain, dns_traefik_lb_ip and dns_bind9_addresses must be set — see
+      the "Group variables" section of ansible/roles/dns/README.md.
+
+- name: Refuse to configure a link that resolves through the chain.
+  ansible.builtin.import_tasks: resolv.yaml
+
+- name: Serve the authoritative zone from Bind9.
+  ansible.builtin.import_tasks: bind9.yaml
+  when: "'bind9' in group_names"
+  tags: [bind9]

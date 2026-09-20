@@ -1,0 +1,82 @@
+---
+# Bind9: authoritative for the LAN domain, and the chain's last link before
+# the public resolvers. See docs/design/dns-chain.md.
+#
+# Package, not container: named-checkconf and named-checkzone work as
+# `validate:` hooks, so a bad zone fails the play instead of the resolver.
+
+- name: Install Bind9.
+  ansible.builtin.apt:
+    name:
+      - bind9
+      - bind9-utils
+      - bind9-dnsutils
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Render named.conf.options.
+  ansible.builtin.template:
+    src: named.conf.options.j2
+    dest: /etc/bind/named.conf.options
+    owner: root
+    group: bind
+    mode: "0644"
+    validate: "named-checkconf %s"
+  notify: Reload named
+
+- name: Render the authoritative zone.
+  # Rendered before named.conf.local, which points at it. named-checkconf
+  # reads the zone files it is given, so the reverse order fails validation.
+  ansible.builtin.template:
+    src: db.zone.j2
+    dest: "/etc/bind/db.{{ dns_domain }}"
+    owner: root
+    group: bind
+    mode: "0644"
+    validate: "named-checkzone {{ dns_domain }} %s"
+  notify: Reload named
+
+- name: Render named.conf.local.
+  ansible.builtin.template:
+    src: named.conf.local.j2
+    dest: /etc/bind/named.conf.local
+    owner: root
+    group: bind
+    mode: "0644"
+    validate: "named-checkconf %s"
+  notify: Reload named
+
+- name: Enable and start named.
+  ansible.builtin.systemd:
+    name: named
+    enabled: true
+    state: started
+
+- name: Reload named now, so the checks below see the new zone.
+  ansible.builtin.meta: flush_handlers
+
+- name: Confirm the wildcard answers on this instance.
+  # A reload that silently kept the previous zone passes every task above.
+  ansible.builtin.command:
+    cmd: >-
+      dig +short +tries=1 +time=2
+      @{{ dns_bind9_addresses[inventory_hostname] }}
+      dns-role-check.{{ dns_domain }} A
+  register: _dns_wildcard_check
+  changed_when: false
+  failed_when: _dns_wildcard_check.stdout | trim != dns_traefik_lb_ip
+
+- name: Confirm Bind9 refuses a host outside the chain.
+  # Run from the operator, which is not in the dns_chain ACL. The guard
+  # against a future edit making this an open resolver on a flat LAN.
+  ansible.builtin.command:
+    cmd: >-
+      dig +short +tries=1 +time=2
+      @{{ dns_bind9_addresses[inventory_hostname] }}
+      dns-role-check.{{ dns_domain }} A
+  delegate_to: localhost
+  become: false
+  register: _dns_acl_check
+  changed_when: false
+  failed_when: _dns_acl_check.stdout | trim | length > 0

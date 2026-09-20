@@ -1,0 +1,48 @@
+// Managed by ansible (roles/dns). See docs/design/dns-chain.md.
+
+// lancache-dns forwards here; Pi-hole reaches here directly when lancache-dns
+// is down. A resolver on a flat LAN must never answer anything else.
+acl dns_chain {
+    localhost;
+{% for addr in dns_bind9_clients %}
+    {{ addr }};
+{% endfor %}
+};
+
+options {
+    directory "/var/cache/bind";
+
+    listen-on { {{ dns_bind9_addresses[inventory_hostname] }}; 127.0.0.1; };
+    listen-on-v6 { none; };
+
+    allow-query       { dns_chain; };
+    allow-recursion   { dns_chain; };
+    allow-query-cache { dns_chain; };
+    recursion yes;
+
+    forwarders {
+{% for f in dns_public_forwarders %}
+        {{ f }};
+{% endfor %}
+    };
+    forward only;
+
+    // Validation stays on, and that is why this link sits below lancache-dns
+    // rather than above it. See docs/design/dns-chain.md.
+    dnssec-validation auto;
+
+    // The one exception. This server is authoritative for an unsigned copy of
+    // a name whose public zone may be signed, so a forwarded answer for a
+    // passthrough name would chain to a DNSKEY it can never find.
+    validate-except { "{{ dns_domain }}"; };
+
+    // Both instances render this zone from git, so nothing transfers it.
+    allow-transfer { none; };
+    allow-update   { none; };
+
+    max-cache-size 64m;
+    minimal-responses yes;
+    version   none;
+    hostname  none;
+    server-id none;
+};

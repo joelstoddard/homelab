@@ -1,0 +1,33 @@
+{#
+  The authoritative LAN zone. See docs/design/dns-chain.md.
+
+  The serial is a content hash, not a date: nothing transfers this zone, so
+  the serial only has to change when the content does. Switch to YYYYMMDDNN
+  before adding any secondary.
+#}
+{% set _fingerprint = [dns_domain, dns_traefik_lb_ip,
+                       dns_bind9_addresses | dictsort] | to_json %}
+{% set _serial = (_fingerprint | hash('sha1'))[0:8] | int(base=16) % 4294967294 + 1 %}
+$TTL {{ dns_zone_ttl }}
+@   IN SOA ns1.{{ dns_domain }}. {{ dns_zone_rname }}.{{ dns_domain }}. (
+        {{ _serial }} ; serial
+        {{ dns_zone_refresh }} ; refresh
+        {{ dns_zone_retry }} ; retry
+        {{ dns_zone_expire }} ; expire
+        {{ dns_zone_negative_ttl }} ) ; negative cache TTL
+
+{% for host in dns_bind9_addresses | sort %}
+    IN NS ns{{ loop.index }}.{{ dns_domain }}.
+{% endfor %}
+{% for host in dns_bind9_addresses | sort %}
+ns{{ loop.index }} IN A {{ dns_bind9_addresses[host] }}
+{% endfor %}
+
+; Every cluster service, by one wildcard. Adding a service is one route
+; object and nothing else.
+@   IN A {{ dns_traefik_lb_ip }}
+*   IN A {{ dns_traefik_lb_ip }}
+
+; Static records go below, in zone format. An explicit record shadows the
+; wildcard, so never add a host that kubernetes/lan-services/ fronts: the
+; name would reach the host directly and serve its own certificate.
