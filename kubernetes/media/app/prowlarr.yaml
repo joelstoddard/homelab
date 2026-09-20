@@ -1,0 +1,118 @@
+# Prowlarr — indexers declared once here and synced to the other three over
+# .svc, which basic auth on the route never touches. docs/design/arr-stack.md
+# carries the rationale for the shape all four share: Recreate on a SQLite
+# ReadWriteOnce claim, amd64, PUID/PGID, probe timeouts, and requests plus
+# limits on every container.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: prowlarr
+  labels:
+    app.kubernetes.io/name: prowlarr
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: prowlarr
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: prowlarr
+    spec:
+      nodeSelector:
+        kubernetes.io/arch: amd64
+      containers:
+        - name: prowlarr
+          image: lscr.io/linuxserver/prowlarr:2.6.5.5623-ls161
+          env:
+            - name: PUID
+              value: "1000"
+            - name: PGID
+              value: "1000"
+            - name: TZ
+              value: Europe/London
+            # Binds Prowlarr:Auth:ApiKey. The name is version-dependent and a
+            # wrong one fails silently — the application generates its own key.
+            - name: PROWLARR__AUTH__APIKEY
+              valueFrom:
+                secretKeyRef:
+                  name: arr-apikeys
+                  key: PROWLARR_API_KEY
+          ports:
+            - name: http
+              containerPort: 9696
+          startupProbe:
+            httpGet:
+              path: /ping
+              port: http
+            periodSeconds: 10
+            failureThreshold: 30
+            timeoutSeconds: 5
+          readinessProbe:
+            httpGet:
+              path: /ping
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /ping
+              port: http
+            periodSeconds: 30
+            failureThreshold: 3
+            timeoutSeconds: 10
+          # No /media mount, deliberately: Prowlarr manages indexers and never
+          # touches a file, so mounting the export would only add a pod a NAS
+          # outage can wedge on the `hard` mount (docs/design/jellyfin.md).
+          volumeMounts:
+            - name: config
+              mountPath: /config
+          resources:
+            requests:
+              cpu: 50m
+              memory: 256Mi
+            limits:
+              cpu: "1"
+              memory: 512Mi
+      volumes:
+        - name: config
+          persistentVolumeClaim:
+            claimName: prowlarr-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: prowlarr
+  labels:
+    app.kubernetes.io/name: prowlarr
+spec:
+  selector:
+    app.kubernetes.io/name: prowlarr
+  ports:
+    - name: http
+      port: 9696
+      targetPort: http
+---
+# No Certificate and no tls.secretName: TLSStore/default serves the wildcard
+# and Pi-hole already resolves the name. prowlarr-auth is this service's own
+# Middleware and credential, never shared (docs/design/ingress-tls.md).
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: prowlarr
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - kind: Rule
+      match: Host(`prowlarr.${DOMAIN}`)
+      middlewares:
+        - name: default-headers
+          namespace: traefik
+        - name: prowlarr-auth
+          namespace: traefik
+      services:
+        - name: prowlarr
+          port: 9696

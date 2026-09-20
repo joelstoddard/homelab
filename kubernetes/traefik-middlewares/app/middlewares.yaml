@@ -62,3 +62,35 @@ metadata:
 spec:
   basicAuth:
     secret: qbittorrent-auth-users
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: prowlarr-auth
+spec:
+  basicAuth:
+    secret: prowlarr-auth-users
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: sonarr-auth
+spec:
+  basicAuth:
+    secret: sonarr-auth-users
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: radarr-auth
+spec:
+  basicAuth:
+    secret: radarr-auth-users
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: lidarr-auth
+spec:
+  basicAuth:
+    secret: lidarr-auth-users

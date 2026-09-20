@@ -1,0 +1,15 @@
+# Indexer definitions, the SQLite database and logs — no artwork, so this is
+# the smallest of the four. No storageClassName: longhorn is the cluster
+# default, and three replicas across three physical hosts is the durability.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: prowlarr-config
+  labels:
+    app.kubernetes.io/name: prowlarr
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 2Gi

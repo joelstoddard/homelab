@@ -1,6 +1,6 @@
 # qBittorrent and a Tailscale sidecar in one network namespace: the client
-# inherits tailscaled's default route and has no other way out, and it ships at
-# replicas 0 so that merging this manifest starts no torrent client.
+# inherits tailscaled's default route and has no other way out, which the leak,
+# reachability and kill-switch tests confirmed on 2026-09-19.
 # See docs/design/arr-stack.md, "The VPN boundary" and "Bring-up".
 apiVersion: apps/v1
 kind: Deployment
@@ -9,7 +9,7 @@ metadata:
   labels:
     app.kubernetes.io/name: qbittorrent
 spec:
-  replicas: 0
+  replicas: 1
   strategy:
     type: Recreate
   selector:

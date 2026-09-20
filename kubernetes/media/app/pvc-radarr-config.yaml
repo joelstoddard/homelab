@@ -1,0 +1,15 @@
+# The SQLite database and MediaCover, which is artwork per movie and grows
+# with the library. Expanding this under a live database is a maintenance job,
+# so it is sized for growth rather than for today.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: radarr-config
+  labels:
+    app.kubernetes.io/name: radarr
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 8Gi

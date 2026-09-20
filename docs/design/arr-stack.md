@@ -5,10 +5,9 @@ two download clients, and Jellyfin, all sharing one read-write NFS volume from
 `voyager` so that an import is a hardlink rather than a copy. This document is
 the design for all of that.
 
-The foundation, Jellyfin and the `media-downloads` layer are deployed — the
-last of those verified live on 2026-09-19 and then scaled back to zero.
-Everything else here is intent, and is written in the future tense to keep the
-two apart.
+The foundation, Jellyfin, the four core \*arr applications and the
+`media-downloads` layer are deployed. Bazarr, Recyclarr, Overseerr and SABnzbd
+are still intent, and are written in the future tense to keep the two apart.
 
 | Piece | State |
 | --- | --- |
@@ -17,12 +16,13 @@ two apart.
 | Jellyfin in `media`, `replicas: 1`, on `jellyfin.${DOMAIN}` | deployed, serving |
 | Migrating Jellyfin's config volume across, and the cutover | done, 2026-09-19 |
 | The `downloads/` tree and the narrower volume over it | deployed |
-| `media-downloads`, qBittorrent behind Mullvad via Tailscale | deployed and verified 2026-09-19, `replicas: 0` |
-| The seven \*arr applications and SABnzbd | designed |
+| `media-downloads`, qBittorrent behind Mullvad via Tailscale | deployed, verified 2026-09-19, `replicas: 1` since 2026-09-20 |
+| Prowlarr, Sonarr, Radarr and Lidarr in `media` | deployed 2026-09-20 |
+| Bazarr, Recyclarr, Overseerr and SABnzbd | designed |
 
-No \*arr application is deployed. The download client is, and its egress was
-verified live, but it ships and sits at `replicas: 0` until the operator scales
-it. The old `jellyfin/` layer is gone, and `media` serves `jellyfin.${DOMAIN}`.
+The torrent client is no longer parked: its leak, reachability and kill-switch
+tests passed from a clean deploy, so the reason for `replicas: 0` is gone. The
+old `jellyfin/` layer is gone too, and `media` serves `jellyfin.${DOMAIN}`.
 
 ## Problem
 
@@ -57,8 +57,8 @@ namespace to satisfy one pod.
 
 | Namespace | PSA enforce | Workloads |
 | --- | --- | --- |
-| `media` | `baseline` | Jellyfin, and later the \*arr applications, SABnzbd and Recyclarr |
-| `media-downloads` | `privileged` | qBittorrent plus its Tailscale sidecar — deployed, scaled to 0 |
+| `media` | `baseline` | Jellyfin, Prowlarr, Sonarr, Radarr, Lidarr, and later SABnzbd and Recyclarr |
+| `media-downloads` | `privileged` | qBittorrent plus its Tailscale sidecar — deployed and running |
 
 `baseline` rather than `restricted`, and stated explicitly on the namespace
 rather than left to the cluster default, because it is a requirement here: the
@@ -75,9 +75,9 @@ see the library, so it never needs to share a namespace.
 
 | Volume | Export path | Mount point | Consumers | Mode | State |
 | --- | --- | --- | --- | --- | --- |
-| `media-library` | `/mnt/Voyager/public` | `/media` | everything in `media` | RWX | deployed |
+| `media-library` | `/mnt/Voyager/public` | `/media` | Jellyfin, Sonarr, Radarr, Lidarr | RWX | deployed |
 | `media-downloads` | `/mnt/Voyager/public/downloads` | `/media/downloads` | qBittorrent | RWX | deployed |
-| `<app>-config` | — (Longhorn) | `/config` | one per application | RWO | `jellyfin-config` deployed |
+| `<app>-config` | — (Longhorn) | `/config` | one per application | RWO | five deployed |
 
 The library volume is the same shape `docs/design/jellyfin.md` argued for: a
 static cluster-scoped `PersistentVolume` with an `nfs` source, `Retain`,
@@ -96,12 +96,13 @@ Every container sees the same absolute paths. This is a convention, not a
 mechanism, and it removes an entire class of \*arr misconfiguration: no "Remote
 Path Mapping" is ever configured in any application.
 
-qBittorrent's PersistentVolume will point at the **downloads subdirectory**, not
-the export root, and mount it at `/media/downloads`. Two things follow. The path
-qBittorrent reports to Sonarr is byte-identical to the path Sonarr sees through
-its own root mount, so an import needs no translation. And the torrent client
-structurally cannot reach the library — not by policy, but because the library
-is not in its mount namespace at all.
+qBittorrent's PersistentVolume points at the **downloads subdirectory**, not the
+export root, and mounts it at `/media/downloads`; the three importing \*arr pods
+mount the export root at `/media` and see `/media/downloads/...`. Two follow. The
+path qBittorrent reports to Sonarr is byte-identical to the path Sonarr sees
+through its own root mount, so an import needs no translation. And the torrent
+client structurally cannot reach the library — not by policy, but because the
+library is not in its mount namespace at all.
 
 ### Mount options, and why they must not drift
 
@@ -193,10 +194,11 @@ the export therefore links into the library instead of copying into it.
 
 ## The rest of the stack, as designed
 
-Only `media-downloads` is deployed, and the sections describing it record what
-bring-up proved rather than what was planned. The rest is recorded here because
-the foundation above was shaped by it, and a reader changing the foundation
-needs to know what it is holding room for.
+`media-downloads` and the four core \*arr applications are deployed, and the
+sections describing them record what bring-up proved rather than what was
+planned. The rest is recorded here because the foundation above was shaped by
+it, and a reader changing the foundation needs to know what it is holding room
+for.
 
 ### The downloads tree
 
@@ -425,6 +427,25 @@ has started); quality profiles and custom formats through Recyclarr, which is
 most of what anyone actually tunes; indexers declared once in Prowlarr and synced
 to the others.
 
+The API-key variable names are **not** a convention to copy between
+applications. Each \*arr binds an `AuthOptions` from the configuration section
+`<App>:Auth` — `services.Configure<AuthOptions>(config.GetSection("Sonarr:Auth"))`
+in `src/NzbDrone.Host/Bootstrap.cs` — and adds environment variables with no
+prefix, so .NET's `__` → `:` mapping produces the names below. Both that line
+and `_authOptions.ApiKey` in `ConfigFileProvider.cs` were read at the release
+tag each image is built from, not on `develop`:
+
+| Application | Image | Variable |
+| --- | --- | --- |
+| Prowlarr | `lscr.io/linuxserver/prowlarr:2.6.5.5623-ls161` | `PROWLARR__AUTH__APIKEY` |
+| Sonarr | `lscr.io/linuxserver/sonarr:4.0.20.3014-ls325` | `SONARR__AUTH__APIKEY` |
+| Radarr | `lscr.io/linuxserver/radarr:6.4.4.10685-ls317` | `RADARR__AUTH__APIKEY` |
+| Lidarr | `lscr.io/linuxserver/lidarr:3.1.0.4875-ls41` | `LIDARR__AUTH__APIKEY` |
+
+The flat `<APP>__APIKEY` form these replaced still appears in older guides, so
+re-read both files when bumping a major version rather than assuming the name
+survived it.
+
 Not in git: root folders, download-client registration and the media databases,
 all of which the applications write themselves at runtime. A ConfigMap mounts
 read-only, so an application that writes back to its own config file either
@@ -475,6 +496,30 @@ update deadlocks on the volume and two live pods corrupt the database.
 qBittorrent is the same case in a different shape: its config claim is
 ReadWriteOnce and it writes resume data continuously, so a second pod either
 deadlocks on the volume or tears that state.
+
+The \*arr figures, as deployed:
+
+| Application | Port | CPU req/limit | Memory req/limit | `/config` claim |
+| --- | --- | --- | --- | --- |
+| Prowlarr | 9696 | 50m / 1 | 256Mi / 512Mi | 2Gi |
+| Sonarr | 8989 | 100m / 2 | 512Mi / 1Gi | 8Gi |
+| Radarr | 7878 | 100m / 2 | 512Mi / 1Gi | 8Gi |
+| Lidarr | 8686 | 100m / 2 | 512Mi / 2Gi | 8Gi |
+
+Prowlarr is the small one because it holds indexer definitions and no artwork;
+the other three keep a `MediaCover` tree that grows with the library, and
+expanding a claim under a live database is a maintenance job, so those are
+sized for growth. Lidarr gets twice the memory ceiling because an artist
+refresh walks far more rows than an episode or movie refresh. All of these are
+first guesses to be measured against a week of real use, the way Jellyfin's
+still need to be.
+
+Prowlarr is the one \*arr with **no** `/media` mount. It manages indexers and
+syncs them to the other three; it holds no root folders and never touches a
+media file, so mounting the export would buy nothing and add a pod a NAS
+outage can wedge on the `hard` mount — which on Talos has no escape hatch
+(`docs/design/jellyfin.md`). The other three create the hardlinks and
+therefore need the export root.
 
 ### The Jellyfin cutover, as performed
 
@@ -539,6 +584,11 @@ happened, so the split was the safety property, not bookkeeping.
 
 ## Traps
 
+- **A wrong API-key variable name fails silently.** The application neither
+  refuses to start nor logs a rejection — it generates a key of its own, which
+  then disagrees with `arr-apikeys` and breaks Prowlarr's app sync and anything
+  else holding the declared key. Read `Bootstrap.cs` at the release tag instead
+  of copying a name from a guide.
 - **The export maps every client write to the tree's owner.** Mapall means a
   pod writing as UID 1000 produces a file owned by `4294967294` mode `775`, so
   write access does not depend on the *other* permission bits the way read
@@ -618,11 +668,14 @@ happened, so the split was the safety property, not bookkeeping.
   Tailscale IP instead. It therefore cannot live in `TS_EXTRA_ARGS`; the
   `postStart` hook applies it afterwards, which also makes it self-healing when
   the state Secret is recreated.
-- **qBittorrent answers a proxied hostname with 401, and Traefik is not at
-  fault.** The application validates the `Host` header and rejects
-  `qbittorrent.${DOMAIN}` until that domain is whitelisted in its WebUI
-  settings. The setting is written at runtime into the config volume, so it is
-  a bring-up step and cannot be a manifest.
+- **qBittorrent answers an unknown hostname with 401, and neither Traefik nor
+  the credentials are at fault.** The application validates the `Host` header,
+  and a rejected hostname is indistinguishable from a rejected password — which
+  is what makes it worth writing down. It bites twice: `qbittorrent.${DOMAIN}`
+  through Traefik, and `qbittorrent.media-downloads.svc.cluster.local` when an
+  \*arr registers the download client. Both names must be whitelisted in the
+  WebUI settings, which are written at runtime into the config volume, so this
+  is a bring-up step and cannot be a manifest.
 - **An undefined `${VOYAGER_IP}` substitutes to the empty string**, not to a
   literal, and the Kustomization still goes green with the volume pointing at
   nothing. Assert on the rendered value, never on the absence of `${`.
@@ -665,10 +718,11 @@ happened, so the split was the safety property, not bookkeeping.
 
 ## Bring-up
 
-`media-downloads` merges at `replicas: 0`, so merging it starts nothing and
-leaks nothing. Scaling it up is a separate, ordered exercise — it has now been
-run once, on 2026-09-19, and the manifest carries the three corrections it
-forced.
+`media-downloads` merged at `replicas: 0`, so merging it started nothing and
+leaked nothing. Scaling it up was a separate, ordered exercise, run on
+2026-09-19, and the manifest carries the three corrections it forced. All six
+steps then passed from a clean deploy, so the manifest ships at `replicas: 1`
+and the list below is the procedure for a rebuild rather than a pending task.
 
 1. Fill `kubernetes/traefik/app/secret-qbittorrent-auth.sops.yaml`. Bcrypt only
    (`htpasswd -nB`), because the `traefik` layer is substituted.
@@ -708,11 +762,59 @@ The remaining open question is unchanged and still needs a live pod:
 `TS_ACCEPT_DNS` is `false`, so tracker lookups leave over the home WAN as
 metadata while the torrent traffic itself does not.
 
+### Bringing the \*arr applications up
+
+They merge running, because nothing in them leaves the cluster until an
+indexer is configured. What is left is the runtime state the manifests
+deliberately do not carry:
+
+1. Fill the five placeholder Secrets — `arr-apikeys` in `media`, and
+   `<app>-auth-users` in `traefik`. Both layers are substituted, so a `$` in
+   either is eaten: htpasswd lines must be bcrypt (`htpasswd -nB`, never a
+   classic `$apr1$` hash), and API keys must be hex, which is what the
+   applications' own generator produces. Then restart the four Deployments:
+
+   ```
+   kubectl --context homelab -n media rollout restart \
+     deploy/prowlarr deploy/sonarr deploy/radarr deploy/lidarr
+   ```
+
+   An environment variable from a `secretKeyRef` is snapshotted when the
+   container starts, so a pod that was already running keeps `REPLACE_ME` and
+   step 2 fails — whereas Traefik watches its basic-auth Secrets and re-reads
+   them without a restart. That asymmetry is the whole reason one side needs
+   the restart and the other does not. Until those htpasswd lines are real all
+   four routes answer 401 to everyone, which is fail-closed and correct rather
+   than a broken ingress.
+
+2. Confirm each application took its declared key rather than generating one:
+   the key in Settings → General must match `arr-apikeys`.
+3. Root folders, in Sonarr, Radarr and Lidarr only. These are the **library
+   subdirectories** under `/media` — the same trees Jellyfin serves, one per
+   application — never `/media` itself and never anything under
+   `/media/downloads`. Enter them verbatim: one directory's name ends in an
+   apostrophe.
+4. **Whitelist the in-cluster Service name in qBittorrent before registering
+   it.** Add `qbittorrent.media-downloads.svc.cluster.local` to Web UI →
+   "Server domains" (or turn host-header validation off). Skip this and step 5
+   fails with a **401 that reads as bad credentials** rather than as a rejected
+   hostname, which is the misdiagnosis worth avoiding. It cannot be a manifest:
+   the setting lives in `qBittorrent.conf` on the config volume, which the
+   application writes itself.
+5. Register qBittorrent as a download client in Sonarr, Radarr and Lidarr —
+   host `qbittorrent.media-downloads.svc.cluster.local`, port 8080, the Web UI
+   credentials. "Test" must go green before saving.
+6. Add those three to Prowlarr under Settings → Apps, each with its own key
+   from `arr-apikeys`, then sync the indexers.
+7. Confirm the first import hardlinks rather than copies: the completed file's
+   link count under `/media/downloads` rises to 2.
+
 ## Changing it
 
 **Adding an application** to `media` means a Deployment, a `<app>-config`
-Longhorn claim, a Service, an `IngressRoute`, and a mount of the existing
-`media-library` claim at `/media`. It does **not** mean another
+Longhorn claim, a Service, an `IngressRoute`, and — if it touches media files
+at all — a mount of the existing `media-library` claim at `/media`, which
+Prowlarr is the standing exception to. It does **not** mean another
 `PersistentVolume` over the export: the whole point of the namespace is one
 volume, and a second one would reintroduce both the superblock trap and the
 cross-mount hardlink failure.

@@ -1,0 +1,121 @@
+# Sonarr — same shape as radarr.yaml and lidarr.yaml; only the image, the port
+# and the resource figures differ. docs/design/arr-stack.md carries the
+# rationale for that shape: Recreate on a SQLite ReadWriteOnce claim, amd64,
+# PUID/PGID, probe timeouts, and requests plus limits on every container.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sonarr
+  labels:
+    app.kubernetes.io/name: sonarr
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: sonarr
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: sonarr
+    spec:
+      nodeSelector:
+        kubernetes.io/arch: amd64
+      containers:
+        - name: sonarr
+          image: lscr.io/linuxserver/sonarr:4.0.20.3014-ls325
+          env:
+            - name: PUID
+              value: "1000"
+            - name: PGID
+              value: "1000"
+            - name: TZ
+              value: Europe/London
+            # Binds Sonarr:Auth:ApiKey. The name is version-dependent and a
+            # wrong one fails silently — the application generates its own key.
+            - name: SONARR__AUTH__APIKEY
+              valueFrom:
+                secretKeyRef:
+                  name: arr-apikeys
+                  key: SONARR_API_KEY
+          ports:
+            - name: http
+              containerPort: 8989
+          startupProbe:
+            httpGet:
+              path: /ping
+              port: http
+            periodSeconds: 10
+            failureThreshold: 30
+            timeoutSeconds: 5
+          readinessProbe:
+            httpGet:
+              path: /ping
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /ping
+              port: http
+            periodSeconds: 30
+            failureThreshold: 3
+            timeoutSeconds: 10
+          volumeMounts:
+            # The export ROOT, never the downloads subdirectory: link() cannot
+            # cross two mounts (docs/design/arr-stack.md, "Path identity").
+            - name: media
+              mountPath: /media
+            - name: config
+              mountPath: /config
+          resources:
+            requests:
+              cpu: 100m
+              memory: 512Mi
+            limits:
+              cpu: "2"
+              memory: 1Gi
+      volumes:
+        - name: media
+          persistentVolumeClaim:
+            claimName: media-library
+        - name: config
+          persistentVolumeClaim:
+            claimName: sonarr-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: sonarr
+  labels:
+    app.kubernetes.io/name: sonarr
+spec:
+  selector:
+    app.kubernetes.io/name: sonarr
+  ports:
+    - name: http
+      port: 8989
+      targetPort: http
+---
+# No Certificate and no tls.secretName: TLSStore/default serves the wildcard
+# and Pi-hole already resolves the name. sonarr-auth is this service's own
+# Middleware and credential, never shared (docs/design/ingress-tls.md).
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: sonarr
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - kind: Rule
+      match: Host(`sonarr.${DOMAIN}`)
+      middlewares:
+        - name: default-headers
+          namespace: traefik
+        - name: sonarr-auth
+          namespace: traefik
+      services:
+        - name: sonarr
+          port: 8989
