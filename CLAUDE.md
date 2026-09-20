@@ -388,7 +388,13 @@ restoring it causes the warning it looks like it would fix. Bazarr
 is the one application here that ships `auth.type` null, so its UI is open
 until Settings > General > Security is set to Form, and its probes use
 `/manifest.webmanifest` because every catch-all path answers 401 once that is
-set to Basic. See `docs/design/arr-stack.md`.
+set to Basic. SABnzbd is the Usenet client and lives here, not in
+`media-downloads`, because Usenet needs no VPN; its hostname check refuses
+`sabnzbd.${DOMAIN}` until a login is set, exempts the `.svc.cluster.local`
+name the *arr use, and accepts the kubelet's IP `Host`, so probes hit
+`/robots.txt`. Its provider credentials and API key are in `sabnzbd.ini` on
+the claim, not in git — there is no env override. See
+`docs/design/arr-stack.md`.
 Never `kubectl delete kustomization flux-system` — prune would remove Flux
 itself; use `flux uninstall`. Pruning `cilium/` removes the CNI; pruning
 `traefik/` takes every route in the cluster. See `kubernetes/README.md`.

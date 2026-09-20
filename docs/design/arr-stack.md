@@ -6,8 +6,8 @@ two download clients, and Jellyfin, all sharing one read-write NFS volume from
 the design for all of that.
 
 The foundation, Jellyfin, the four core \*arr applications, Bazarr, Seerr and
-the `media-downloads` layer are deployed. Recyclarr and SABnzbd are still
-intent, and are written in the future tense to keep the two apart.
+the `media-downloads` layer are deployed, and so is SABnzbd. Recyclarr is still
+intent, and is written in the future tense to keep the two apart.
 
 | Piece | State |
 | --- | --- |
@@ -20,7 +20,8 @@ intent, and are written in the future tense to keep the two apart.
 | Prowlarr, Sonarr, Radarr and Lidarr in `media` | deployed 2026-09-20 |
 | Bazarr in `media`, on `bazarr.${DOMAIN}` | deployed 2026-09-20 |
 | Seerr in `media`, on `seerr.${DOMAIN}` | deployed 2026-09-20 |
-| Recyclarr and SABnzbd | designed |
+| SABnzbd in `media`, on `sabnzbd.${DOMAIN}` | deployed 2026-09-20 |
+| Recyclarr | designed |
 
 The torrent client is no longer parked: its leak, reachability and kill-switch
 tests passed from a clean deploy, so the reason for `replicas: 0` is gone. The
@@ -59,7 +60,7 @@ namespace to satisfy one pod.
 
 | Namespace | PSA enforce | Workloads |
 | --- | --- | --- |
-| `media` | `baseline` | Jellyfin, Prowlarr, Sonarr, Radarr, Lidarr, Bazarr, Seerr, and later SABnzbd and Recyclarr |
+| `media` | `baseline` | Jellyfin, Prowlarr, Sonarr, Radarr, Lidarr, Bazarr, Seerr, SABnzbd, and later Recyclarr |
 | `media-downloads` | `privileged` | qBittorrent plus its Tailscale sidecar — deployed and running |
 
 `baseline` rather than `restricted`, and stated explicitly on the namespace
@@ -212,7 +213,16 @@ root — writes are already proven, so this needs no shell on the NAS.
 Both download clients write into `downloads/`, through different mounts and into
 separate subdirectories per client, with matching `incomplete/` trees. Keeping
 them apart is what lets either client be cleared without touching the other's
-in-flight work.
+in-flight work. Both `complete/{qbittorrent,sabnzbd}` and the matching
+`incomplete/` pair exist, created with the tree itself.
+
+**The two clients reach that tree by different routes, and only one of them
+needs a narrowed volume.** qBittorrent is in `media-downloads` and gets a
+PersistentVolume scoped to the `downloads` subdirectory, mounted at
+`/media/downloads`, because it must not see the library. SABnzbd is in `media`
+and mounts the export root at `/media` like the \*arr do, because it is the
+importing side's peer: Sonarr reads the completed path SABnzbd reports, and
+that path has to mean the same thing in both mount namespaces.
 
 ### The VPN boundary
 
@@ -559,6 +569,53 @@ portal handed to other people, it has its own login, and it authenticates users
 against their Jellyfin accounts; a browser prompt in front of a login page is
 friction with no security gain. It serves `seerr.${DOMAIN}`.
 
+### SABnzbd needs no VPN, and that is the whole reason for its placement
+
+BitTorrent announces the client's address to every peer in a swarm, which is
+why qBittorrent sits behind Mullvad in a `privileged` namespace with an
+nftables kill switch. Usenet has no swarm. It is one authenticated TLS
+connection to one provider that already knows who the subscriber is, so there
+is nobody to hide from and nothing a tunnel would buy. SABnzbd therefore goes
+in `media` at `baseline`, and the entire VPN apparatus above does not apply to
+it.
+
+It is also the one application here with no secret in git. Provider
+credentials and the API key live in `sabnzbd.ini` on the config claim, which
+SABnzbd writes itself; there is no environment-variable override of the kind
+that let the four \*arr take a declared `arr-apikeys` value.
+
+**Its hostname check is the trap, and it is a friendlier one than it looks.**
+`check_hostname()` refuses any request whose `Host` is not `localhost`, an IP
+literal, a name in `host_whitelist`, or a name ending in `.local`. A fresh
+install whitelists only its own hostname — inside Kubernetes, the generated pod
+name — so `sabnzbd.${DOMAIN}` is refused with "Access denied - Hostname
+verification failed" rather than a login page or a 401. Three consequences,
+and the order matters:
+
+- **`sabnzbd.media.svc.cluster.local` passes with no configuration at all**,
+  because it ends in `.local` and the check exempts mDNS names. Registering the
+  download client in Sonarr and Radarr needs no whitelist entry — unlike
+  qBittorrent, whose `.svc` name had to be added by hand and whose rejection
+  presents as a 401 that reads like bad credentials.
+- **Probes pass for the same class of reason.** A kubelet `httpGet` sends
+  `Host: <podIP>`, an IP literal. The path is `/robots.txt`, the only static
+  route declared `check_for_login=False`, so the probe keeps working after a
+  login exists. There is no health endpoint; `/` is the web UI and would answer
+  401 once a login is set.
+- **The refusal closes the exposure window that Bazarr has open.** SABnzbd, like
+  Bazarr, ships with no username or password. Unlike Bazarr, its route is
+  unusable to everyone until the login is configured, because the hostname check
+  fires before anything else. Reach it over `kubectl port-forward`, where the
+  `Host` is `localhost`, set the credentials, and the same act both secures the
+  UI and opens the ingress: `check_hostname()` returns early when a login is
+  configured. Do not pre-seed `host_whitelist` to "fix" the refused route — that
+  opens the hostname before a password exists and manufactures exactly the
+  window this avoids.
+
+`inet_exposure` defaults to 0, which restricts access to local addresses, and
+that is not a fourth problem: Traefik forwards from a cluster pod address and
+the pod CIDR is inside RFC1918, so `is_lan_addr()` is true.
+
 ### Placement and resources
 
 `nodeSelector: kubernetes.io/arch: amd64` on everything, following Jellyfin,
@@ -588,6 +645,7 @@ The \*arr figures, as deployed:
 | Lidarr | 8686 | 100m / 2 | 512Mi / 2Gi | 8Gi |
 | Bazarr | 6767 | 100m / 2 | 512Mi / 1Gi | 4Gi |
 | Seerr | 5055 | 100m / 1 | 512Mi / 1Gi | 4Gi |
+| SABnzbd | 8080 | 200m / 2 | 512Mi / 2Gi | 4Gi |
 
 Prowlarr is the small one because it holds indexer definitions and no artwork;
 the other three keep a `MediaCover` tree that grows with the library, and
@@ -598,8 +656,19 @@ copy. Lidarr gets twice the memory ceiling because an artist refresh walks far
 more rows than an episode or movie refresh. Seerr's claim matches Bazarr's for
 a similar reason — it stores no artwork of its own, only a TMDB image cache it
 prunes itself — and its CPU ceiling is half, because it schedules requests
-rather than walking a library. All of these are first guesses to be measured
-against a week of real use, the way Jellyfin's still need to be.
+rather than walking a library. SABnzbd gets the widest CPU band of the set
+because par2 verification and unpacking are the only genuinely compute-bound
+work in this namespace, and both run in bursts at the end of a download. All of
+these are first guesses to be measured against a week of real use, the way
+Jellyfin's still need to be.
+
+SABnzbd unpacks **over NFS**, because its `incomplete` directory is under
+`/media/downloads` like qBittorrent's. That is a deliberate consequence of
+keeping the two clients' trees alongside each other and has not been measured;
+par2 repair on a large release is the case that would expose it. The fix, if it
+ever matters, is an `emptyDir` or a Longhorn claim for `incomplete` alone —
+only the *completed* path needs to satisfy path identity, so moving the
+scratch space breaks nothing.
 
 Prowlarr is the one \*arr with **no** `/media` mount. It manages indexers and
 syncs them to the other three; it holds no root folders and never touches a
@@ -985,6 +1054,39 @@ is why it needs no secret of its own.
 
 Lidarr is absent deliberately: Seerr requests films and television, and music
 requests are Lidarr's own or nothing.
+
+### Bringing SABnzbd up
+
+The order here is forced by the hostname check, not by preference. Until a
+login exists, `sabnzbd.${DOMAIN}` answers "Access denied - Hostname
+verification failed" to everyone, which is protection rather than a fault — so
+unlike Bazarr and Seerr there is no race to win.
+
+1. `kubectl --context homelab -n media port-forward svc/sabnzbd 8080:8080` and
+   open `http://localhost:8080`. `localhost` is the one `Host` the check
+   accepts unconditionally.
+2. **Set a username and password first**, in Config → General. That both
+   secures the UI and makes `check_hostname()` return early, which is what opens
+   the public route. Nothing else needs to change for the ingress to work.
+3. Add the Usenet provider in Config → Servers: host, port 563, SSL on,
+   username, password, and the connection count the provider specifies. "Test
+   Server" must pass. These credentials are not in git and cannot be — SABnzbd
+   has no environment-variable override, so `sabnzbd.ini` on the config claim
+   is the only place they live.
+4. Set the folders in Config → Folders to the shared tree, not the defaults:
+   temporary `/media/downloads/incomplete/sabnzbd`, completed
+   `/media/downloads/complete/sabnzbd`. Getting this wrong puts downloads on
+   the config claim, where Sonarr cannot see them and no import will hardlink.
+5. Copy the API key from Config → General.
+6. Register it in Sonarr and Radarr as a SABnzbd download client — host
+   `sabnzbd.media.svc.cluster.local`, port 8080, the API key, SSL off. No
+   whitelist entry is needed: the name ends in `.local`, which the hostname
+   check exempts. "Test" must go green before saving.
+7. Add the indexers in Prowlarr under Settings → Indexers and let them sync.
+   The provider supplies articles; an indexer is what turns a search into an
+   NZB, and neither is any use alone.
+8. Confirm the first Usenet import hardlinks the same way the torrent path
+   does: `stat -c %h` on the library file reads 2.
 
 ## Changing it
 
