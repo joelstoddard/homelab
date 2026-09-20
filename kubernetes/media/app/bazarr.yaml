@@ -35,9 +35,9 @@ spec:
           ports:
             - name: http
               containerPort: 6767
-          # Every other path is the SPA catch-all, which returns 401 whenever
-          # Settings > Security is set to Basic. This one is served before that
-          # check, so the probes survive any authentication mode.
+          # Every other path is the single-page application catch-all, which
+          # returns 401 whenever Settings > Security is set to Basic. This one
+          # is served before that check, so the probes survive any auth mode.
           startupProbe:
             httpGet:
               path: /manifest.webmanifest

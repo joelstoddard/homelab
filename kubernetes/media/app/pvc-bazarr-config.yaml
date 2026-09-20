@@ -1,6 +1,5 @@
-# The SQLite database, logs and the provider cache. Smaller than Sonarr's claim
-# because Bazarr stores no artwork — it proxies posters from Sonarr and Radarr —
-# but larger than Prowlarr's, which tracks indexers rather than every episode.
+# The SQLite database, logs and the provider cache. Bazarr proxies artwork from
+# Sonarr and Radarr instead of storing it, so this claim is smaller than theirs.
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
