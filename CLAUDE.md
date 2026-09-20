@@ -374,8 +374,14 @@ own volumeMount rather than a second PersistentVolume. The namespace is PSA
 as root and drop to `PUID`/`PGID` through s6-overlay. Jellyfin serves
 `jellyfin.${DOMAIN}` from here at `replicas: 1`: its config volume was staged
 through the NFS export out of the standalone `jellyfin/` layer on 2026-09-19,
-verified, and that layer deleted. The \*arr applications and the download
-clients are designed, not deployed. See `docs/design/arr-stack.md`.
+verified, and that layer deleted. Prowlarr, Sonarr, Radarr and Lidarr are
+deployed alongside it, each `replicas: 1` on its own Longhorn `/config` claim.
+Recyclarr is the one `CronJob` here — it syncs the TRaSH quality profiles and
+custom formats into Sonarr and Radarr daily and exits, so it has no Service,
+route or claim. Its config is a ConfigMap with substitution disabled, and two
+things bite: instance names must be unique **across** services (a duplicate
+syncs nothing and still exits 0), and it needs `tty: true` or it logs no
+report at all. See `docs/design/arr-stack.md`.
 Never `kubectl delete kustomization flux-system` — prune would remove Flux
 itself; use `flux uninstall`. Pruning `cilium/` removes the CNI; pruning
 `traefik/` takes every route in the cluster. See `kubernetes/README.md`.

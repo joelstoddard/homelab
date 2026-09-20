@@ -5,9 +5,9 @@ two download clients, and Jellyfin, all sharing one read-write NFS volume from
 `voyager` so that an import is a hardlink rather than a copy. This document is
 the design for all of that.
 
-The foundation, Jellyfin, the four core \*arr applications and the
-`media-downloads` layer are deployed. Bazarr, Recyclarr, Overseerr and SABnzbd
-are still intent, and are written in the future tense to keep the two apart.
+The foundation, Jellyfin, the four core \*arr applications, Recyclarr and the
+`media-downloads` layer are deployed. Bazarr, Overseerr and SABnzbd are still
+intent, and are written in the future tense to keep the two apart.
 
 | Piece | State |
 | --- | --- |
@@ -18,7 +18,8 @@ are still intent, and are written in the future tense to keep the two apart.
 | The `downloads/` tree and the narrower volume over it | deployed |
 | `media-downloads`, qBittorrent behind Mullvad via Tailscale | deployed, verified 2026-09-19, `replicas: 1` since 2026-09-20 |
 | Prowlarr, Sonarr, Radarr and Lidarr in `media` | deployed 2026-09-20 |
-| Bazarr, Recyclarr, Overseerr and SABnzbd | designed |
+| Recyclarr, daily into Sonarr and Radarr | deployed 2026-09-20 |
+| Bazarr, Overseerr and SABnzbd | designed |
 
 The torrent client is no longer parked: its leak, reachability and kill-switch
 tests passed from a clean deploy, so the reason for `replicas: 0` is gone. The
@@ -57,7 +58,7 @@ namespace to satisfy one pod.
 
 | Namespace | PSA enforce | Workloads |
 | --- | --- | --- |
-| `media` | `baseline` | Jellyfin, Prowlarr, Sonarr, Radarr, Lidarr, and later SABnzbd and Recyclarr |
+| `media` | `baseline` | Jellyfin, Prowlarr, Sonarr, Radarr, Lidarr, Recyclarr, and later SABnzbd |
 | `media-downloads` | `privileged` | qBittorrent plus its Tailscale sidecar — deployed and running |
 
 `baseline` rather than `restricted`, and stated explicitly on the namespace
@@ -455,6 +456,41 @@ story. Jellyfin is the extreme case: of 4.5 GiB of config volume, the settings
 are 28 KiB and the rest is a SQLite database that changes on every playback plus
 binary artwork.
 
+### Recyclarr
+
+Recyclarr is the one genuinely config-as-code component here, and the only one
+that is a `CronJob` rather than a Deployment: it syncs the TRaSH guide into
+Sonarr and Radarr and exits. It therefore has no Service, no `IngressRoute`, no
+`/media` mount and no config claim. It covers **Sonarr and Radarr only** — the
+schema admits no other service — so Lidarr and Prowlarr are outside its reach by
+design rather than by omission.
+
+The synced profiles are the upstream `sonarr/web-1080p` and
+`radarr/hd-bluray-web` templates: WEB-1080p and HD Bluray + WEB, with
+`reset_unmatched_scores` on so a hand-edited score is corrected rather than
+preserved. The templates ship as mostly commented-out optional custom formats —
+roughly 85% of their line count — and `kubernetes/media/app/config/recyclarr.yml`
+keeps only the groups they enable by default. A group listed under
+`custom_format_groups.add` is explicit; the sync log also reports groups
+`implicit via` the quality profile, which arrive whether or not they are listed.
+
+Base URLs are the in-cluster Services, `http://sonarr:8989` and
+`http://radarr:7878`, never `sonarr.${DOMAIN}` — the cluster cannot resolve the
+LAN wildcard, the same constraint that shaped Glance's probe URLs
+(`docs/design/glance.md`). API keys come from the existing `arr-apikeys` Secret
+as environment variables, read back through Recyclarr's `!env_var` tag, so the
+layer needs no secret of its own.
+
+The config lives in its own ConfigMap carrying
+`kustomize.toolkit.fluxcd.io/substitute: disabled`, for the reason
+`media-downloads`' nftables ruleset does. The `$` that substitution would eat is
+not in the config body — `!env_var` avoids it — but in the
+`# yaml-language-server: $schema=` header, which is consequently the thing to
+check in rendered output to prove substitution is off.
+
+A cold run, cloning both guide repositories, peaked at 78 MiB and took under six
+seconds, so the container is sized 128Mi/512Mi with 50m/1 CPU.
+
 ### Ingress and auth
 
 Each application gets one `IngressRoute` on `websecure` carrying
@@ -606,6 +642,22 @@ happened, so the split was the safety property, not bookkeeping.
 
 ## Traps
 
+- **Recyclarr instance names must be unique across services, not per service.**
+  Naming both the Sonarr and the Radarr instance `main` is a duplicate:
+  Recyclarr drops *both*, syncs nothing, prints nothing above `--log debug`, and
+  **exits 0**. The upstream templates each carry a distinct profile-shaped name,
+  which is why this is easy to introduce and hard to notice. Ours are `tv` and
+  `movies`. A malformed config behaves the same way — error printed, exit 0 —
+  so the config is validated against the live instances with `sync --preview`
+  before merge. Runtime failures are better behaved: an unreachable host and a
+  rejected API key both exit 1 and fail the Job.
+- **Recyclarr reports what it did through a console renderer that needs a
+  terminal.** With no TTY it prints four `[INF]` lines and no change table at
+  all, which is also why `recyclarr list ...` appears to do nothing when piped.
+  The CronJob therefore sets `tty: true`, and `TERM=dumb` alongside it to keep
+  the progress spinner out of the log — without it a single run wrote 402 lines,
+  nearly all of them redrawn spinner frames, against 366 lines of real content
+  with it.
 - **A wrong API-key variable name fails silently.** The application neither
   refuses to start nor logs a rejection — it generates a key of its own, which
   then disagrees with `arr-apikeys` and breaks Prowlarr's app sync and anything
@@ -839,6 +891,14 @@ Prowlarr is the standing exception to. It does **not** mean another
 `PersistentVolume` over the export: the whole point of the namespace is one
 volume, and a second one would reintroduce both the superblock trap and the
 cross-mount hardlink failure.
+
+**Recyclarr could satisfy `restricted`, and deliberately does not.** Its image
+runs as 1000:1000 rather than starting as root, so unlike every LinuxServer.io
+workload here it could carry a `securityContext` meeting the `restricted`
+profile. It is left matching its neighbours instead, because the namespace
+enforces `baseline` and one hardened manifest among seven is an inconsistency
+without a benefit. Hardening the namespace is a change to make to all of them at
+once, or not at all.
 
 **A workload needing more than `baseline`** does not go in `media`. It gets its
 own namespace, the way `media-downloads` does, and reaches the share through a
