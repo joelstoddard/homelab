@@ -13,6 +13,7 @@ resources:
   - pvc-radarr-config.yaml
   - pvc-lidarr-config.yaml
   - pvc-bazarr-config.yaml
+  - pvc-overseerr-config.yaml
   - jellyfin.yaml
   - jellyfin-exporter.yaml
   - prowlarr.yaml
@@ -20,3 +21,4 @@ resources:
   - radarr.yaml
   - lidarr.yaml
   - bazarr.yaml
+  - overseerr.yaml

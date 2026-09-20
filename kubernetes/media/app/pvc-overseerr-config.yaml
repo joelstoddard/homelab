@@ -1,0 +1,15 @@
+# settings.json, the SQLite database and a TMDB image cache Overseerr prunes
+# itself — bigger than Prowlarr's, well short of the three that grow with the
+# library. No storageClassName: longhorn is the cluster default.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: overseerr-config
+  labels:
+    app.kubernetes.io/name: overseerr
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 4Gi

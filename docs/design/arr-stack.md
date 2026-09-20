@@ -5,9 +5,9 @@ two download clients, and Jellyfin, all sharing one read-write NFS volume from
 `voyager` so that an import is a hardlink rather than a copy. This document is
 the design for all of that.
 
-The foundation, Jellyfin, the four core \*arr applications, Bazarr and the
-`media-downloads` layer are deployed. Recyclarr, Overseerr and SABnzbd are
-still intent, and are written in the future tense to keep the two apart.
+The foundation, Jellyfin, the four core \*arr applications, Bazarr, Overseerr
+and the `media-downloads` layer are deployed. Recyclarr and SABnzbd are still
+intent, and are written in the future tense to keep the two apart.
 
 | Piece | State |
 | --- | --- |
@@ -19,7 +19,8 @@ still intent, and are written in the future tense to keep the two apart.
 | `media-downloads`, qBittorrent behind Mullvad via Tailscale | deployed, verified 2026-09-19, `replicas: 1` since 2026-09-20 |
 | Prowlarr, Sonarr, Radarr and Lidarr in `media` | deployed 2026-09-20 |
 | Bazarr in `media`, on `bazarr.${DOMAIN}` | deployed 2026-09-20 |
-| Recyclarr, Overseerr and SABnzbd | designed |
+| Overseerr in `media`, on `requests.${DOMAIN}` | deployed 2026-09-20 |
+| Recyclarr and SABnzbd | designed |
 
 The torrent client is no longer parked: its leak, reachability and kill-switch
 tests passed from a clean deploy, so the reason for `replicas: 0` is gone. The
@@ -58,7 +59,7 @@ namespace to satisfy one pod.
 
 | Namespace | PSA enforce | Workloads |
 | --- | --- | --- |
-| `media` | `baseline` | Jellyfin, Prowlarr, Sonarr, Radarr, Lidarr, Bazarr, and later SABnzbd and Recyclarr |
+| `media` | `baseline` | Jellyfin, Prowlarr, Sonarr, Radarr, Lidarr, Bazarr, Overseerr, and later SABnzbd and Recyclarr |
 | `media-downloads` | `privileged` | qBittorrent plus its Tailscale sidecar — deployed and running |
 
 `baseline` rather than `restricted`, and stated explicitly on the namespace
@@ -78,7 +79,7 @@ see the library, so it never needs to share a namespace.
 | --- | --- | --- | --- | --- | --- |
 | `media-library` | `/mnt/Voyager/public` | `/media` | Jellyfin, Sonarr, Radarr, Lidarr, Bazarr | RWX | deployed |
 | `media-downloads` | `/mnt/Voyager/public/downloads` | `/media/downloads` | qBittorrent | RWX | deployed |
-| `<app>-config` | — (Longhorn) | `/config` | one per application | RWO | six deployed |
+| `<app>-config` | — (Longhorn) | `/config` | one per application | RWO | seven deployed |
 
 The library volume is the same shape `docs/design/jellyfin.md` argued for: a
 static cluster-scoped `PersistentVolume` with an `nfs` source, `Retain`,
@@ -529,10 +530,12 @@ than an auth check:
 None of this touches inter-application sync either way: Prowlarr → Sonarr and
 Bazarr → Radarr traffic resolves over `.svc` and never traverses Traefik.
 
-Overseerr will be the same case when it arrives. It is the request portal handed
-to other people, it has its own login, and it authenticates users against their
-Jellyfin accounts; a browser prompt in front of a login page is friction with no
-security gain.
+Overseerr is the same case and arrived on the same footing. It is the request
+portal handed to other people, it has its own login, and it authenticates users
+against their Jellyfin accounts; a browser prompt in front of a login page is
+friction with no security gain. Its hostname is `requests.${DOMAIN}`, not
+`overseerr.` — the name is the thing other people are given, so it says what
+they do with it rather than which project implements it.
 
 ### Placement and resources
 
@@ -562,6 +565,7 @@ The \*arr figures, as deployed:
 | Radarr | 7878 | 100m / 2 | 512Mi / 1Gi | 8Gi |
 | Lidarr | 8686 | 100m / 2 | 512Mi / 2Gi | 8Gi |
 | Bazarr | 6767 | 100m / 2 | 512Mi / 1Gi | 4Gi |
+| Overseerr | 5055 | 100m / 1 | 512Mi / 1Gi | 4Gi |
 
 Prowlarr is the small one because it holds indexer definitions and no artwork;
 the other three keep a `MediaCover` tree that grows with the library, and
@@ -569,9 +573,11 @@ expanding a claim under a live database is a maintenance job, so those are
 sized for growth. Bazarr sits between the two: it tracks every episode and
 movie, but proxies their artwork from Sonarr and Radarr rather than storing a
 copy. Lidarr gets twice the memory ceiling because an artist refresh walks far
-more rows than an episode or movie refresh. All of these are
-first guesses to be measured against a week of real use, the way Jellyfin's
-still need to be.
+more rows than an episode or movie refresh. Overseerr's claim matches Bazarr's
+for a similar reason — it stores no artwork of its own, only a TMDB image cache
+it prunes itself — and its CPU ceiling is half, because it schedules requests
+rather than walking a library. All of these are first guesses to be measured
+against a week of real use, the way Jellyfin's still need to be.
 
 Prowlarr is the one \*arr with **no** `/media` mount. It manages indexers and
 syncs them to the other three; it holds no root folders and never touches a
@@ -585,6 +591,43 @@ writes `.srt` files beside each video rather than linking anything. It reads the
 paths Sonarr and Radarr report over `.svc` and opens them directly, so path
 identity is what makes that work — the root mount gives it free, and a
 subdirectory mount would break it.
+
+Overseerr has no `/media` mount either, and for Prowlarr's reason one step
+further out: it files a request with Sonarr or Radarr over `.svc`, and they do
+everything that touches a disk.
+
+### Overseerr is not a \*arr, and its container does not behave like one
+
+Four details break the shape the rest of the namespace shares, and all four are
+properties of the image rather than choices:
+
+| | The \*arr applications | Overseerr |
+| --- | --- | --- |
+| Image family | `lscr.io/linuxserver/*`, s6-overlay | `sctx/overseerr`, plain `node:20-alpine` |
+| Process identity | root, dropped to `PUID`/`PGID` | root, no `PUID`/`PGID` to honour |
+| Config directory | `/config` | `/app/config`, relative to `WORKDIR` |
+| Probe path | `/ping`, or Bazarr's `/manifest.webmanifest` | `/api/v1/status/appdata` |
+
+The config path is mounted where the image puts it rather than moved to
+`/config` with the `CONFIG_DIRECTORY` env var it also honours. Consistency with
+its neighbours is worth less than agreeing with every upstream issue thread and
+troubleshooting page a future debugging session will read.
+
+**The probe path is the one that would have bitten.** The obvious endpoint,
+`/api/v1/status`, calls the GitHub releases API on every request to work out
+whether an update is available — putting an outbound internet dependency behind
+a liveness probe, so a GitHub outage or rate-limit would restart the pod.
+`/api/v1/status/appdata` is the pure-local sibling: it stats one file and
+returns. Both sit ahead of Overseerr's auth middleware, so neither needs a
+credential. Bazarr's probe path was chosen against the same class of trap from
+the other direction — an endpoint that answers 200 while proving nothing.
+
+**The claim shadows a file the image ships.** Overseerr writes `config/DOCKER`
+at build time and `appDataStatus()` reports the persistent volume missing when
+that marker is absent — so mounting a volume there is exactly what makes the
+check claim there is no volume, and the setup wizard warns about it. An init
+container restores the marker on first start. The alternative was to explain a
+false warning to everyone who ever rebuilds this.
 
 ### The Jellyfin cutover, as performed
 
@@ -873,15 +916,41 @@ deliberately do not carry:
 8. Confirm the first import hardlinks rather than copies: the completed file's
    link count under `/media/downloads` rises to 2.
 
+### Bringing Overseerr up
+
+Overseerr's wizard is first-come-first-served, and **the window cannot be
+closed in advance.** Flux applies the Deployment and the `IngressRoute` in one
+pass, so `requests.${DOMAIN}` answers the moment the pod is ready and the
+`kubectl port-forward` that protected the four \*arr buys nothing here — the
+same window Bazarr has, for the same reason. Do this promptly after the layer
+reconciles. None of it can be a manifest: Overseerr stores the lot in its own
+database, which is why it needs no secret of its own.
+
+1. Sign in with Jellyfin, which creates the admin account and sets the
+   authentication source in one step. The server is
+   `http://jellyfin.media.svc.cluster.local:8096`; the credentials are a
+   Jellyfin account that already exists.
+2. Add Sonarr and Radarr under Settings → Services, with the keys from
+   `arr-apikeys`: `sonarr.media.svc.cluster.local` port 8989 and
+   `radarr.media.svc.cluster.local` port 7878, SSL off. Each needs a default
+   quality profile and a root folder, and the root folders are the same library
+   subdirectories those two already hold — not `/media`.
+3. Make one test request and confirm it lands in Sonarr or Radarr. That is the
+   only step that proves the chain, because everything before it tests a
+   connection rather than a request.
+
+Lidarr is absent deliberately: Overseerr requests films and television, and
+music requests are Lidarr's own or nothing.
+
 ## Changing it
 
 **Adding an application** to `media` means a Deployment, a `<app>-config`
 Longhorn claim, a Service, an `IngressRoute`, and — if it touches media files
 at all — a mount of the existing `media-library` claim at `/media`, which
-Prowlarr is the standing exception to. It does **not** mean another
-`PersistentVolume` over the export: the whole point of the namespace is one
-volume, and a second one would reintroduce both the superblock trap and the
-cross-mount hardlink failure.
+Prowlarr and Overseerr are the standing exceptions to. It does **not** mean
+another `PersistentVolume` over the export: the whole point of the namespace
+is one volume, and a second one would reintroduce both the superblock trap and
+the cross-mount hardlink failure.
 
 **A workload needing more than `baseline`** does not go in `media`. It gets its
 own namespace, the way `media-downloads` does, and reaches the share through a
