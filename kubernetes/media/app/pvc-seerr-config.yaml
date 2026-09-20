@@ -1,12 +1,12 @@
-# settings.json, the SQLite database and a TMDB image cache Overseerr prunes
+# settings.json, the SQLite database and a TMDB image cache Seerr prunes
 # itself — bigger than Prowlarr's, well short of the three that grow with the
 # library. No storageClassName: longhorn is the cluster default.
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: overseerr-config
+  name: seerr-config
   labels:
-    app.kubernetes.io/name: overseerr
+    app.kubernetes.io/name: seerr
 spec:
   accessModes:
     - ReadWriteOnce
