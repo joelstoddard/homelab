@@ -12,9 +12,11 @@ resources:
   - pvc-sonarr-config.yaml
   - pvc-radarr-config.yaml
   - pvc-lidarr-config.yaml
+  - pvc-bazarr-config.yaml
   - jellyfin.yaml
   - jellyfin-exporter.yaml
   - prowlarr.yaml
   - sonarr.yaml
   - radarr.yaml
   - lidarr.yaml
+  - bazarr.yaml

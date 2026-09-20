@@ -1,0 +1,116 @@
+# Bazarr — same shape as sonarr.yaml; only the image, the port, the probe path
+# and the /media access mode differ. docs/design/arr-stack.md carries the
+# rationale for that shape: Recreate on a SQLite ReadWriteOnce claim, amd64,
+# PUID/PGID, probe timeouts, and requests plus limits on every container.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bazarr
+  labels:
+    app.kubernetes.io/name: bazarr
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: bazarr
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: bazarr
+    spec:
+      nodeSelector:
+        kubernetes.io/arch: amd64
+      containers:
+        - name: bazarr
+          image: lscr.io/linuxserver/bazarr:v1.6.1-ls364
+          env:
+            - name: PUID
+              value: "1000"
+            - name: PGID
+              value: "1000"
+            - name: TZ
+              value: Europe/London
+          ports:
+            - name: http
+              containerPort: 6767
+          # Every other path is the single-page application catch-all, which
+          # returns 401 whenever Settings > Security is set to Basic. This one
+          # is served before that check, so the probes survive any auth mode.
+          startupProbe:
+            httpGet:
+              path: /manifest.webmanifest
+              port: http
+            periodSeconds: 10
+            failureThreshold: 30
+            timeoutSeconds: 5
+          readinessProbe:
+            httpGet:
+              path: /manifest.webmanifest
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /manifest.webmanifest
+              port: http
+            periodSeconds: 30
+            failureThreshold: 3
+            timeoutSeconds: 10
+          volumeMounts:
+            # Read-write, unlike Jellyfin's mount: Bazarr writes .srt files
+            # beside each video. The export ROOT, so the paths Sonarr and Radarr
+            # report resolve unchanged (docs/design/arr-stack.md, "Path identity").
+            - name: media
+              mountPath: /media
+            - name: config
+              mountPath: /config
+          resources:
+            requests:
+              cpu: 100m
+              memory: 512Mi
+            limits:
+              cpu: "2"
+              memory: 1Gi
+      volumes:
+        - name: media
+          persistentVolumeClaim:
+            claimName: media-library
+        - name: config
+          persistentVolumeClaim:
+            claimName: bazarr-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: bazarr
+  labels:
+    app.kubernetes.io/name: bazarr
+spec:
+  selector:
+    app.kubernetes.io/name: bazarr
+  ports:
+    - name: http
+      port: 6767
+      targetPort: http
+---
+# No auth middleware, following the other four. Bazarr differs in shipping
+# auth.type null, so its UI is open until Settings > Security is set to Form —
+# do that first (docs/design/arr-stack.md, "Ingress and auth").
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: bazarr
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - kind: Rule
+      match: Host(`bazarr.${DOMAIN}`)
+      middlewares:
+        - name: default-headers
+          namespace: traefik
+      services:
+        - name: bazarr
+          port: 6767
