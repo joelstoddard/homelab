@@ -1057,36 +1057,47 @@ requests are Lidarr's own or nothing.
 
 ### Bringing SABnzbd up
 
-The order here is forced by the hostname check, not by preference. Until a
-login exists, `sabnzbd.${DOMAIN}` answers "Access denied - Hostname
+Until a login exists, `sabnzbd.${DOMAIN}` answers "Access denied - Hostname
 verification failed" to everyone, which is protection rather than a fault — so
 unlike Bazarr and Seerr there is no race to win.
 
 1. `kubectl --context homelab -n media port-forward svc/sabnzbd 8080:8080` and
    open `http://localhost:8080`. `localhost` is the one `Host` the check
-   accepts unconditionally.
-2. **Set a username and password first**, in Config → General. That both
-   secures the UI and makes `check_hostname()` return early, which is what opens
-   the public route. Nothing else needs to change for the ingress to work.
-3. Add the Usenet provider in Config → Servers: host, port 563, SSL on,
-   username, password, and the connection count the provider specifies. "Test
-   Server" must pass. These credentials are not in git and cannot be — SABnzbd
-   has no environment-variable override, so `sabnzbd.ini` on the config claim
-   is the only place they live.
+   accepts unconditionally. Type the scheme: a browser left to guess upgrades
+   to HTTPS and fails with `SSL_ERROR_RX_RECORD_TOO_LONG`, because
+   `enable_https` is 0 and the forward carries plain HTTP.
+2. **The first-run wizard asks for the Usenet provider, and only that.** Its
+   Username and Password fields are the *news server's* — `srv-username` and
+   `srv-password` in the template — so they cannot be mistaken for the web
+   login, which the wizard never offers. Enter the provider's host, port 563,
+   SSL on, credentials and its stated connection count, and require "Test
+   Server" to pass. None of this is in git and none of it can be: SABnzbd has
+   no environment-variable override, so `sabnzbd.ini` on the config claim is
+   the only place these live.
+3. **Then set the web login**, Config → General → SABnzbd Username and
+   Password. This is the step that both secures the UI and makes
+   `check_hostname()` return early, which is what opens the public route.
+   Nothing else needs to change for the ingress to work. Copy the API key from
+   the same page.
 4. Set the folders in Config → Folders to the shared tree, not the defaults:
    temporary `/media/downloads/incomplete/sabnzbd`, completed
    `/media/downloads/complete/sabnzbd`. Getting this wrong puts downloads on
    the config claim, where Sonarr cannot see them and no import will hardlink.
-5. Copy the API key from Config → General.
-6. Register it in Sonarr and Radarr as a SABnzbd download client — host
+5. Register it in Sonarr and Radarr as a SABnzbd download client — host
    `sabnzbd.media.svc.cluster.local`, port 8080, the API key, SSL off. No
    whitelist entry is needed: the name ends in `.local`, which the hostname
    check exempts. "Test" must go green before saving.
-7. Add the indexers in Prowlarr under Settings → Indexers and let them sync.
+6. Add the indexers in Prowlarr under Settings → Indexers and let them sync.
    The provider supplies articles; an indexer is what turns a search into an
    NZB, and neither is any use alone.
-8. Confirm the first Usenet import hardlinks the same way the torrent path
+7. Confirm the first Usenet import hardlinks the same way the torrent path
    does: `stat -c %h` on the library file reads 2.
+
+**A write test here must drop to uid 1000.** `kubectl exec` lands as root, the
+export squashes root, and the application runs as `abc`/1000 — so a `touch`
+under `/media/downloads` fails as root and succeeds under `s6-setuidgid abc`.
+The failure is the test's, not the deployment's, and it reads the wrong way
+round: privileged user denied, unprivileged user fine.
 
 ## Changing it
 
