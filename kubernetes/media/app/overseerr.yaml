@@ -1,0 +1,125 @@
+# Overseerr — the request portal handed to other people, talking to Jellyfin,
+# Sonarr and Radarr over .svc. It never touches a file, so like Prowlarr it
+# takes no /media mount; docs/design/arr-stack.md carries the rest.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: overseerr
+  labels:
+    app.kubernetes.io/name: overseerr
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: overseerr
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: overseerr
+    spec:
+      nodeSelector:
+        kubernetes.io/arch: amd64
+      initContainers:
+        # The image ships config/DOCKER and the claim mounts over it, so
+        # Overseerr's own appDataStatus() check would report the persistent
+        # volume missing. Restoring the marker makes that check accurate.
+        - name: seed-marker
+          image: busybox:1.37.0
+          command:
+            - sh
+            - -c
+            - touch /app/config/DOCKER
+          volumeMounts:
+            - name: config
+              mountPath: /app/config
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              cpu: 100m
+              memory: 32Mi
+      containers:
+        - name: overseerr
+          # Upstream, not LinuxServer: this image is plain node:20-alpine with
+          # no s6-overlay, so it runs as root and honours no PUID/PGID.
+          image: sctx/overseerr:1.35.0
+          env:
+            - name: TZ
+              value: Europe/London
+          ports:
+            - name: http
+              containerPort: 5055
+          # /api/v1/status calls the GitHub releases API on every request.
+          # /api/v1/status/appdata keeps the internet out of the liveness probe.
+          startupProbe:
+            httpGet:
+              path: /api/v1/status/appdata
+              port: http
+            periodSeconds: 10
+            failureThreshold: 30
+            timeoutSeconds: 5
+          readinessProbe:
+            httpGet:
+              path: /api/v1/status/appdata
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /api/v1/status/appdata
+              port: http
+            periodSeconds: 30
+            failureThreshold: 3
+            timeoutSeconds: 10
+          # /app/config, not /config: Overseerr's WORKDIR is /app and its
+          # config directory is relative to it.
+          volumeMounts:
+            - name: config
+              mountPath: /app/config
+          resources:
+            requests:
+              cpu: 100m
+              memory: 512Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+      volumes:
+        - name: config
+          persistentVolumeClaim:
+            claimName: overseerr-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: overseerr
+  labels:
+    app.kubernetes.io/name: overseerr
+spec:
+  selector:
+    app.kubernetes.io/name: overseerr
+  ports:
+    - name: http
+      port: 5055
+      targetPort: http
+---
+# requests., not overseerr.: this is the name other people are given. No auth
+# middleware — Overseerr authenticates users against their Jellyfin accounts.
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: overseerr
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - kind: Rule
+      match: Host(`requests.${DOMAIN}`)
+      middlewares:
+        - name: default-headers
+          namespace: traefik
+      services:
+        - name: overseerr
+          port: 5055
