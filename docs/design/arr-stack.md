@@ -918,10 +918,13 @@ deliberately do not carry:
 
 ### Bringing Overseerr up
 
-Overseerr's wizard is first-come-first-served in the same way and has the same
-answer — `kubectl port-forward` reaches the pod before `requests.${DOMAIN}` is
-anyone's to visit. None of what follows can be a manifest: Overseerr stores the
-lot in its own database, which is why it needs no secret of its own.
+Overseerr's wizard is first-come-first-served, and **the window cannot be
+closed in advance.** Flux applies the Deployment and the `IngressRoute` in one
+pass, so `requests.${DOMAIN}` answers the moment the pod is ready and the
+`kubectl port-forward` that protected the four \*arr buys nothing here — the
+same window Bazarr has, for the same reason. Do this promptly after the layer
+reconciles. None of it can be a manifest: Overseerr stores the lot in its own
+database, which is why it needs no secret of its own.
 
 1. Sign in with Jellyfin, which creates the admin account and sets the
    authentication source in one step. The server is
