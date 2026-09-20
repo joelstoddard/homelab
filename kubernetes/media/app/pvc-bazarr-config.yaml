@@ -1,0 +1,15 @@
+# The SQLite database, logs and the provider cache. Smaller than Sonarr's claim
+# because Bazarr stores no artwork — it proxies posters from Sonarr and Radarr —
+# but larger than Prowlarr's, which tracks indexers rather than every episode.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: bazarr-config
+  labels:
+    app.kubernetes.io/name: bazarr
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 4Gi
