@@ -233,10 +233,10 @@ cluster's only certificate, so a new service needs one `IngressRoute` (or a
 plain `Ingress` with the `router.entrypoints` / `router.tls` annotations)
 and nothing else: no `Certificate`, no `tls.secretName`, no DNS record.
 The shared `default-headers` middleware and one `<service>-auth` basic-auth
-Middleware per service (`dashboard-auth`, `longhorn-auth`, `glance-auth`,
-`qbittorrent-auth` — there is no shared `basic-auth`, and a shared credential
-is deliberately rejected) live in the `traefik` namespace but in their own
-layer, `traefik-middlewares/`
+Middleware per service that has no login of its own (`dashboard-auth`,
+`longhorn-auth`, `glance-auth` — there is no shared `basic-auth`, and a
+shared credential is deliberately rejected) live in the `traefik` namespace
+but in their own layer, `traefik-middlewares/`
 (`dependsOn: traefik`): the `Middleware` CRD ships inside the chart's `crds/`
 directory, so a CR of that kind cannot be in the same apply pass — the same
 reason `cert-manager` and `cert-manager-issuers` are split. Other namespaces
@@ -357,9 +357,9 @@ and a `homeassistant:` block locks ALL core config to YAML on any one of
 its twelve keys, which greys out the location picker. Trusted proxies,
 location and the URLs are therefore set in the UI and survive in
 `.storage`, and a rebuild that wipes the volume means setting them again.
-No auth middleware — Home Assistant has its own login, the third documented
-exception after SearXNG and Jellyfin. Two replicas are impossible, not
-merely unwise. See `docs/design/home-assistant.md`.
+No auth middleware — Home Assistant has its own login, as do SearXNG,
+Jellyfin, the four \*arr applications and qBittorrent. Two replicas are
+impossible, not merely unwise. See `docs/design/home-assistant.md`.
 `media/` (`dependsOn: traefik, traefik-middlewares, longhorn, cluster-secrets`,
 substituted) is the shared namespace for Jellyfin and the future \*arr
 stack: one read-write `PersistentVolume` over the TrueNAS export, mounted at

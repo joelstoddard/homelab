@@ -99,8 +99,8 @@ spec:
       targetPort: http
 ---
 # No Certificate and no tls.secretName: TLSStore/default serves the wildcard
-# and Pi-hole already resolves the name. sonarr-auth is this service's own
-# Middleware and credential, never shared (docs/design/ingress-tls.md).
+# and Pi-hole already resolves the name. No auth middleware — Sonarr
+# authenticates itself (docs/design/arr-stack.md).
 apiVersion: traefik.io/v1alpha1
 kind: IngressRoute
 metadata:
@@ -113,8 +113,6 @@ spec:
       match: Host(`sonarr.${DOMAIN}`)
       middlewares:
         - name: default-headers
-          namespace: traefik
-        - name: sonarr-auth
           namespace: traefik
       services:
         - name: sonarr

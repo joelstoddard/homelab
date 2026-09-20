@@ -253,8 +253,8 @@ spec:
       targetPort: http
 ---
 # One route and nothing else: TLSStore/default serves the wildcard and Pi-hole
-# already resolves the name (docs/design/ingress-tls.md). qbittorrent-auth is
-# this service's own Middleware and credential, never shared.
+# already resolves the name (docs/design/ingress-tls.md). No auth middleware —
+# the Web UI has its own login (docs/design/arr-stack.md).
 apiVersion: traefik.io/v1alpha1
 kind: IngressRoute
 metadata:
@@ -267,8 +267,6 @@ spec:
       match: Host(`qbittorrent.${DOMAIN}`)
       middlewares:
         - name: default-headers
-          namespace: traefik
-        - name: qbittorrent-auth
           namespace: traefik
       services:
         - name: qbittorrent

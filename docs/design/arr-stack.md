@@ -458,22 +458,44 @@ binary artwork.
 ### Ingress and auth
 
 Each application gets one `IngressRoute` on `websecure` carrying
-`default-headers` and `basic-auth`, both referenced as
-`traefik-<name>@kubernetescrd`. No `Certificate` and no `tls.secretName`:
+`default-headers` and nothing else. No `Certificate` and no `tls.secretName`:
 `TLSStore/default` serves the wildcard, and the Pi-hole wildcard already resolves
 the names — no per-name passthrough, which applies only to publicly-hosted names
 (`docs/design/ingress-tls.md`).
 
-Each service carries its own Middleware and its own credential — `qbittorrent-auth`
-follows `dashboard-auth`, `longhorn-auth` and `glance-auth` — and they are never
-shared, because a leak from one would otherwise expose the rest.
+**No basic-auth Middleware in front of any of the five**, which reverses what
+this section first specified. Each of these applications authenticates itself,
+so a Traefik credential in front of it adds a second prompt and no security.
+That is the same standard the cluster's existing exemptions meet: Jellyfin,
+SearXNG and Home Assistant are exempt because they have their own login, not
+because they might.
 
-Basic auth cannot break inter-application sync, because Prowlarr → Sonarr and
-Bazarr → Radarr traffic resolves over `.svc` and never traverses Traefik. Only
-browser access is authenticated.
+The five `<app>-auth` Middlewares and their Secrets were removed on 2026-09-20
+against evidence from the running cluster rather than on the argument alone. All
+four \*arr applications persist `AuthenticationMethod=Forms` with
+`AuthenticationRequired=Enabled`. Each of their APIs already answers **401** to a
+request carrying no `X-Api-Key`, so the middleware was never what protected the
+API. qBittorrent answers **403** to an unauthenticated Web UI API call. The cost
+of keeping the layer was a second credential prompt in front of every one of
+them, and it had locked the operator out of two.
 
-Overseerr will be the fourth documented exception to the per-service basic-auth
-rule, after SearXNG, Jellyfin and Home Assistant. It is the request portal handed
+Be precise about what protects what. The API is protected by its key, not by the
+ingress; the UI by the application's own login. So anyone holding a key from
+`arr-apikeys` has full control of that application from anywhere that can reach
+the hostname — the LAN and the tailnet — which is an argument for treating those
+keys as real secrets, not for a password in front of a login page.
+
+**The ordering matters to anyone doing this again.** A fresh \*arr install sits
+at `AuthenticationMethod=None` and its setup screen is first-come-first-served,
+so the application's own auth must be configured **before** any outer layer is
+removed. `kubectl port-forward` reaches the pod directly and bypasses the
+ingress, which is how to configure it without opening a window in which the
+application is both reachable and unauthenticated.
+
+None of this touches inter-application sync either way: Prowlarr → Sonarr and
+Bazarr → Radarr traffic resolves over `.svc` and never traverses Traefik.
+
+Overseerr will be the same case when it arrives. It is the request portal handed
 to other people, it has its own login, and it authenticates users against their
 Jellyfin accounts; a browser prompt in front of a login page is friction with no
 security gain.
@@ -724,10 +746,10 @@ leaked nothing. Scaling it up was a separate, ordered exercise, run on
 steps then passed from a clean deploy, so the manifest ships at `replicas: 1`
 and the list below is the procedure for a rebuild rather than a pending task.
 
-1. Fill `kubernetes/traefik/app/secret-qbittorrent-auth.sops.yaml`. Bcrypt only
-   (`htpasswd -nB`), because the `traefik` layer is substituted.
-2. Scale to 1 and watch the sidecar reach `/healthz`. A crash loop here is the
+1. Scale to 1 and watch the sidecar reach `/healthz`. A crash loop here is the
    apiserver rule or the uid-0 rule rather than the tunnel.
+2. Set the Web UI password through `kubectl port-forward`, before the hostname
+   is used: the application's own login is all that fronts the route.
 3. Confirm the pinned node is still served: `tailscale exit-node list` in the
    pod.
 4. **Leak test.** The apparent egress address from inside the container is the
@@ -768,11 +790,9 @@ They merge running, because nothing in them leaves the cluster until an
 indexer is configured. What is left is the runtime state the manifests
 deliberately do not carry:
 
-1. Fill the five placeholder Secrets — `arr-apikeys` in `media`, and
-   `<app>-auth-users` in `traefik`. Both layers are substituted, so a `$` in
-   either is eaten: htpasswd lines must be bcrypt (`htpasswd -nB`, never a
-   classic `$apr1$` hash), and API keys must be hex, which is what the
-   applications' own generator produces. Then restart the four Deployments:
+1. Fill the `arr-apikeys` placeholder Secret in `media`. The layer is
+   substituted, so a `$` in it is eaten; the keys must be hex, which is what
+   the applications' own generator produces. Then restart the four Deployments:
 
    ```
    kubectl --context homelab -n media rollout restart \
@@ -781,32 +801,33 @@ deliberately do not carry:
 
    An environment variable from a `secretKeyRef` is snapshotted when the
    container starts, so a pod that was already running keeps `REPLACE_ME` and
-   step 2 fails — whereas Traefik watches its basic-auth Secrets and re-reads
-   them without a restart. That asymmetry is the whole reason one side needs
-   the restart and the other does not. Until those htpasswd lines are real all
-   four routes answer 401 to everyone, which is fail-closed and correct rather
-   than a broken ingress.
+   step 3 fails.
 
-2. Confirm each application took its declared key rather than generating one:
+2. Set each application's own login before its hostname is used: Settings →
+   General → Authentication `Forms`, Authentication Required `Enabled`. A fresh
+   install sits at `None` with a first-come-first-served setup screen, and no
+   middleware stands in front of it, so reach it with `kubectl port-forward`
+   rather than through the ingress.
+3. Confirm each application took its declared key rather than generating one:
    the key in Settings → General must match `arr-apikeys`.
-3. Root folders, in Sonarr, Radarr and Lidarr only. These are the **library
+4. Root folders, in Sonarr, Radarr and Lidarr only. These are the **library
    subdirectories** under `/media` — the same trees Jellyfin serves, one per
    application — never `/media` itself and never anything under
    `/media/downloads`. Enter them verbatim: one directory's name ends in an
    apostrophe.
-4. **Whitelist the in-cluster Service name in qBittorrent before registering
+5. **Whitelist the in-cluster Service name in qBittorrent before registering
    it.** Add `qbittorrent.media-downloads.svc.cluster.local` to Web UI →
-   "Server domains" (or turn host-header validation off). Skip this and step 5
+   "Server domains" (or turn host-header validation off). Skip this and step 6
    fails with a **401 that reads as bad credentials** rather than as a rejected
    hostname, which is the misdiagnosis worth avoiding. It cannot be a manifest:
    the setting lives in `qBittorrent.conf` on the config volume, which the
    application writes itself.
-5. Register qBittorrent as a download client in Sonarr, Radarr and Lidarr —
+6. Register qBittorrent as a download client in Sonarr, Radarr and Lidarr —
    host `qbittorrent.media-downloads.svc.cluster.local`, port 8080, the Web UI
    credentials. "Test" must go green before saving.
-6. Add those three to Prowlarr under Settings → Apps, each with its own key
+7. Add those three to Prowlarr under Settings → Apps, each with its own key
    from `arr-apikeys`, then sync the indexers.
-7. Confirm the first import hardlinks rather than copies: the completed file's
+8. Confirm the first import hardlinks rather than copies: the completed file's
    link count under `/media/downloads` rises to 2.
 
 ## Changing it

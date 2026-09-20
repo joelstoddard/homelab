@@ -1,5 +1,5 @@
 # Prowlarr — indexers declared once here and synced to the other three over
-# .svc, which basic auth on the route never touches. docs/design/arr-stack.md
+# .svc, which never traverses Traefik. docs/design/arr-stack.md
 # carries the rationale for the shape all four share: Recreate on a SQLite
 # ReadWriteOnce claim, amd64, PUID/PGID, probe timeouts, and requests plus
 # limits on every container.
@@ -96,8 +96,8 @@ spec:
       targetPort: http
 ---
 # No Certificate and no tls.secretName: TLSStore/default serves the wildcard
-# and Pi-hole already resolves the name. prowlarr-auth is this service's own
-# Middleware and credential, never shared (docs/design/ingress-tls.md).
+# and Pi-hole already resolves the name. No auth middleware — Prowlarr
+# authenticates itself (docs/design/arr-stack.md).
 apiVersion: traefik.io/v1alpha1
 kind: IngressRoute
 metadata:
@@ -110,8 +110,6 @@ spec:
       match: Host(`prowlarr.${DOMAIN}`)
       middlewares:
         - name: default-headers
-          namespace: traefik
-        - name: prowlarr-auth
           namespace: traefik
       services:
         - name: prowlarr
