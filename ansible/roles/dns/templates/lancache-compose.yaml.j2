@@ -1,0 +1,19 @@
+---
+# Managed by ansible (roles/dns). See docs/design/dns-chain.md.
+services:
+  lancache-dns:
+    image: {{ dns_lancache_image }}
+    # host networking so the container owns :53 on the LXC's own address, and
+    # so the ACL in named.conf.options sees real source addresses.
+    network_mode: host
+    environment:
+      USE_GENERIC_CACHE: "true"
+      LANCACHE_IP: "{{ dns_lancache_lb_ip }}"
+      # dnstool splits on ';' or whitespace and rejects anything that is not
+      # an IP literal, so hostnames cannot be used here.
+      UPSTREAM_DNS: "{{ dns_bind9_addresses.values() | sort | join('; ') }}"
+    volumes:
+      # Read-write on purpose: dnstool rewrites this file at every start, and
+      # a read-only mount makes the container exit before bind starts.
+      - ./named.conf.options:/etc/bind/named.conf.options
+    restart: unless-stopped

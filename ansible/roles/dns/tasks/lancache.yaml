@@ -1,0 +1,79 @@
+---
+# lancache-dns: the chain's second link, diverting the game CDNs to the local
+# cache. See docs/design/dns-chain.md.
+#
+# The upstream image rather than our own BIND: it generates its RPZ from
+# uklans/cache-domains with a Go tool, and re-implementing that against a list
+# that churns is the maintenance cost this role exists to avoid.
+
+- name: Install Docker.
+  ansible.builtin.apt:
+    name: docker.io
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Create the lancache-dns project directory.
+  ansible.builtin.file:
+    path: "{{ dns_lancache_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Render the hardened bind options.
+  ansible.builtin.template:
+    src: lancache-named.conf.options.j2
+    dest: "{{ dns_lancache_dir }}/named.conf.options"
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart lancache-dns
+
+- name: Render the compose file.
+  ansible.builtin.template:
+    src: lancache-compose.yaml.j2
+    dest: "{{ dns_lancache_dir }}/compose.yaml"
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart lancache-dns
+
+- name: Run lancache-dns.
+  # dns_lancache_enabled: false is the fail-open lever. Stopping the container
+  # makes Pi-hole's strict-order fall through to Bind9, so the CDN domains
+  # resolve to the real CDN and downloads go direct instead of breaking.
+  community.docker.docker_compose_v2:
+    project_src: "{{ dns_lancache_dir }}"
+    state: "{{ 'present' if dns_lancache_enabled else 'absent' }}"
+    pull: missing
+
+- name: Reload the container now, so the checks below see the new config.
+  ansible.builtin.meta: flush_handlers
+
+- name: Confirm a CDN domain resolves to the cache.
+  ansible.builtin.command:
+    cmd: >-
+      dig +short +tries=1 +time=5
+      @{{ dns_lancache_addresses[inventory_hostname] }}
+      {{ dns_lancache_probe_domain }} A
+  register: _dns_lancache_check
+  changed_when: false
+  failed_when: dns_lancache_lb_ip not in _dns_lancache_check.stdout
+  when: dns_lancache_enabled
+
+- name: Confirm lancache-dns refuses a host outside the chain.
+  # Run from the operator, which is not in the dns_chain ACL. Without this the
+  # image's shipped allow-recursion { any; } would let a LAN client skip
+  # Pi-hole's blocklists entirely.
+  ansible.builtin.command:
+    cmd: >-
+      dig +short +tries=1 +time=2
+      @{{ dns_lancache_addresses[inventory_hostname] }}
+      {{ dns_lancache_probe_domain }} A
+  delegate_to: localhost
+  become: false
+  register: _dns_lancache_acl
+  changed_when: false
+  failed_when: _dns_lancache_acl.stdout | trim | length > 0
+  when: dns_lancache_enabled

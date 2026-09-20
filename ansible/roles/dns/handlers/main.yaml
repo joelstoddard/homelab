@@ -5,3 +5,10 @@
   ansible.builtin.systemd:
     name: named
     state: reloaded
+
+# Restarted, not reloaded: dnstool regenerates the RPZ at container start, so
+# a config change only lands on a full restart.
+- name: Restart lancache-dns
+  community.docker.docker_compose_v2:
+    project_src: "{{ dns_lancache_dir }}"
+    state: restarted

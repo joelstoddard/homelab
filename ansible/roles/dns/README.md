@@ -7,19 +7,34 @@ for its own link. Task files dispatch on that second tag, the way
 | Link | Group | Owned by | State |
 |---|---|---|---|
 | Pi-hole | `pihole` | `opentofu/resources/pihole/` | keepalived lands here later |
-| lancache-dns | `lancache` | this role | later change |
+| lancache-dns | `lancache` | this role | implemented |
 | Bind9 | `bind9` | this role | implemented |
 
 The reasoning behind the chain — why Pi-hole is first, why lancache-dns sits
 above Bind9 rather than below it, why there is no zone transfer — is in
 `docs/design/dns-chain.md`. Read that before changing anything here.
 
-## What it does today
+## What it does
 
 1. Asserts that the container does not resolve through the chain.
 2. On a `bind9` host: installs Bind9 and renders the authoritative zone.
-3. Confirms the wildcard answers, and that a host outside the chain gets
-   nothing.
+3. On a `lancache` host: runs the upstream lancache-dns image under Docker
+   with a hardened bind config.
+4. Confirms each link answers what it should, and that a host outside the
+   chain gets nothing from either.
+
+## lancache-dns hardening
+
+The upstream image ships `allow-recursion { any; }` and `listen-on { any; }`,
+so a LAN client could query it directly and skip Pi-hole's blocklists. The
+role mounts its own `named.conf.options` over the image's.
+
+That file is written with the forwarders already substituted and **no
+`#ENABLE_UPSTREAM_DNS#` marker**, because `dnstool` string-replaces this file
+in place at every container start. With nothing left to replace it is written
+back byte-identical, so Ansible and the container do not fight over it. The
+mount is read-write for the same reason — a read-only mount makes `dnstool`
+fail and the container exits before bind starts.
 
 ## Run it
 
@@ -60,6 +75,7 @@ Create it with `sops ansible/inventory/group_vars/dns.sops.yaml`:
 | `dns_lancache_addresses` | map | Same, for the lancache-dns pair; gates the ACL |
 | `dns_pihole_vip` | string | The floating address, once keepalived lands |
 | `dns_passthrough_names` | list | FQDNs under the domain that public DNS really hosts |
+| `dns_lancache_lb_ip` | string | The LANCache HTTP address in the cluster; what the RPZ points at |
 
 Non-secret settings — forwarders and zone timers — are in
 `defaults/main.yaml`.
