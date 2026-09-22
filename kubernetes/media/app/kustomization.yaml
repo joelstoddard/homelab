@@ -5,6 +5,7 @@ resources:
   - namespace.yaml
   - secret-jellyfin-exporter.sops.yaml
   - secret-arr-apikeys.sops.yaml
+  - secret-exporter-apikeys.sops.yaml
   - pv-library.yaml
   - pvc-library.yaml
   - pvc-jellyfin-config.yaml
@@ -18,12 +19,18 @@ resources:
   - jellyfin.yaml
   - jellyfin-exporter.yaml
   - prowlarr.yaml
+  - prowlarr-exporter.yaml
   - sonarr.yaml
+  - sonarr-exporter.yaml
   - radarr.yaml
+  - radarr-exporter.yaml
   - lidarr.yaml
+  - lidarr-exporter.yaml
   - bazarr.yaml
+  - bazarr-exporter.yaml
   - seerr.yaml
   - sabnzbd.yaml
+  - sabnzbd-exporter.yaml
   - recyclarr.yaml
 # Recyclarr's config, hashed so an edit rolls the next job. Substitution is
 # disabled: the file is embedded verbatim and envsubst would eat its `$schema`.
