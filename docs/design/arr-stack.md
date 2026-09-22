@@ -786,21 +786,54 @@ subcommand, the `URL` and the secret key. They carry `prometheus.io/scrape` and
 `prometheus.io/port: "9707"`, which is all the Alloy annotation path needs
 (`docs/design/observability.md`); no Service, no `ServiceMonitor`, no CRD. `job`
 comes from `app.kubernetes.io/name`, so the series land under
-`prowlarr-exporter`, `sonarr-exporter`, `radarr-exporter`, `lidarr-exporter`.
+`<app>-exporter` for each.
 They are sized like `jellyfin-exporter` — 10m/32Mi requested, 200m/128Mi limit,
 `amd64` with the rest of the namespace — because the resident set is one decoded
 API response, and that grows with the library rather than with traffic.
 
-**Which applications have one, and why the rest do not.** Prowlarr, Sonarr,
-Radarr and Lidarr are exactly the applications whose API key is declarative,
-which is what lets an exporter hold it. exportarr also speaks Bazarr and
-SABnzbd, and neither has one here for the same reason: their keys are runtime
-state, not configuration. Bazarr ships `auth.type` null and mints its key on
-first start; SABnzbd keeps its in `sabnzbd.ini` on the claim with no environment
-override. Wiring either up means lifting a generated value out of a volume and
-back into git — the boundary "Configuration versus state" draws, from the wrong
-side. Seerr is not an exportarr target at all: it files requests with Sonarr and
-Radarr, whose exporters already count the result.
+**Which applications have one, and why the rest do not.** Six do: Prowlarr,
+Sonarr, Radarr, Lidarr, Bazarr and SABnzbd, every application here that
+exportarr speaks. Seerr is not an exportarr target — it files requests with
+Sonarr and Radarr, whose exporters already count the result, and it exposes no
+Prometheus endpoint of its own, so its request rates and latencies come from
+Beyla like any other instrumented pod. Recyclarr is a CronJob rather than a
+service; kube-state-metrics already reports its schedule and per-run outcome
+through `kube_cronjob_*` and `kube_job_status_failed`, on `exported_namespace`
+like every other series from that collector.
+
+**Two secrets, because the keys travel in opposite directions.** `arr-apikeys`
+holds keys this repo *sets*: the four \*arr take theirs from the environment, so
+git is the source of truth and the application follows. Bazarr and SABnzbd offer
+no such override — Bazarr mints its key on first start, SABnzbd keeps its in
+`sabnzbd.ini` on the claim — so their exporters read a value the application
+already chose. That is the wrong side of the boundary "Configuration versus
+state" draws, and it cannot be moved without a config file the application then
+fights. Keeping those two in a separate `exporter-apikeys` is what stops the
+next reader believing that editing one re-keys the application. It does not; it
+only breaks the exporter.
+
+Because those two values are copies rather than the original, they can go stale
+in a way `arr-apikeys` never can: regenerating the key in Bazarr's or SABnzbd's
+UI leaves git holding the old one, and the exporter then authenticates against
+nothing. In v2 that is not a 401 in a log — the collector fails, the registry
+render fails with it, and the target reads `up == 0` with no other signal. So
+if one of these two goes dark and its application is plainly healthy, suspect
+the key before the exporter. Re-copy it with
+`sops kubernetes/media/app/secret-exporter-apikeys.sops.yaml`; Bazarr's is
+Settings > General > Security > API Key, SABnzbd's is Config > General > API
+Key. Bazarr's must also satisfy exportarr's own `^[a-zA-Z0-9]{20,32}$` check,
+which a malformed paste fails at startup — that one does crash-loop, and the
+distinction is the fastest way to tell a wrong key from a mistyped one.
+
+**Bazarr will outgrow the annotation path, and the symptom is misleading.** Its
+collector walks every series' subtitles, and upstream measures that in tens of
+seconds — the time is spent inside Bazarr generating the batched responses, so
+`series-batch-size` and `series-batch-concurrency` barely move it. Alloy's
+annotated-pod job carries no `scrape_timeout`, so it uses the 10s default;
+a library large enough to exceed that reads as `up == 0` with a perfectly
+healthy exporter and nothing in its logs. The fix is an explicit Alloy job with
+a longer timeout, the shape `searxng` and `home-assistant` already use. v2 has
+no flag to skip the episode walk; v3 adds `DISABLE_EPISODE_METRICS`.
 
 The key is validated against `^[a-zA-Z0-9]{20,32}$` before the first request, so
 a malformed one crash-loops the exporter instead of failing a scrape. `API_KEY`
@@ -829,7 +862,10 @@ with a measurement of scrape duration to back the decision.
 
 Prowlarr is the odd one again: its collector set is the app, history, system
 status and system health — **no queue and no root-folder collector**, because it
-has neither. `PROWLARR__BACKFILL` would replay indexer history into the counters,
+has neither. Bazarr and SABnzbd are further out still: each registers exactly
+one collector and shares none of the `<app>_queue_total` / `<app>_history_total`
+/ `<app>_rootfolder_freespace_bytes` family, so a panel meant to cover the whole
+namespace has to leave them out rather than widen a regex. `PROWLARR__BACKFILL` would replay indexer history into the counters,
 which otherwise start at zero when the exporter starts; it is off because there
 is no history worth replaying and the first request after enabling it can outrun
 the scrape timeout.

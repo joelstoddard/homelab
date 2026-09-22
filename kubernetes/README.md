@@ -613,8 +613,9 @@ library: one read-write `PersistentVolume` over the export on `voyager`, one
 claim, and every application deploying into it. Today it holds that volume,
 Jellyfin on `jellyfin.<domain>`, Prowlarr, Sonarr, Radarr, Lidarr, Bazarr,
 Seerr, SABnzbd and Recyclarr — the torrent client lives next door in
-`media-downloads/`, behind its own VPN. Five of them have a metrics exporter:
-Jellyfin and the four \*arr whose API key is declarative. Rationale:
+`media-downloads/`, behind its own VPN. Seven have a metrics exporter —
+everything but Seerr, which exposes no Prometheus endpoint, and Recyclarr,
+which is a CronJob. Rationale:
 [`docs/design/arr-stack.md`](../docs/design/arr-stack.md) for the namespace,
 [`docs/design/jellyfin.md`](../docs/design/jellyfin.md) for Jellyfin itself.
 
@@ -659,13 +660,21 @@ Consequences:
   `playing`, `system` and `users` run unless enabled; `transcoding` carries the
   stream detail. `jellyfin_up` vanishes rather than reading zero when the API
   token is wrong, so health is keyed on `jellyfin_scrape_collector_success`.
-- **Each \*arr with a declarative key gets its own `exportarr`, and `up` is its
-  health signal.** One exportarr process gathers one application, hence four
-  more Deployments. In v2 a failing collector sends an invalid metric, which
-  makes `/metrics` return HTTP 500 and the target go `up == 0`;
-  `<app>_collector_error` is only a descriptor and is never exported, so
-  alerting on it alerts on nothing. Bazarr and SABnzbd have no exporter because
-  their keys are runtime state, not configuration — see the design doc.
+- **One `exportarr` per application, and `up` is its health signal.** One
+  exportarr process gathers one application, hence six more Deployments. In v2 a
+  failing collector sends an invalid metric, which makes `/metrics` return HTTP
+  500 and the target go `up == 0`; `<app>_collector_error` is only a descriptor
+  and is never exported, so alerting on it alerts on nothing.
+- **Two API-key secrets, pointing opposite ways.** `arr-apikeys` holds keys git
+  *sets* on the four \*arr through the environment. Bazarr and SABnzbd accept no
+  such override and mint their own, so `exporter-apikeys` holds keys *read back*
+  from them — editing one there re-keys nothing, it only breaks the exporter.
+  Being copies, they go stale if either key is regenerated in the UI, and the
+  only symptom is that exporter reading `up == 0`.
+- **Bazarr's exporter will outgrow the 10s annotation-path scrape timeout.** Its
+  collector walks every series' subtitles. A large library reads as `up == 0`
+  with a healthy exporter and an empty log; the fix is an explicit Alloy job
+  with a longer timeout, as `searxng` and `home-assistant` have.
 - **Nothing to add for DNS or TLS.** The Pi-hole wildcard resolves the name and
   `TLSStore/default` serves the certificate.
 - **Pruning this layer deletes the Longhorn config claims in it** (reclaim
