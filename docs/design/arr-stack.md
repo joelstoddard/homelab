@@ -848,13 +848,16 @@ happened, so the split was the safety property, not bookkeeping.
   so the config is validated against the live instances with `sync --preview`
   before merge. Runtime failures are better behaved: an unreachable host and a
   rejected API key both exit 1 and fail the Job.
-- **Recyclarr reports what it did through a console renderer that needs a
-  terminal.** With no TTY it prints four `[INF]` lines and no change table at
-  all, which is also why `recyclarr list ...` appears to do nothing when piped.
-  The CronJob therefore sets `tty: true`, and `TERM=dumb` alongside it to keep
-  the progress spinner out of the log — without it a single run wrote 402 lines,
-  nearly all of them redrawn spinner frames, against 366 lines of real content
-  with it.
+- **`--preview` and a real sync report through different channels, and only
+  `--preview` needs a terminal.** Preview renders its change tables solely
+  through Spectre.Console, which draws nothing when stdout is not a terminal —
+  the same reason `recyclarr list ...` appears to do nothing when piped. A real
+  sync does not: it logs plain `[INF]`/`[WRN]` lines naming what it created,
+  replaced or skipped per instance. **Do not give the CronJob a tty.** Measured
+  on this cluster, one sync wrote 18 clean, readable lines without one and 321
+  with, nearly all of them redrawn progress frames. Give a terminal only to an
+  interactive `--preview`, where it is the difference between tables and
+  silence.
 - **A wrong API-key variable name fails silently.** The application neither
   refuses to start nor logs a rejection — it generates a key of its own, which
   then disagrees with `arr-apikeys` and breaks Prowlarr's app sync and anything
