@@ -24,3 +24,13 @@ resources:
   - bazarr.yaml
   - seerr.yaml
   - sabnzbd.yaml
+  - recyclarr.yaml
+# Recyclarr's config, hashed so an edit rolls the next job. Substitution is
+# disabled: the file is embedded verbatim and envsubst would eat its `$schema`.
+configMapGenerator:
+  - name: recyclarr-config
+    files:
+      - config/recyclarr.yml
+generatorOptions:
+  labels:
+    kustomize.toolkit.fluxcd.io/substitute: disabled

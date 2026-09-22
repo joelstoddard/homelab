@@ -1,0 +1,76 @@
+# Recyclarr — a CronJob, not a Deployment: it syncs the TRaSH guide into Sonarr
+# and Radarr, then exits. No Service, no route, no /media mount, no config
+# claim; see docs/design/arr-stack.md, "Recyclarr".
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: recyclarr
+  labels:
+    app.kubernetes.io/name: recyclarr
+spec:
+  schedule: "0 4 * * *"
+  timeZone: Europe/London
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 1
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: recyclarr
+        spec:
+          restartPolicy: OnFailure
+          nodeSelector:
+            kubernetes.io/arch: amd64
+          containers:
+            - name: recyclarr
+              image: ghcr.io/recyclarr/recyclarr:8.7.2
+              # Recyclarr reports what it synced through Spectre.Console, which
+              # renders nothing at all without a terminal; TERM=dumb then keeps
+              # the progress spinner out of the log.
+              tty: true
+              # Given no arguments the entrypoint runs its own cron loop and
+              # never exits, which would wedge the Job.
+              args:
+                - sync
+                - --config
+                - /etc/recyclarr/recyclarr.yml
+              env:
+                - name: TZ
+                  value: Europe/London
+                - name: TERM
+                  value: dumb
+                - name: SONARR_API_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: arr-apikeys
+                      key: SONARR_API_KEY
+                - name: RADARR_API_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: arr-apikeys
+                      key: RADARR_API_KEY
+              volumeMounts:
+                - name: config
+                  mountPath: /etc/recyclarr
+                  readOnly: true
+                # The image points RECYCLARR_CONFIG_DIR at /config and clones
+                # the guide repositories into it on every run, so it needs a
+                # writable volume rather than the ConfigMap.
+                - name: data
+                  mountPath: /config
+              resources:
+                requests:
+                  cpu: 50m
+                  memory: 128Mi
+                limits:
+                  cpu: "1"
+                  memory: 512Mi
+          volumes:
+            - name: config
+              configMap:
+                name: recyclarr-config
+            - name: data
+              emptyDir: {}
