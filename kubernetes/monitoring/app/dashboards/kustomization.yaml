@@ -73,3 +73,21 @@ configMapGenerator:
   - name: dashboard-home-assistant
     files: [Services/home-assistant.json]
     options: {annotations: {grafana_folder: Services}}
+  - name: dashboard-prowlarr
+    files: [Services/prowlarr.json]
+    options: {annotations: {grafana_folder: Services}}
+  - name: dashboard-sonarr
+    files: [Services/sonarr.json]
+    options: {annotations: {grafana_folder: Services}}
+  - name: dashboard-radarr
+    files: [Services/radarr.json]
+    options: {annotations: {grafana_folder: Services}}
+  - name: dashboard-lidarr
+    files: [Services/lidarr.json]
+    options: {annotations: {grafana_folder: Services}}
+  - name: dashboard-bazarr
+    files: [Services/bazarr.json]
+    options: {annotations: {grafana_folder: Services}}
+  - name: dashboard-sabnzbd
+    files: [Services/sabnzbd.json]
+    options: {annotations: {grafana_folder: Services}}
