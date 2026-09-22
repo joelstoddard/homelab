@@ -14,6 +14,7 @@ resources:
   - pvc-lidarr-config.yaml
   - pvc-bazarr-config.yaml
   - pvc-seerr-config.yaml
+  - pvc-sabnzbd-config.yaml
   - jellyfin.yaml
   - jellyfin-exporter.yaml
   - prowlarr.yaml
@@ -22,6 +23,7 @@ resources:
   - lidarr.yaml
   - bazarr.yaml
   - seerr.yaml
+  - sabnzbd.yaml
   - recyclarr.yaml
 # Recyclarr's config, hashed so an edit rolls the next job. Substitution is
 # disabled: the file is embedded verbatim and envsubst would eat its `$schema`.

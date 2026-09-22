@@ -1,0 +1,115 @@
+# SABnzbd — the Usenet download client. It lives in `media` rather than beside
+# qBittorrent because Usenet is one authenticated TLS connection to one
+# provider, so it needs no VPN and no privilege; docs/design/arr-stack.md.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sabnzbd
+  labels:
+    app.kubernetes.io/name: sabnzbd
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: sabnzbd
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: sabnzbd
+    spec:
+      nodeSelector:
+        kubernetes.io/arch: amd64
+      containers:
+        - name: sabnzbd
+          image: lscr.io/linuxserver/sabnzbd:5.1.3-ls273
+          env:
+            - name: PUID
+              value: "1000"
+            - name: PGID
+              value: "1000"
+            - name: TZ
+              value: Europe/London
+          ports:
+            - name: http
+              containerPort: 8080
+          # /robots.txt is the only static route SABnzbd serves with
+          # check_for_login=False, so it survives a login being configured.
+          # A kubelet probe sends Host: <podIP>, which the hostname check
+          # accepts as an IP literal.
+          startupProbe:
+            httpGet:
+              path: /robots.txt
+              port: http
+            periodSeconds: 10
+            failureThreshold: 30
+            timeoutSeconds: 5
+          readinessProbe:
+            httpGet:
+              path: /robots.txt
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /robots.txt
+              port: http
+            periodSeconds: 30
+            failureThreshold: 3
+            timeoutSeconds: 10
+          volumeMounts:
+            - name: config
+              mountPath: /config
+            # The export root, so the completed path SABnzbd reports to Sonarr
+            # is the path Sonarr sees and the import is a hardlink.
+            - name: media
+              mountPath: /media
+          resources:
+            requests:
+              cpu: 200m
+              memory: 512Mi
+            limits:
+              cpu: "2"
+              memory: 2Gi
+      volumes:
+        - name: config
+          persistentVolumeClaim:
+            claimName: sabnzbd-config
+        - name: media
+          persistentVolumeClaim:
+            claimName: media-library
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: sabnzbd
+  labels:
+    app.kubernetes.io/name: sabnzbd
+spec:
+  selector:
+    app.kubernetes.io/name: sabnzbd
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+---
+# No auth middleware, and this route stays refused until SABnzbd's own login is
+# set — its hostname check rejects any name that is not localhost, an IP, or
+# whitelisted, and configuring a login bypasses that check.
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: sabnzbd
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - kind: Rule
+      match: Host(`sabnzbd.${DOMAIN}`)
+      middlewares:
+        - name: default-headers
+          namespace: traefik
+      services:
+        - name: sabnzbd
+          port: 8080
