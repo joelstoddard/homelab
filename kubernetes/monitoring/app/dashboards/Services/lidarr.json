@@ -530,7 +530,7 @@
         },
         "overrides": []
       },
-      "description": "Artist genres only. Album genres need ENABLE_ADDITIONAL_METRICS, which is off."
+      "description": "Artist genres only \u2014 album genres need ENABLE_ADDITIONAL_METRICS, which is off. Emitted per genre actually recorded, so an artist with none contributes nothing and the panel is legitimately empty. No vector(0) fallback here: it would invent a series with no genre label."
     },
     {
       "id": 30,
