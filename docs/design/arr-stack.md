@@ -1025,8 +1025,10 @@ deliberately do not carry:
    credentials. "Test" must go green before saving.
 7. Add those three to Prowlarr under Settings → Apps, each with its own key
    from `arr-apikeys`, then sync the indexers.
-8. Confirm the first import hardlinks rather than copies: the completed file's
-   link count under `/media/downloads` rises to 2.
+8. Confirm the first **torrent** import hardlinks rather than copies: the
+   completed file's link count under `/media/downloads` rises to 2. This check
+   applies to qBittorrent only; a Usenet import moves the file instead, and
+   correctly leaves a link count of 1.
 
 ### Bringing Seerr up
 
@@ -1090,8 +1092,25 @@ unlike Bazarr and Seerr there is no race to win.
 6. Add the indexers in Prowlarr under Settings → Indexers and let them sync.
    The provider supplies articles; an indexer is what turns a search into an
    NZB, and neither is any use alone.
-7. Confirm the first Usenet import hardlinks the same way the torrent path
-   does: `stat -c %h` on the library file reads 2.
+7. Confirm the first Usenet import **moves** rather than copies. It will not
+   hardlink, and `stat -c %h` reading 1 is the correct result — see below.
+
+**A Usenet import is a rename, not a hardlink, and that is the better
+outcome.** Radarr logs `MovieFileMovingService | Moving movie file`, and the
+first one here moved 5.62 GB in 0.2 s — only a same-filesystem `rename()` can
+do that. Hardlinking exists so a torrent can keep seeding from the download
+tree while the library has its own name for the same blocks; a Usenet download
+has nothing to seed, so Radarr moves it and leaves nothing behind. The end
+state is one name, one set of blocks, `%h` of 1.
+
+Path identity is still what makes this work — it is the single filesystem that
+turns the move into a rename instead of a copy, exactly as it is what would let
+a link succeed. Verified directly: `ln` from
+`/media/downloads/complete/sabnzbd` into `/media/Films` as uid 1000 gives
+`links=2` and a shared inode on both sides. **So `stat -c %h` = 2 is the right
+check for the qBittorrent path and the wrong one for SABnzbd.** Applying it to
+a Usenet import reports a failure that is not there, which is what happened on
+2026-09-20.
 
 **A write test here must drop to uid 1000.** `kubectl exec` lands as root, the
 export squashes root, and the application runs as `abc`/1000 — so a `touch`
