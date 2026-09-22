@@ -397,8 +397,9 @@ the claim, not in git — there is no env override. Recyclarr is the one
 Sonarr and Radarr daily and exits, so it has no Service, route or claim. Its
 config is a ConfigMap with substitution disabled, and two things bite:
 instance names must be unique **across** services (a duplicate syncs nothing
-and still exits 0), and it needs `tty: true` or it logs no report at all. See
-`docs/design/arr-stack.md`.
+and still exits 0), and it must NOT be given a tty — a real sync logs plain
+`[INF]` lines, and a terminal replaces them with redrawn progress frames.
+See `docs/design/arr-stack.md`.
 Never `kubectl delete kustomization flux-system` — prune would remove Flux
 itself; use `flux uninstall`. Pruning `cilium/` removes the CNI; pruning
 `traefik/` takes every route in the cluster. See `kubernetes/README.md`.

@@ -27,10 +27,8 @@ spec:
           containers:
             - name: recyclarr
               image: ghcr.io/recyclarr/recyclarr:8.7.2
-              # Recyclarr reports what it synced through Spectre.Console, which
-              # renders nothing at all without a terminal; TERM=dumb then keeps
-              # the progress spinner out of the log.
-              tty: true
+              # No tty: a real sync logs plain [INF]/[WRN] lines, and giving it
+              # a terminal replaces them with redrawn progress frames.
               # Given no arguments the entrypoint runs its own cron loop and
               # never exits, which would wedge the Job.
               args:
@@ -40,8 +38,6 @@ spec:
               env:
                 - name: TZ
                   value: Europe/London
-                - name: TERM
-                  value: dumb
                 - name: SONARR_API_KEY
                   valueFrom:
                     secretKeyRef:
