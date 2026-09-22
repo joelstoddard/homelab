@@ -367,7 +367,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "bazarr_episode_subtitles_missing_total"
+          "expr": "bazarr_episode_subtitles_missing_total or vector(0)"
         }
       ],
       "fieldConfig": {
@@ -383,7 +383,8 @@
             "lastNotNull"
           ]
         }
-      }
+      },
+      "description": "Bazarr emits the episode_subtitles_* family only once it manages a TV series; with movies alone the series does not exist, so this needs `or vector(0)` to read 0 rather than No data."
     },
     {
       "id": 14,
@@ -484,7 +485,7 @@
         },
         {
           "refId": "C",
-          "expr": "bazarr_episode_subtitles_missing_total",
+          "expr": "bazarr_episode_subtitles_missing_total or vector(0)",
           "legendFormat": "episode missing"
         },
         {
@@ -496,7 +497,8 @@
       "fieldConfig": {
         "defaults": {},
         "overrides": []
-      }
+      },
+      "description": "episode missing carries `or vector(0)`: Bazarr emits no episode_subtitles_* series at all until it manages a TV series, so without it that line vanishes rather than reading 0."
     },
     {
       "id": 21,
