@@ -131,7 +131,7 @@ endpoint is healthy. `alt-status-codes` then re-admits a specific failing code.
 Predicting these is unreliable — a first pass guessed 404 for Traefik and 200
 for Pi-hole, and both were wrong. Every value below was measured with `curl -L`
 from a pod in this cluster, and any change to this table should be re-measured
-the same way — with one exception, noted in the table and explained under it:
+the same way:
 
 | Site | `check-url` | Final | Notes |
 | --- | --- | --- | --- |
@@ -139,20 +139,54 @@ the same way — with one exception, noted in the table and explained under it:
 | Longhorn | `http://longhorn-frontend.longhorn-system.svc/` | 200 | |
 | Traefik | `https://traefik.traefik.svc/` | 404 | needs `alt-status-codes` and `allow-insecure` |
 | SearXNG | `http://searxng.searxng.svc:8080/healthz` | 200 | |
+| Home Assistant | `http://home-assistant.home-assistant.svc:8123/manifest.json` | 200 | hostNetwork; the ClusterIP still reaches it |
+| \*arr apps | `http://<app>.media.svc:<port>/ping` | 200 | `/` redirects to `/login` — see below |
+| qBittorrent | `http://qbittorrent.media-downloads.svc:8080/` | 200 | the API is 403 without a session |
+| Bazarr | `http://bazarr.media.svc:6767/manifest.webmanifest` | 200 | survives a later switch to Basic auth |
+| Seerr | `http://seerr.media.svc:5055/api/v1/status/appdata` | 200 | plain `/api/v1/status` calls the GitHub API |
+| SABnzbd | `http://sabnzbd.media.svc:8080/robots.txt` | 200 | redirects to `/login/` — see below |
 | Proxmox nodes | `https://<node>.lan-services.svc:8006/` | 200 | self-signed |
 | TrueNAS | `https://voyager.lan-services.svc/ui/` | 200 | `/` redirects to `/ui/` |
 | Pi-hole | `https://pihole.lan-services.svc/admin/` | 200 | `/` is 403; settles on `/admin/login` |
 | Router | `http://james-webb.lan-services.svc/` | 200 | plain HTTP |
-| Jellyfin | `http://jellyfin.media.svc:8096/health` | — | **not measured** — see below |
+| Jellyfin | `http://jellyfin.media.svc:8096/health` | 200 | answers `Healthy` — see below |
 
-**Jellyfin is the one unmeasured entry**, and the one whose path needs no
-measuring. `/health` on the `http` port is what Jellyfin's own startup,
-readiness and liveness probes use, and Kubernetes requires those to answer 2xx.
+**Jellyfin's path was taken from its own probes rather than measured** when
+the page was built, because the pod was down at the time. It was confirmed at
+200 on 2026-09-20. The Service lives in the `media` namespace since the
+2026-09-19 cutover, hence `jellyfin.media.svc`.
 
-The Service lives in the `media` namespace since the 2026-09-19 cutover, hence
-`jellyfin.media.svc`. A tile reading down while the service really is down is
-correct rather than wrong — a start page that omits a service because the
-service is broken is the one thing it must not do.
+A tile reading down while the service really is down is correct rather than
+wrong — a start page that omits a service because the service is broken is the
+one thing it must not do.
+
+**The \*arr apps make a green tile cheap, which is why `/ping` is the probe.**
+`/` answers 302 to `/login?returnUrl=%2F`, Glance follows it, and the login
+form is a 200 — so the tile would be green whether the application is healthy
+or merely serving its login page. `/ping` returns `{"status": "OK"}`
+unauthenticated with no redirect, and is the path Prowlarr, Sonarr, Radarr and
+Lidarr use for their own kubelet probes, so Kubernetes already requires it to
+answer 2xx — the same argument that settles Jellyfin's `/health` above.
+
+qBittorrent is the exception in that stack. Its WebUI serves the login page at
+`/` directly, 200 and no redirect, while `/api/v2/app/version` is 403 without a
+session — so `/` is the only unauthenticated signal it offers, and it is what
+its own liveness probe uses.
+
+**SABnzbd's dot is weaker than the others, and deliberately so.** Once a login
+is set, every path redirects to `/login/`, `/robots.txt` included — the path
+its own kubelet probe uses, which escapes the redirect only because the kubelet
+sends an IP `Host` header that the hostname check exempts. Glance sends the
+Service name and does not. So the tile proves the web server answers and the
+pod is routable, not that SABnzbd is healthy. There is no unauthenticated
+endpoint that says more, and a tile reading down when the service is down still
+earns its place.
+
+Bazarr and Seerr both have real endpoints. Bazarr has no `/ping`, but
+`/manifest.webmanifest` answers 200 and keeps answering if its auth is later
+set to Basic, which makes every catch-all path 401. Seerr's
+`/api/v1/status/appdata` answers locally, where plain `/api/v1/status` reaches
+the GitHub API and so reports on something other than this cluster.
 
 **Traefik is the one override.** Its Service publishes only the `web` and
 `websecure` entrypoints, so a request carrying no Host that matches a router

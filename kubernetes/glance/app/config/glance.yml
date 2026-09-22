@@ -108,13 +108,6 @@ pages:
                 check-url: http://searxng.searxng.svc:8080/healthz
                 icon: di:searxng
 
-              - title: Jellyfin
-                url: https://jellyfin.${DOMAIN}
-                # Path taken from Jellyfin's own probes, not measured here.
-                # The Service moved to the media namespace on 2026-09-19.
-                check-url: http://jellyfin.media.svc:8096/health
-                icon: di:jellyfin
-
               - title: Home Assistant
                 url: https://homeassistant.${DOMAIN}
                 # hostNetwork, but the ClusterIP still reaches it (confirmed
@@ -123,6 +116,65 @@ pages:
                 # unlike /.
                 check-url: http://home-assistant.home-assistant.svc:8123/manifest.json
                 icon: di:home-assistant
+
+          - type: monitor
+            title: Media
+            cache: 1m
+            sites:
+              - title: Jellyfin
+                url: https://jellyfin.${DOMAIN}
+                check-url: http://jellyfin.media.svc:8096/health
+                icon: di:jellyfin
+
+              # /api/v1/status reaches the GitHub API, so it is not a probe of
+              # this service. /appdata answers locally.
+              - title: Seerr
+                url: https://seerr.${DOMAIN}
+                check-url: http://seerr.media.svc:5055/api/v1/status/appdata
+                icon: di:seerr
+
+              # / redirects to a login page that answers 200, so it proves
+              # nothing. /ping is each app's own kubelet probe path.
+              - title: Prowlarr
+                url: https://prowlarr.${DOMAIN}
+                check-url: http://prowlarr.media.svc:9696/ping
+                icon: di:prowlarr
+
+              - title: Sonarr
+                url: https://sonarr.${DOMAIN}
+                check-url: http://sonarr.media.svc:8989/ping
+                icon: di:sonarr
+
+              - title: Radarr
+                url: https://radarr.${DOMAIN}
+                check-url: http://radarr.media.svc:7878/ping
+                icon: di:radarr
+
+              - title: Lidarr
+                url: https://lidarr.${DOMAIN}
+                check-url: http://lidarr.media.svc:8686/ping
+                icon: di:lidarr
+
+              # Bazarr has no /ping. This path stays 200 if its auth is later
+              # set to Basic, which makes every catch-all path 401.
+              - title: Bazarr
+                url: https://bazarr.${DOMAIN}
+                check-url: http://bazarr.media.svc:6767/manifest.webmanifest
+                icon: di:bazarr
+
+              # The API answers 403 without a session. / is the only
+              # unauthenticated probe, and returns 200 with the login page.
+              - title: qBittorrent
+                url: https://qbittorrent.${DOMAIN}
+                check-url: http://qbittorrent.media-downloads.svc:8080/
+                icon: di:qbittorrent
+
+              # Every path redirects to the login page, so this dot proves the
+              # web server answers and nothing more. See docs/design/glance.md.
+              - title: SABnzbd
+                url: https://sabnzbd.${DOMAIN}
+                check-url: http://sabnzbd.media.svc:8080/robots.txt
+                icon: di:sabnzbd
 
           - type: monitor
             title: Hypervisors

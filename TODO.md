@@ -270,10 +270,9 @@
           Flux, Cilium, Longhorn, Traefik) — turns "is a bump waiting" into a
           glance. Makes outbound GitHub API calls, which nothing else on this
           page does
-    - [ ] Confirm the Jellyfin tile goes green once that layer is
-          unsuspended and its pod runs — its check-url is the only one on the
-          page taken from another layer's probes rather than measured live,
-          because Jellyfin was down when the page was built
+    - [x] Confirm the Jellyfin tile goes green once that layer is
+          unsuspended and its pod runs — measured at 200 on 2026-09-20,
+          alongside the media stack's own tiles
     - [ ] Measure and tighten Glance's limits after a week
     - [ ] Self-host the tile icons via `assets-path` if the jsdelivr CDN
           dependency grates — costs the stateless pod a volume
