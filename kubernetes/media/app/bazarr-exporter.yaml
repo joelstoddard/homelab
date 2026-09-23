@@ -1,7 +1,7 @@
 # Bazarr metrics; its key comes from exporter-apikeys, which only reads back the
 # one Bazarr minted. This collector is the slow one and a large library will
-# outgrow the annotation path's scrape timeout — see docs/design/arr-stack.md,
-# "Metrics", for the symptom and the fix.
+# outgrow the annotation path's scrape timeout — see docs/design/arr-metrics.md
+# for the symptom and the fix.
 apiVersion: apps/v1
 kind: Deployment
 metadata:

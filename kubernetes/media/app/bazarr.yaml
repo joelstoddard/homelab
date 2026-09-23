@@ -1,5 +1,5 @@
 # Bazarr — same shape as sonarr.yaml; only the image, the port, the probe path
-# and the /media access mode differ. docs/design/arr-stack.md carries the
+# and the /media access mode differ. docs/design/bazarr.md carries the
 # rationale for that shape: Recreate on a SQLite ReadWriteOnce claim, amd64,
 # PUID/PGID, probe timeouts, and requests plus limits on every container.
 apiVersion: apps/v1
@@ -41,7 +41,7 @@ spec:
           #
           # The tolerances are wide because Bazarr serves HTTP from the same
           # thread that syncs and searches: a library-wide sync stops it
-          # answering for minutes (docs/design/arr-stack.md, "Bazarr probes").
+          # answering for minutes (docs/design/bazarr.md, "Probes").
           startupProbe:
             httpGet:
               path: /manifest.webmanifest
@@ -66,7 +66,7 @@ spec:
           volumeMounts:
             # Read-write, unlike Jellyfin's mount: Bazarr writes .srt files
             # beside each video. The export ROOT, so the paths Sonarr and Radarr
-            # report resolve unchanged (docs/design/arr-stack.md, "Path identity").
+            # report resolve unchanged (docs/design/media-foundation.md, "Path identity").
             - name: media
               mountPath: /media
             - name: config
@@ -102,7 +102,7 @@ spec:
 ---
 # No auth middleware, following the other four. Bazarr differs in shipping
 # auth.type null, so its UI is open until Settings > Security is set to Form —
-# do that first (docs/design/arr-stack.md, "Ingress and auth").
+# do that first (docs/design/bazarr.md, "Ingress and auth").
 apiVersion: traefik.io/v1alpha1
 kind: IngressRoute
 metadata:

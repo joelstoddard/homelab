@@ -616,8 +616,16 @@ Seerr, SABnzbd and Recyclarr — the torrent client lives next door in
 `media-downloads/`, behind its own VPN. Seven have a metrics exporter —
 everything but Seerr, which exposes no Prometheus endpoint, and Recyclarr,
 which is a CronJob. Rationale:
-[`docs/design/arr-stack.md`](../docs/design/arr-stack.md) for the namespace,
-[`docs/design/jellyfin.md`](../docs/design/jellyfin.md) for Jellyfin itself.
+[`docs/design/media-foundation.md`](../docs/design/media-foundation.md) for
+the shared namespace and storage, with one document per application —
+[`docs/design/jellyfin.md`](../docs/design/jellyfin.md),
+[`docs/design/arr-core.md`](../docs/design/arr-core.md),
+[`docs/design/bazarr.md`](../docs/design/bazarr.md),
+[`docs/design/seerr.md`](../docs/design/seerr.md),
+[`docs/design/sabnzbd.md`](../docs/design/sabnzbd.md),
+[`docs/design/qbittorrent-vpn.md`](../docs/design/qbittorrent-vpn.md),
+[`docs/design/recyclarr.md`](../docs/design/recyclarr.md) and
+[`docs/design/arr-metrics.md`](../docs/design/arr-metrics.md).
 
 Consequences:
 

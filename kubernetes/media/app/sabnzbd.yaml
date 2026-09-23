@@ -1,6 +1,6 @@
 # SABnzbd — the Usenet download client. It lives in `media` rather than beside
 # qBittorrent because Usenet is one authenticated TLS connection to one
-# provider, so it needs no VPN and no privilege; docs/design/arr-stack.md.
+# provider, so it needs no VPN and no privilege; docs/design/sabnzbd.md.
 apiVersion: apps/v1
 kind: Deployment
 metadata:

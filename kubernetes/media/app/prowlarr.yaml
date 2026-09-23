@@ -1,5 +1,5 @@
 # Prowlarr — indexers declared once here and synced to the other three over
-# .svc, which never traverses Traefik. docs/design/arr-stack.md
+# .svc, which never traverses Traefik. docs/design/arr-core.md
 # carries the rationale for the shape all four share: Recreate on a SQLite
 # ReadWriteOnce claim, amd64, PUID/PGID, probe timeouts, and requests plus
 # limits on every container.
@@ -97,7 +97,7 @@ spec:
 ---
 # No Certificate and no tls.secretName: TLSStore/default serves the wildcard
 # and Pi-hole already resolves the name. No auth middleware — Prowlarr
-# authenticates itself (docs/design/arr-stack.md).
+# authenticates itself (docs/design/media-foundation.md, "Ingress and auth").
 apiVersion: traefik.io/v1alpha1
 kind: IngressRoute
 metadata:

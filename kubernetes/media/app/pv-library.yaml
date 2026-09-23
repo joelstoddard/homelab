@@ -1,7 +1,8 @@
 # The media library on voyager, read-write. Jellyfin's volume was read-only and
 # soft; this one is read-write and therefore hard — a soft timeout on a write
 # that later lands on the server is silent corruption, which is worse than the
-# availability risk hard carries on Talos (docs/design/arr-stack.md).
+# availability risk hard carries on Talos (docs/design/media-foundation.md,
+# "The soft → hard reversal").
 #
 # Mount options must stay byte-identical to every other mount of this export:
 # several are properties of the superblock, shared per client, server and

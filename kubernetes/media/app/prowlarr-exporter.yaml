@@ -1,6 +1,6 @@
 # Prowlarr metrics for the Alloy annotation path. One exportarr process gathers
 # exactly one application, so each of the four gets its own Deployment; the
-# shape is otherwise identical. docs/design/arr-stack.md, "Metrics".
+# shape is otherwise identical. docs/design/arr-metrics.md.
 # Prowlarr's collector reads a stats endpoint rather than all-time totals, so
 # its counters start at zero when the exporter starts. PROWLARR__BACKFILL would
 # replay history and is deliberately off: this instance has none worth replaying,

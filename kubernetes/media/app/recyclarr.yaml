@@ -1,6 +1,6 @@
 # Recyclarr — a CronJob, not a Deployment: it syncs the TRaSH guide into Sonarr
 # and Radarr, then exits. No Service, no route, no /media mount, no config
-# claim; see docs/design/arr-stack.md, "Recyclarr".
+# claim; see docs/design/recyclarr.md.
 apiVersion: batch/v1
 kind: CronJob
 metadata:

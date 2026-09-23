@@ -1,6 +1,6 @@
 # Lidarr metrics for the Alloy annotation path. One exportarr process gathers
 # exactly one application, so each of the four gets its own Deployment; the
-# shape is otherwise identical. docs/design/arr-stack.md, "Metrics".
+# shape is otherwise identical. docs/design/arr-metrics.md.
 apiVersion: apps/v1
 kind: Deployment
 metadata:

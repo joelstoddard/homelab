@@ -3,7 +3,7 @@
 #
 # This namespace exists for that single requirement. It is why the *arr
 # applications stay in `media` at baseline instead of being dragged up here to
-# satisfy one sidecar (docs/design/arr-stack.md).
+# satisfy one sidecar (docs/design/media-foundation.md, "Two namespaces").
 apiVersion: v1
 kind: Namespace
 metadata:
