@@ -1,4 +1,4 @@
-# The media stack — docs/design/arr-stack.md. Jellyfin and the *arr
+# The media stack — docs/design/media-foundation.md. Jellyfin and the *arr
 # applications share one read-write NFS volume from voyager and therefore one
 # namespace, whose volume needs ${VOYAGER_IP} and whose routes need ${DOMAIN},
 # both from cluster-secrets.

@@ -4,7 +4,8 @@
 #
 # Mounted at /media/downloads, which is byte-identical to the path the *arr
 # applications see through their own root mount. Same paths everywhere means no
-# "Remote Path Mapping" in any application (docs/design/arr-stack.md).
+# "Remote Path Mapping" in any application (docs/design/media-foundation.md,
+# "Path identity").
 #
 # Mount options are byte-identical to media-library's for a harder reason than
 # tidiness. Several are superblock properties shared per client, server and

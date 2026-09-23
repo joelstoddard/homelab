@@ -399,7 +399,12 @@ config is a ConfigMap with substitution disabled, and two things bite:
 instance names must be unique **across** services (a duplicate syncs nothing
 and still exits 0), and it must NOT be given a tty — a real sync logs plain
 `[INF]` lines, and a terminal replaces them with redrawn progress frames.
-See `docs/design/arr-stack.md`.
+See `docs/design/recyclarr.md`. The \*arr stack's design is split across
+`docs/design/media-foundation.md` (shared namespace, storage, ingress policy),
+`docs/design/arr-core.md` (Prowlarr, Sonarr, Radarr, Lidarr),
+`docs/design/bazarr.md`, `docs/design/seerr.md`, `docs/design/sabnzbd.md`,
+`docs/design/qbittorrent-vpn.md`, `docs/design/recyclarr.md` and
+`docs/design/arr-metrics.md`.
 Never `kubectl delete kustomization flux-system` — prune would remove Flux
 itself; use `flux uninstall`. Pruning `cilium/` removes the CNI; pruning
 `traefik/` takes every route in the cluster. See `kubernetes/README.md`.

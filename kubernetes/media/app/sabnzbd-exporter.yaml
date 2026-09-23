@@ -3,7 +3,7 @@
 #
 # The .svc name is load-bearing. SABnzbd rejects a Host header it does not
 # recognise, and the in-cluster name is the one it exempts — the same reason
-# the *arr reach it this way (docs/design/arr-stack.md).
+# the *arr reach it this way (docs/design/sabnzbd.md).
 apiVersion: apps/v1
 kind: Deployment
 metadata:

@@ -2,7 +2,7 @@
 #
 # TRaSH Guides profiles, from the upstream `sonarr/web-1080p` and
 # `radarr/hd-bluray-web` templates with their commented-out optional custom
-# formats stripped. See docs/design/arr-stack.md, "Recyclarr".
+# formats stripped. See docs/design/recyclarr.md.
 
 sonarr:
   tv:

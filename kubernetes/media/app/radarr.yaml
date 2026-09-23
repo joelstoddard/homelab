@@ -1,5 +1,5 @@
 # Radarr — same shape as sonarr.yaml and lidarr.yaml; only the image, the port
-# and the resource figures differ. docs/design/arr-stack.md carries the
+# and the resource figures differ. docs/design/arr-core.md carries the
 # rationale for that shape: Recreate on a SQLite ReadWriteOnce claim, amd64,
 # PUID/PGID, probe timeouts, and requests plus limits on every container.
 apiVersion: apps/v1
@@ -64,7 +64,7 @@ spec:
             timeoutSeconds: 10
           volumeMounts:
             # The export ROOT, never the downloads subdirectory: link() cannot
-            # cross two mounts (docs/design/arr-stack.md, "Path identity").
+            # cross two mounts (docs/design/media-foundation.md, "Path identity").
             - name: media
               mountPath: /media
             - name: config
@@ -100,7 +100,7 @@ spec:
 ---
 # No Certificate and no tls.secretName: TLSStore/default serves the wildcard
 # and Pi-hole already resolves the name. No auth middleware — Radarr
-# authenticates itself (docs/design/arr-stack.md).
+# authenticates itself (docs/design/media-foundation.md, "Ingress and auth").
 apiVersion: traefik.io/v1alpha1
 kind: IngressRoute
 metadata:

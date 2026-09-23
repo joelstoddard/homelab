@@ -4,7 +4,7 @@ One-shot `Job` manifests for the `media` namespace. None of this is applied by
 Flux — `Job` specs are immutable, so a later edit would make Flux fail its apply
 with a field-is-immutable error, and no kustomization references this directory.
 
-Run them by hand from the repo root. Background: `docs/design/arr-stack.md`.
+Run them by hand from the repo root. Background: `docs/design/media-foundation.md`.
 
 ## Create the downloads tree
 
@@ -32,5 +32,5 @@ kubectl --context homelab -n media delete job create-downloads-tree
 Migrated out of the old `jellyfin` namespace on 2026-09-19, verified, and cut
 over; the staging manifests have been removed along with that layer.
 
-The method and the measured results are recorded in `docs/design/arr-stack.md`
-under "The Jellyfin cutover".
+The method and the measured results are recorded in `docs/design/jellyfin.md`
+under "The cutover from the standalone layer, as performed".

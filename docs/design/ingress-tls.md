@@ -180,7 +180,7 @@ applications and qBittorrent all authenticate themselves, so their routes carry
 the whole of this layer's basic auth. A credential in front of an application
 that already has one is a second prompt and no security — the four \*arr
 middlewares and qBittorrent's were removed on that basis on 2026-09-20
-(`docs/design/arr-stack.md`).
+(`docs/design/media-foundation.md`, "Ingress and auth").
 
 `default-headers` sets HSTS (`stsSeconds: 31536000`, `stsIncludeSubdomains`)
 plus `frameDeny`, `contentTypeNosniff`, `browserXssFilter`. **`stsPreload` is

@@ -1,6 +1,6 @@
 # Seerr — the request portal handed to other people, talking to Jellyfin,
 # Sonarr and Radarr over .svc. It never touches a file, so like Prowlarr it
-# takes no /media mount; docs/design/arr-stack.md carries the rest.
+# takes no /media mount; docs/design/seerr.md carries the rest.
 apiVersion: apps/v1
 kind: Deployment
 metadata:

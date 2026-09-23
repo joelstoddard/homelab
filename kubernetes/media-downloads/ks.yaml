@@ -1,4 +1,4 @@
-# qBittorrent behind a Mullvad exit node — docs/design/arr-stack.md. It gets a
+# qBittorrent behind a Mullvad exit node — docs/design/qbittorrent-vpn.md. It gets a
 # layer and a namespace of its own because PodSecurity is enforced per
 # namespace and only its Tailscale sidecar needs more than baseline.
 #

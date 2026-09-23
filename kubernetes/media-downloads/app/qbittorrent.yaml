@@ -1,7 +1,7 @@
 # qBittorrent and a Tailscale sidecar in one network namespace: the client
 # inherits tailscaled's default route and has no other way out, which the leak,
 # reachability and kill-switch tests confirmed on 2026-09-19.
-# See docs/design/arr-stack.md, "The VPN boundary" and "Bring-up".
+# See docs/design/qbittorrent-vpn.md, "The VPN boundary" and "Bring-up".
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -32,11 +32,11 @@ spec:
         kubernetes.io/arch: amd64
       # Three init containers, and the order is the fail-closed design: kill
       # switch, then policy rules, then tailscaled as a native sidecar.
-      # See docs/design/arr-stack.md, "The VPN boundary".
+      # See docs/design/qbittorrent-vpn.md, "The VPN boundary".
       initContainers:
         - name: killswitch
           # Distroless, purely for `nft`; it ships no shell, so the ruleset is
-          # a file. See docs/design/arr-stack.md, "Inside the ruleset".
+          # a file. See docs/design/qbittorrent-vpn.md, "Inside the ruleset".
           image: registry.k8s.io/build-image/distroless-iptables:v0.9.7
           command: ["/usr/sbin/nft", "-f", "/etc/killswitch/ruleset.nft"]
           # Capabilities are per container, not per pod. Root as well, because
@@ -57,7 +57,7 @@ spec:
               cpu: 100m
               memory: 64Mi
         # Filtering is not routing: the kill switch decides what may leave,
-        # these rules decide which way (docs/design/arr-stack.md, "Traps").
+        # these rules decide which way (docs/design/qbittorrent-vpn.md, "Traps").
         - name: iprules
           image: ghcr.io/tailscale/tailscale:v1.102.3
           # pref 5100 must stay below tailscaled's 5270 and outside the 52xx
@@ -117,7 +117,7 @@ spec:
               value: nftables
             # TS_AUTH_ONCE applies these at first enrolment only. A hostname
             # exit node needs a netmap, so the postStart hook sets it instead
-            # (docs/design/arr-stack.md, "Choosing the exit node").
+            # (docs/design/qbittorrent-vpn.md, "Choosing the exit node").
             - name: TS_EXTRA_ARGS
               value: --advertise-tags=tag:media-downloads
             # /healthz and /metrics on TS_LOCAL_ADDR_PORT (default [::]:9002).
@@ -130,7 +130,7 @@ spec:
               containerPort: 9002
           # The exit node, re-asserted on every start so a recreated state
           # Secret cannot leave the pod on a bare tailnet
-          # (docs/design/arr-stack.md, "Choosing the exit node").
+          # (docs/design/qbittorrent-vpn.md, "Choosing the exit node").
           #
           # 300s matches the startupProbe below and must not be shorter: a
           # postStart hook gates the container reaching Running, so a smaller
@@ -254,7 +254,7 @@ spec:
 ---
 # One route and nothing else: TLSStore/default serves the wildcard and Pi-hole
 # already resolves the name (docs/design/ingress-tls.md). No auth middleware —
-# the Web UI has its own login (docs/design/arr-stack.md).
+# the Web UI has its own login (docs/design/media-foundation.md, "Ingress and auth").
 apiVersion: traefik.io/v1alpha1
 kind: IngressRoute
 metadata:
