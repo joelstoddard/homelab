@@ -78,6 +78,12 @@ variable "pihole_template_url" {
   default     = "http://download.proxmox.com/images/system/debian-12-standard_12.12-1_amd64.tar.zst"
 }
 
+variable "pihole_template_checksum" {
+  description = "SHA-512 of the template, from Proxmox's GPG-signed aplinfo index. download.proxmox.com has no valid HTTPS, so this is the only integrity check."
+  type        = string
+  default     = "50c85eaaece677a3ebe01cc909b83872e9da2a22c29ae652838afce71e83222fdf40f6accecd7d52b180e912fc1f85ecdf7b3fc4d3027da4d865e509a9e76597"
+}
+
 variable "pihole_template_file_name" {
   description = "On-disk filename for the LXC template."
   type        = string
