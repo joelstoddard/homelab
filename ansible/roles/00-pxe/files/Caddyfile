@@ -5,7 +5,7 @@
 
 :80 {
     root * /srv/http
-    file_server browse
+    file_server
     log {
         output stdout
         format console
