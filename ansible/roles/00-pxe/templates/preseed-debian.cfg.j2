@@ -25,8 +25,7 @@ d-i mirror/http/proxy string
 ### Account setup
 d-i passwd/root-login boolean true
 d-i passwd/make-user boolean false
-d-i passwd/root-password password {{ root_password }}
-d-i passwd/root-password-again password {{ root_password }}
+d-i passwd/root-password-crypted password {{ root_password_hash }}
 
 ### Clock and time zone
 d-i clock-setup/utc boolean true

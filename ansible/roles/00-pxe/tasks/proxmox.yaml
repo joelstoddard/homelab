@@ -43,4 +43,6 @@
     fqdn: "{{ hostvars[item]['fqdn'] }}"
     target_ip: "{{ hostvars[item]['ansible_host'] }}"
     disk_device: "{{ hostvars[item]['disk_device'] }}"
-    root_password: "{{ hostvars[item]['root_password'] }}"
+    # Caddy serves this file to the whole LAN, so it carries a hash, never
+    # the password. A salt derived from the host keeps the render idempotent.
+    root_password_hash: "{{ hostvars[item]['root_password'] | password_hash('sha512', (item | hash('sha256'))[:16]) }}"

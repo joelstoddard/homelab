@@ -27,6 +27,8 @@ molecule==25.4.0
 mypy-extensions==1.0.0
 netaddr==1.3.0
 packaging==25.0
+# password_hash (preseed root hash) needs passlib: Python 3.13 removed crypt.
+passlib==1.7.4
 pathspec==0.12.1
 platformdirs==4.3.7
 pluggy==1.5.0
