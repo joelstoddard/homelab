@@ -32,6 +32,7 @@ module "lxc" {
   hostname           = var.pihole_hostname
   template_url       = var.pihole_template_url
   template_file_name = var.pihole_template_file_name
+  template_checksum  = var.pihole_template_checksum
   static_ipv4_cidr   = var.pihole_static_ipv4_cidr
   ipv4_gateway       = var.lan_gateway
   ssh_public_keys    = [trimspace(file(pathexpand(var.operator_ssh_public_key_path)))]
