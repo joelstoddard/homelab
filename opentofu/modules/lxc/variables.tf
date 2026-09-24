@@ -23,6 +23,23 @@ variable "template_file_name" {
   type        = string
 }
 
+variable "template_checksum" {
+  description = "Expected checksum of the downloaded template. Null means no integrity check."
+  type        = string
+  default     = null
+}
+
+variable "template_checksum_algorithm" {
+  description = "Algorithm used to compute var.template_checksum. Ignored if template_checksum is null."
+  type        = string
+  default     = "sha512"
+
+  validation {
+    condition     = contains(["md5", "sha1", "sha224", "sha256", "sha384", "sha512"], var.template_checksum_algorithm)
+    error_message = "template_checksum_algorithm must be one of: md5, sha1, sha224, sha256, sha384, sha512."
+  }
+}
+
 variable "template_datastore_id" {
   description = "Datastore that holds container templates (typically \"local\")."
   type        = string

@@ -8,6 +8,9 @@ resource "proxmox_download_file" "template" {
   file_name    = var.template_file_name
   overwrite    = false
   verify       = var.tls_verify
+
+  checksum           = var.template_checksum
+  checksum_algorithm = var.template_checksum == null ? null : var.template_checksum_algorithm
 }
 
 resource "proxmox_virtual_environment_container" "this" {
