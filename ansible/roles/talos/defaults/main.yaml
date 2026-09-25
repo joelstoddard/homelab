@@ -108,11 +108,9 @@ talos_secrets_plain: "{{ talos_build_dir }}/secrets.yaml"
 talos_clusterconfig_dir: "{{ talos_build_dir }}/clusterconfig"
 talos_talosconfig: "{{ talos_clusterconfig_dir }}/talosconfig"
 
-# Committed, SOPS-encrypted Talos secret bundle (`talosctl gen secrets`: CA keys +
-# tokens). Generated once on first run, reused thereafter so the PKI never
-# rotates underneath running nodes. Covered by the role-files rule in
-# .sops.yaml; config.yaml decrypts it into the build dir for the render
-# and removes it after.
+# The committed `talosctl gen secrets` bundle (CA keys + tokens), generated
+# once and reused so the PKI never rotates under running nodes. config.yaml
+# decrypts it into the build dir for the render and removes it after.
 talos_secrets_sops: "{{ role_path }}/files/secrets.sops.yaml"
 
 # The cluster kubeconfig is merged into the operator's default kubeconfig

@@ -1,5 +1,5 @@
-{# Control plane only. Why the VIP SAN sits in machine.certSANs alone and why the label is deleted:
-   docs/design/talos-machine-config.md. The metrics listeners: docs/design/observability.md. #}
+{# Control-plane nodes only: why the VIP SAN sits in machine.certSANs alone and why the label is
+   deleted is in docs/design/talos-machine-config.md. The metrics listeners: docs/design/observability.md. #}
 machine:
   certSANs:
     - {{ talos_vip }}

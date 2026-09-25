@@ -31,8 +31,8 @@
   when: _derived | length > 0
 
 # A failed lookup is fatal once the inventory holds Talos hosts; the default
-# VIP literal is only for an empty one. A module, not nb_lookup: macOS getaddrinfo segfaults in
-# the forked worker that runs lookup plugins, once the inventory has resolved.
+# VIP literal is only for an empty one. A module, not nb_lookup: macOS
+# getaddrinfo segfaults in the forked worker that runs lookup plugins.
 - name: Look up the control-plane VIP from NetBox.
   block:
     - name: Query NetBox for the VIP-tagged IP.
@@ -51,7 +51,7 @@
         _vip_records: "{{ _vip_query.json.results }}"
   rescue:
     # Real hosts mean NetBox answered the inventory, so a failed query here is
-    # an error; the placeholder VIP would be pushed by upgrade.yaml.
+    # an error; upgrade.yaml would push the placeholder VIP.
     - name: Refuse to render live nodes on the placeholder VIP.
       ansible.builtin.fail:
         msg: >-
@@ -107,8 +107,8 @@
   register: talos_secrets_committed
 
 - name: Generate a fresh secret bundle at the .sops.yaml path (first run only).
-  # sops picks its creation rule from the path, so the plaintext is written
-  # there and encrypted in place.
+  # sops picks its creation rule from the path, so this task writes the
+  # plaintext there and the next one encrypts it in place.
   ansible.builtin.command:
     cmd: "{{ talosctl_bin }} gen secrets --output-file {{ talos_secrets_sops }}"
     creates: "{{ talos_secrets_sops }}"

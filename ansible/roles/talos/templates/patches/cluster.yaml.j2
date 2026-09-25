@@ -1,4 +1,4 @@
-{# All nodes. No CNI and no kube-proxy, because Cilium is both (docs/design/cilium-bootstrap.md).
+{# All nodes get no CNI and no kube-proxy, because Cilium is both (docs/design/cilium-bootstrap.md).
    Longhorn needs its data dir bind-mounted rshared into the kubelet (docs/design/longhorn.md). #}
 cluster:
   network:
