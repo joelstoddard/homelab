@@ -1,0 +1,41 @@
+{# One node, from NetBox hostvars. The documents and their order match what the nodes run:
+   docs/design/talos-machine-config.md. #}
+{% set is_cp = node in talos_controlplane_hosts %}
+{% set is_pi = 'pis' in hostvars[node].group_names %}
+{% set zone_device = hostvars[node].cluster_device | default(none, true) %}
+{% set mac = hostvars[node].mac_address | default('') | lower %}
+machine:
+  install:
+    image: factory.talos.dev/installer/{{ talos_pi_schematic_id if is_pi else talos_schematic_id }}:{{ talos_version }}
+  nodeLabels:
+    topology.kubernetes.io/zone: {{ (zone_device.name if zone_device else node) | lower }}
+---
+apiVersion: v1alpha1
+kind: HostnameConfig
+hostname: {{ node }}
+auto: "off"
+---
+apiVersion: v1alpha1
+kind: LinkAliasConfig
+name: ethSel0
+selector:
+{% if mac %}
+  match: 'glob("{{ mac }}", mac(link.hardware_addr))'
+{% else %}
+  match: link.type == 1
+{% endif %}
+{% if is_cp %}
+---
+apiVersion: v1alpha1
+kind: Layer2VIPConfig
+name: "{{ talos_vip }}"
+link: ethSel0
+{% endif %}
+---
+apiVersion: v1alpha1
+kind: LinkConfig
+name: ethSel0
+addresses:
+  - address: {{ hostvars[node].ansible_host }}/{{ talos_network_prefixlen }}
+routes:
+  - gateway: {{ talos_network_gateway }}

@@ -1,6 +1,6 @@
 ---
-# Resolve NetBox-sourced cluster facts, generate/reuse the talhelper
-# secret bundle, render talconfig.yaml, and run `talhelper genconfig`.
+# Resolve NetBox-sourced cluster facts, reuse or generate the secret
+# bundle, and render per-node machine configs with talosctl.
 #
 # Runs on the operator workstation (the playbooks/talos.yaml localhost
 # play). Talos nodes have no SSH/Python, so nothing here touches a node —
@@ -13,6 +13,7 @@
     mode: "0700"
   loop:
     - "{{ talos_build_dir }}"
+    - "{{ talos_clusterconfig_dir }}"
     - "{{ talos_talsecret_sops | dirname }}"
 
 # --- NetBox-sourced facts (the source of truth) ------------------------
@@ -53,70 +54,138 @@
       ansible.builtin.set_fact:
         _vip_records: []
 
-- name: Use the NetBox VIP when one is tagged (else keep the default).
+# Every node shares the VIP's segment, so the VIP's NetBox prefix length is
+# theirs too; the renderer's default route is not (a Mac reports /24).
+- name: Use the NetBox VIP and its prefix length when one is tagged (else keep the defaults).
   ansible.builtin.set_fact:
-    talos_vip: "{{ _vip_addr }}"
+    talos_vip: "{{ _vip_cidr.split('/') | first }}"
+    talos_network_prefixlen: "{{ _vip_cidr.split('/') | last }}"
   vars:
-    _vip_addr: >-
-      {{ (_vip_records | map(attribute='address') | list | first | default('')).split('/') | first }}
-  when: _vip_addr | length > 0
+    _vip_cidr: "{{ _vip_records | map(attribute='address') | list | first | default('') }}"
+  when: _vip_cidr is search('/')
 
 - name: Report the resolved cluster facts.
   ansible.builtin.debug:
     msg:
-      - "VIP / endpoint: {{ talos_vip }} ({{ talos_cluster_endpoint }})"
+      - "VIP / endpoint: {{ talos_vip }} ({{ talos_cluster_endpoint }}), node prefix /{{ talos_network_prefixlen }}"
       - "Control plane ({{ talos_controlplane_hosts | length }}): {{ talos_controlplane_hosts | join(', ') }}"
       - >-
         Workers ({{ (groups['talos'] | default([]) | difference(talos_controlplane_hosts)) | length }}):
         {{ groups['talos'] | default([]) | difference(talos_controlplane_hosts) | join(', ') }}
 
-# --- talhelper secret bundle: reuse if committed, else generate + persist
-- name: Check for the committed (SOPS-encrypted) talsecret bundle.
+# --- Secret bundle: reuse if committed, else generate + persist --------
+- name: Check for the committed (SOPS-encrypted) secret bundle.
   ansible.builtin.stat:
     path: "{{ talos_talsecret_sops }}"
   register: talos_talsecret_committed
 
-- name: Generate a fresh talhelper secret bundle (first run only).
+- name: Generate a fresh secret bundle at the .sops.yaml path (first run only).
+  # sops picks its creation rule from the path, so the plaintext is written
+  # there and encrypted in place.
   ansible.builtin.command:
-    cmd: "{{ talhelper_bin }} gensecret"
-  register: talos_gensecret
-  changed_when: true
+    cmd: "{{ talosctl_bin }} gen secrets --output-file {{ talos_talsecret_sops }}"
+    creates: "{{ talos_talsecret_sops }}"
   no_log: true
-  when: not talos_talsecret_committed.stat.exists
 
-- name: Stage the plaintext bundle at the .sops.yaml path.
-  # sops picks its creation rule from the file path, and the rule keys on
-  # the .sops.yaml suffix — so write the plaintext there, then encrypt in
-  # place. talhelper auto-decrypts it again at genconfig time.
-  ansible.builtin.copy:
-    content: "{{ talos_gensecret.stdout }}\n"
-    dest: "{{ talos_talsecret_sops }}"
-    mode: "0600"
-  no_log: true
-  when: not talos_talsecret_committed.stat.exists
-
-- name: Encrypt the talsecret bundle in place.
+- name: Encrypt the secret bundle in place.
   ansible.builtin.command:
     cmd: "{{ sops_bin }} -e -i {{ talos_talsecret_sops }}"
   changed_when: true
   when: not talos_talsecret_committed.stat.exists
 
-# --- Render talconfig.yaml + generate per-node machine configs ---------
-- name: Render talconfig.yaml from NetBox/inventory.
-  ansible.builtin.template:
-    src: talconfig.yaml.j2
-    dest: "{{ talos_talconfig }}"
-    mode: "0600"
+# --- Render the machine configs ----------------------------------------
+# Why the configs take this shape: docs/design/talos-machine-config.md.
+- name: Render machine configs from the decrypted bundle.
+  block:
+    - name: Decrypt the secret bundle for talosctl.
+      ansible.builtin.command:
+        cmd: "{{ sops_bin }} -d --output {{ talos_secrets_plain }} {{ talos_talsecret_sops }}"
+      changed_when: false
+      no_log: true
 
-- name: Generate per-node machine configs with talhelper.
-  ansible.builtin.command:
-    cmd: >-
-      {{ talhelper_bin }} genconfig
-      --config-file {{ talos_talconfig }}
-      --secret-file {{ talos_talsecret_sops }}
-      --out-dir {{ talos_clusterconfig_dir }}
-  changed_when: true
+    - name: Ensure the patch + base directories exist.
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        mode: "0700"
+      loop:
+        - "{{ talos_patch_dir }}"
+        - "{{ talos_base_dir }}"
+
+    - name: Render the cluster-wide patches.
+      ansible.builtin.template:
+        src: "patches/{{ item }}.yaml.j2"
+        dest: "{{ talos_patch_dir }}/{{ item }}.yaml"
+        mode: "0600"
+      loop:
+        - cluster
+        - controlplane
+
+    - name: Generate the base controlplane/worker configs and talosconfig.
+      ansible.builtin.command:
+        cmd: >-
+          {{ talosctl_bin }} gen config {{ talos_cluster_name }} {{ talos_cluster_endpoint }}
+          --with-secrets {{ talos_secrets_plain }}
+          --talos-version {{ talos_version }}
+          --kubernetes-version {{ talos_kubernetes_version }}
+          --install-disk {{ talos_install_disk }}
+          --with-docs=false --with-examples=false
+          --config-patch @{{ talos_patch_dir }}/cluster.yaml
+          --config-patch-control-plane @{{ talos_patch_dir }}/controlplane.yaml
+          --output-types controlplane,worker,talosconfig
+          --output {{ talos_base_dir }} --force
+      changed_when: true
+
+    - name: Render each node's patch.
+      ansible.builtin.template:
+        src: patches/node.yaml.j2
+        dest: "{{ talos_patch_dir }}/node-{{ node }}.yaml"
+        mode: "0600"
+      loop: "{{ groups['talos'] | default([]) }}"
+      loop_control:
+        loop_var: node
+
+    - name: Write each node's machine config.
+      ansible.builtin.command:
+        cmd: >-
+          {{ talosctl_bin }} machineconfig patch
+          {{ talos_base_dir }}/{{ 'controlplane' if node in talos_controlplane_hosts else 'worker' }}.yaml
+          --patch @{{ talos_patch_dir }}/node-{{ node }}.yaml
+          --output {{ talos_clusterconfig_dir }}/{{ talos_cluster_name }}-{{ node }}.yaml
+      changed_when: true
+      loop: "{{ groups['talos'] | default([]) }}"
+      loop_control:
+        loop_var: node
+
+    - name: Restrict the node configs to the operator.
+      ansible.builtin.file:
+        path: "{{ talos_clusterconfig_dir }}/{{ talos_cluster_name }}-{{ node }}.yaml"
+        mode: "0600"
+      loop: "{{ groups['talos'] | default([]) }}"
+      loop_control:
+        loop_var: node
+
+    - name: Install the talosconfig.
+      ansible.builtin.copy:
+        src: "{{ talos_base_dir }}/talosconfig"
+        dest: "{{ talos_talosconfig }}"
+        mode: "0600"
+
+    - name: Point the talosconfig at the control plane and list every node.
+      ansible.builtin.command:
+        cmd: "{{ talosctl_bin }} --talosconfig {{ talos_talosconfig }} config {{ item.verb }} {{ item.ips | join(' ') }}"
+      changed_when: true
+      loop:
+        - verb: endpoint
+          ips: "{{ talos_controlplane_hosts | map('extract', hostvars, 'ansible_host') | list }}"
+        - verb: node
+          ips: "{{ groups['talos'] | default([]) | map('extract', hostvars, 'ansible_host') | list }}"
+  always:
+    - name: Remove the decrypted bundle.
+      ansible.builtin.file:
+        path: "{{ talos_secrets_plain }}"
+        state: absent
 
 - name: Report the generated configs.
   ansible.builtin.debug:
-    msg: "talhelper wrote per-node configs + talosconfig to {{ talos_clusterconfig_dir }}"
+    msg: "Wrote per-node configs + talosconfig to {{ talos_clusterconfig_dir }}"
