@@ -149,18 +149,6 @@ else
         | tar -xz -C /usr/local/bin --strip-components=1 "linux-${GOARCH}/helm"
 fi
 
-# talhelper generates the Talos machine configs from talconfig.yaml
-# (ansible/roles/talos). The jpillora redirector resolves the right
-# release asset for this OS/arch; version pinned in versions.env.
-if have_version "$TALHELPER_VERSION" talhelper --version; then
-    echo ">> talhelper ${TALHELPER_VERSION} already installed"
-else
-    echo ">> Installing talhelper ${TALHELPER_VERSION}"
-    curl -fsSL "https://i.jpillora.com/budimanjojo/talhelper@${TALHELPER_VERSION}!" | bash
-    install -m 0755 talhelper /usr/local/bin/talhelper 2>/dev/null || true
-    rm -f talhelper
-fi
-
 echo ">> Installing Docker apt key + repo (${DOCKER_REPO_DISTRO}/${CODENAME})"
 install -m 0755 -d /etc/apt/keyrings
 curl -fsSL "https://download.docker.com/linux/${DOCKER_REPO_DISTRO}/gpg" \
@@ -207,7 +195,6 @@ docker compose version >/dev/null 2>&1 \
 verify sops
 verify tofu
 verify talosctl version --client
-verify talhelper --version
 verify kubectl version --client
 verify flux --version
 verify helm version

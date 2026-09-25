@@ -313,8 +313,8 @@ Consequences for day-2 work:
 - `wait: true` on the `cilium` Kustomization: a layer with
   `dependsOn: cilium` starts only once the Cilium CRDs exist and the agents
   are Ready — what the LB-IPAM pool needs.
-- Machine-config side (`cniConfig.name: none`, `cluster.proxy.disabled`) lives
-  in `ansible/roles/talos/templates/talconfig.yaml.j2` and reaches nodes only
+- Machine-config side (`cluster.network.cni.name: none`, `cluster.proxy.disabled`) lives
+  in `ansible/roles/talos/templates/patches/cluster.yaml.j2` and reaches nodes only
   through the rebuild path (`docs/talos-bootstrap.md`, "Rebuild").
 
 ```bash

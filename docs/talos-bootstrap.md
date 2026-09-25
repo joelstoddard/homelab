@@ -36,7 +36,7 @@ reads that file:
 | `ansible/roles/00-pxe/defaults` | `lookup('file', …)` via `role_path` |
 | `opentofu/` | `Makefile` sources it → `TF_VAR_talos_version`, `TF_VAR_talos_schematic_id` |
 | `kubernetes/` | `Makefile` sources it → `FLUX_VERSION` / `CILIUM_VERSION` drift guards in `lint` |
-| `install.sh` | sources it → `talosctl`, `kubectl`, `flux` + `talhelper` versions |
+| `install.sh` | sources it → `talosctl`, `kubectl`, `flux` versions |
 
 The two Image Factory schematic IDs live there too (`TALOS_SCHEMATIC_ID`,
 `TALOS_PI_SCHEMATIC_ID`).
@@ -220,15 +220,15 @@ the `config` step derives the control-plane list and the VIP from NetBox;
 running `bootstrap`, `cni` or `health` alone falls back to the role's
 literal defaults.
 
-This runs `playbooks/talos.yaml`. Config generation is delegated to
-[talhelper](https://github.com/budimanjojo/talhelper); NetBox stays the
-source of truth (the role renders talhelper's `talconfig.yaml` from it):
+This runs `playbooks/talos.yaml`. Configs are rendered with plain
+`talosctl` from patches templated off NetBox, which stays the source of
+truth (`docs/design/talos-machine-config.md`):
 
-1. **config** (localhost, once) — resolves the VIP and control-plane
-   membership from NetBox (see Prerequisites 2), generates the
-   SOPS-encrypted talhelper secret bundle on first run (commit
-   `ansible/roles/talos/files/talsecret.sops.yaml` afterwards), renders
-   `talconfig.yaml`, and runs `talhelper genconfig` →
+1. **config** (localhost, once) — resolves the VIP, its prefix length and
+   control-plane membership from NetBox (see Prerequisites 2), generates
+   the SOPS-encrypted secret bundle on first run (commit
+   `ansible/roles/talos/files/secrets.sops.yaml` afterwards), renders the
+   patches, and runs `talosctl gen config` + `machineconfig patch` →
    `ansible/.talos/clusterconfig/`.
 2. **apply** (per node) — `talosctl apply-config --insecure` of each
    node's generated config to its maintenance IP. Nodes install to disk
@@ -266,10 +266,11 @@ kubectl --context homelab get nodes
 >   --file ansible/.talos/clusterconfig/homelab-<host>.yaml
 > ```
 
-> **talhelper integration is untested in CI** (no NetBox/talhelper in the
-> sandbox it was written in). Before the first real run, validate locally:
-> `talhelper validate talconfig ansible/.talos/talconfig.yaml`
-> after a `--check` pass renders it.
+> **The render is not covered by CI.** Validate a rendered config locally
+> with `talosctl validate --config ansible/.talos/clusterconfig/homelab-<host>.yaml --mode metal`.
+> For a running node, the proof is a read-only
+> `talosctl apply-config --dry-run` against it; see
+> `docs/design/talos-machine-config.md` "Changing the render".
 
 ## Step 4 — Flux
 
@@ -325,8 +326,8 @@ budget) before moving on — no manual watching of
 Multi-minor jumps still go through the rebuild below — Talos tests upgrades
 between adjacent minors only.
 
-The control-plane metrics patch (`controlPlane.patches` in
-`talconfig.yaml.j2`: `bind-address: 0.0.0.0` for scheduler and
+The control-plane metrics patch
+(`templates/patches/controlplane.yaml.j2`: `bind-address: 0.0.0.0` for scheduler and
 controller-manager, `listen-metrics-urls: http://0.0.0.0:2381` for etcd) goes
 out with `apply-upgrade` on the five control-plane nodes, but the play only
 reboots a node when its Talos build changes; on an unchanged build it pushes
@@ -359,11 +360,10 @@ Back up first and reset storage nodes one at a time; see
 ```bash
 # 1. versions.env: TALOS_VERSION, KUBERNETES_VERSION (check the Talos
 #    support matrix — each Talos minor supports a window of k8s minors).
-sudo ./install.sh                              # talosctl / kubectl / talhelper at the new versions
+sudo ./install.sh                              # talosctl / kubectl at the new versions
 
 # 2. Prove the config generates before touching a node.
 make -C ansible apply-talos TAGS=config        # renders ansible/.talos/ — touches no node (--check would skip the write)
-talhelper validate talconfig ansible/.talos/talconfig.yaml
 talosctl validate --mode metal -c ansible/.talos/clusterconfig/homelab-<host>.yaml
 
 # 3. New ISO on every NUC. Replaces the ISO resource and re-points each VM's
@@ -375,7 +375,7 @@ make -C opentofu check && make -C opentofu apply
 #    reappear in maintenance mode, closes the gate.
 make -C ansible apply-reset EXTRA_VARS='{"reset_hosts": "all"}'
 
-# 5. Reinstall: same as a first build. The talsecret bundle is reused, so
+# 5. Reinstall: same as a first build. The secret bundle is reused, so
 #    the cluster CA and your kubeconfig/talosconfig survive.
 make homelab
 ```
@@ -390,7 +390,7 @@ after the wipe (stale OVMF boot entry), recreate that one VM with
 
 ## Recovery
 
-- **Lost `ansible/roles/talos/files/talsecret.sops.yaml`.** The cluster CA
+- **Lost `ansible/roles/talos/files/secrets.sops.yaml`.** The cluster CA
   and join tokens are gone; you cannot add nodes or regenerate matching
   configs. Recovery is a cluster rebuild: `make -C ansible apply-reset`
   every node (see above), delete `ansible/.talos/`, and re-run from Step 1.
@@ -405,9 +405,9 @@ after the wipe (stale OVMF boot entry), recreate that one VM with
   usual culprit is a values change that Talos rejects (capabilities, cgroup).
 - **etcd unhealthy after bootstrap.** Confirm the control-plane VIP is free
   on the LAN and not handed out by DHCP, and that every control-plane
-  node's config carries it (talhelper writes it from the `talos-vip`
-  NetBox IP into `controlPlane.certSANs` in
-  `talconfig.yaml`).
+  node's config carries it (the render writes it from the `talos-vip`
+  NetBox IP into `Layer2VIPConfig` and `machine.certSANs`, in
+  `templates/patches/node.yaml.j2` and `controlplane.yaml.j2`).
 - **A node returns from a hard power-off (OOM kill, power cut) with
   `exec format error` or other odd container failures.** containerd's
   content store can hold blobs that were never fsynced; image digests match

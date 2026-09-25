@@ -83,7 +83,7 @@ ipxe_sha256: ""  # leave empty to skip checksum; set to pinned hash for producti
 # The asset URLs point at the Talos Image Factory build for the
 # sbc-raspberrypi overlay (rpi_generic) + the USB quirk below.
 # talos_pi_schematic_id MUST match the talos role's talos_pi_schematic_id so
-# the netbooted kernel/initramfs and the on-disk installer (talosImageURL)
+# the netbooted kernel/initramfs and the on-disk installer (machine.install.image)
 # are the SAME build. See docs/design/talos-image-schematics.md.
 talos_version: >-
   {{ lookup('file', role_path ~ '/../../../versions.env')

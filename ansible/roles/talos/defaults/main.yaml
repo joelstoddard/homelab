@@ -10,19 +10,18 @@
 # defaults are the one place every talos play (localhost and per-node)
 # reliably sees these values.
 #
-# Config generation is delegated to talhelper: config.yaml renders a
-# talconfig.yaml from NetBox/inventory (NetBox stays the source of truth),
-# talhelper turns it into per-node machine configs. The values below that
-# can come from NetBox (the VIP, control-plane membership) are resolved at
-# runtime in config.yaml; the literals here are only fallbacks for when
+# Configs are rendered with `talosctl gen config` + patches: config.yaml
+# resolves NetBox facts and renders the patches from NetBox/inventory
+# (NetBox stays the source of truth). The literals below that NetBox can
+# supply (the VIP, control-plane membership) are only fallbacks for when
 # NetBox isn't populated yet.
 
 # --- Versions -----------------------------------------------------------
 # Single-sourced from repo-root versions.env (read via role_path so it
 # resolves no matter which playbook includes the role). Bump the version
 # THERE — never inline it here. role_path is .../ansible/roles/talos, so
-# ../../../ is the repo root. talhelper reads the first two from
-# talconfig.yaml; cilium_version is the chart the CNI seed installs.
+# ../../../ is the repo root. config.yaml passes the first two to
+# talosctl gen config; cilium_version is the chart the CNI seed installs.
 talos_version: >-
   {{ lookup('file', role_path ~ '/../../../versions.env')
      | regex_findall('^TALOS_VERSION=(.+)$', multiline=True) | first | trim }}
@@ -39,19 +38,16 @@ talos_cluster_name: "homelab"
 # Shared control-plane VIP. Talos floats this across the control-plane
 # nodes, so the kube-apiserver endpoint survives any single control-plane
 # node going down. SOURCED FROM NETBOX in config.yaml: the IP tagged
-# `talos_vip_netbox_tag` is looked up via netbox.netbox.nb_lookup. The
+# `talos_vip_netbox_tag` is fetched from the NetBox API with `uri`. The
 # literal below is only a fallback used when no such IP is tagged.
 talos_vip: "192.168.1.100"
 talos_vip_netbox_tag: "talos-vip"
 talos_cluster_endpoint: "https://{{ talos_vip }}:6443"
 
-# Node addressing is static, from NetBox (primary IP + MAC-keyed
-# deviceSelector — interface NAMES are not used: Talos v1.9's systemd-udevd
-# renames the Pi NIC eth0→end0, and virtio VMs get enp* names, so name-based
-# config silently never applies). Prefix length and gateway are taken from
-# the operator's own LAN facts at render time — the operator sits on the
-# same L2 segment as every node. Override per-environment if rendering from
-# a machine that is NOT on the cluster LAN.
+# Node addressing is static, from NetBox: primary IP + a MAC selector, since
+# Talos renames NICs (eth0→end0 on the Pis, enp* on VMs). config.yaml takes
+# the prefix length from the NetBox VIP, so these renderer facts are only
+# fallbacks: docs/design/talos-machine-config.md.
 talos_network_prefixlen: "{{ ansible_default_ipv4.prefix | default(24) }}"
 talos_network_gateway: "{{ ansible_default_ipv4.gateway | default('192.168.1.1') }}"
 
@@ -84,7 +80,7 @@ talos_install_disk: "/dev/sda"
 
 # --- Image Factory schematics -------------------------------------------
 # From Talos 1.14 installers come only from the Image Factory, so every
-# node's talosImageURL names a schematic. Single-sourced from versions.env
+# node's machine.install.image names a schematic. Single-sourced from versions.env
 # like the versions above: 00-pxe (Pi netboot assets) and opentofu (VM boot
 # ISO) read the same two IDs, so the build a node boots and the build it
 # installs cannot drift. See docs/design/talos-image-schematics.md.
@@ -102,26 +98,27 @@ talos_system_extensions:
   - util-linux-tools
 
 # --- Local build/output paths -------------------------------------------
-# talhelper inputs + outputs land here on the operator workstation.
+# Render inputs + outputs land here on the operator workstation.
 # Git-ignored (see repo-root .gitignore) — they contain cluster secrets.
-# Only the SOPS-encrypted talsecret bundle (below) is committed.
+# Only the SOPS-encrypted secret bundle (below) is committed.
 talos_build_dir: "{{ playbook_dir }}/../.talos"
-talos_talconfig: "{{ talos_build_dir }}/talconfig.yaml"
+talos_patch_dir: "{{ talos_build_dir }}/patches"
+talos_base_dir: "{{ talos_build_dir }}/base"
+talos_secrets_plain: "{{ talos_build_dir }}/secrets.yaml"
 talos_clusterconfig_dir: "{{ talos_build_dir }}/clusterconfig"
 talos_talosconfig: "{{ talos_clusterconfig_dir }}/talosconfig"
 
-# Committed, SOPS-encrypted talhelper secret bundle (cluster CA keys +
-# tokens). Generated once on first run, reused thereafter so the PKI never
-# rotates underneath running nodes. Covered by the role-files rule in
-# .sops.yaml; talhelper decrypts it via sops at genconfig time.
-talos_talsecret_sops: "{{ role_path }}/files/talsecret.sops.yaml"
+# The committed `talosctl gen secrets` bundle (CA keys + tokens), generated
+# once and reused so the PKI never rotates under running nodes. config.yaml
+# decrypts it into the build dir for the render and removes it after.
+talos_secrets_sops: "{{ role_path }}/files/secrets.sops.yaml"
 
 # The cluster kubeconfig is merged into the operator's default kubeconfig
 # (preserving other clusters' contexts), not dropped in the repo.
 talos_kubeconfig_dest: "{{ lookup('ansible.builtin.env', 'HOME') }}/.kube/config"
 
 # --- CNI seed -----------------------------------------------------------
-# The machine config ships no CNI (talconfig.yaml.j2: cniConfig none, proxy
+# The machine config ships no CNI (patches/cluster.yaml.j2: cni none, proxy
 # disabled), so tasks/cni.yaml installs Cilium once, right after bootstrap;
 # kubernetes/cilium/ (Flux) declares the same release and owns it from then
 # on. The values file is Flux's copy, read in place so the two can never
@@ -139,7 +136,6 @@ talos_resize_tolerance_mb: 400
 # Binaries (overridable if not on PATH). qm is absolute because a
 # non-interactive SSH session on a Proxmox host does not get /usr/sbin.
 talos_qm_bin: "/usr/sbin/qm"
-talhelper_bin: "talhelper"
 talosctl_bin: "talosctl"
 sops_bin: "sops"
 helm_bin: "helm"

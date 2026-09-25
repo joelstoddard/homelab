@@ -5,9 +5,12 @@ Linux Kubernetes cluster. Task files are invoked via
 `include_role: tasks_from: …` from **`playbooks/talos.yaml`**, not from the
 numbered `02-preflights` orchestrator.
 
-Config generation is delegated to [**talhelper**](https://github.com/budimanjojo/talhelper):
-the role renders a `talconfig.yaml` from NetBox/inventory and talhelper
-turns it into per-node machine configs. NetBox stays the source of truth.
+Machine configs are rendered with plain `talosctl`: `gen config` with two
+cluster-wide patches, then one per-node patch each through
+`machineconfig patch`, all templated from NetBox/inventory
+(`templates/patches/`). NetBox stays the source of truth. Why the configs
+take this shape, and how to prove a change to them:
+[`docs/design/talos-machine-config.md`](../../../docs/design/talos-machine-config.md).
 
 ## Why a dedicated playbook (and `connection: local`)
 
@@ -20,7 +23,7 @@ maintenance-mode IPs (the NetBox primary IP, surfaced as `ansible_host`).
 
 | Task          | Where it runs        | What it does |
 |---------------|----------------------|--------------|
-| `config`      | `localhost` (once)   | Resolve NetBox facts (VIP, control-plane membership), generate/reuse the SOPS-encrypted talhelper secret bundle, render `talconfig.yaml`, run `talhelper genconfig` → `ansible/.talos/clusterconfig/`. |
+| `config`      | `localhost` (once)   | Resolve NetBox facts (VIP and its prefix length, control-plane membership), generate/reuse the SOPS-encrypted secret bundle, render the patches, run `talosctl gen config` + `machineconfig patch` → `ansible/.talos/clusterconfig/`. |
 | `apply`       | per `talos` host     | `talosctl apply-config --insecure` of that node's generated config to a node in maintenance mode. One-shot bootstrap step. |
 | `bootstrap`   | `localhost` (once)   | `talosctl bootstrap` etcd on the first control-plane node. |
 | `kubeconfig`  | `localhost` (once)   | Merge the cluster context into `~/.kube/config`. |
@@ -40,7 +43,7 @@ the literals in `defaults/main.yaml` only if NetBox isn't populated yet):
   `talos_controlplane_netbox_tag` (default `k8s-controlplane`). Everything
   else is a worker.
 - **Control-plane VIP** — the NetBox IP tagged `talos_vip_netbox_tag`
-  (default `talos-vip`), via `netbox.netbox.nb_lookup`.
+  (default `talos-vip`), via the NetBox API (`uri`); its prefix length is the nodes'.
 
 Node IPs and arch come from the inventory too (`ansible_host`, and `pis`
 group membership for the arm64 Image Factory schematic).
@@ -62,11 +65,11 @@ inventory group. Key knobs:
 
 ## Outputs
 
-`ansible/.talos/` (git-ignored): `talconfig.yaml`, `clusterconfig/`
+`ansible/.talos/` (git-ignored): `patches/`, `base/` and `clusterconfig/`
 (per-node configs + `talosconfig`). The kubeconfig is merged into
 `~/.kube/config`. The only committed, encrypted artifact is
-`files/talsecret.sops.yaml` (the talhelper secret bundle) — generated on
-first run, reused thereafter so the cluster CA never rotates underneath
+`files/secrets.sops.yaml` (the `talosctl gen secrets` bundle) — generated
+on first run, reused thereafter so the cluster CA never rotates underneath
 you.
 
 ## Day-2

@@ -3,7 +3,7 @@
 Why Longhorn (not Rook/Ceph), why every worker contributes its EPHEMERAL
 partition, what Talos needed for it, and how the mixed amd64/arm64 fleet is
 guarded. Layer: `kubernetes/longhorn/`. Machine side:
-`ansible/roles/talos/templates/talconfig.yaml.j2`, `versions.env`
+`ansible/roles/talos/templates/patches/cluster.yaml.j2`, `versions.env`
 (schematics), `playbooks/upgrade.yaml`.
 
 ## Problem
