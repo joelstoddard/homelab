@@ -8,8 +8,8 @@
 - name: Generate Talos cluster + per-node machine configs.
   hosts: localhost
   connection: local
-  # Network facts only: talos_network_prefixlen/_gateway default to the
-  # operator's own LAN facts (ansible_default_ipv4) at render time.
+  # Network facts only: the gateway comes from ansible_default_ipv4 (the prefix
+  # length from NetBox; this is its fallback). config.yaml checks both fit.
   gather_facts: true
   gather_subset:
     - "!all"

@@ -82,6 +82,17 @@ renderer's default route.
   too. The default route stays as the fallback when no VIP is tagged.
 - The gateway still comes from the renderer's default route.
 
+So the VIP record's prefix length must equal the LAN's, and a VIP recorded as
+`/32` would put every node on `/32`. Two guards stop a bad value before it
+reaches `upgrade.yaml`, which pushes any diff:
+- **A failed VIP query is fatal** once the inventory holds Talos hosts. The
+  default VIP literal is only for an empty inventory; a transient NetBox
+  error would otherwise render the placeholder VIP for the live cluster.
+- **An assert checks the prefix and gateway.** The prefix must be within
+  `/16`–`/30`, and the gateway must sit inside every node's network. This
+  catches a wrong NetBox prefix and a renderer whose default route is off
+  the cluster LAN.
+
 This depends on NetBox being right. During #135, 57 of NetBox's 71 IP records
 were still `/24` from before the `/20` migration. They were widened in NetBox
 so that this source became true. The leftover nested `/24` prefix object was

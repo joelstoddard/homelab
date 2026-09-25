@@ -30,8 +30,8 @@
          | map(attribute='inventory_hostname') | list }}
   when: _derived | length > 0
 
-# An unreachable NetBox lands in the rescue, so the run falls back to the
-# default VIP literal. A module, not nb_lookup: macOS getaddrinfo segfaults in
+# A failed lookup is fatal once the inventory holds Talos hosts; the default
+# VIP literal is only for an empty one. A module, not nb_lookup: macOS getaddrinfo segfaults in
 # the forked worker that runs lookup plugins, once the inventory has resolved.
 - name: Look up the control-plane VIP from NetBox.
   block:
@@ -50,7 +50,16 @@
       ansible.builtin.set_fact:
         _vip_records: "{{ _vip_query.json.results }}"
   rescue:
-    - name: NetBox unreachable — fall back to the default VIP literal.
+    # Real hosts mean NetBox answered the inventory, so a failed query here is
+    # an error; the placeholder VIP would be pushed by upgrade.yaml.
+    - name: Refuse to render live nodes on the placeholder VIP.
+      ansible.builtin.fail:
+        msg: >-
+          The NetBox VIP lookup failed while the inventory holds
+          {{ groups['talos'] | length }} Talos hosts. Fix NetBox access and re-run.
+      when: groups['talos'] | default([]) | length > 0
+
+    - name: No Talos hosts — fall back to the default VIP literal.
       ansible.builtin.set_fact:
         _vip_records: []
 
@@ -63,6 +72,24 @@
   vars:
     _vip_cidr: "{{ _vip_records | map(attribute='address') | list | first | default('') }}"
   when: _vip_cidr is search('/')
+
+# upgrade.yaml pushes any diff, so a prefix or gateway that cannot be right
+# stops the render here instead of re-addressing every node.
+- name: Check the node prefix length and gateway are plausible.
+  ansible.builtin.assert:
+    that:
+      - talos_network_prefixlen | int >= 16
+      - talos_network_prefixlen | int <= 30
+      - >-
+        (hostvars[node].ansible_host ~ '/' ~ talos_network_prefixlen) | ansible.utils.ipaddr('network')
+        == (talos_network_gateway ~ '/' ~ talos_network_prefixlen) | ansible.utils.ipaddr('network')
+    fail_msg: >-
+      {{ node }}: prefix /{{ talos_network_prefixlen }} or the gateway does not fit its
+      address. Check the NetBox talos-vip record's prefix and the renderer's default route.
+    quiet: true
+  loop: "{{ groups['talos'] | default([]) }}"
+  loop_control:
+    loop_var: node
 
 - name: Report the resolved cluster facts.
   ansible.builtin.debug:
@@ -157,6 +184,7 @@
       loop_control:
         loop_var: node
 
+    # Check mode skips the talosctl commands, so these two have no files to act on.
     - name: Restrict the node configs to the operator.
       ansible.builtin.file:
         path: "{{ talos_clusterconfig_dir }}/{{ talos_cluster_name }}-{{ node }}.yaml"
@@ -164,12 +192,14 @@
       loop: "{{ groups['talos'] | default([]) }}"
       loop_control:
         loop_var: node
+      when: not ansible_check_mode
 
     - name: Install the talosconfig.
       ansible.builtin.copy:
         src: "{{ talos_base_dir }}/talosconfig"
         dest: "{{ talos_talosconfig }}"
         mode: "0600"
+      when: not ansible_check_mode
 
     - name: Point the talosconfig at the control plane and list every node.
       ansible.builtin.command:
@@ -177,7 +207,9 @@
       changed_when: true
       loop:
         - verb: endpoint
-          ips: "{{ talos_controlplane_hosts | map('extract', hostvars, 'ansible_host') | list }}"
+          ips: >-
+            {{ talos_controlplane_hosts | select('in', groups['talos'] | default([]))
+               | map('extract', hostvars, 'ansible_host') | list }}
         - verb: node
           ips: "{{ groups['talos'] | default([]) | map('extract', hostvars, 'ansible_host') | list }}"
   always:
