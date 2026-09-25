@@ -17,4 +17,4 @@ exclude_paths:
   - roles/robertdebock.fail2ban/
   # SOPS ciphertext: every line is one base64 blob, so yaml[line-length]
   # cannot be satisfied without corrupting the file.
-  - roles/talos/files/talsecret.sops.yaml
+  - roles/talos/files/secrets.sops.yaml

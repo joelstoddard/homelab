@@ -14,7 +14,7 @@
   loop:
     - "{{ talos_build_dir }}"
     - "{{ talos_clusterconfig_dir }}"
-    - "{{ talos_talsecret_sops | dirname }}"
+    - "{{ talos_secrets_sops | dirname }}"
 
 # --- NetBox-sourced facts (the source of truth) ------------------------
 # Control-plane membership: any talos host carrying the controlplane tag.
@@ -76,22 +76,22 @@
 # --- Secret bundle: reuse if committed, else generate + persist --------
 - name: Check for the committed (SOPS-encrypted) secret bundle.
   ansible.builtin.stat:
-    path: "{{ talos_talsecret_sops }}"
-  register: talos_talsecret_committed
+    path: "{{ talos_secrets_sops }}"
+  register: talos_secrets_committed
 
 - name: Generate a fresh secret bundle at the .sops.yaml path (first run only).
   # sops picks its creation rule from the path, so the plaintext is written
   # there and encrypted in place.
   ansible.builtin.command:
-    cmd: "{{ talosctl_bin }} gen secrets --output-file {{ talos_talsecret_sops }}"
-    creates: "{{ talos_talsecret_sops }}"
+    cmd: "{{ talosctl_bin }} gen secrets --output-file {{ talos_secrets_sops }}"
+    creates: "{{ talos_secrets_sops }}"
   no_log: true
 
 - name: Encrypt the secret bundle in place.
   ansible.builtin.command:
-    cmd: "{{ sops_bin }} -e -i {{ talos_talsecret_sops }}"
+    cmd: "{{ sops_bin }} -e -i {{ talos_secrets_sops }}"
   changed_when: true
-  when: not talos_talsecret_committed.stat.exists
+  when: not talos_secrets_committed.stat.exists
 
 # --- Render the machine configs ----------------------------------------
 # Why the configs take this shape: docs/design/talos-machine-config.md.
@@ -99,7 +99,7 @@
   block:
     - name: Decrypt the secret bundle for talosctl.
       ansible.builtin.command:
-        cmd: "{{ sops_bin }} -d --output {{ talos_secrets_plain }} {{ talos_talsecret_sops }}"
+        cmd: "{{ sops_bin }} -d --output {{ talos_secrets_plain }} {{ talos_secrets_sops }}"
       changed_when: false
       no_log: true
 

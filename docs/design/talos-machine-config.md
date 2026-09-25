@@ -10,7 +10,7 @@ cannot render the Talos 1.14+ config format, so it blocked #140.
 1. **NetBox facts.** Control-plane membership from the `k8s-controlplane`
    tag. The VIP, and the nodes' prefix length, from the IP tagged
    `talos-vip`.
-2. **Secret bundle.** `files/talsecret.sops.yaml` uses the
+2. **Secret bundle.** `files/secrets.sops.yaml` uses the
    `talosctl gen secrets` schema. It is decrypted into the git-ignored
    `ansible/.talos/` for the render and removed afterwards, in an `always`
    block, so a failed render does not leave it behind.
