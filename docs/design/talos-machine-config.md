@@ -134,6 +134,41 @@ talosctl --talosconfig ansible/.talos/clusterconfig/talosconfig \
 
 For a change that should be a no-op, the pass condition is `No changes` on
 all 20 nodes; #135 shipped on that. The diff output can contain secret
-values, so reduce it to changed key names before you share it.
+values, so pass it through `talos_redact` (below) before you share it.
 `upgrade.yaml` runs the same dry run, but pushes any diff it finds, so it is
 not a check.
+
+## Redacting talosctl output
+
+A dry-run diff is a unified diff of the machine config, and its context lines
+alone can carry the node's token, CA key, cluster secret and encryption
+secret. A live test during #215 found 4 of a node's 6 secret values in a
+two-key diff. `talosctl` writes that diff to stderr, not stdout.
+
+`roles/talos/filter_plugins/talos_redact.py` rewrites each secret value as
+`<REDACTED sha256:xxxxxxxx>`. A value is redacted when either rule matches:
+
+- **Its key is a known secret field**: the key name ends in `key`, `token`,
+  `secret` or `password`, whatever the value.
+- **The value looks like a secret**: one opaque base64/hex-like string of 24
+  or more characters, or a Kubernetes bootstrap token, whatever its key.
+
+Why both rules:
+- The key rule alone fails silently. Talos adds config fields between
+  releases, and a new secret field under an unfamiliar name would be printed
+  in full.
+- With the shape rule, an unknown secret is redacted by default. The cost is
+  an occasional harmless opaque value (a certificate, a cluster ID) redacted
+  too, which is the right way for a log to fail.
+- Image references, addresses, hostnames and labels match neither rule, so
+  they stay readable.
+
+The short hash keeps the diff useful. Without it, a changed secret prints as
+two identical `<REDACTED>` lines. With it, you can tell a real change from a
+no-op, and 8 hex characters of SHA-256 reveal nothing usable about values of
+this length.
+
+`upgrade.yaml` registers the raw dry-run with `no_log: true`, then prints the
+redacted copy: as a diff when something changes, and as the failure message
+when the dry run itself fails. Unit tests: `python3 -m unittest discover tests`
+from `roles/talos`.
