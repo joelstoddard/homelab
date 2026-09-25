@@ -1,7 +1,9 @@
 ---
 # Network config for the Debian preseed. cidr_subnet and gateway are
 # repo-wide and live in inventory/group_vars/all.yaml.
-dns_server: "192.168.1.2"
+# Space-separated, which both d-i and /etc/network/interfaces accept, so an
+# install survives one resolver being unreachable.
+dns_server: "{{ public_dns_servers | join(' ') }}"
 ntp_server: "192.168.1.1"
 preferred_keyboard_layout: "us"
 country_code: "GB"

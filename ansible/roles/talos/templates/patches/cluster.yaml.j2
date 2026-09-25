@@ -1,5 +1,6 @@
 {# All nodes get no CNI and no kube-proxy, because Cilium is both (docs/design/cilium-bootstrap.md).
-   Longhorn needs its data dir bind-mounted rshared into the kubelet (docs/design/longhorn.md). #}
+   Longhorn needs its data dir bind-mounted rshared into the kubelet (docs/design/longhorn.md).
+   Resolvers are machine-level and identical on every node (docs/design/dns-chain.md). #}
 cluster:
   network:
     cni:
@@ -7,6 +8,11 @@ cluster:
   proxy:
     disabled: true
 machine:
+  network:
+    nameservers:
+{% for ns in talos_nameservers %}
+      - {{ ns }}
+{% endfor %}
   kubelet:
     extraMounts:
       - destination: /var/lib/longhorn
