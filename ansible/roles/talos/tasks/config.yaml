@@ -29,24 +29,25 @@
          | map(attribute='inventory_hostname') | list }}
   when: _derived | length > 0
 
-# VIP: the NetBox IP tagged talos_vip_netbox_tag. The lookup runs in its
-# own block so an unreachable NetBox lands in the rescue (records → []) and
-# we fall back to the default literal, instead of aborting the run. The
-# materialized fact also keeps the lookup OUT of the next task's `when:`,
-# where a templating error would not be caught by ignore_errors.
+# An unreachable NetBox lands in the rescue, so the run falls back to the
+# default VIP literal. A module, not nb_lookup: macOS getaddrinfo segfaults in
+# the forked worker that runs lookup plugins, once the inventory has resolved.
 - name: Look up the control-plane VIP from NetBox.
   block:
-    # wantlist=True: with exactly one match nb_lookup returns a bare dict, and
-    # the map() below then silently yields nothing — the first bootstrap ran
-    # on the fallback VIP because of that. A list is a list, whatever the count.
     - name: Query NetBox for the VIP-tagged IP.
+      ansible.builtin.uri:
+        url: >-
+          {{ lookup('ansible.builtin.env', 'NETBOX_API') | regex_replace('/+$', '') }}/api/ipam/ip-addresses/?tag={{ talos_vip_netbox_tag }}&brief=1
+        headers:
+          Authorization: "Token {{ lookup('ansible.builtin.env', 'NETBOX_TOKEN') }}"
+          Accept: application/json
+      register: _vip_query
+      check_mode: false
+      no_log: true
+
+    - name: Keep the tagged records.
       ansible.builtin.set_fact:
-        _vip_records: >-
-          {{ lookup('netbox.netbox.nb_lookup', 'ip-addresses',
-                    api_endpoint=lookup('ansible.builtin.env', 'NETBOX_API'),
-                    token=lookup('ansible.builtin.env', 'NETBOX_TOKEN'),
-                    api_filter='tag=' ~ talos_vip_netbox_tag,
-                    wantlist=True) }}
+        _vip_records: "{{ _vip_query.json.results }}"
   rescue:
     - name: NetBox unreachable — fall back to the default VIP literal.
       ansible.builtin.set_fact:
@@ -57,7 +58,7 @@
     talos_vip: "{{ _vip_addr }}"
   vars:
     _vip_addr: >-
-      {{ (_vip_records | map(attribute='value.address') | list | first | default('')).split('/') | first }}
+      {{ (_vip_records | map(attribute='address') | list | first | default('')).split('/') | first }}
   when: _vip_addr | length > 0
 
 - name: Report the resolved cluster facts.
