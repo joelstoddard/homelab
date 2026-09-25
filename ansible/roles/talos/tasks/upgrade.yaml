@@ -35,12 +35,31 @@
       {{ talosctl_bin }} --talosconfig {{ talos_talosconfig }}
       --nodes {{ ansible_host }} --endpoints {{ ansible_host }}
 
+# A config diff can carry secret values, so the raw result is never printed;
+# the two tasks after it print a talos_redact copy instead.
 - name: Diff the rendered config against {{ inventory_hostname }}
   ansible.builtin.command:
     cmd: "{{ talos_upgrade_ctl }} apply-config --dry-run --file {{ talos_upgrade_config }}"
   register: talos_upgrade_diff
   changed_when: false
+  failed_when: false
   check_mode: false
+  no_log: true
+
+- name: Stop on a failed dry run of {{ inventory_hostname }}
+  ansible.builtin.fail:
+    msg: >-
+      {{ (talos_upgrade_diff.stderr | talos_redact).splitlines()
+         + (talos_upgrade_diff.stdout | talos_redact).splitlines() }}
+  when: talos_upgrade_diff.rc != 0
+
+- name: Show the redacted config diff for {{ inventory_hostname }}
+  ansible.builtin.debug:
+    # talosctl writes the dry-run diff to stderr.
+    msg: >-
+      {{ (talos_upgrade_diff.stderr | talos_redact).splitlines()
+         + (talos_upgrade_diff.stdout | talos_redact).splitlines() }}
+  when: "'No changes' not in (talos_upgrade_diff.stdout ~ talos_upgrade_diff.stderr)"
 
 - name: Push the config to {{ inventory_hostname }}
   ansible.builtin.command:
