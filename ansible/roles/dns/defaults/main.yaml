@@ -1,12 +1,21 @@
 ---
 # The DNS chain. See docs/design/dns-chain.md.
 
-# Bind9 is the last link before the public resolvers, so it forwards straight
-# out. BIND tries forwarders in the order listed, and Quad9 filters known
-# malicious domains before Mullvad answers.
+# The only hop in the chain that can speak DoT, so it does. Mullvad refuses
+# plain :53 from non-VPN clients, which makes DoT the only way to use it.
 dns_public_forwarders:
-  - "9.9.9.9"
-  - "194.242.2.2"
+  - address: "9.9.9.9"
+    tls_name: quad9
+    hostname: dns.quad9.net
+  - address: "194.242.2.2"
+    tls_name: mullvad
+    hostname: dns.mullvad.net
+
+dns_tls_ca_file: /etc/ssl/certs/ca-certificates.crt
+
+# Resolved through the full forwarder path by the role's own check. A local
+# wildcard lookup cannot tell a working upstream from a broken one.
+dns_public_probe_name: deb.debian.org
 
 # The hosts allowed to query Bind9: the lancache-dns pair, which forwards to
 # it, and the Pi-hole pair, which reaches it directly when lancache-dns is

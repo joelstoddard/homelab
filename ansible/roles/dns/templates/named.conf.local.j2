@@ -15,7 +15,7 @@ zone "{{ name }}" IN {
     forward only;
     forwarders {
 {% for f in dns_public_forwarders %}
-        {{ f }};
+        {{ f.address }} port 853 tls {{ f.tls_name }};
 {% endfor %}
     };
 };

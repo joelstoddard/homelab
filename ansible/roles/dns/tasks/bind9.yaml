@@ -11,6 +11,8 @@
       - bind9
       - bind9-utils
       - bind9-dnsutils
+      # The CA bundle the forwarders' TLS blocks verify against.
+      - ca-certificates
     state: present
     update_cache: true
     cache_valid_time: 3600
@@ -66,6 +68,18 @@
   register: _dns_wildcard_check
   changed_when: false
   failed_when: _dns_wildcard_check.stdout | trim != dns_traefik_lb_ip
+
+- name: Confirm a public name resolves through the DoT forwarders.
+  # The wildcard check above is answered locally, so it passes even when
+  # every upstream is unreachable. This is the one that exercises the path.
+  ansible.builtin.command:
+    cmd: >-
+      dig +short +tries=1 +time=10
+      @{{ dns_bind9_addresses[inventory_hostname] }}
+      {{ dns_public_probe_name }} A
+  register: _dns_public_check
+  changed_when: false
+  failed_when: _dns_public_check.stdout | trim | length == 0
 
 - name: Confirm Bind9 refuses a host outside the chain.
   # Run from the operator, which is not in the dns_chain ACL. The guard
