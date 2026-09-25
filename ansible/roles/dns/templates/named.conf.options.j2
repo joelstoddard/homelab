@@ -9,6 +9,14 @@ acl dns_chain {
 {% endfor %}
 };
 
+// Hostname-verified against the system CA bundle, not `tls ephemeral`.
+{% for f in dns_public_forwarders %}
+tls {{ f.tls_name }} {
+    remote-hostname "{{ f.hostname }}";
+    ca-file "{{ dns_tls_ca_file }}";
+};
+{% endfor %}
+
 options {
     directory "/var/cache/bind";
 
@@ -20,9 +28,11 @@ options {
     allow-query-cache { dns_chain; };
     recursion yes;
 
+    // DoT on 853, never plain 53. Mullvad refuses plain queries from
+    // non-VPN clients, and a mixed list would let BIND pick the plain one.
     forwarders {
 {% for f in dns_public_forwarders %}
-        {{ f }};
+        {{ f.address }} port 853 tls {{ f.tls_name }};
 {% endfor %}
     };
     forward only;

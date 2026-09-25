@@ -32,7 +32,7 @@ LAN client ──> Pi-hole        blocklists, per-client stats, real client IPs
                  │ forwarders
               Bind9           authoritative for example.com; validates DNSSEC
                  │ forwarders
-              Quad9, then Mullvad
+              Quad9 and Mullvad, over DoT
 
 Talos node ──> Pi-hole VIP, then each Pi-hole instance
 ```
@@ -63,9 +63,8 @@ Two positions are forced, and only the middle one was a real choice.
   `dl.delivery.mp.microsoft.com` is one. Any validating resolver *above* it in
   the chain receives those forged answers as forwarded data, cannot validate
   them, and SERVFAILs Windows Update. Below it, Bind9 never sees a forged
-  answer and keeps validation on. Since Bind9 is the link that talks to the
-  public internet over plaintext port 53, that is exactly where validation is
-  worth having.
+  answer and keeps validation on. Bind9 is the link that talks to the public
+  internet, so that is exactly where validation is worth having.
 
 **The cost of that choice is that a lancache-dns outage would take the LAN
 domain with it**, because Bind9 sits behind it. Pi-hole therefore runs
@@ -113,11 +112,25 @@ manual lever.
   switch to `YYYYMMDDNN` first:** an IXFR/AXFR secondary only transfers on an
   increase.
 
-- **Quad9 first, Mullvad second, plain `:53`.** BIND tries forwarders in the
-  order listed, so Quad9's malware filtering applies before Mullvad answers. A
-  DoT stub would be a fourth daemon in the path of every uncached lookup; it
-  is deferred, not rejected, and it is the proper fix for the plaintext path
-  that local DNSSEC validation only partly covers.
+- **Quad9 and Mullvad, both over DoT.** Two things forced this. Mullvad
+  answers `REFUSED` to plain `:53` from non-VPN clients, so DoT is the only
+  way to use it at all; and BIND 9.18 and later speak DoT natively in
+  `forwarders`, so encryption costs no extra daemon — the reason it was
+  originally deferred does not exist. Both are verified by hostname against
+  the system CA bundle rather than `tls ephemeral`: Mullvad's certificate
+  carries `dns.mullvad.net` in its SANs, Quad9's carries `dns.quad9.net` and
+  the address literals.
+
+  **The list must not mix plain and DoT.** BIND selects forwarders by
+  round-trip time, so a plain entry alongside a DoT one would win routinely
+  and quietly send queries in clear.
+
+- **Everywhere else public is Quad9 only**, for the same REFUSED reason.
+  Talos's `nameservers`, cert-manager's `dns01RecursiveNameservers`, Pi-hole's
+  bootstrap upstreams and the chain containers' own `/etc/resolv.conf` are all
+  plain-only, so they take `9.9.9.9` and `149.112.112.112` — Quad9's two
+  anycast addresses. Bind9's forwarders are the one hop in the whole estate
+  that can be encrypted.
 
 ## Failure modes
 
@@ -132,6 +145,13 @@ manual lever.
 
 - **A passthrough name SERVFAILs.** `validate-except` missing while the public
   zone is signed. `dig +dnssec` against the instance shows it.
+
+- **Every public name stops resolving while the LAN domain still works.** Both
+  DoT forwarders unreachable — port 853 blocked, a CA bundle that failed to
+  install, or an expired certificate at the provider. The local wildcard is
+  answered from the zone, so it keeps working and hides the fault; the role's
+  public-name check is what catches it. Confirm with
+  `dig @<bind9> deb.debian.org` and read `journalctl -u named` for TLS errors.
 
 - **An A record added for a `lan-services` backend.** `rumba.example.com` and
   the six other names in `kubernetes/lan-services/` are reachable by name
@@ -187,6 +207,10 @@ manual lever.
   from the `uklans/cache-domains` tree — collapsing means re-implementing
   someone else's generator against a list that churns. Rejected on maintenance
   cost, not on design.
+
+- **Mullvad on plain `:53`.** The first draft listed `194.242.2.2` beside
+  Quad9 as an ordinary forwarder. It answers `REFUSED` over both UDP and TCP,
+  so that entry was dead and the redundancy it implied was imaginary.
 
 - **Fail-open through BIND's forwarder list.** Listing the public resolvers
   after lancache-dns does not work: **BIND selects forwarders by round-trip

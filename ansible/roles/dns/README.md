@@ -57,8 +57,25 @@ refused. To check it by hand, from one of those hosts:
 ```bash
 dig @<bind9-01> anything.<domain> A     # the Traefik LB address
 dig @<bind9-01> <passthrough-name> A    # the public address
+dig @<bind9-01> deb.debian.org A        # exercises the DoT forwarders
 dig @<bind9-01> +dnssec cloudflare.com  # ad flag set: validation is on
 ```
+
+## Upstream is DoT only
+
+Bind9 forwards to Quad9 and Mullvad on port 853, hostname-verified against
+the system CA bundle. Mullvad answers `REFUSED` to plain `:53` from non-VPN
+clients, so DoT is the only way to use it, and BIND has spoken it natively
+since 9.18 — no stub resolver in the path.
+
+**Never add a plain `:53` entry to that list.** BIND picks forwarders by
+round-trip time, so a plain one would win routinely and send queries in
+clear. Everything else in the estate that needs a public resolver is
+plain-only and therefore Quad9's two anycast addresses, not Mullvad.
+
+A broken forwarder path is invisible to the wildcard check, because that is
+answered from the local zone. `dig deb.debian.org` against the instance is
+the one that fails, and `journalctl -u named` carries the TLS error.
 
 ## Group variables
 
