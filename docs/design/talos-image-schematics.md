@@ -9,10 +9,11 @@ USB-storage quirk lives in a schematic rather than in the machine config.
 
 Talos 1.14 stopped publishing `ghcr.io/siderolabs/installer`
 ([release notes](https://github.com/siderolabs/talos/releases/tag/v1.14.0),
-"Default Installer Image"). talhelper still defaults
-`machine.install.image` to that registry unless a node sets
-`talosImageURL`, so a config generated without one installs nothing —
-`ghcr.io/siderolabs/installer:v1.14.0` does not exist.
+"Default Installer Image"). `talosctl gen config` defaults
+`machine.install.image` to the vanilla Image Factory installer, which
+carries none of this repo's extensions, so every node's config has to name
+its schematic. (talhelper, the renderer before #135, defaulted to the
+removed `ghcr.io` image, which installed nothing at all.)
 
 Since Talos 1.10, UEFI and arm64 installs boot a Unified Kernel Image (UKI)
 via systemd-boot. The kernel command line is part of the UKI and is fixed
@@ -22,8 +23,9 @@ the installed system ([1.10 release notes](https://github.com/siderolabs/talos/r
 
 ## Design
 
-Every node's `talosImageURL` is `factory.talos.dev/installer/<schematic-id>`;
-talhelper appends `:<talosVersion>`. Two schematics:
+Every node's `machine.install.image` is
+`factory.talos.dev/installer/<schematic-id>:<talos_version>`, set in
+`templates/patches/node.yaml.j2`. Two schematics:
 
 | Nodes | Schematic | ID |
 | --- | --- | --- |
@@ -100,10 +102,10 @@ request; the first fetch after a version bump is slow.
 
 - **Keep `machine.install.extraKernelArgs`.** Inert on 1.10+ UKI installs;
   it would document a quirk that the installed kernel never receives.
-- **Let talhelper compute the IDs from an inline `schematic:` block.** It
-  can, but `00-pxe` needs the same ID for the netboot assets and has no
-  talhelper; one line each in versions.env is simpler than registering from
-  Ansible.
+- **Let talhelper (the renderer before #135) compute the IDs from an inline
+  `schematic:` block.** It could, but `00-pxe` needs the same ID for the
+  netboot assets and had no talhelper; one line each in versions.env is
+  simpler than registering from Ansible.
 
 ## Failure modes
 
@@ -111,8 +113,9 @@ request; the first fetch after a version bump is slow.
   the Pis keep booting the staged old build while their machine config names
   the new installer — harmless until a reset reinstalls from the new one;
   `apply-upgrade` closes the gap.
-- Drop `talosImageURL` for the VMs: `apply-config` succeeds, the install
-  fails pulling `ghcr.io/siderolabs/installer`, and the node sits in
-  maintenance mode.
+- Drop the schematic from a node's `machine.install.image`: `gen config`'s
+  default is the vanilla Image Factory installer, so the node installs
+  without `iscsi-tools` / `util-linux-tools` and Longhorn cannot attach
+  volumes on it.
 - A new enclosure model needs its own `VID:PID:u`; that is a new Pi
   schematic ID in both roles and a new netboot cmdline.

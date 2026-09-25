@@ -5,7 +5,7 @@ scrapes and tails, Prometheus and Loki store on Longhorn, Grafana shows
 dashboards that live in git as JSON. Layers: `kubernetes/monitoring/`
 (backends) and `kubernetes/alloy/` (collectors); metrics exposure in
 `kubernetes/cilium/`, `traefik/`, `tailscale/`; control-plane component
-metrics from `ansible/roles/talos/templates/talconfig.yaml.j2`.
+metrics from `ansible/roles/talos/templates/patches/controlplane.yaml.j2`.
 
 ## Problem
 

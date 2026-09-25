@@ -38,7 +38,7 @@ talos_cluster_name: "homelab"
 # Shared control-plane VIP. Talos floats this across the control-plane
 # nodes, so the kube-apiserver endpoint survives any single control-plane
 # node going down. SOURCED FROM NETBOX in config.yaml: the IP tagged
-# `talos_vip_netbox_tag` is looked up via netbox.netbox.nb_lookup. The
+# `talos_vip_netbox_tag` is fetched from the NetBox API with `uri`. The
 # literal below is only a fallback used when no such IP is tagged.
 talos_vip: "192.168.1.100"
 talos_vip_netbox_tag: "talos-vip"
@@ -80,7 +80,7 @@ talos_install_disk: "/dev/sda"
 
 # --- Image Factory schematics -------------------------------------------
 # From Talos 1.14 installers come only from the Image Factory, so every
-# node's talosImageURL names a schematic. Single-sourced from versions.env
+# node's machine.install.image names a schematic. Single-sourced from versions.env
 # like the versions above: 00-pxe (Pi netboot assets) and opentofu (VM boot
 # ISO) read the same two IDs, so the build a node boots and the build it
 # installs cannot drift. See docs/design/talos-image-schematics.md.

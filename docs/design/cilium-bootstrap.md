@@ -7,9 +7,9 @@ values file and one version pin, and why the health wait moved to the end of
 
 ## Problem
 
-Cilium replaces Talos' built-in flannel + kube-proxy (`cniConfig.name: none`,
+Cilium replaces Talos' built-in flannel + kube-proxy (`cluster.network.cni.name: none`,
 `cluster.proxy.disabled: true` in
-`ansible/roles/talos/templates/talconfig.yaml.j2`). That leaves a gap Flux
+`ansible/roles/talos/templates/patches/cluster.yaml.j2`). That leaves a gap Flux
 cannot fill on its own: Flux's controllers are ordinary pods, and no pod gets
 an IP until a CNI is running. Something has to seed Cilium before Flux
 exists, yet Flux must be the owner afterwards — the same tree that will carry

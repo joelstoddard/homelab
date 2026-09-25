@@ -98,17 +98,21 @@ Current implementation:
   `PVEAuditor` on `/` for the cluster's `pve-exporter`, persisted alongside
   the terraform token as `pve_exporter_token`).
 - `talos` — OS library driving the Talos Kubernetes cluster from the operator
-  workstation (Talos has no SSH/Python). Config generation is delegated to
-  `talhelper`: `config.yaml` resolves the VIP (NetBox IP tagged `talos-vip`,
-  via `nb_lookup`) and control-plane membership (NetBox tag `k8s-controlplane`)
-  from NetBox, generates/reuses the SOPS-encrypted talhelper secret bundle at
-  `roles/talos/files/talsecret.sops.yaml`, renders `talconfig.yaml` from
-  NetBox/inventory, and runs `talhelper genconfig` into the git-ignored
-  `ansible/.talos/clusterconfig/`. Then `apply.yaml`
+  workstation (Talos has no SSH/Python). Config generation uses plain
+  `talosctl`: `config.yaml` resolves the VIP and the nodes' prefix length
+  (NetBox IP tagged `talos-vip`, via `uri`, not `nb_lookup`, which segfaults
+  in the forked worker on macOS) and control-plane membership (NetBox tag
+  `k8s-controlplane`), generates/reuses the SOPS-encrypted secret bundle at
+  `roles/talos/files/secrets.sops.yaml`, renders `templates/patches/` from
+  NetBox/inventory, and runs `talosctl gen config` + `machineconfig patch`
+  into the git-ignored `ansible/.talos/clusterconfig/`; the configs
+  reproduce talhelper's multi-document shape, and any change must dry-run
+  as `No changes` on every node first (`docs/design/talos-machine-config.md`).
+  Then `apply.yaml`
   (`talosctl apply-config --insecure` per node in maintenance mode),
   `bootstrap.yaml` (`talosctl bootstrap` etcd on the first control-plane
   node), `kubeconfig.yaml` (merge into `~/.kube/config`), `cni.yaml` (the
-  machine config ships no CNI — `cniConfig: none`, kube-proxy disabled — so
+  machine config ships no CNI — `cni.name: none`, kube-proxy disabled — so
   this `helm install`s Cilium from `kubernetes/cilium/app/values.yaml` at
   `CILIUM_VERSION`, once, only if the release is absent; Flux owns it after
   that) and `health.yaml` (`talosctl health`, last, because Ready needs the

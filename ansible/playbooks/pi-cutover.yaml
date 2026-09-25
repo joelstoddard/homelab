@@ -131,7 +131,7 @@
         name: 00-pxe
       when: groups['pi_cutover_pending'] | default([]) | length > 0
 
-# Regenerate first so any talconfig change (e.g. the USB quirk) is picked up.
+# Regenerate first so any machine-config change (e.g. the USB quirk) is picked up.
 - name: Generate Talos machine configs.
   hosts: localhost
   connection: local
