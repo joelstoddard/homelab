@@ -2,7 +2,15 @@
 ansible_user: "admin"
 ansible_ssh_private_key_file: "~/.ssh/id_rsa"
 ssh_public_key: "{{ lookup('file', '~/.ssh/id_rsa.pub') }}"
-quad_nine_dns_server: "9.9.9.9"
+# Public resolvers, in order, for anything that cannot use the LAN chain.
+# Quad9 first for its malware filtering, Cloudflare second so one operator is
+# never the only path out. Google is what this replaced. Mullvad is absent on
+# purpose: its public resolver answers REFUSED on plain :53 and is reachable
+# only over DoT, which none of these consumers speak — see
+# docs/design/dns-chain.md.
+public_dns_servers:
+  - "9.9.9.9"
+  - "1.1.1.1"
 
 # LAN prefix for every statically-addressed host, from TS_ROUTES in
 # kubernetes/tailscale/app/deployment.yaml. One definition keeps the 00-pxe
@@ -12,14 +20,16 @@ gateway: "{{ ansible_default_ipv4.gateway }}"
 
 # Resolver order for /etc/resolv.conf (02-preflights resolv.yaml): the
 # Pi-hole LXC first — it alone answers the LAN wildcard the write routes
-# live under — then the public fallback. The LXC is looked up by its NetBox
+# live under — then the public fallbacks. The LXC is looked up by its NetBox
 # name so its address never enters git; without it (static inventory) the
-# hosts fall back to the public resolver alone. Search domain = the host's
+# hosts fall back to the public resolvers alone. Search domain = the host's
 # NetBox dns_name minus its first label.
+#
+# Three entries is glibc's MAXNS: a fourth would be parsed and then ignored.
 dns_primary_host: Pihole
-dns_servers:
-  - "{{ hostvars[dns_primary_host].ansible_host | default(quad_nine_dns_server) }}"
-  - "{{ quad_nine_dns_server }}"
+dns_servers: >-
+  {{ ([hostvars[dns_primary_host].ansible_host | default('', true)]
+      | reject('equalto', '') | list) + public_dns_servers }}
 dns_search: "{{ (dns_name | default('')).split('.')[1:] | join('.') }}"
 
 # Kernel cmdline parameters baked into the installed system. Two

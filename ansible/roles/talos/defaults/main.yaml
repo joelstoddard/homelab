@@ -44,6 +44,18 @@ talos_vip: "192.168.1.100"
 talos_vip_netbox_tag: "talos-vip"
 talos_cluster_endpoint: "https://{{ talos_vip }}:6443"
 
+# Resolvers for the installed nodes. Talos configures none, so they fall
+# through to its built-in 1.1.1.1 and 8.8.8.8; this drops Google and keeps
+# two independent operators. Repointed at the LAN chain once it is live —
+# docs/design/dns-chain.md.
+#
+# Duplicated from public_dns_servers rather than referenced, for the reason
+# the rest of this file exists: the config play runs on localhost, which is
+# not an inventory host and so carries no group_vars.
+talos_nameservers:
+  - "9.9.9.9"
+  - "1.1.1.1"
+
 # Node addressing is static, from NetBox: primary IP + a MAC selector, since
 # Talos renames NICs (eth0→end0 on the Pis, enp* on VMs). config.yaml takes
 # the prefix length from the NetBox VIP, so these renderer facts are only
