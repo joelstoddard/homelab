@@ -1,5 +1,6 @@
-# PodSecurity privileged, and exactly one container needs it: the killswitch
-# init container's nft write wants NET_ADMIN, which baseline forbids.
+# PodSecurity privileged, and only the media-egress init containers need it:
+# the nft write, the policy routes and the TUN device all want NET_ADMIN, which
+# baseline forbids. The SOCKS5 proxy beside them holds no capability.
 #
 # This namespace exists for that single requirement. It is why the *arr
 # applications stay in `media` at baseline instead of being dragged up here to

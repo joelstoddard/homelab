@@ -52,13 +52,14 @@ The same doc left a second instruction, and this project is what triggers it:
 
 ### Two namespaces
 
-PodSecurity Admission is enforced per namespace, and exactly one container in
-this stack needs more than `baseline`: the `killswitch` init container on the
-standalone `media-egress` Deployment, which wants `NET_ADMIN` to install its nftables
-ruleset. There is no TUN device and no VPN sidecar — the tunnel is userspace
-Tailscale running in its own pod (`docs/design/media-egress.md`, "The VPN
-boundary"). Putting it alongside the rest would drag Jellyfin and seven \*arr
-applications into a privileged namespace to satisfy one container.
+PodSecurity Admission is enforced per namespace, and only the standalone
+`media-egress` Deployment needs more than `baseline`: its three init containers
+want `NET_ADMIN` to install the nftables ruleset, write the policy routes, and
+run a TUN-mode tailscaled (`docs/design/media-egress.md`, "The VPN boundary").
+The SOCKS5 proxy beside them holds no capability and runs as an ordinary user,
+which is what puts proxied traffic under the kill switch. Putting any of this
+alongside the rest would drag Jellyfin and seven \*arr applications into a
+privileged namespace to satisfy one pod.
 
 | Namespace | PSA enforce | Workloads |
 | --- | --- | --- |
@@ -120,9 +121,8 @@ mount options are properties of the *superblock*, shared per client, server and
 export — so two mounts of one export with differing options do not produce two
 policies, they produce whichever policy the first pod on that node established.
 
-Keeping the options identical makes the question moot rather than answered.
-`media-library` is the only volume over this export now that the old Jellyfin
-layer and its `soft` mount are gone.
+Keeping the options identical makes the question moot rather than answered:
+`media-library` is the only volume over this export.
 
 `nfsvers=4.1` is pinned for the reason the Jellyfin doc gives: Talos runs no
 `rpcbind` and no `rpc.statd`, so NFSv3 locking is unavailable, and pinning stops
@@ -287,7 +287,7 @@ reach the hostname — the LAN and the tailnet — which is an argument for
 treating those keys as real secrets, not for a password in front of a login
 page.
 
-**The ordering matters to anyone doing this again.** A fresh \*arr install sits
+**The ordering matters for any new application.** A fresh \*arr install sits
 at `AuthenticationMethod=None` and its setup screen is first-come-first-served,
 so the application's own auth must be configured **before** any outer layer is
 removed. `kubectl port-forward` reaches the pod directly and bypasses the
@@ -322,7 +322,7 @@ Bazarr → Radarr traffic resolves over `.svc` and never traverses Traefik.
   `Retain` and holds no data of its own, so the library survives regardless.
 - **A `Retain` volume does not re-bind by itself.** Delete the claim and the
   volume goes `Released` and stays there, because the binder refuses a volume
-  whose `claimRef` names a claim that no longer exists. Clear `claimRef` to
+  whose `claimRef` names a claim that does not exist. Clear `claimRef` to
   recover it.
 - **One library directory's name ends in an apostrophe.** Root folders must use
   it verbatim, and any shell touching these paths must quote them. Renaming is
@@ -352,14 +352,14 @@ make to all of them at once, or not at all.
 own namespace, the way `media-downloads` does, and reaches the share through a
 volume scoped to the narrowest subdirectory that will do.
 
-**Making the library read-only again** would allow `soft` back, and nothing
+**Making the library read-only** would allow `soft`, and nothing
 else about this design depends on `hard`. It is the write capability that costs
 the mitigation, not the sharing.
 
-**Backups remain absent.** No Longhorn backup target is configured, which is
-what made the Jellyfin migration (`docs/design/jellyfin.md`) a staged copy
-through NFS rather than a restore. That is a different project, and the
-cluster currently has no backups at all.
+**Backups remain absent.** No Longhorn backup target is configured, so
+recovering or migrating data means a staged copy through NFS rather than
+restoring from backup (`docs/design/jellyfin.md`). That is a different
+project, and the cluster currently has no backups at all.
 
 **Rejected, and why**, so they are not re-proposed:
 

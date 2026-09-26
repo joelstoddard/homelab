@@ -31,9 +31,9 @@ spec:
       # slow at it.
       nodeSelector:
         kubernetes.io/arch: amd64
-      # One init container: the kill switch, applied before tailscaled starts
-      # so there is no window where its traffic is unfiltered.
-      # See docs/design/media-egress.md, "The VPN boundary".
+      # Three init containers, in order: kill switch, ip rules, then
+      # tailscale as a native sidecar. See docs/design/media-egress.md,
+      # "The VPN boundary".
       initContainers:
         - name: killswitch
           # Distroless, purely for `nft`; it ships no shell, so the ruleset is
@@ -57,9 +57,41 @@ spec:
             limits:
               cpu: 100m
               memory: 64Mi
-      containers:
+        # Filtering is not routing: the kill switch decides what may leave,
+        # these rules decide which way (docs/design/media-egress.md, "Traps").
+        - name: iprules
+          image: ghcr.io/tailscale/tailscale:v1.102.3
+          # pref 5100 must stay below tailscaled's 5270 and outside the 52xx
+          # range it reconciles. No dollar sign anywhere in this script: the
+          # manifest is substituted, and envsubst would blank one.
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -eu
+              ip rule del to 10.244.0.0/16 lookup main pref 5100 2>/dev/null || true
+              ip rule add to 10.244.0.0/16 lookup main pref 5100
+              ip rule del to 10.96.0.0/12 lookup main pref 5100 2>/dev/null || true
+              ip rule add to 10.96.0.0/12 lookup main pref 5100
+              ip rule del to 10.0.0.0/20 lookup main pref 5100 2>/dev/null || true
+              ip rule add to 10.0.0.0/20 lookup main pref 5100
+              ip rule list
+          securityContext:
+            runAsUser: 0
+            capabilities:
+              add: ["NET_ADMIN"]
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              cpu: 100m
+              memory: 64Mi
         - name: tailscale
           image: ghcr.io/tailscale/tailscale:v1.102.3
+          # restartPolicy Always makes this a native sidecar: the kubelet
+          # holds gost back until this container's startupProbe passes.
+          restartPolicy: Always
           env:
             - name: TS_AUTHKEY
               valueFrom:
@@ -74,13 +106,11 @@ spec:
               value: media-egress-tailscale-state
             - name: TS_AUTH_ONCE
               value: "true"
-            # Userspace mode: SOCKS5 dials go through tailscaled's netstack,
-            # which has no host network to fall back to if the tunnel can't
-            # reach the exit node, closing the leak a TUN device left open.
-            # No application in this pod shares the tunnel, so no TUN device
-            # is needed either.
+            # Kernel mode: a tailscale0 interface in this shared netns
+            # is what lets gost, not tailscaled, serve a full SOCKS5 proxy —
+            # BIND included.
             - name: TS_USERSPACE
-              value: "true"
+              value: "false"
             # A tailnet DNS config pushed alongside an exit node rewrites
             # /etc/resolv.conf, and this pod must resolve cluster names.
             - name: TS_ACCEPT_DNS
@@ -101,15 +131,9 @@ spec:
               value: "true"
             - name: TS_ENABLE_METRICS
               value: "true"
-            # SOCKS5 in this netns, whose default route is the Mullvad exit
-            # node. Clients are gated by label in kubernetes/media-egress/.
-            - name: TS_SOCKS5_SERVER
-              value: ":1055"
           ports:
             - name: metrics
               containerPort: 9002
-            - name: socks5
-              containerPort: 1055
           # The exit node, re-asserted on every start so a recreated state
           # Secret cannot leave the pod on a bare tailnet
           # (docs/design/media-egress.md, "Choosing the exit node").
@@ -128,8 +152,9 @@ spec:
                   - -c
                   - |
                     timeout 300 sh -c 'until tailscale set --exit-node=de-dus-wg-101.mullvad.ts.net; do sleep 5; done'
-          # The gate on the whole pod: kubelet waits for a tailnet IP before
-          # marking the pod Ready.
+          # The gate on the whole pod: spec.containers (gost) wait for a
+          # tailnet IP. Five minutes, because first authentication is slower
+          # than a reconnect.
           startupProbe:
             httpGet:
               path: /healthz
@@ -148,7 +173,7 @@ spec:
             timeoutSeconds: 5
           # Withdraws the media-egress-socks5 endpoint, not a restart target: /healthz
           # only proves a tailnet address, but a lost exit node lets a
-          # proxied dial fall back to a direct system dial with no route to
+          # proxied dial go out as a direct system dial, with no route to
           # catch it (docs/design/media-egress.md, "The VPN boundary").
           readinessProbe:
             exec:
@@ -159,12 +184,44 @@ spec:
             periodSeconds: 10
             failureThreshold: 3
             timeoutSeconds: 5
+          # Programs routes into tailscale0: gost shares this
+          # netns and needs a real interface to dial through.
+          securityContext:
+            capabilities:
+              add: ["NET_ADMIN"]
           resources:
             requests:
               cpu: 50m
               memory: 64Mi
             # The subnet router's figures, and a floor: wireguard-go encrypts
             # in userspace, so throttling delays /healthz into a restart.
+            limits:
+              cpu: "1"
+              memory: 256Mi
+      containers:
+        - name: gost
+          image: gogost/gost:v3.3.0
+          # Both bind and udp default off in gost; bind is what libtorrent's
+          # SOCKS5 session needs to complete, udp is what uTP and DHT need —
+          # trimming either silently reintroduces the bug this replaces.
+          args:
+            - -L
+            - socks5://:1055?bind=true&udp=true
+          # Non-root is load-bearing, not hygiene: the kill switch's last
+          # accept is `meta skuid 0`, so a root proxy would bypass it —
+          # uid 1000 is what makes the ruleset actually govern this traffic.
+          securityContext:
+            runAsUser: 1000
+          ports:
+            - name: socks5
+              containerPort: 1055
+          readinessProbe:
+            tcpSocket:
+              port: socks5
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
             limits:
               cpu: "1"
               memory: 256Mi
