@@ -1,0 +1,50 @@
+# The SOCKS5 listener takes no credentials, so without this it is an open proxy
+# onto the VPN for the whole cluster.
+#
+# A deny rather than an allow, and `enableDefaultDeny: ingress: false` is
+# load-bearing: an allow rule would put this endpoint into default-deny and
+# take out the kubelet's probes, Traefik's route to the WebUI and Alloy's
+# scrape of :9002. Deleting that field silently re-arms exactly that.
+#
+# The deny is the half that fails open: `NotIn` relies on Cilium matching
+# endpoints that lack the `egress.homelab/via` key at all, and if it doesn't,
+# the rule matches nothing and the listener is open to the whole cluster with
+# no error and no symptom. Both forms are written below — `NotIn` plus a
+# separate `DoesNotExist` selector, since fromEndpoints entries are OR'd — so
+# the deny holds under either semantics; neither can match Prowlarr, which
+# carries the key with value `media-egress`.
+#
+# See docs/design/media-egress.md, "Egress by label".
+apiVersion: cilium.io/v2
+kind: CiliumClusterwideNetworkPolicy
+metadata:
+  name: media-egress-socks5-restrict
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: media-egress
+      k8s:io.kubernetes.pod.namespace: media-downloads
+  enableDefaultDeny:
+    ingress: false
+  ingressDeny:
+    - fromEndpoints:
+        - matchExpressions:
+            - key: egress.homelab/via
+              operator: NotIn
+              values: ["media-egress"]
+        - matchExpressions:
+            - key: egress.homelab/via
+              operator: DoesNotExist
+      toPorts:
+        - ports:
+            - port: "1055"
+              protocol: TCP
+    # fromEndpoints covers cluster endpoints only; entities are separate.
+    - fromEntities:
+        - world
+        - host
+        - remote-node
+      toPorts:
+        - ports:
+            - port: "1055"
+              protocol: TCP

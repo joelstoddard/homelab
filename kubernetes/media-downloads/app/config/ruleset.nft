@@ -1,7 +1,7 @@
-# The kill switch for this pod's network namespace: everything the torrent
-# client sends leaves through tailscale0 or it does not leave, and the table is
-# its own so that neither side can reconcile the other away.
-# See docs/design/arr-stack.md, "Inside the ruleset".
+# Filters nothing today: userspace mode's netstack means the one accept rule
+# that matters (skuid 0) matches every dial this pod makes; kept so a future
+# TS_USERSPACE=false doesn't silently ship a tunnel with no kill switch.
+# See docs/design/media-egress.md, "Inside the ruleset".
 #
 # Nothing here may contain a dollar sign. This file is a configMapGenerator
 # input, embedded verbatim, and Flux runs envsubst over the result.
@@ -15,22 +15,23 @@ table inet ts-killswitch {
   chain output {
     type filter hook output priority 0; policy drop;
 
-    # tailscaled's local API and the s6 supervision inside the LinuxServer
-    # image both talk to themselves.
+    # tailscaled's local API talks to itself over loopback.
     oifname "lo" counter accept
 
-    # Replies to the kubelet's probes and to Traefik's requests to the WebUI.
+    # Replies to the kubelet's probes and to SOCKS5 clients on port 1055.
     ct state established ct direction reply counter accept
 
     # tailscaled's own marked traffic to the control plane and DERP. Necessary
     # but not sufficient: its pre-tunnel HTTPS carries no mark.
     meta mark and 0xff0000 == 0x80000 counter accept
 
-    # Matching the outbound interface by name fails closed before tailscale0
-    # exists, and stays independent of what Cilium calls the veth.
+    # Dead in userspace mode: tailscaled creates no tailscale0 interface, so
+    # this can never match. Left in place rather than deleted in case this
+    # pod ever returns to kernel mode.
     oifname "tailscale0" counter accept
 
-    # Cluster pod and Service CIDRs: Traefik to the WebUI, and cluster DNS.
+    # Cluster pod and Service CIDRs: DNS to kube-dns, whose ClusterIP
+    # socket-LB may rewrite to a pod address before this chain sees it.
     ip daddr 10.244.0.0/16 counter accept
     ip daddr 10.96.0.0/12 counter accept
 
@@ -38,9 +39,10 @@ table inet ts-killswitch {
     # address by the time this chain sees it; containerboot fatals without it.
     ip daddr 10.0.0.0/20 tcp dport 6443 counter accept
 
-    # The bootstrap exception: tailscaled runs as root and nothing else lets it
-    # reach the control plane that builds the tunnel. Last of the accepts, and
-    # the torrent engine is dropped to PUID 1000 before it opens a socket.
+    # tailscaled runs as root, and this permits every dial it makes: control
+    # plane, DERP, and — since userspace mode routes SOCKS5 through its own
+    # netstack — every proxy client's dial too. Safe only because netstack
+    # gives those dials nowhere to go but the tunnel.
     meta skuid 0 counter accept
 
     # Explicit, purely so that it counts: a chain policy carries no counter.

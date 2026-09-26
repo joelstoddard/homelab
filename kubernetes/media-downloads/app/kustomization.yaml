@@ -8,12 +8,13 @@ resources:
   - pv-downloads.yaml
   - pvc-downloads.yaml
   - pvc-config.yaml
+  - media-egress.yaml
   - qbittorrent.yaml
 # The nftables ruleset, hashed so an edit rolls the pod that applies it.
 # Substitution is disabled on it: envsubst would eat an nft variable, and the
 # file is embedded verbatim rather than parsed as a manifest.
 configMapGenerator:
-  - name: qbittorrent-killswitch
+  - name: media-egress-killswitch
     files:
       - config/ruleset.nft
 generatorOptions:

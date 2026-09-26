@@ -1,9 +1,9 @@
-# PodSecurity privileged, and exactly one container needs it: tailscaled in TUN
-# mode wants NET_ADMIN, which baseline forbids.
+# PodSecurity privileged, and exactly one container needs it: the killswitch
+# init container's nft write wants NET_ADMIN, which baseline forbids.
 #
 # This namespace exists for that single requirement. It is why the *arr
 # applications stay in `media` at baseline instead of being dragged up here to
-# satisfy one sidecar (docs/design/media-foundation.md, "Two namespaces").
+# satisfy one init container (docs/design/media-foundation.md, "Two namespaces").
 apiVersion: v1
 kind: Namespace
 metadata:

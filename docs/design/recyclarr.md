@@ -32,7 +32,7 @@ layer needs no secret of its own.
 The config lives in its own ConfigMap carrying
 `kustomize.toolkit.fluxcd.io/substitute: disabled`, for the reason
 `media-downloads`' nftables ruleset does
-(`docs/design/qbittorrent-vpn.md`, "Inside the ruleset"). The `$` that
+(`docs/design/media-egress.md`, "Inside the ruleset"). The `$` that
 substitution would eat is not in the config body — `!env_var` avoids it — but
 in the `# yaml-language-server: $schema=` header, which is consequently the
 thing to check in rendered output to prove substitution is off.

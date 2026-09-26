@@ -1,0 +1,28 @@
+# Cluster-wide policies for the label `egress.homelab/via: media-egress`: which pods may
+# use the SOCKS5 proxy in media-downloads, and the fact that those pods may
+# not reach the internet directly any other way. Its own layer because both
+# objects are cluster-scoped and every namespaced layer would stamp a
+# namespace on them.
+#
+# No decryption and no substitution: nothing here is secret and nothing here
+# interpolates.
+#
+# `dependsOn: cilium` for the same reason `cilium-lb/ks.yaml` does: both
+# objects here are Cilium CRs, and the CRDs must be registered before they
+# apply. The guarantee already holds transitively through `media-downloads`,
+# but that chain isn't this layer's to rely on if someone rewires it.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: media-egress
+  namespace: flux-system
+spec:
+  interval: 10m0s
+  path: ./kubernetes/media-egress/app
+  prune: true
+  dependsOn:
+    - name: cilium
+    - name: media-downloads
+  sourceRef:
+    kind: GitRepository
+    name: flux-system

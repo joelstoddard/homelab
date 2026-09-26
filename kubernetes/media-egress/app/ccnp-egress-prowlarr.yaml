@@ -1,0 +1,17 @@
+# Prowlarr's own reach into `media` for its app sync to Sonarr/Radarr/Lidarr,
+# split out so qBittorrent doesn't inherit it — Cilium unions allows across
+# policies selecting the same endpoint.
+# See docs/design/media-egress.md, "Egress by label".
+apiVersion: cilium.io/v2
+kind: CiliumClusterwideNetworkPolicy
+metadata:
+  name: media-egress-prowlarr
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: prowlarr
+      k8s:io.kubernetes.pod.namespace: media
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: media

@@ -209,7 +209,8 @@ Ingress and TLS are five more layers. Root order is
 full list is `flux-system`, `cilium`, `cilium-lb`, `cluster-secrets`, `cert-manager`,
 `cert-manager-issuers`, `traefik`, `traefik-middlewares`, `lan-services`,
 `tailscale`, `longhorn`, `longhorn-jobs`, `monitoring`, `alloy`, `beyla`,
-`host-monitoring`, `searxng`, `media`, `media-downloads`, `glance`, `home-assistant`).
+`host-monitoring`, `searxng`, `media`, `media-downloads`, `media-egress`, `glance`,
+`home-assistant`).
 `cluster-secrets/` is one SOPS Secret in `flux-system` holding `DOMAIN`,
 `TRAEFIK_LB_IP` and `ACME_EMAIL`; consumers (`cert-manager-issuers`,
 `traefik`, `longhorn`) add `dependsOn: cluster-secrets` +
@@ -380,7 +381,8 @@ as root and drop to `PUID`/`PGID` through s6-overlay. Jellyfin serves
 through the NFS export out of the standalone `jellyfin/` layer on 2026-09-19,
 verified, and that layer deleted. Prowlarr, Sonarr, Radarr, Lidarr, Bazarr, Seerr and
 SABnzbd are deployed alongside it, each on its own Longhorn `/config` claim;
-the torrent client lives in `media-downloads/`. Seerr is the request portal on `seerr.${DOMAIN}` and, like Recyclarr,
+the torrent client lives in `media-downloads/`, an ordinary pod behind that
+namespace's standalone `media-egress` Deployment. Seerr is the request portal on `seerr.${DOMAIN}` and, like Recyclarr,
 not a LinuxServer image: it runs as uid 1000 so
 its claim needs `fsGroup`, config is at `/app/config`, and probes use
 `/api/v1/status/appdata` because `/api/v1/status` reaches the GitHub API. It
@@ -407,8 +409,18 @@ See `docs/design/recyclarr.md`. The \*arr stack's design is split across
 `docs/design/media-foundation.md` (shared namespace, storage, ingress policy),
 `docs/design/arr-core.md` (Prowlarr, Sonarr, Radarr, Lidarr),
 `docs/design/bazarr.md`, `docs/design/seerr.md`, `docs/design/sabnzbd.md`,
-`docs/design/qbittorrent-vpn.md`, `docs/design/recyclarr.md` and
+`docs/design/media-egress.md`, `docs/design/recyclarr.md` and
 `docs/design/arr-metrics.md`.
+`media-egress/` (`dependsOn: cilium, media-downloads`) is two cluster-scoped
+`CiliumClusterwideNetworkPolicy` resources gating the label
+`egress.homelab/via: media-egress`: any labelled pod, in any namespace — qBittorrent
+and Prowlarr both carry it — gets default-deny egress limited to DNS, the
+`media` namespace, and the SOCKS5 proxy the `media-egress` Deployment exposes on
+`:1055` — the label enforces that boundary on *direct* egress only (the third
+rule admits the whole `media` namespace, not just the proxy) and does not
+configure an app's own proxy setting. Prowlarr is the first consumer outside
+`media-downloads` itself; see `docs/design/media-egress.md`, "Egress by
+label".
 Never `kubectl delete kustomization flux-system` — prune would remove Flux
 itself; use `flux uninstall`. Pruning `cilium/` removes the CNI; pruning
 `traefik/` takes every route in the cluster. See `kubernetes/README.md`.

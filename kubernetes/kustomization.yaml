@@ -23,5 +23,6 @@ resources:
   - searxng/ks.yaml
   - media/ks.yaml
   - media-downloads/ks.yaml
+  - media-egress/ks.yaml
   - glance/ks.yaml
   - home-assistant/ks.yaml

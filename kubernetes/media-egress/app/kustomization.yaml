@@ -1,0 +1,9 @@
+# NO top-level `namespace:`. Both resources here are cluster-scoped, and
+# kustomize's namespace transformer stamps one onto cluster-scoped CRs it does
+# not recognise — the same trap cert-manager-issuers documents.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ccnp-socks5-restrict.yaml
+  - ccnp-egress-clients.yaml
+  - ccnp-egress-prowlarr.yaml

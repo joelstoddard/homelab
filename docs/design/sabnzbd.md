@@ -4,7 +4,7 @@ Deployed in `media` 2026-09-20, on `sabnzbd.${DOMAIN}`. SABnzbd is the Usenet
 download client, registered as a second download client alongside qBittorrent
 in Sonarr, Radarr and Lidarr. See `docs/design/media-foundation.md` for the
 shared namespace, storage and ingress policy this document assumes, and
-`docs/design/qbittorrent-vpn.md` for the torrent client it sits beside.
+`docs/design/media-egress.md` for the torrent client it sits beside.
 
 ## SABnzbd needs no VPN, and that is the whole reason for its placement
 

@@ -1,6 +1,7 @@
-# qBittorrent behind a Mullvad exit node — docs/design/qbittorrent-vpn.md. It gets a
-# layer and a namespace of its own because PodSecurity is enforced per
-# namespace and only its Tailscale sidecar needs more than baseline.
+# qBittorrent and the media-egress Deployment behind a Mullvad exit node —
+# docs/design/media-egress.md. They get a layer and a namespace of their own
+# because PodSecurity is enforced per namespace and only the media-egress pod's
+# Tailscale container needs more than baseline.
 #
 # dependsOn media on top of the usual four: the volume here is a subdirectory
 # of the media layer's export, and mounting a subdirectory that does not exist
