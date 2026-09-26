@@ -1,6 +1,5 @@
-# Filters nothing today: userspace mode's netstack means the one accept rule
-# that matters (skuid 0) matches every dial this pod makes; kept so a future
-# TS_USERSPACE=false doesn't silently ship a tunnel with no kill switch.
+# Kernel mode again: gost dials out as uid 1000, so this ruleset now governs
+# every proxied connection rather than being redundant with a uid-0 accept.
 # See docs/design/media-egress.md, "Inside the ruleset".
 #
 # Nothing here may contain a dollar sign. This file is a configMapGenerator
@@ -25,9 +24,8 @@ table inet ts-killswitch {
     # but not sufficient: its pre-tunnel HTTPS carries no mark.
     meta mark and 0xff0000 == 0x80000 counter accept
 
-    # Dead in userspace mode: tailscaled creates no tailscale0 interface, so
-    # this can never match. Left in place rather than deleted in case this
-    # pod ever returns to kernel mode.
+    # Live again in kernel mode: tailscaled creates tailscale0, and this is
+    # what lets gost's own dials out through the tunnel.
     oifname "tailscale0" counter accept
 
     # Cluster pod and Service CIDRs: DNS to kube-dns, whose ClusterIP
@@ -39,10 +37,9 @@ table inet ts-killswitch {
     # address by the time this chain sees it; containerboot fatals without it.
     ip daddr 10.0.0.0/20 tcp dport 6443 counter accept
 
-    # tailscaled runs as root, and this permits every dial it makes: control
-    # plane, DERP, and — since userspace mode routes SOCKS5 through its own
-    # netstack — every proxy client's dial too. Safe only because netstack
-    # gives those dials nowhere to go but the tunnel.
+    # tailscaled's own bootstrap only now: control plane and DERP, which run
+    # before the tunnel exists and so carry no fwmark. gost dials as uid 1000
+    # and is governed by the rules above it, not by this hole.
     meta skuid 0 counter accept
 
     # Explicit, purely so that it counts: a chain policy carries no counter.
