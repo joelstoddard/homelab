@@ -39,12 +39,6 @@ spec:
         - ports:
             - port: "1055"
               protocol: TCP
-    # fromEndpoints covers cluster endpoints only; entities are separate.
-    - fromEntities:
-        - world
-        - host
-        - remote-node
-      toPorts:
-        - ports:
-            - port: "1055"
-              protocol: TCP
+    # No entity deny on 1055: gost serves the proxy and its kubelet probe on the
+    # one port, and the kubelet arrives as the host identity, so denying it
+    # leaves the pod permanently NotReady and the Service without an endpoint.

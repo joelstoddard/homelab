@@ -199,9 +199,8 @@ failures, the `BIND` one total, the `UDP` one quiet. Confirm at bring-up
 The other policy in the layer, `media-egress-socks5-restrict`, protects the listener
 itself. It takes no credentials, so without this policy it is an open proxy
 onto the VPN for the whole cluster; the policy denies port-1055 ingress from
-anything not carrying the label, plus the `world`, `host` and `remote-node`
-entities that `fromEndpoints` cannot cover. **`enableDefaultDeny: {ingress:
-false}` on that policy is load-bearing.** Cilium defaults
+anything not carrying the label. It denies no entity, for the reason below.
+**`enableDefaultDeny: {ingress: false}` on that policy is load-bearing.** Cilium defaults
 `enableDefaultDeny.ingress` to `true` whenever a policy carries `ingressDeny`
 rules and no plain `ingress` rules — which would put the `media-egress` pod itself
 into default-deny ingress and take out the kubelet's probes and Alloy's
@@ -242,13 +241,19 @@ only consumer is Prowlarr, over `.svc`; putting it behind the wildcard
 certificate would publish an open fetcher to anything that can resolve the
 domain.
 
-`media-egress-flaresolverr-restrict` narrows the remaining surface to Prowlarr,
-but it is not the same shape as the SOCKS5 deny beside it and the difference is
-deliberate. That policy also denies the `host` and `remote-node` entities;
-this one cannot, because FlareSolverr serves its API and its kubelet probes on
-the same 8191, and denying the host identity would stop the pod ever reaching
-Ready. The residue is that host-network pods — the Alloy and Beyla collectors —
-can reach it. They are ours, which is the only reason that is tolerable.
+`media-egress-flaresolverr-restrict` narrows the remaining surface to Prowlarr.
+
+**Neither policy denies the `host` or `remote-node` entities, and neither can.**
+A `fromEntities` deny covers the kubelet, which probes from the node, so denying
+those entities on a port a container also serves its probe on leaves that pod
+permanently NotReady and its Service without an endpoint. Both workloads here
+are in exactly that position: gost answers the proxy and its probe on 1055,
+FlareSolverr answers its API and its probe on 8191. The symptom is a readiness
+probe timing out against a port the container is demonstrably listening on,
+which reads as a broken application rather than a policy.
+
+The residue is that host-network pods — the Alloy and Beyla collectors — can
+reach both. They are ours, which is the only reason that is tolerable.
 
 **Chrome does not resolve a `socks5://` target locally, so FlareSolverr adds
 no DNS exposure beyond the one already documented.** Chromium's own
