@@ -5,9 +5,9 @@ tunnel to a Mullvad exit node, an nftables kill switch scoped to its own
 network namespace, and a SOCKS5 listener on `:1055` served by a separate
 `gost` container. It runs no other application of its own. `media-downloads`
 (`docs/design/media-foundation.md`, "Two namespaces") is `privileged`
-PodSecurity for `NET_ADMIN` — needed by three containers now, not one:
+PodSecurity for `NET_ADMIN` — needed by three containers:
 `killswitch` and `iprules` to program the netns, and `tailscale` itself to
-program routes into `tailscale0` again. qBittorrent, an ordinary pod in the
+program routes into `tailscale0`. qBittorrent, an ordinary pod in the
 same namespace, needs nothing more than `baseline` itself, and `gost`, the
 pod's one long-running application container, holds no capability of its own.
 
@@ -57,21 +57,20 @@ say why (see "Rejected, and why"). `gost` implements `BIND` — and `UDP
 ASSOCIATE`, which was never the problem — so putting it in front of a
 kernel-mode tunnel is what makes a peer connection possible at all.
 
-A TUN device brings back the tradeoff userspace mode removed: table 52's
+A TUN device means table 52's
 `0.0.0.0/0` catches the pod's own outbound traffic to cluster destinations
 too, not just a proxied client's. An `iprules` init container runs between
 `killswitch` and `tailscale` and carves the pod and Service CIDRs plus the
-apiserver back out to `lookup main`, at a preference (5100) below
+apiserver out to `lookup main`, at a preference (5100) below
 tailscaled's own 5270 and outside the 52xx range it reconciles — see "Traps"
 for what happens without it. It does not relax `media-downloads` to
 `baseline`, though: the kill switch and the `iprules` carve-out both need
-`NET_ADMIN`, and `tailscale` needs it again to program routes into
-`tailscale0`, and that is what keeps this namespace `privileged` (see
+`NET_ADMIN`, and so does `tailscale`, to program routes into
+`tailscale0` — and that is what keeps this namespace `privileged` (see
 "Inside the ruleset").
 
-`tailscale` is a native sidecar again (`restartPolicy: Always` on an init
-container), because there is once more an application in the pod to sequence
-against: `gost` is a `spec.containers` entry, and the kubelet holds it back
+`tailscale` is a native sidecar (`restartPolicy: Always` on an init
+container): `gost` is a `spec.containers` entry, and the kubelet holds it back
 until `tailscale`'s `startupProbe` passes `/healthz` — a `gost` started
 before the tunnel exists would bind `:1055` and proxy nothing anywhere. Its
 `livenessProbe` restarts a wedged tailscaled, which is safe to take because a
@@ -98,22 +97,22 @@ Three things to design around:
   faster than it seeds, and ratio-sensitive private trackers are a poor fit. No
   port-forward plumbing will be built. Verify before relying on this.
 - **A proxied dial only goes into the tunnel while a tailnet route covers its
-  destination — and the kill switch backs that up locally now, too.** With
+  destination — and the kill switch is a second, local backstop.** With
   the exit node applied that route is `0.0.0.0/0`, so every proxied dial —
   home LAN included — goes into the tunnel and dies at the exit node's own
-  RFC1918 boundary. That is no longer the only thing stopping it: `gost`
+  RFC1918 boundary. That is not the only thing stopping it: `gost`
   dials as uid 1000, so `meta skuid 0` does not cover it, and a LAN
   destination the tunnel somehow forwarded would still meet a kill switch
-  with no accept for it. Kernel mode brings back the routing tradeoff
-  userspace mode removed — table 52's default route also catches the pod's
-  own cluster traffic, so an `iprules` init container carves the pod, Service
-  and apiserver CIDRs back out to `lookup main` (see "Inside the ruleset") —
+  with no accept for it. Kernel mode's routing tradeoff is that
+  table 52's default route also catches the pod's own cluster traffic, so
+  an `iprules` init container carves the pod, Service
+  and apiserver CIDRs out to `lookup main` (see "Inside the ruleset") —
   but that carve-out is scoped to cluster destinations, not the home LAN, so
   it doesn't reopen this. The tunnel-route guarantee holds only while a route
   to the destination exists, though: an exit node missing from the netmap
   entirely — never applied, retired, an expired subscription, an ACL change —
-  leaves nothing to route into, and a proxied dial falls back to a direct
-  system dial over `eth0`. There the kill switch is the only thing left
+  leaves nothing to route into, and a proxied dial goes out directly over
+  `eth0` instead. There the kill switch is the only thing left
   standing between that dial and the home address, and it holds: `eth0` is
   not `tailscale0`, `gost` is not uid 0, and nothing else in the ruleset
   accepts it — fail-closed by the kernel, not by hoping a route stays
@@ -122,7 +121,7 @@ Three things to design around:
   way, the test is what matters: a leak test and a reachability test must
   **both** pass, because each passes on its own in exactly the
   misconfiguration the other catches.
-- **A cross-repo prerequisite, now met.** The device needs a tag and Mullvad
+- **A cross-repo prerequisite.** The device needs a tag and Mullvad
   exit-node access in the tailnet policy, which lives in a private repository.
   `tag:media-downloads` was added there on 2026-09-19, granted
   `autogroup:internet` and nothing else; per `docs/design/tailscale-router.md`,
@@ -215,11 +214,9 @@ one download path in the media stack left unlabelled and untouched by either
 policy.
 
 Verified live before Prowlarr was wired to it: the SOCKS5 listener binds and
-a client dialing through it egresses via the pinned exit node. That check ran
-under `TS_USERSPACE=false` — kernel networking, since it predates the switch
-to userspace mode — and it proved the listener and the exit node both work.
-It said nothing about where hostname lookups happen; see the DNS trap below
-for that.
+a client dialing through it egresses via the pinned exit node, proving the
+listener and the exit node both work. It said nothing about where hostname
+lookups happen; see the DNS trap below for that.
 
 ## FlareSolverr
 
@@ -234,7 +231,7 @@ pinned to the one exit node the layer offers.
 **`PROXY_URL` makes FlareSolverr the one client in this layer whose routing
 is declarative rather than database state.** qBittorrent's and Prowlarr's
 proxy settings live in their own SQLite config, set once by hand and silent
-if it's ever unset again; FlareSolverr's `PROXY_URL` environment variable is
+if unset; FlareSolverr's `PROXY_URL` environment variable is
 read at container start, so its routing is committed alongside the label
 that permits it, and a redeploy cannot drift the two apart the way a
 forgotten UI checkbox can.
@@ -258,7 +255,7 @@ no DNS exposure beyond the one already documented.** Chromium's own
 documentation is explicit about this: for a SOCKS proxy, "the hostname for
 these URLs will be resolved by the proxy server, and not locally by Chrome."
 It would not have mattered either way — the proxy server here is `gost`,
-which like tailscaled before it resolves through the pod's own resolver, so
+which resolves through the pod's own resolver, so
 the lookup takes the same cluster-DNS-then-WAN path regardless of which side
 does it. FlareSolverr inherits the design-wide DNS leak "Traps" already
 covers, and nothing more.
@@ -309,7 +306,7 @@ The accepts, in order, and why each is there:
   plane and DERP. The mask and value are tailscaled's `LinuxFwmarkMask` and
   `LinuxBypassMark`; the trap below records why this is necessary but not
   sufficient.
-- `oifname "tailscale0"` — live again in kernel mode. tailscaled creates a
+- `oifname "tailscale0"` — the tunnel's own interface. tailscaled creates a
   real `tailscale0` interface, and this is what lets `gost`'s own dials leave
   through the tunnel rather than being caught only by the `skuid` accept
   below.
@@ -320,27 +317,22 @@ The accepts, in order, and why each is there:
 - `ip daddr 10.0.0.0/20 tcp dport 6443` — the apiserver, for the reason in the
   traps below. Scoped to the apiserver port, so it buys reachability to an
   apiserver and nothing else on the LAN.
-- `meta skuid 0` — last of the accepts, and doing less work than it used to.
-  It covers only tailscaled's own bootstrap now: control plane and DERP,
+- `meta skuid 0` — last of the accepts, and it covers only tailscaled's own
+  bootstrap traffic: control plane and DERP,
   before any tunnel exists and before its fwmark applies. `gost` — the
-  process that makes every proxied dial, and the one a lost exit node would
-  fall back to — runs as uid 1000, not 0, so this rule does not cover it: a
+  process that makes every proxied dial, and the one a dial takes when the
+  exit node is lost — runs as uid 1000, not 0, so this rule does not cover it: a
   proxied dial has to clear `tailscale0` or the apiserver rule above, or the
   chain's final `drop` takes it.
 
-**The kill switch is live again, not the inert relic it was under userspace
-mode.** With tailscaled itself serving SOCKS5, it was the only sender, it ran
-as uid 0, and `meta skuid 0` matched every packet it sent — bootstrap,
-proxied, or a leaked fallback dial alike — which made every accept before it
-in the chain redundant with it and the ruleset decorative rather than
-governing. `gost` changes that: it dials as uid 1000, so `meta skuid 0`
+**The kill switch governs every proxied dial.** `gost`
+dials as uid 1000, so `meta skuid 0`
 doesn't cover it, and the accepts above it are what a proxied connection
 actually has to clear — `tailscale0` for anything the tunnel can route, the
 cluster-CIDR and apiserver accepts for nothing else, and the final `drop` for
-everything not covered, LAN destinations included. The chain now does real
-work for the traffic it was built to police, and that work is why this
-namespace still pays the `privileged` PodSecurity cost for `NET_ADMIN` — now
-on three containers (`killswitch`, `iprules` and `tailscale`) instead of one.
+everything not covered, LAN destinations included. That is why this
+namespace pays the `privileged` PodSecurity cost for `NET_ADMIN`, on three
+containers: `killswitch`, `iprules` and `tailscale`.
 
 ## Choosing the exit node
 
@@ -368,7 +360,7 @@ Exhaustion exits non-zero, so the kubelet records a `FailedPostStartHook`
 event and never marks the container `Running` — the postStart contract, not
 the kill switch, is what keeps a pod with no exit node from ever serving a
 proxy client: no `Running`, no `Ready`, and — since `tailscale` is a native
-sidecar again — `gost` never starts either, so there is no
+sidecar — `gost` never starts either, so there is no
 `media-egress-socks5` endpoint to dial.
 That costs no availability beyond what was already lost: `tailscale set`
 stores a preference and does not wait for the node, so exhausting the loop
@@ -389,12 +381,12 @@ offline — the tailnet route to it still exists, so a proxied dial still goes
 into the tunnel and simply fails: dead air, not a leak.
 
 If it drops out of the netmap entirely — the subscription lapses, the ACL
-changes, the node is retired — no route covers the destination any more, and
-a proxied dial the tunnel can no longer carry would leave via `eth0` instead.
+changes, the node is retired — no route covers the destination, and
+a proxied dial for it leaves via `eth0` instead.
 It doesn't get out: `eth0` is not `tailscale0`, `gost` is not uid 0, and
 nothing else in the ruleset accepts a dial to an arbitrary destination, so
 the kill switch drops it — fail-closed by the kernel, not by hoping the route
-stays missing the way userspace mode's netstack fallback did. The
+stays missing. The
 `readinessProbe` still exists for this case, but for availability rather than
 containment: it polls `tailscale status --json` for an online exit node and
 withdraws the `media-egress-socks5` endpoint the moment there isn't one, so a
@@ -418,8 +410,8 @@ expensive: a tailnet DNS configuration pushed alongside an exit node rewrites
 `/etc/resolv.conf`, and this pod must keep resolving cluster names. The
 metadata consequence is in the traps below.
 
-`TS_DEBUG_FIREWALL_MODE` is `nftables`, active again now that the pod is back
-in kernel networking. Auto-detection picks legacy iptables, whose `filter`
+`TS_DEBUG_FIREWALL_MODE` is `nftables`.
+Auto-detection picks legacy iptables, whose `filter`
 table the Talos kernel does not expose — the reason
 `docs/design/tailscale-router.md` records — so without this override
 tailscaled's own route-programming into `tailscale0` would fail to install,
@@ -428,18 +420,18 @@ the same failure mode this setting exists to prevent for the subnet router.
 There is still **no** sysctl init container, unlike `kubernetes/tailscale/`.
 The router forwards LAN clients' traffic into the tunnel and needs
 `net.ipv4.ip_forward` for that; this pod originates only its own traffic —
-now including `gost`'s proxied dials — and forwards nothing on any other
-pod's behalf, so there is nothing for a forwarding sysctl to support even
-with a second container sharing the namespace and a real `tailscale0` again.
+including `gost`'s proxied dials — and forwards nothing on any other
+pod's behalf, so there is nothing for a forwarding sysctl to support, even
+with a second container sharing the namespace and a real `tailscale0`.
 
 `TS_ENABLE_HEALTH_CHECK` and `TS_ENABLE_METRICS` put `/healthz` and `/metrics`
 on `TS_LOCAL_ADDR_PORT`, default `[::]:9002`. The pod's single
 `prometheus.io/scrape` annotation names that port — tailscaled is the only
 thing in this pod exposing metrics.
 
-The `startupProbe` on `/healthz` now gates more than the pod's own readiness:
-as a native sidecar, `tailscale` must pass it before the kubelet starts
-`gost` at all, not just before marking the pod `Ready`. Its budget is five
+The `startupProbe` on `/healthz` gates the pod's readiness and, as a native
+sidecar, whether the kubelet starts `gost` at all — `tailscale` must pass it
+before either. Its budget is five
 minutes, because a first authentication against the control plane is slower
 than a reconnect. The `livenessProbe` then restarts a wedged tailscaled
 rather than leaving a tunnel that is up in name only, which is safe to take
@@ -460,27 +452,25 @@ handler into a liveness restart.
   reach Sonarr through the tunnel — which cannot route to a cluster address —
   and presents it as `Unable to complete application test, cannot connect to
   …` against the \*arr application. That points at the application, not at the
-  proxy, and it is the trap most likely to cost time again: the fix is
+  proxy, which is what makes this the trap most likely to cost time: the fix is
   `proxyBypassFilter` set to `*.svc.cluster.local,*.cluster.local,localhost`,
   and it only takes effect on restart.
-- **The return-path trap is live again, and `iprules` is what closes it.**
+- **`iprules` is what closes the return-path trap.**
   With a TUN device, an exit node's `0.0.0.0/0` in route table 52 catches the
-  pod's own *new outbound* connections to cluster destinations — DNS to
+  pod's own *new outbound* connections to cluster destinations too — DNS to
   CoreDNS, containerboot's calls to the apiserver — while a reply on an
-  already-open connection keeps working via conntrack, which is what made it
-  read as intermittent rather than as a routing fault the first time it hit
-  (below): `lookup kubernetes.default.svc on 10.96.0.10:53: no such host`,
-  containerboot crash-looping. Userspace mode had no host route at all, so
-  the trap couldn't recur there; kernel mode brings back both the route and
-  the trap, and `iprules` is the dedicated fix — `ip rule` entries at a
+  already-open connection keeps working via conntrack, which is what makes a
+  missing carve-out read as intermittent rather than as a routing fault:
+  `lookup kubernetes.default.svc on 10.96.0.10:53: no such host`,
+  containerboot crash-looping. `iprules` is the dedicated fix — `ip rule` entries at a
   preference below tailscaled's own that send the pod and Service CIDRs plus
-  the apiserver back to `lookup main` before table 52 ever sees them.
+  the apiserver into `lookup main` before table 52 ever sees them.
   Deleting that container silently reopens this exact failure.
 - **A Service CIDR rule never sees a Service address.** Cilium runs
   `kubeProxyReplacement`, so socket-LB rewrites the destination at `connect()`
   — before the netfilter output hook and before any routing decision. An
   nftables rule or an `ip rule` that reasons about `10.96.0.0/12` is therefore
-  reasoning about a destination that no longer exists by the time it runs.
+  reasoning about a destination already rewritten away by the time it runs.
   This generalises past this layer: *any* egress policy in this cluster written
   against the Service CIDR is wrong for the same reason.
 - **The apiserver is the case where that bites.** containerboot talks to the
@@ -490,13 +480,11 @@ handler into a liveness restart.
   `ip daddr 10.0.0.0/20 tcp dport 6443 accept` the daemon is dropped, fatals on
   `CheckSecretPermissions` and the pod never starts — fail-closed, but bring-up
   cannot even reach the leak test.
-- **Filtering needs a routing half again.** The kill switch decides what may
+- **Filtering needs a routing half too.** The kill switch decides what may
   leave; a separate `ip rule` set, in the `iprules` init container, decides
   which way it goes — tailscaled owns host routing (table 52, the exit
-  node's `0.0.0.0/0`) and the kill switch doesn't touch it. Userspace mode
-  briefly made `ruleset.nft` a complete picture of this pod's traffic shape
-  on its own, with no host routing for tailscaled to own; kernel mode ends
-  that again, and reasoning about this pod's traffic from `ruleset.nft` alone
+  node's `0.0.0.0/0`) and the kill switch doesn't touch it. Reasoning about
+  this pod's traffic from `ruleset.nft` alone
   is incomplete without also reading the `iprules` script.
 - **tailscaled's fwmark does not cover its own bootstrap.** The mark is set on
   tunnel-bypass sockets, not on the control-plane and OAuth-exchange HTTPS that
@@ -528,8 +516,8 @@ handler into a liveness restart.
   subnet router.
 - **DNS leaks over the home WAN too, and it's not just tailscaled's own
   metadata.** The trap above covers tailscaled's own control-plane and DERP
-  lookups; a proxied client's hostname leaks the same way, for a different
-  reason now that `gost` — not tailscaled — resolves them. `gost` runs in its
+  lookups; a proxied client's hostname leaks the same way, because `gost` —
+  not tailscaled — resolves them, for a different reason. `gost` runs in its
   own container with its own copy of the pod's resolver config, entirely
   independent of `TS_ACCEPT_DNS`: it looks up a SOCKS5 client's target
   through CoreDNS, then its public upstream, over the home WAN, before the
@@ -545,13 +533,13 @@ handler into a liveness restart.
   Prowlarr's own update and health checks against its vendor's endpoints on a
   separate code path, denied with nothing to route them; the global proxy
   under Settings → General covers both, which is why bring-up set it there
-  rather than per indexer. The same policy means Prowlarr can no longer reach
+  rather than per indexer. The same policy means Prowlarr cannot reach
   `qbittorrent.media-downloads.svc:8080` either — registering qBittorrent as
-  a download client from inside Prowlarr will fail; the \*arr applications
+  a download client from inside Prowlarr fails; the \*arr applications
   register it directly instead and are unaffected.
-- **Assuming the kill switch still protects qBittorrent is the trap.** It only
-  ever covered traffic inside the `media-egress` pod's own network namespace;
-  qBittorrent runs in its own pod now and gets Cilium's eBPF egress policy
+- **The kill switch does not protect qBittorrent.** It covers only
+  traffic inside the `media-egress` pod's own network namespace;
+  qBittorrent runs in its own pod and gets Cilium's eBPF egress policy
   instead — kernel-enforced the same as the kill switch, just a different
   mechanism with a different failure surface. Reasoning about qBittorrent's or
   Prowlarr's traffic by reading `ruleset.nft` reasons about the wrong pod; see
@@ -594,8 +582,8 @@ Verified 2026-09-26:
    of the check "Egress by label" recorded under kernel networking, and the
    assumption the whole design rested on.
 3. **Kill-switch test.** Killing the `tailscale` container stopped the
-   `media-egress` pod's own egress rather than falling back to its own route,
-   confirming the tunnel's guarantee — not qBittorrent's or Prowlarr's, since
+   `media-egress` pod's own egress rather than letting it dial out over its
+   own route, confirming the kill switch's guarantee — not qBittorrent's or Prowlarr's, since
    neither shares this pod's namespace.
 4. **Client configuration.** Neither application routes anything until it is
    told to, on its own terms — the label enforces, it does not route:
@@ -659,16 +647,16 @@ it.
 
 ### Outstanding after the move to gost
 
-The tunnel and kill-switch mechanics changed enough — kernel networking, a
-routing half again, a second process making every proxied dial — that
-nothing verified above can be assumed to still hold without checking it
-again:
+The tunnel and kill switch involve kernel networking, a
+routing half, and a second process making every proxied dial, so
+nothing verified above can be assumed to hold without checking it
+directly:
 
 1. The node still enrols as `media-egress` and the pinned exit node still
-   applies (`tailscale exit-node list` in the pod), now with `iprules`
+   applies (`tailscale exit-node list` in the pod), with `iprules`
    running between `killswitch` and `tailscale` in the init sequence.
-2. A proxied HTTP client still egresses via the pinned exit node — through
-   `gost`'s SOCKS5 listener now, not tailscaled's.
+2. A proxied HTTP client still egresses via the pinned exit node, through
+   `gost`'s SOCKS5 listener.
 3. The one that motivated all of this: with a torrent added, qBittorrent's
    SOCKS5 session completes a `BIND` and it actually connects to peers and
    downloads, not just to trackers.
@@ -686,38 +674,37 @@ again:
   split is a weaker guarantee, but keeps the blast radius to the labelled
   pods themselves.
 
-- **A standalone `media-egress` pod that every workload routes through** — the shape
-  this layer has now, and the trade it makes explicit rather than hides. A
-  network namespace belongs to one pod, so co-locating qBittorrent with the
-  tunnel was the only way to give it the kernel-enforced kill switch;
-  extracting the tunnel gives that up in exchange for a tunnel any labelled
+- **A standalone `media-egress` pod that every workload routes through** — this
+  layer's shape, and the trade it makes explicit rather than hides. A
+  network namespace belongs to one pod, so giving qBittorrent the
+  kernel-enforced kill switch directly would require co-locating it with the
+  tunnel; a separate `media-egress` pod trades that for a tunnel any labelled
   workload can use without its own tailnet node, its own Mullvad device slot,
-  and its own copy of the ruleset. What replaces the kill switch for
-  qBittorrent is not an application setting standing in for a kernel one — it
-  is the same `CiliumClusterwideNetworkPolicy` mechanism Prowlarr already
-  used, now covering qBittorrent's own traffic too, so both consumers share
-  one guarantee instead of qBittorrent alone holding a stronger one. The cost
-  was real, and turned out sharper than a missing `UDP ASSOCIATE`: SOCKS5
-  needed `BIND` for libtorrent's peer connections to complete at all, which
-  tailscaled's own SOCKS5 server never offered regardless of which pod served
+  or its own copy of the ruleset. What protects qBittorrent instead of the
+  kill switch is not an application setting standing in for a kernel one — it
+  is the same `CiliumClusterwideNetworkPolicy` mechanism that protects
+  Prowlarr, covering qBittorrent's own traffic too, so both consumers share
+  one guarantee rather than qBittorrent alone holding a stronger one. The cost
+  is real, and sharper than a missing `UDP ASSOCIATE`: SOCKS5
+  needs `BIND` for libtorrent's peer connections to complete at all, which
+  tailscaled's own SOCKS5 server does not offer regardless of which pod serves
   it (see the userspace-mode entry below).
 
-- **Userspace-mode tailscaled serving SOCKS5 directly** — adopted to close
-  two findings this same document had raised against kernel-mode tailscaled:
-  the LAN-reach gap in `meta skuid 0 accept`, and the direct-system-dial leak
-  when an exit node drops out of the netmap entirely. Routing every proxied
-  dial through tailscaled's own netstack, with no host route at all, closed
-  both genuinely, not just on paper — "Bring-up" verified it live. What it
-  cost wasn't found by reading source: qBittorrent, live, held one idle proxy
-  session against a torrent with 191 known seeders and connected to none of
-  them, no errors anywhere, trackers working throughout because a tracker
-  announce is a plain `CONNECT`. Testing the SOCKS5 listener directly settled
-  why — tailscaled implements `CONNECT` and `UDP ASSOCIATE` but answers
-  *command not supported* for `BIND`, and libtorrent will not open a peer
-  connection through a SOCKS5 proxy until its own session completes a `BIND`
-  first. No BitTorrent client can use tailscaled's SOCKS5 server for peer
-  traffic, which is what it exists to carry. `gost`, running kernel-mode
-  tailscale as a native sidecar and serving `BIND` and `UDP ASSOCIATE` itself
-  as uid 1000, replaces it — and, per "Inside the ruleset" and "The VPN
-  boundary", closes the same two findings again without relying on netstack
-  having nowhere else to go: the kill switch now enforces both on its own.
+- **Userspace-mode tailscaled serving SOCKS5 directly** — no host route at
+  all; every proxied dial goes through tailscaled's own netstack, which would
+  close the LAN-reach gap in `meta skuid 0 accept` and the
+  direct-system-dial leak when an exit node drops out of the netmap
+  entirely, without relying on the kill switch for either. Rejected because
+  tailscaled's SOCKS5 server implements `CONNECT` and `UDP ASSOCIATE` but
+  answers *command not supported* for `BIND`, and libtorrent will not open a
+  peer connection through a SOCKS5 proxy until its own session completes a
+  `BIND` first: against a live torrent with 191 known seeders, qBittorrent
+  held one idle proxy session and connected to none of them, trackers
+  working throughout because a tracker announce is a plain `CONNECT`, with
+  no error anywhere to point at the cause. No BitTorrent client can use
+  tailscaled's SOCKS5 server for peer traffic, which is what it exists to
+  carry. `gost`, running kernel-mode tailscale as a native sidecar and
+  serving `BIND` and `UDP ASSOCIATE` itself as uid 1000, is what makes peer
+  connections possible, while the kill switch — not netstack's absence of a
+  host route — closes the LAN-reach gap and the dropped-exit-node leak (see
+  "Inside the ruleset" and "The VPN boundary").
