@@ -1,0 +1,36 @@
+# Enrolment is this label and nothing else. Prowlarr applies an indexer proxy
+# only to indexers carrying a matching tag, so a forgotten tag would query the
+# tracker directly with no error and no warning; this turns that silent bypass
+# into a connection failure.
+#
+# Only egress rules are named, so default-deny applies to egress alone and
+# Traefik still reaches the labelled pod.
+#
+# See docs/design/media-egress.md, "Egress by label".
+apiVersion: cilium.io/v2
+kind: CiliumClusterwideNetworkPolicy
+metadata:
+  name: media-egress-clients
+spec:
+  endpointSelector:
+    matchLabels:
+      egress.homelab/via: media-egress
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
+    - toEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: media-egress
+            k8s:io.kubernetes.pod.namespace: media-downloads
+      toPorts:
+        - ports:
+            - port: "1055"
+              protocol: TCP
