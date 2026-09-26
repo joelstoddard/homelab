@@ -214,6 +214,14 @@ only consumer is Prowlarr, over `.svc`; putting it behind the wildcard
 certificate would publish an open fetcher to anything that can resolve the
 domain.
 
+`media-egress-flaresolverr-restrict` narrows the remaining surface to Prowlarr,
+but it is not the same shape as the SOCKS5 deny beside it and the difference is
+deliberate. That policy also denies the `host` and `remote-node` entities;
+this one cannot, because FlareSolverr serves its API and its kubelet probes on
+the same 8191, and denying the host identity would stop the pod ever reaching
+Ready. The residue is that host-network pods — the Alloy and Beyla collectors —
+can reach it. They are ours, which is the only reason that is tolerable.
+
 **Whether tracker hostnames leak to cluster DNS is unverified.** Chrome
 resolves a `socks5://` proxy's target hostname itself before handing the
 connection to the proxy — the distinction a `socks5h://` scheme exists to

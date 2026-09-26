@@ -40,12 +40,6 @@ spec:
         - ports:
             - port: "8191"
               protocol: TCP
-    # fromEndpoints covers cluster endpoints only; entities are separate.
-    - fromEntities:
-        - world
-        - host
-        - remote-node
-      toPorts:
-        - ports:
-            - port: "8191"
-              protocol: TCP
+    # No `fromEntities` deny here, unlike the SOCKS5 policy: FlareSolverr
+    # serves its API and its probes on the same 8191, and the kubelet arrives
+    # as the host identity — denying it would stop the pod ever going Ready.
