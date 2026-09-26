@@ -251,9 +251,8 @@ The corollary: a password manager that holds the secrets for
 bootstrapping this lab *can't be self-hosted on this lab*. Vault, a
 self-hosted Bitwarden, etc. all hit the same chicken-and-egg problem.
 For now there is no password manager dependency — `bootstrap-secrets.sh`
-interactively prompts the operator and writes to local files. The
-`TODO.md` item "Source secrets from password manager" tracks the open
-question of which off-lab manager to wire in.
+interactively prompts the operator and writes to local files. Issue #134
+tracks the open question of which off-lab manager to wire in.
 
 ## Repo layout
 
@@ -286,8 +285,7 @@ homelab/
 ├── Makefile                       # Root orchestrator chaining the subdirs (see makefile.md)
 ├── .sops.yaml                     # Age recipients per encrypted path
 ├── README.md                      # Top-level quick start
-├── CLAUDE.md                      # Guidance for AI assistants (also useful human context)
-└── TODO.md                        # Open work tracker
+└── CLAUDE.md                      # Guidance for AI assistants (also useful human context)
 ```
 
 The pattern: each layer is self-contained — its README explains the

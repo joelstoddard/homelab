@@ -27,9 +27,10 @@ A hard kill is not a restart. It can leave a corrupt Talos image behind that
 survives an image remove and a re-pull, and only an EPHEMERAL wipe clears it
 (`docs/talos-bootstrap.md`, "Recovery"), so each event costs a node rebuild.
 
-Right-sizing the VMs and setting balloon minimums is the real fix, tracked in
-`TODO.md`. zram is the floor underneath it: somewhere for the kernel to
-reclaim to before it starts killing guests.
+Right-sizing the VMs and setting balloon minimums is the real fix; the VMs
+were sized afterwards (see the overcommit section below) and the balloon
+minimums are #139. zram is the floor underneath both: somewhere for the
+kernel to reclaim to before it starts killing guests.
 
 ## Design
 
@@ -86,8 +87,10 @@ is Proxmox-specific.
   and already part of systemd.
 - **zstd compression.** A better ratio, but the extra decompression latency
   lands directly on the critical path of a guest page fault.
-- **More host RAM, and right-sized VMs.** Both correct, and both tracked in
-  `TODO.md`. zram is what runs until then, and it stays useful afterwards.
+- **More host RAM, and right-sized VMs.** Both correct. The VMs were sized
+  afterwards; more host RAM is a purchase rather than a task, and remains the
+  only way to fit another guest. zram is what runs until then, and it stays
+  useful afterwards.
 
 ## Deliberate overcommit: agents at 6 GB
 

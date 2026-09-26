@@ -113,7 +113,7 @@ throughout: a public repo (no address or domain in plaintext), PodSecurity
   `graphite-exporter` receives that stream on the shared address and serves
   it as Prometheus metrics. The mapping is empty with `strict-match` off, so
   every collectd path passes through as an underscored metric name; a curated
-  mapping needs the live names first and is a follow-up in `TODO.md`.
+  mapping needs the live names first and is a follow-up in #189.
 - **Proxmox is polled read-only.** `pve-exporter` authenticates with an
   `alloy@pve!alloy` token holding `PVEAuditor` on `/`, minted by the Ansible
   `proxmox` library's `monitoring-token` task on the same pattern as
@@ -207,14 +207,15 @@ addresses, in labels.
 - `INGEST_LB_IP` colliding with a DHCP lease: both receivers flap. The
   address comes from the pool's reserved range, like Traefik's.
 - Alloy's footprint on a NUC (~150 MiB) sits outside the VM memory budget the
-  NUCs are already tight against (`TODO.md`).
+  NUCs are already tight against (`docs/design/zram-swap.md` carries the
+  measured headroom).
 
 ## Measurements
 
 Nothing is live yet. After the first day, record:
 
 - Active series added, by `job` (`node-exporter`, `pve`, `blackbox`,
-  `pihole`, `truenas`), against the series budget in `TODO.md`.
+  `pihole`, `truenas`), against the series budget in #189.
 - The gateway's and each exporter's working set against their limits; the
   graphite exporter's is the open one, since a passthrough mapping mints a
   series for every collectd path TrueNAS sends.

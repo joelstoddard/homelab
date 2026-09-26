@@ -223,7 +223,8 @@ substitution, and envsubst deletes a classic `$apr1$` hash because `apr1` is a
 valid identifier, which presents as a permanent 401 with a correct password.
 
 This is a stopgap, not an auth system, and it adds a third credential to the
-eventual forward-auth migration tracked as Kanidm in `TODO.md`.
+eventual forward-auth migration tracked in #208, behind the SSO
+provider in #150.
 
 ## LAN DNS needs no change
 

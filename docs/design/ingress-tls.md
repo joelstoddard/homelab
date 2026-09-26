@@ -171,7 +171,7 @@ volumes.
 
 Per-service passwords stop reuse; they do not give per-user identity, revocation
 or MFA, and they are a stopgap rather than an auth system. The real answer is
-forward-auth against an IdP — the Kanidm entry in `TODO.md`.
+forward-auth against an IdP — #150.
 
 **The rule is scoped to services with no login of their own**, and more of them
 clear that bar than not. Jellyfin, SearXNG, Home Assistant, the four \*arr
@@ -343,7 +343,7 @@ keys above), `cert-manager-issuers/app/secret.sops.yaml` (`api-token`),
   documents L2 mode as incompatible with `Local`. Cost: SNAT'd client addresses
   in the access logs.
 - **Resource limits are a first guess** — requests `100m`/`128Mi`, limits
-  `500m`/`256Mi`, sized for a Pi (`TODO.md`). Metrics are scraped by the
+  `500m`/`256Mi`, sized for a Pi (#177). Metrics are scraped by the
   `alloy` layer via pod annotations — `docs/design/observability.md`.
 - **Startup ordering is not enforced.** Traefik may become Ready before
   `wildcard-tls` exists, log a missing-certificate error and serve its internal
