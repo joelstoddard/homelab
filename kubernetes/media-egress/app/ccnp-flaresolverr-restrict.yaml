@@ -1,0 +1,51 @@
+# FlareSolverr fetches arbitrary URLs with no authentication and now egresses
+# through the VPN, so without this policy it is an open proxy for anything in
+# the cluster.
+#
+# A deny rather than an allow, and `enableDefaultDeny: ingress: false` is
+# load-bearing: an allow rule would put this endpoint into default-deny and
+# take out the kubelet's probes, which this policy has no business touching.
+# Deleting that field silently re-arms exactly that.
+#
+# The deny is the half that fails open: `NotIn` relies on Cilium matching
+# endpoints that carry the `app.kubernetes.io/name` key with some other value,
+# and if it doesn't, the rule matches nothing and FlareSolverr is open to the
+# whole cluster with no error and no symptom. Both forms are written below —
+# `NotIn` plus a separate `DoesNotExist` selector, since fromEndpoints entries
+# are OR'd — so the deny holds under either semantics; neither can match
+# Prowlarr, which carries the key with value `prowlarr`.
+#
+# See docs/design/media-egress.md, "FlareSolverr".
+apiVersion: cilium.io/v2
+kind: CiliumClusterwideNetworkPolicy
+metadata:
+  name: media-egress-flaresolverr-restrict
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: flaresolverr
+      k8s:io.kubernetes.pod.namespace: media
+  enableDefaultDeny:
+    ingress: false
+  ingressDeny:
+    - fromEndpoints:
+        - matchExpressions:
+            - key: app.kubernetes.io/name
+              operator: NotIn
+              values: ["prowlarr"]
+        - matchExpressions:
+            - key: app.kubernetes.io/name
+              operator: DoesNotExist
+      toPorts:
+        - ports:
+            - port: "8191"
+              protocol: TCP
+    # fromEndpoints covers cluster endpoints only; entities are separate.
+    - fromEntities:
+        - world
+        - host
+        - remote-node
+      toPorts:
+        - ports:
+            - port: "8191"
+              protocol: TCP
