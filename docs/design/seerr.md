@@ -89,6 +89,17 @@ answers the moment the pod is ready and the `kubectl port-forward` that
 protects the four core \*arr applications during bring-up buys nothing here.
 Do the bring-up steps below promptly after the layer reconciles.
 
+## External URLs
+
+Seerr reaches Sonarr, Radarr and Jellyfin over their `.svc` names, which is
+correct — that traffic never leaves the cluster. But it also builds the
+user-facing links in its own UI from those same server entries, and no
+browser can resolve a cluster address. Each server therefore needs its
+external address set as well: `externalUrl` on the Sonarr and Radarr entries,
+`externalHostname` on Jellyfin, each the public `https://…` name — e.g.
+`https://sonarr.${DOMAIN}`. The API hostnames stay on `.svc`; only the link a
+person clicks needs the public one.
+
 ## Traps
 
 - **Overseerr is Plex-only.** A setup wizard offering only "Sign in with Plex"

@@ -86,6 +86,17 @@ and therefore need the export root at `/media`.
   indexer.** Prowlarr's pod carries `egress.homelab/via: media-egress`, which puts it
   into default-deny egress outside DNS, `media` and the SOCKS5 proxy — see
   `docs/design/media-egress.md`, "Egress by label".
+- **Setting `<AllowedHosts>` to an application's public FQDN breaks it two
+  ways, and neither is obvious.** The kubelet's probe uses the pod IP as the
+  `Host` header, so it gets HTTP 400 and the pod crash-loops with `Startup
+  probe failed: HTTP probe failed with statuscode: 400`; and the
+  `.svc.cluster.local` name Sonarr, Radarr and Lidarr use to reach Prowlarr is
+  rejected the same way, so indexer sync fails. It reads in the log as
+  `HostFilteringMiddleware: The host '…' does not match an allowed host`.
+  Leave it empty. It only takes effect on restart, so a value set through the
+  UI can sit latent for days and then detonate on an unrelated pod roll.
+  Verified 2026-09-26 that Prowlarr, Sonarr and Radarr had all been set this
+  way and are now cleared; Lidarr was never set.
 
 ## Bring-up
 
