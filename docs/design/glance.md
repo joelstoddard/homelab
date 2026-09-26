@@ -94,10 +94,10 @@ Pi-hole's `address=` wildcard and reaches Traefik. `check-url` is fetched by
 the **pod**, and the cluster cannot resolve that wildcard at all: CoreDNS
 forwards to the nodes' own resolvers, and those know nothing of the domain.
 **The earlier reasoning here was wrong** about which resolvers those are —
-nothing is handed over DHCP. `ansible/roles/talos/templates/talconfig.yaml.j2`
-renders static addressing with no `nameservers` key, so the nodes fall through
-to Talos's built-in `1.1.1.1` and `8.8.8.8` (`talosctl get resolverstatus`).
-The consequence for this layer is unchanged. This is the
+nothing is handed over DHCP. They are set explicitly in the machine config,
+and they are public (`docs/design/dns-chain.md`), so they resolve no name
+under the domain. `talosctl get resolverstatus` is the check, and the
+consequence for this layer is unchanged. This is the
 same constraint that kept a blackbox probe of `searx.${DOMAIN}` out of the
 `monitoring` layer.
 
