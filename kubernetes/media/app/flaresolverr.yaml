@@ -1,0 +1,84 @@
+# FlareSolverr solves Cloudflare challenges for Prowlarr's indexers, and the
+# clearance cookie it returns is bound to the solving IP, so it must egress
+# through the same VPN exit node Prowlarr does. The egress.homelab/via label
+# denies it every path but the SOCKS5 proxy; PROXY_URL is what actually routes
+# it there — one enforces, the other routes (docs/design/media-egress.md,
+# "FlareSolverr").
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: flaresolverr
+  labels:
+    app.kubernetes.io/name: flaresolverr
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: flaresolverr
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: flaresolverr
+        egress.homelab/via: media-egress
+    spec:
+      nodeSelector:
+        kubernetes.io/arch: amd64
+      containers:
+        - name: flaresolverr
+          image: ghcr.io/flaresolverr/flaresolverr:v3.5.2
+          env:
+            - name: LOG_LEVEL
+              value: info
+            - name: TZ
+              value: Europe/London
+            - name: PROXY_URL
+              value: socks5://media-egress-socks5.media-downloads.svc.cluster.local:1055
+          ports:
+            - name: http
+              containerPort: 8191
+          # / is FlareSolverr's own status page and answers once headless
+          # Chrome has finished starting.
+          startupProbe:
+            httpGet:
+              path: /
+              port: http
+            periodSeconds: 10
+            failureThreshold: 30
+            timeoutSeconds: 5
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http
+            periodSeconds: 30
+            failureThreshold: 3
+            timeoutSeconds: 10
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: flaresolverr
+  labels:
+    app.kubernetes.io/name: flaresolverr
+spec:
+  selector:
+    app.kubernetes.io/name: flaresolverr
+  ports:
+    - name: http
+      port: 8191
+      targetPort: http
+# No IngressRoute: FlareSolverr is an unauthenticated URL fetcher with only a
+# status page, and Prowlarr reaches it over .svc. Exposing it would put an
+# open fetcher behind the wildcard certificate.
