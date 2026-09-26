@@ -1,0 +1,192 @@
+# This namespace's VPN egress: a Tailscale tunnel, an nftables kill switch and
+# a SOCKS5 listener, with no application of its own. A workload opts in with
+# the egress.homelab/via: media-egress label, not by living in this pod.
+#
+# See docs/design/media-egress.md, "The VPN boundary" and "Egress by label".
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: media-egress
+  labels:
+    app.kubernetes.io/name: media-egress
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: media-egress
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: media-egress
+      # The tunnel's metrics port: tailscaled serves no other Prometheus
+      # endpoint, and a pod carries one scrape annotation.
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9002"
+    spec:
+      serviceAccountName: media-egress
+      # amd64 only: wireguard-go encrypts in userspace, and the arm64 Pis are
+      # slow at it.
+      nodeSelector:
+        kubernetes.io/arch: amd64
+      # One init container: the kill switch, applied before tailscaled starts
+      # so there is no window where its traffic is unfiltered.
+      # See docs/design/media-egress.md, "The VPN boundary".
+      initContainers:
+        - name: killswitch
+          # Distroless, purely for `nft`; it ships no shell, so the ruleset is
+          # a file. See docs/design/media-egress.md, "Inside the ruleset".
+          image: registry.k8s.io/build-image/distroless-iptables:v0.9.7
+          command: ["/usr/sbin/nft", "-f", "/etc/killswitch/ruleset.nft"]
+          # Capabilities are per container, not per pod. Root as well, because
+          # netlink refuses the write without it.
+          securityContext:
+            runAsUser: 0
+            capabilities:
+              add: ["NET_ADMIN"]
+          volumeMounts:
+            - name: killswitch
+              mountPath: /etc/killswitch
+              readOnly: true
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              cpu: 100m
+              memory: 64Mi
+      containers:
+        - name: tailscale
+          image: ghcr.io/tailscale/tailscale:v1.102.3
+          env:
+            - name: TS_AUTHKEY
+              valueFrom:
+                secretKeyRef:
+                  name: tailscale-auth
+                  key: TS_AUTHKEY
+            - name: TS_HOSTNAME
+              value: media-egress
+            # Its own state Secret, never the router's: two nodes on one key
+            # overwrite each other and burn a Mullvad device slot per restart.
+            - name: TS_KUBE_SECRET
+              value: media-egress-tailscale-state
+            - name: TS_AUTH_ONCE
+              value: "true"
+            # Userspace mode: SOCKS5 dials go through tailscaled's netstack,
+            # which has no host network to fall back to if the tunnel can't
+            # reach the exit node, closing the leak a TUN device left open.
+            # No application in this pod shares the tunnel, so no TUN device
+            # is needed either.
+            - name: TS_USERSPACE
+              value: "true"
+            # A tailnet DNS config pushed alongside an exit node rewrites
+            # /etc/resolv.conf, and this pod must resolve cluster names.
+            - name: TS_ACCEPT_DNS
+              value: "false"
+            # Auto-detection picks legacy iptables, whose `filter` table the
+            # Talos kernel does not expose (docs/design/tailscale-router.md).
+            # Inert in userspace mode, which programs no firewall rules at
+            # all; kept so kernel mode doesn't regress this if it ever returns.
+            - name: TS_DEBUG_FIREWALL_MODE
+              value: nftables
+            # TS_AUTH_ONCE applies these at first enrolment only. A hostname
+            # exit node needs a netmap, so the postStart hook sets it instead
+            # (docs/design/media-egress.md, "Choosing the exit node").
+            - name: TS_EXTRA_ARGS
+              value: --advertise-tags=tag:media-downloads
+            # /healthz and /metrics on TS_LOCAL_ADDR_PORT (default [::]:9002).
+            - name: TS_ENABLE_HEALTH_CHECK
+              value: "true"
+            - name: TS_ENABLE_METRICS
+              value: "true"
+            # SOCKS5 in this netns, whose default route is the Mullvad exit
+            # node. Clients are gated by label in kubernetes/media-egress/.
+            - name: TS_SOCKS5_SERVER
+              value: ":1055"
+          ports:
+            - name: metrics
+              containerPort: 9002
+            - name: socks5
+              containerPort: 1055
+          # The exit node, re-asserted on every start so a recreated state
+          # Secret cannot leave the pod on a bare tailnet
+          # (docs/design/media-egress.md, "Choosing the exit node").
+          #
+          # 300s matches the startupProbe below and must not be shorter: a
+          # postStart hook gates the container reaching Running, so a smaller
+          # bound would silently pre-empt that probe.
+          #
+          # No dollar sign in this script, so `timeout` around `until` rather
+          # than a counter: envsubst would blank a shell variable.
+          lifecycle:
+            postStart:
+              exec:
+                command:
+                  - /bin/sh
+                  - -c
+                  - |
+                    timeout 300 sh -c 'until tailscale set --exit-node=de-dus-wg-101.mullvad.ts.net; do sleep 5; done'
+          # The gate on the whole pod: kubelet waits for a tailnet IP before
+          # marking the pod Ready.
+          startupProbe:
+            httpGet:
+              path: /healthz
+              port: metrics
+            periodSeconds: 5
+            failureThreshold: 60
+            timeoutSeconds: 5
+          # A wedged tailscaled restarts rather than leaving a tunnel that is
+          # up in name only; the kill switch makes the gap dead air, not a leak.
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: metrics
+            periodSeconds: 10
+            failureThreshold: 6
+            timeoutSeconds: 5
+          # Withdraws the media-egress-socks5 endpoint, not a restart target: /healthz
+          # only proves a tailnet address, but a lost exit node lets a
+          # proxied dial fall back to a direct system dial with no route to
+          # catch it (docs/design/media-egress.md, "The VPN boundary").
+          readinessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - tailscale status --json | tr -d ' \n' | grep -qE '"ExitNodeStatus":\{"ID":"[^"]*","Online":true'
+            periodSeconds: 10
+            failureThreshold: 3
+            timeoutSeconds: 5
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            # The subnet router's figures, and a floor: wireguard-go encrypts
+            # in userspace, so throttling delays /healthz into a restart.
+            limits:
+              cpu: "1"
+              memory: 256Mi
+      volumes:
+        # Generated with a name hash, so editing the ruleset rolls the pod
+        # instead of leaving the old rules in a netns nobody restarts.
+        - name: killswitch
+          configMap:
+            name: media-egress-killswitch
+---
+# Named for the function, not the host. Workloads outside this pod reach the
+# exit node through here; kubernetes/media-egress/ decides which ones may.
+apiVersion: v1
+kind: Service
+metadata:
+  name: media-egress-socks5
+  labels:
+    app.kubernetes.io/name: media-egress-socks5
+spec:
+  selector:
+    app.kubernetes.io/name: media-egress
+  ports:
+    - name: socks5
+      port: 1055
+      targetPort: 1055

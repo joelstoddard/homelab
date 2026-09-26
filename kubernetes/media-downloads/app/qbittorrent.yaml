@@ -1,7 +1,8 @@
-# qBittorrent and a Tailscale sidecar in one network namespace: the client
-# inherits tailscaled's default route and has no other way out, which the leak,
-# reachability and kill-switch tests confirmed on 2026-09-19.
-# See docs/design/qbittorrent-vpn.md, "The VPN boundary" and "Bring-up".
+# An ordinary workload: no sidecars, no NET_ADMIN, no tunnel of its own. The
+# egress.homelab/via: media-egress label enforces rather than routes — it denies this pod
+# every path to the internet except the media-egress Deployment's SOCKS5 listener, and
+# qBittorrent must still be pointed at that proxy in its own settings or it
+# reaches nothing at all. See docs/design/media-egress.md, "Egress by label".
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -19,163 +20,12 @@ spec:
     metadata:
       labels:
         app.kubernetes.io/name: qbittorrent
-      # The sidecar's metrics port: qBittorrent serves no Prometheus endpoint,
-      # and a pod carries one scrape annotation.
-      annotations:
-        prometheus.io/scrape: "true"
-        prometheus.io/port: "9002"
+        egress.homelab/via: media-egress
     spec:
-      serviceAccountName: qbittorrent
       # amd64 only, following Jellyfin: the Pis' USB-backed Longhorn replicas
       # are slow under this client's constant small writes.
       nodeSelector:
         kubernetes.io/arch: amd64
-      # Three init containers, and the order is the fail-closed design: kill
-      # switch, then policy rules, then tailscaled as a native sidecar.
-      # See docs/design/qbittorrent-vpn.md, "The VPN boundary".
-      initContainers:
-        - name: killswitch
-          # Distroless, purely for `nft`; it ships no shell, so the ruleset is
-          # a file. See docs/design/qbittorrent-vpn.md, "Inside the ruleset".
-          image: registry.k8s.io/build-image/distroless-iptables:v0.9.7
-          command: ["/usr/sbin/nft", "-f", "/etc/killswitch/ruleset.nft"]
-          # Capabilities are per container, not per pod. Root as well, because
-          # netlink refuses the write without it.
-          securityContext:
-            runAsUser: 0
-            capabilities:
-              add: ["NET_ADMIN"]
-          volumeMounts:
-            - name: killswitch
-              mountPath: /etc/killswitch
-              readOnly: true
-          resources:
-            requests:
-              cpu: 10m
-              memory: 16Mi
-            limits:
-              cpu: 100m
-              memory: 64Mi
-        # Filtering is not routing: the kill switch decides what may leave,
-        # these rules decide which way (docs/design/qbittorrent-vpn.md, "Traps").
-        - name: iprules
-          image: ghcr.io/tailscale/tailscale:v1.102.3
-          # pref 5100 must stay below tailscaled's 5270 and outside the 52xx
-          # range it reconciles. No dollar sign anywhere in this script: the
-          # manifest is substituted, and envsubst would blank one.
-          command:
-            - /bin/sh
-            - -c
-            - |
-              set -eu
-              ip rule del to 10.244.0.0/16 lookup main pref 5100 2>/dev/null || true
-              ip rule add to 10.244.0.0/16 lookup main pref 5100
-              ip rule del to 10.96.0.0/12 lookup main pref 5100 2>/dev/null || true
-              ip rule add to 10.96.0.0/12 lookup main pref 5100
-              ip rule del to 10.0.0.0/20 lookup main pref 5100 2>/dev/null || true
-              ip rule add to 10.0.0.0/20 lookup main pref 5100
-              ip rule list
-          securityContext:
-            runAsUser: 0
-            capabilities:
-              add: ["NET_ADMIN"]
-          resources:
-            requests:
-              cpu: 10m
-              memory: 16Mi
-            limits:
-              cpu: 100m
-              memory: 64Mi
-        - name: tailscale
-          image: ghcr.io/tailscale/tailscale:v1.102.3
-          # restartPolicy Always makes this a native sidecar: the kubelet holds
-          # spec.containers until its startupProbe passes, and stops it last.
-          restartPolicy: Always
-          env:
-            - name: TS_AUTHKEY
-              valueFrom:
-                secretKeyRef:
-                  name: tailscale-auth
-                  key: TS_AUTHKEY
-            - name: TS_HOSTNAME
-              value: qbittorrent
-            # Its own state Secret, never the router's: two nodes on one key
-            # overwrite each other and burn a Mullvad device slot per restart.
-            - name: TS_KUBE_SECRET
-              value: qbittorrent-tailscale-state
-            - name: TS_AUTH_ONCE
-              value: "true"
-            - name: TS_USERSPACE
-              value: "false"
-            # A tailnet DNS config pushed alongside an exit node rewrites
-            # /etc/resolv.conf, and this pod must resolve cluster names.
-            - name: TS_ACCEPT_DNS
-              value: "false"
-            # Auto-detection picks legacy iptables, whose `filter` table the
-            # Talos kernel does not expose (docs/design/tailscale-router.md).
-            - name: TS_DEBUG_FIREWALL_MODE
-              value: nftables
-            # TS_AUTH_ONCE applies these at first enrolment only. A hostname
-            # exit node needs a netmap, so the postStart hook sets it instead
-            # (docs/design/qbittorrent-vpn.md, "Choosing the exit node").
-            - name: TS_EXTRA_ARGS
-              value: --advertise-tags=tag:media-downloads
-            # /healthz and /metrics on TS_LOCAL_ADDR_PORT (default [::]:9002).
-            - name: TS_ENABLE_HEALTH_CHECK
-              value: "true"
-            - name: TS_ENABLE_METRICS
-              value: "true"
-          ports:
-            - name: metrics
-              containerPort: 9002
-          # The exit node, re-asserted on every start so a recreated state
-          # Secret cannot leave the pod on a bare tailnet
-          # (docs/design/qbittorrent-vpn.md, "Choosing the exit node").
-          #
-          # 300s matches the startupProbe below and must not be shorter: a
-          # postStart hook gates the container reaching Running, so a smaller
-          # bound would silently pre-empt that probe.
-          #
-          # No dollar sign in this script, so `timeout` around `until` rather
-          # than a counter: envsubst would blank a shell variable.
-          lifecycle:
-            postStart:
-              exec:
-                command:
-                  - /bin/sh
-                  - -c
-                  - |
-                    timeout 300 sh -c 'until tailscale set --exit-node=de-dus-wg-101.mullvad.ts.net; do sleep 5; done'
-          # The gate on the whole pod: spec.containers wait for a tailnet IP.
-          # Five minutes, because first authentication is slower than reconnect.
-          startupProbe:
-            httpGet:
-              path: /healthz
-              port: metrics
-            periodSeconds: 5
-            failureThreshold: 60
-            timeoutSeconds: 5
-          # A wedged tailscaled restarts rather than leaving a tunnel that is
-          # up in name only; the kill switch makes the gap dead air, not a leak.
-          livenessProbe:
-            httpGet:
-              path: /healthz
-              port: metrics
-            periodSeconds: 10
-            failureThreshold: 6
-            timeoutSeconds: 5
-          securityContext:
-            capabilities:
-              add: ["NET_ADMIN"]
-          resources:
-            requests:
-              cpu: 50m
-              memory: 64Mi
-            # The subnet router's figures, and a floor: wireguard-go encrypts
-            # in userspace, so throttling delays /healthz into a restart.
-            limits:
-              cpu: "1"
-              memory: 256Mi
       containers:
         - name: qbittorrent
           image: lscr.io/linuxserver/qbittorrent:5.2.3_v2.0.14-ls476
@@ -232,12 +82,8 @@ spec:
         - name: config
           persistentVolumeClaim:
             claimName: qbittorrent-config
-        # Generated with a name hash, so editing the ruleset rolls the pod
-        # instead of leaving the old rules in a netns nobody restarts.
-        - name: killswitch
-          configMap:
-            name: qbittorrent-killswitch
 ---
+# qBittorrent's front door.
 apiVersion: v1
 kind: Service
 metadata:
