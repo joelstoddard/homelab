@@ -32,10 +32,20 @@ uplink.
 The cluster also could not resolve the names it serves, because the Talos
 machine config carried no `nameservers` at all and nodes fell through to
 Talos's built-in public resolvers. **That part has since been addressed
-separately** (#213): the nodes now carry explicit `nameservers`, so the
-remaining gap is only that those resolvers are public and know nothing of the
-LAN domain. Pointing the cluster at the chain is a later step, not a
+separately** (#213): the nodes carry explicit `nameservers`, so the remaining
+gap is only that those resolvers are public and know nothing of the LAN
+domain. Pointing the cluster at the chain is a later step, not a
 prerequisite.
+
+**Only the 12 VMs actually carry them.** Rolling a Pi runs the `00-pxe` play
+to refresh its netboot assets, and that needs Docker, so it cannot be driven
+from macOS — it needs the operator VM, which is exactly what the memory
+shortage below rules out. The 8 Pis therefore still resolve through Talos's
+built-in `1.1.1.1` and `8.8.8.8`. Nothing is broken by the split, since both
+sets answer public names correctly, and the rendered configs already carry
+the change: `apply-config --dry-run` against each Pi shows the four-line
+`nameservers` diff and no reboot. It applies with the same RAM that unblocks
+the rest of this.
 
 ## Where this stands
 
