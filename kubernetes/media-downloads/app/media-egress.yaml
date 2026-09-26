@@ -205,6 +205,11 @@ spec:
           # SOCKS5 session needs to complete, udp is what uTP and DHT need —
           # trimming either silently reintroduces the bug this replaces.
           args:
+            # A second listener, for the readiness probe alone. The SOCKS5
+            # handler logs four lines for every connection that opens and
+            # closes without a handshake, which is what a tcpSocket probe is.
+            - -metrics
+            - :9101
             - -L
             - socks5://:1055?bind=true&udp=true
           # Non-root is load-bearing, not hygiene: the kill switch's last
@@ -215,9 +220,15 @@ spec:
           ports:
             - name: socks5
               containerPort: 1055
+            - name: gost-metrics
+              containerPort: 9101
+          # gost binds both listeners at startup and exits if either fails, so
+          # this answers the same question as a probe on 1055 and says nothing
+          # in the log. `/` is a 404; the path has to be /metrics.
           readinessProbe:
-            tcpSocket:
-              port: socks5
+            httpGet:
+              path: /metrics
+              port: gost-metrics
           resources:
             requests:
               cpu: 50m

@@ -91,3 +91,6 @@ configMapGenerator:
   - name: dashboard-sabnzbd
     files: [Services/sabnzbd.json]
     options: {annotations: {grafana_folder: Services}}
+  - name: dashboard-media-egress
+    files: [Services/media-egress.json]
+    options: {annotations: {grafana_folder: Services}}

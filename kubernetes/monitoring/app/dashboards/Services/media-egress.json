@@ -1,0 +1,452 @@
+{
+ "id": null,
+ "uid": "homelab-media-egress",
+ "title": "Media Egress",
+ "tags": [
+  "tailscale",
+  "media"
+ ],
+ "timezone": "browser",
+ "schemaVersion": 39,
+ "time": {
+  "from": "now-6h",
+  "to": "now"
+ },
+ "panels": [
+  {
+   "id": 1,
+   "type": "stat",
+   "title": "Exit node health",
+   "gridPos": {
+    "h": 4,
+    "w": 5,
+    "x": 0,
+    "y": 0
+   },
+   "description": "tailscaled's own health checks, the same ones `tailscale status` prints. Nonzero means the tunnel is reporting a problem; the logs panel says which.",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "tailscaled_health_messages{job=\"media-egress\", type=\"warning\"}",
+     "legendFormat": "warnings",
+     "instant": true
+    }
+   ],
+   "options": {
+    "textMode": "value",
+    "colorMode": "value",
+    "graphMode": "none"
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "decimals": 0,
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "green",
+        "value": null
+       },
+       {
+        "color": "red",
+        "value": 1
+       }
+      ]
+     }
+    },
+    "overrides": []
+   }
+  },
+  {
+   "id": 2,
+   "type": "stat",
+   "title": "Home DERP region",
+   "gridPos": {
+    "h": 4,
+    "w": 4,
+    "x": 5,
+    "y": 0
+   },
+   "description": "The relay region tailscaled falls back to. A change here usually means a direct path to the exit node was lost.",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "tailscaled_home_derp_region_id{job=\"media-egress\"}",
+     "legendFormat": "region",
+     "instant": true
+    }
+   ],
+   "options": {
+    "textMode": "value",
+    "colorMode": "none",
+    "graphMode": "none"
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "decimals": 0
+    },
+    "overrides": []
+   }
+  },
+  {
+   "id": 3,
+   "type": "stat",
+   "title": "Running on node",
+   "gridPos": {
+    "h": 4,
+    "w": 6,
+    "x": 9,
+    "y": 0
+   },
+   "description": "Which worker the pod is on. Recreate strategy, one replica: a move means the tunnel reconnected and the SOCKS5 endpoint was briefly withdrawn.",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "up{job=\"media-egress\"}",
+     "legendFormat": "{{node}}",
+     "instant": true
+    }
+   ],
+   "options": {
+    "textMode": "value",
+    "colorMode": "none",
+    "graphMode": "none"
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "decimals": 0
+    },
+    "overrides": []
+   }
+  },
+  {
+   "id": 4,
+   "type": "stat",
+   "title": "Container restarts",
+   "gridPos": {
+    "h": 4,
+    "w": 4,
+    "x": 15,
+    "y": 0
+   },
+   "description": "tailscaled restarts on a wedged tunnel by design. Repeated restarts point at the exit node or the tailnet rather than this pod.",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "max(kube_pod_container_status_restarts_total{exported_namespace=\"media-downloads\", exported_pod=~\"media-egress-.*\"})",
+     "legendFormat": "restarts",
+     "instant": true
+    }
+   ],
+   "options": {
+    "textMode": "value",
+    "colorMode": "value",
+    "graphMode": "none"
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "decimals": 0,
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "green",
+        "value": null
+       },
+       {
+        "color": "yellow",
+        "value": 1
+       },
+       {
+        "color": "red",
+        "value": 5
+       }
+      ]
+     }
+    },
+    "overrides": []
+   }
+  },
+  {
+   "id": 5,
+   "type": "stat",
+   "title": "Uptime",
+   "gridPos": {
+    "h": 4,
+    "w": 5,
+    "x": 19,
+    "y": 0
+   },
+   "description": "Time since the tailscale container started.",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "time() - container_start_time_seconds{namespace=\"media-downloads\", container=\"tailscale\"}",
+     "legendFormat": "uptime",
+     "instant": true
+    }
+   ],
+   "options": {
+    "textMode": "value",
+    "colorMode": "none",
+    "graphMode": "none"
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "s",
+     "decimals": 0
+    },
+    "overrides": []
+   }
+  },
+  {
+   "id": 6,
+   "type": "timeseries",
+   "title": "Tunnel traffic by path",
+   "gridPos": {
+    "h": 8,
+    "w": 12,
+    "x": 0,
+    "y": 4
+   },
+   "description": "Everything a labelled pod sends through the proxy leaves here. `direct_ipv4` is a working path to the exit node; sustained `derp` means relayed and slow.",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "rate(tailscaled_outbound_bytes_total{job=\"media-egress\"}[$__rate_interval])",
+     "legendFormat": "out {{path}}"
+    },
+    {
+     "refId": "B",
+     "expr": "rate(tailscaled_inbound_bytes_total{job=\"media-egress\"}[$__rate_interval])",
+     "legendFormat": "in {{path}}"
+    }
+   ],
+   "options": {
+    "legend": {
+     "displayMode": "table",
+     "placement": "bottom",
+     "calcs": [
+      "last",
+      "max"
+     ]
+    },
+    "tooltip": {
+     "mode": "multi",
+     "sort": "desc"
+    }
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "Bps",
+     "custom": {
+      "fillOpacity": 10,
+      "showPoints": "never"
+     }
+    },
+    "overrides": []
+   }
+  },
+  {
+   "id": 7,
+   "type": "timeseries",
+   "title": "Tunnel packets dropped",
+   "gridPos": {
+    "h": 8,
+    "w": 12,
+    "x": 12,
+    "y": 4
+   },
+   "description": "Outbound drops inside tailscaled, by reason. Distinct from a Cilium policy denial, which never reaches the tunnel at all. Outbound only: this tailscale version publishes no inbound drop series anywhere in the cluster, so an inbound panel would read as zero rather than as unmeasured.",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "rate(tailscaled_outbound_dropped_packets_total{job=\"media-egress\"}[$__rate_interval])",
+     "legendFormat": "out {{reason}}"
+    }
+   ],
+   "options": {
+    "legend": {
+     "displayMode": "table",
+     "placement": "bottom",
+     "calcs": [
+      "last",
+      "max"
+     ]
+    },
+    "tooltip": {
+     "mode": "multi",
+     "sort": "desc"
+    }
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "pps",
+     "custom": {
+      "fillOpacity": 10,
+      "showPoints": "never"
+     }
+    },
+    "overrides": []
+   }
+  },
+  {
+   "id": 8,
+   "type": "timeseries",
+   "title": "Cluster egress policy denials",
+   "gridPos": {
+    "h": 8,
+    "w": 12,
+    "x": 0,
+    "y": 12
+   },
+   "description": "Cluster-wide, not per pod: Cilium counts drops per agent and carries no pod labels on them here. A labelled client that lost its proxy setting dials peers directly and appears as a sustained step change, which is the only metric that surfaces that failure at all.",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "sum(rate(cilium_drop_count_total{direction=\"EGRESS\", reason=\"Policy denied\"}[$__rate_interval]))",
+     "legendFormat": "egress denied"
+    }
+   ],
+   "options": {
+    "legend": {
+     "displayMode": "table",
+     "placement": "bottom",
+     "calcs": [
+      "last",
+      "max"
+     ]
+    },
+    "tooltip": {
+     "mode": "multi",
+     "sort": "desc"
+    }
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "pps",
+     "custom": {
+      "fillOpacity": 10,
+      "showPoints": "never"
+     }
+    },
+    "overrides": []
+   }
+  },
+  {
+   "id": 9,
+   "type": "timeseries",
+   "title": "Pod CPU and memory",
+   "gridPos": {
+    "h": 8,
+    "w": 12,
+    "x": 12,
+    "y": 12
+   },
+   "description": "Both containers. wireguard-go encrypts in userspace, so tailscale CPU tracks tunnel throughput; a ceiling here delays /healthz into a restart.",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "sum by (container) (rate(container_cpu_usage_seconds_total{namespace=\"media-downloads\", pod=~\"media-egress-.*\", container!=\"\"}[$__rate_interval]))",
+     "legendFormat": "cpu {{container}}"
+    },
+    {
+     "refId": "B",
+     "expr": "sum by (container) (container_memory_working_set_bytes{namespace=\"media-downloads\", pod=~\"media-egress-.*\", container!=\"\"}) / 1024 / 1024 / 1024",
+     "legendFormat": "mem GiB {{container}}"
+    }
+   ],
+   "options": {
+    "legend": {
+     "displayMode": "table",
+     "placement": "bottom",
+     "calcs": [
+      "last",
+      "max"
+     ]
+    },
+    "tooltip": {
+     "mode": "multi",
+     "sort": "desc"
+    }
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "custom": {
+      "fillOpacity": 10,
+      "showPoints": "never"
+     }
+    },
+    "overrides": []
+   }
+  },
+  {
+   "id": 10,
+   "type": "logs",
+   "title": "Logs",
+   "gridPos": {
+    "h": 10,
+    "w": 24,
+    "x": 0,
+    "y": 20
+   },
+   "description": "Both containers. gost logs one line per proxied dial with its destination; tailscaled logs the tunnel.",
+   "datasource": {
+    "type": "loki",
+    "uid": "loki"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "{namespace=\"media-downloads\", pod=~\"media-egress-.*\"}"
+    }
+   ],
+   "options": {
+    "showTime": true,
+    "wrapLogMessage": true,
+    "sortOrder": "Descending"
+   }
+  }
+ ]
+}
