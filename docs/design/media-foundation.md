@@ -52,13 +52,14 @@ The same doc left a second instruction, and this project is what triggers it:
 
 ### Two namespaces
 
-PodSecurity Admission is enforced per namespace, and exactly one container in
-this stack needs more than `baseline`: the `killswitch` init container on the
-standalone `media-egress` Deployment, which wants `NET_ADMIN` to install its nftables
-ruleset. There is no TUN device and no VPN sidecar — the tunnel is userspace
-Tailscale running in its own pod (`docs/design/media-egress.md`, "The VPN
-boundary"). Putting it alongside the rest would drag Jellyfin and seven \*arr
-applications into a privileged namespace to satisfy one container.
+PodSecurity Admission is enforced per namespace, and only the standalone
+`media-egress` Deployment needs more than `baseline`: its three init containers
+want `NET_ADMIN` to install the nftables ruleset, write the policy routes, and
+run a TUN-mode tailscaled (`docs/design/media-egress.md`, "The VPN boundary").
+The SOCKS5 proxy beside them holds no capability and runs as an ordinary user,
+which is what puts proxied traffic under the kill switch. Putting any of this
+alongside the rest would drag Jellyfin and seven \*arr applications into a
+privileged namespace to satisfy one pod.
 
 | Namespace | PSA enforce | Workloads |
 | --- | --- | --- |
