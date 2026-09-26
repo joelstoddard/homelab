@@ -134,6 +134,78 @@ talosctl --talosconfig ansible/.talos/clusterconfig/talosconfig \
 
 For a change that should be a no-op, the pass condition is `No changes` on
 all 20 nodes; #135 shipped on that. The diff output can contain secret
-values, so reduce it to changed key names before you share it.
+values, so pass it through `talos_redact` (below) before you share it.
 `upgrade.yaml` runs the same dry run, but pushes any diff it finds, so it is
 not a check.
+
+## Redacting talosctl output
+
+A dry-run diff is a unified diff of the whole machine config. Its context lines
+alone can carry the node's token, CA key, cluster secret and encryption secret:
+a live test during #215 found 4 of a node's 6 secret values in a two-key diff.
+`talosctl` writes that diff to stderr, not stdout.
+
+Nothing upstream redacts it:
+- Talos marks secret fields with a hand-written `Redact()` method on each
+  config document type.
+- No `talosctl` command calls it. `apply-config --dry-run` diffs the two full
+  configs as they are, and `get machineconfig` only restricts who can read.
+
+So `roles/talos/filter_plugins/talos_redact.py` is the only redaction layer.
+It rewrites a secret value as `<REDACTED sha256:xxxxxxxx>`, under two rules.
+Neither rule depends on key names.
+
+1. **Any value from the secrets bundle, wherever it appears.** This rests on
+   an invariant the repo already keeps: every secret lives in a SOPS file, and
+   every secret in a machine config comes from `files/secrets.sops.yaml`.
+   - The rule is exact.
+   - It catches a bundle value embedded in a longer one, such as a join token
+     in a URL.
+   - It needs no list to maintain: a secret added to the bundle is redacted
+     from then on.
+   - `upgrade.yaml` loads the bundle with `community.sops.load_vars`
+     (`no_log`) and passes it to the filter.
+2. **Any opaque value, as a backstop.** "Opaque" means one base64/hex-like
+   string of 24 or more characters containing a digit, or a Kubernetes
+   bootstrap token. This covers a secret that is not in the bundle, such as an
+   old token still running on a node after drift. The digit requirement keeps
+   long plain words like `PodSecurityConfiguration` readable.
+
+### Why not a key-name rule
+
+The first version redacted keys ending in `key`, `token`, `secret` or
+`password`. That rule was a convention someone would have to remember, and it
+was never checked. Checked against Talos's own `Redact()` list at v1.13.10, it
+misses:
+- `passphrase`, used for disk and volume encryption in five places;
+- registry `auth`;
+- the SideroLink `apiUrl` join token.
+
+The two rules above need no convention, and a naming convention adds nothing
+to them.
+
+**The gap:** a short secret that is neither in the bundle nor opaque would
+print. That breaks the invariant (every secret comes from SOPS), so it is a bug
+in its own right.
+
+### Retro-check (#220)
+
+Run against all 20 rendered configs with the real bundle, with values never
+printed:
+- **With the bundle:** 14 secret-bearing paths, every one redacted on every
+  node that carries it. No non-secret path is redacted.
+- **Shape rule alone:** the same result, so the backstop covers every
+  generated secret too.
+
+This repo uses none of the Talos features whose secrets a name rule would have
+needed: registry auth, disk passphrases, WireGuard, SideroLink.
+
+### Where it runs
+
+`upgrade.yaml` registers the raw dry-run with `no_log: true`, then prints the
+redacted copy: as a diff when something changes, and as the failure message
+when the dry run itself fails. The short hash lets a changed secret show as two
+different markers rather than two identical `<REDACTED>` lines. Eight hex
+characters of SHA-256 reveal nothing usable about values of this length.
+
+Unit tests: `python3 -m unittest discover tests` from `roles/talos`.
