@@ -121,11 +121,13 @@ namespace's VPN reaches the internet.
 **The label enforces; it does not route.** Applying it does not rewrite a
 pod's default route — the application still has to be told, on its own terms,
 to use the proxy. qBittorrent needs its own SOCKS5 proxy set under Options →
-Connection, the same as Prowlarr needs its own indexer-level proxy tag.
-Prowlarr applies an indexer's proxy only to indexers carrying a matching tag,
-so a forgotten tag would otherwise send that indexer's queries to the tracker
-directly, with no error and no warning; an unconfigured qBittorrent fails the
-same way. What the label buys is the failure mode: the companion
+Connection, and Prowlarr needs the same under Settings → General → Proxy: the
+*global* proxy, deliberately, rather than a per-indexer setting, so there is no
+per-indexer tag to forget — every indexer query and every one of Prowlarr's
+own vendor calls goes through it or is denied outright. An unconfigured
+qBittorrent or Prowlarr fails the same way: no error, no warning, just a
+tracker or indexer that never hears from it. What the label buys is the
+failure mode: the companion
 `CiliumClusterwideNetworkPolicy` (`media-egress-clients`) puts a labelled pod
 into default-deny egress and admits only DNS, the SOCKS5 endpoint, and the
 rest of the `media` namespace — so a pod that never picked up its proxy
@@ -363,6 +365,14 @@ handler into a liveness restart.
 
 ## Traps
 
+- **Prowlarr's `proxyBypassLocalAddresses` does not treat `.svc.cluster.local`
+  as local.** With the global proxy on and no bypass filter, Prowlarr tries to
+  reach Sonarr through the tunnel — which cannot route to a cluster address —
+  and presents it as `Unable to complete application test, cannot connect to
+  …` against the \*arr application. That points at the application, not at the
+  proxy, and it is the trap most likely to cost time again: the fix is
+  `proxyBypassFilter` set to `*.svc.cluster.local,*.cluster.local,localhost`,
+  and it only takes effect on restart.
 - **The return-path trap belonged to kernel networking, and cannot recur
   under userspace mode.** With a TUN device, an exit node's `0.0.0.0/0` in
   route table 52 caught the pod's own *new outbound* connections to cluster
@@ -437,13 +447,14 @@ handler into a liveness restart.
   the home address even though the connection itself goes out via Mullvad.
   Nothing in this repo closes it, and closing it would mean giving up
   `TS_ACCEPT_DNS=false` and the cluster-name resolution this pod depends on.
-- **The egress policy covers indexer traffic, not Prowlarr's own calls to its
-  vendor.** `media-egress-clients` admits DNS, the SOCKS5 endpoint and, for
-  Prowlarr, the rest of the `media` namespace. Prowlarr's tag-scoped indexer
-  proxy applies to indexer queries, but Prowlarr's own update and health
-  checks against its vendor's endpoints are a separate code path and are
-  denied unless the global proxy under Settings → General is also set. The
-  same policy means Prowlarr can no longer reach
+- **The egress policy covers indexer traffic and Prowlarr's own calls to its
+  vendor alike, which is why the proxy setting is global.** `media-egress-clients`
+  admits DNS, the SOCKS5 endpoint and, for Prowlarr, the rest of the `media`
+  namespace — nothing else. A tag-scoped, per-indexer proxy would leave
+  Prowlarr's own update and health checks against its vendor's endpoints on a
+  separate code path, denied with nothing to route them; the global proxy
+  under Settings → General covers both, which is why bring-up set it there
+  rather than per indexer. The same policy means Prowlarr can no longer reach
   `qbittorrent.media-downloads.svc:8080` either — registering qBittorrent as
   a download client from inside Prowlarr will fail; the \*arr applications
   register it directly instead and are unaffected.
@@ -481,28 +492,49 @@ Re-enrolment also needs the `tailscale-auth` OAuth key to still be usable —
 a single-use key means this node never enrols and the VPN stays down until a
 fresh key is minted.
 
-1. Scale the `media-egress` Deployment to 1 and watch `tailscale` reach `/healthz`. A
-   crash loop here is the apiserver rule or the uid-0 rule rather than the
-   tunnel.
-2. Confirm the pinned node is still served (`tailscale exit-node list` in the
-   pod) and that the `media-egress-tailscale-state` Secret was written — proof the
-   cluster-CIDR and apiserver exclusions in the ruleset didn't swallow
-   containerboot's own traffic.
-3. **Leak test.** The apparent egress address from inside the `media-egress` pod is
-   the exit node's, not the site's.
-4. **Kill-switch test.** Kill the `tailscale` container; the `media-egress` pod's own
-   egress stops rather than falling back to its own route. This proves the
-   tunnel's guarantee, not qBittorrent's or Prowlarr's — neither shares this
-   pod's namespace.
-5. **Client egress test.** With `egress.homelab/via: media-egress` on both pods and
-   each application's own proxy setting pointed at
-   `media-egress-socks5.media-downloads.svc.cluster.local:1055`, block the SOCKS5
-   endpoint and confirm both stop reaching the internet rather than falling
-   back to a direct route — the property Cilium's policy is responsible for
-   now.
-6. **UDP.** With a torrent running, check whether DHT and peer discovery
-   actually happen. That settles the `UDP ASSOCIATE` question in "Egress by
-   label" without reading tailscaled's source.
+Verified 2026-09-26:
+
+1. The node enrolled as `media-egress`, the pinned exit node applied
+   (`tailscale exit-node list` in the pod), and the `readinessProbe` passed —
+   proof the cluster-CIDR and apiserver exclusions in the ruleset didn't
+   swallow containerboot's own traffic.
+2. **Leak test.** The SOCKS5 listener binds under `TS_USERSPACE: "true"` and a
+   proxied dial egresses via the pinned exit node — the userspace-mode repeat
+   of the check "Egress by label" recorded under kernel networking, and the
+   assumption the whole design rested on.
+3. **Kill-switch test.** Killing the `tailscale` container stopped the
+   `media-egress` pod's own egress rather than falling back to its own route,
+   confirming the tunnel's guarantee — not qBittorrent's or Prowlarr's, since
+   neither shares this pod's namespace.
+4. **Client configuration.** Neither application routes anything until it is
+   told to, on its own terms — the label enforces, it does not route:
+   - **Prowlarr**: Settings → General → Proxy. SOCKS5,
+     `media-egress-socks5.media-downloads.svc.cluster.local`, port 1055 — the
+     global proxy, not a per-indexer setting (see "Egress by label"). Also set
+     `proxyBypassFilter` (above, "Traps") before relying on any application
+     test that names another `.svc` host.
+   - **qBittorrent**: Options → Connection → Proxy Server. SOCKS5, same host
+     and port, with both *Use proxy for peer connections* and *Use proxy for
+     hostname lookups* enabled.
+5. **Client egress test.** An unlabelled pod's connection to `:1055` was
+   refused, settling the `NotIn`/`DoesNotExist` selector question empirically
+   rather than from source: the label is genuinely the control. With the
+   label applied and both applications configured per the previous step,
+   Prowlarr and qBittorrent each failed closed on a direct connection and each
+   reached the internet through the proxy.
+6. **Regression check.** Nothing about the `media-egress` pod suffered for the
+   `media-egress-socks5-restrict` ingress deny: zero restarts, and Prometheus
+   reports `up=1` for its `:9002` scrape — the host-identity path the
+   `enableDefaultDeny` trap above warns about stayed intact.
+7. altHUB, a private Usenet indexer, reached the internet through the exit
+   node without incident. Some indexers reject known VPN or hosting-range
+   addresses outright; a `toFQDNs` exception carved out of
+   `media-egress-clients` would let one indexer's traffic bypass the proxy and
+   dial out directly, for exactly that case. None has needed it, so it stays a
+   contingency rather than something built.
+8. **UDP — outstanding.** With a torrent running, check whether DHT and peer
+   discovery actually happen. That settles the `UDP ASSOCIATE` question in
+   "Egress by label" without reading tailscaled's source.
 
 qBittorrent's own Web UI password, hostname whitelist and registration with
 Sonarr, Radarr and Lidarr are ordinary workload bring-up, not VPN bring-up —
