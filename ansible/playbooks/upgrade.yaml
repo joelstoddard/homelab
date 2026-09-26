@@ -18,9 +18,13 @@
 - name: Resolve the upgrade targets.
   hosts: localhost
   connection: local
-  gather_facts: false
+  # Minimal facts only, for the Pi preflight below: it needs ansible_system.
+  gather_facts: true
+  gather_subset:
+    - "!all"
   vars:
     upgrade_candidates: "{{ groups['talos'] | default([]) if upgrade_hosts == 'all' else upgrade_hosts }}"
+    upgrade_pi_targets: "{{ upgrade_candidates | intersect(groups['pis'] | default([])) }}"
   tasks:
     - name: Require an explicit target list.
       ansible.builtin.assert:
@@ -37,6 +41,20 @@
         fail_msg: >-
           Not Talos nodes (NetBox platform talos):
           {{ upgrade_candidates | difference(groups['talos'] | default([])) }}
+
+    - name: Refuse to roll a Pi from a control host that cannot serve netboot.
+      # A Pi upgrade IS refreshing its netboot assets, which runs the 00-pxe
+      # role and needs Docker host networking — Linux only. On macOS the
+      # containers start and quietly serve nothing, so fail before the roll.
+      ansible.builtin.assert:
+        that:
+          - upgrade_pi_targets | length == 0 or ansible_facts['system'] == 'Linux'
+        fail_msg: >-
+          Pi targets ({{ upgrade_pi_targets | join(', ') }}) need a Linux
+          control host: their upgrade refreshes the netboot assets through
+          the 00-pxe role, and that needs Docker host networking, which
+          {{ ansible_facts['system'] }} does not support. Run this from the
+          operator VM, or target only VMs from here — those roll fine.
 
     - name: Register the targets.
       ansible.builtin.add_host:
