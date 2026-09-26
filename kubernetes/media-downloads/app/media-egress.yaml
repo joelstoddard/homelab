@@ -200,7 +200,7 @@ spec:
               memory: 256Mi
       containers:
         - name: gost
-          image: gogost/gost:v3.3.0
+          image: gogost/gost:3.3.0
           # Both bind and udp default off in gost; bind is what libtorrent's
           # SOCKS5 session needs to complete, udp is what uTP and DHT need —
           # trimming either silently reintroduces the bug this replaces.
