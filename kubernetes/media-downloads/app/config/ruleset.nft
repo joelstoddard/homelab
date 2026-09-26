@@ -1,5 +1,5 @@
-# Kernel mode again: gost dials out as uid 1000, so this ruleset now governs
-# every proxied connection rather than being redundant with a uid-0 accept.
+# gost dials out as uid 1000, so this ruleset governs every proxied
+# connection instead of being redundant with a uid-0 accept.
 # See docs/design/media-egress.md, "Inside the ruleset".
 #
 # Nothing here may contain a dollar sign. This file is a configMapGenerator
@@ -24,7 +24,7 @@ table inet ts-killswitch {
     # but not sufficient: its pre-tunnel HTTPS carries no mark.
     meta mark and 0xff0000 == 0x80000 counter accept
 
-    # Live again in kernel mode: tailscaled creates tailscale0, and this is
+    # The tunnel's own interface: tailscaled creates tailscale0, and this is
     # what lets gost's own dials out through the tunnel.
     oifname "tailscale0" counter accept
 
@@ -37,7 +37,7 @@ table inet ts-killswitch {
     # address by the time this chain sees it; containerboot fatals without it.
     ip daddr 10.0.0.0/20 tcp dport 6443 counter accept
 
-    # tailscaled's own bootstrap only now: control plane and DERP, which run
+    # Covers only tailscaled's own bootstrap: control plane and DERP, which run
     # before the tunnel exists and so carry no fwmark. gost dials as uid 1000
     # and is governed by the rules above it, not by this hole.
     meta skuid 0 counter accept

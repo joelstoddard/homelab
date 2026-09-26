@@ -22,9 +22,9 @@ spec:
         app.kubernetes.io/name: qbittorrent
         egress.homelab/via: media-egress
     spec:
-      # Named rather than omitted: this pod used to name the tunnel's
-      # ServiceAccount, and dropping a defaulted field from a manifest does not
-      # clear the value already on the object.
+      # Named rather than omitted: a defaulted field keeps whatever value is
+      # already on the object even after it's dropped from the manifest, so
+      # writing `default` explicitly is what guarantees it.
       serviceAccountName: default
       # amd64 only, following Jellyfin: the Pis' USB-backed Longhorn replicas
       # are slow under this client's constant small writes.

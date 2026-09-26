@@ -106,7 +106,7 @@ spec:
               value: media-egress-tailscale-state
             - name: TS_AUTH_ONCE
               value: "true"
-            # Kernel mode again: a tailscale0 interface in this shared netns
+            # Kernel mode: a tailscale0 interface in this shared netns
             # is what lets gost, not tailscaled, serve a full SOCKS5 proxy —
             # BIND included.
             - name: TS_USERSPACE
@@ -173,7 +173,7 @@ spec:
             timeoutSeconds: 5
           # Withdraws the media-egress-socks5 endpoint, not a restart target: /healthz
           # only proves a tailnet address, but a lost exit node lets a
-          # proxied dial fall back to a direct system dial with no route to
+          # proxied dial go out as a direct system dial, with no route to
           # catch it (docs/design/media-egress.md, "The VPN boundary").
           readinessProbe:
             exec:
@@ -184,7 +184,7 @@ spec:
             periodSeconds: 10
             failureThreshold: 3
             timeoutSeconds: 5
-          # Programs routes into tailscale0 again, now that gost shares this
+          # Programs routes into tailscale0: gost shares this
           # netns and needs a real interface to dial through.
           securityContext:
             capabilities:
