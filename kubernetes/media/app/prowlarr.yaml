@@ -20,6 +20,9 @@ spec:
     metadata:
       labels:
         app.kubernetes.io/name: prowlarr
+        # Enrols this pod in kubernetes/media-egress/: it may reach the SOCKS5
+        # proxy, and may not reach the internet directly any other way.
+        egress.homelab/via: media-egress
     spec:
       nodeSelector:
         kubernetes.io/arch: amd64
