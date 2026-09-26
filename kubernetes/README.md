@@ -40,6 +40,9 @@ install that gets Flux running in the first place.
       on `home.<domain>` (`glance/`), and Home Assistant on
       `homeassistant.<domain>` (`home-assistant/`) — see "SearXNG", "Media",
       "Glance" and "Home Assistant"
+- [-] Media egress — cluster-scoped Cilium policies gating the
+      `egress.homelab/via: media-egress` label onto the `media-egress` Deployment's SOCKS5 proxy
+      (`media-egress/`, `dependsOn: cilium, media-downloads`) — see "Media egress"
 
 ## Layout
 
@@ -613,7 +616,8 @@ library: one read-write `PersistentVolume` over the export on `voyager`, one
 claim, and every application deploying into it. Today it holds that volume,
 Jellyfin on `jellyfin.<domain>`, Prowlarr, Sonarr, Radarr, Lidarr, Bazarr,
 Seerr, SABnzbd and Recyclarr — the torrent client lives next door in
-`media-downloads/`, behind its own VPN. Seven have a metrics exporter —
+`media-downloads/`, reaching the internet through that namespace's VPN
+egress. Seven have a metrics exporter —
 everything but Seerr, which exposes no Prometheus endpoint, and Recyclarr,
 which is a CronJob. Rationale:
 [`docs/design/media-foundation.md`](../docs/design/media-foundation.md) for
@@ -623,7 +627,7 @@ the shared namespace and storage, with one document per application —
 [`docs/design/bazarr.md`](../docs/design/bazarr.md),
 [`docs/design/seerr.md`](../docs/design/seerr.md),
 [`docs/design/sabnzbd.md`](../docs/design/sabnzbd.md),
-[`docs/design/qbittorrent-vpn.md`](../docs/design/qbittorrent-vpn.md),
+[`docs/design/media-egress.md`](../docs/design/media-egress.md),
 [`docs/design/recyclarr.md`](../docs/design/recyclarr.md) and
 [`docs/design/arr-metrics.md`](../docs/design/arr-metrics.md).
 
@@ -699,6 +703,50 @@ flux --context homelab get ks media
 kubectl --context homelab -n media get pods,pvc,svc
 kubectl --context homelab get pv media-library                  # Bound, Retain
 kubectl --context homelab -n media exec deploy/jellyfin -- ls /media
+```
+
+## Media egress
+
+`media-egress/` (`dependsOn: cilium, media-downloads`) is two cluster-scoped
+`CiliumClusterwideNetworkPolicy` resources gating the label
+`egress.homelab/via: media-egress` — the whole enrolment step for any pod, in any
+namespace, that needs the SOCKS5 proxy the `media-egress` Deployment exposes on
+`:1055` (`media-egress-socks5.media-downloads.svc.cluster.local`). Its own
+layer because both CRs are cluster-scoped, the same reason
+`cert-manager-issuers` sets no namespace. Prowlarr (`media/`) is the first
+consumer outside `media-downloads` itself. Rationale, and why the label
+enforces reachability without configuring an app's own proxy setting:
+[`docs/design/media-egress.md`](../docs/design/media-egress.md), "Egress
+by label".
+
+Consequences:
+
+- **`media-egress-clients` puts a labelled pod into default-deny egress**,
+  admitting only DNS, the `media` namespace, and the SOCKS5 endpoint — so a
+  labelled pod that never picked up its own proxy setting fails to reach the
+  internet directly rather than leaking through it. The third rule admits the
+  whole `media` namespace, not just the proxy, so a workload elsewhere in it
+  with its own WAN egress is a bypass this policy does not close.
+- **`media-egress-socks5-restrict` protects the listener, which takes no
+  credentials.** It denies port-1055 ingress from anything not carrying the
+  label, plus the `world`, `host` and `remote-node` entities.
+  `enableDefaultDeny: {ingress: false}` on it is load-bearing: without that
+  override Cilium's own default would put the `media-egress` pod itself into
+  default-deny ingress and break the kubelet's probes and Alloy's `:9002`
+  scrape.
+- **qBittorrent and Prowlarr get the same guarantee, and it is Cilium's, not
+  the kill switch's.** The nftables kill switch protects only the `media-egress`
+  pod's own network namespace — nothing else runs there. A labelled pod
+  reaches the SOCKS5 endpoint because tailscaled forwards it into the tunnel,
+  and this policy's default-deny egress is what stops it reaching anything
+  else, kernel-enforced the same way the kill switch is, just by a different
+  mechanism.
+- **SABnzbd is deliberately unlabelled.** Usenet needs no VPN.
+
+```bash
+flux --context homelab get ks media-egress
+kubectl --context homelab get ciliumclusterwidenetworkpolicies
+kubectl --context homelab -A get pods -l egress.homelab/via=media-egress
 ```
 
 ## Glance
@@ -1129,3 +1177,8 @@ merge lands on `main`. `make -C kubernetes` afterwards is still a no-op.
   reclaims with `Delete`), taking Jellyfin's users and watch history. The
   library volume is `Retain` and holds no data of its own, so the library on
   `voyager` survives any mistake made here.
+- **Pruning `media-egress/` is the quietest footgun here.** It removes both
+  `CiliumClusterwideNetworkPolicy` objects: the SOCKS5 proxy becomes reachable
+  by every pod in the cluster and qBittorrent's and Prowlarr's egress
+  lockdown both disappear — and nothing breaks, so nothing signals it
+  happened.

@@ -82,6 +82,10 @@ and therefore need the export root at `/media`.
   Sonarr, Radarr and Lidarr must use it verbatim, and any shell touching these
   paths must quote them. Renaming is out of scope: it would invalidate
   Jellyfin's existing library paths.
+- **"Prowlarr can't reach an indexer" may be the VPN egress label, not the
+  indexer.** Prowlarr's pod carries `egress.homelab/via: media-egress`, which puts it
+  into default-deny egress outside DNS, `media` and the SOCKS5 proxy — see
+  `docs/design/media-egress.md`, "Egress by label".
 
 ## Bring-up
 
@@ -120,7 +124,7 @@ deliberately do not carry:
    fails with a **401 that reads as bad credentials** rather than as a rejected
    hostname, which is the misdiagnosis worth avoiding. It cannot be a manifest:
    the setting lives in `qBittorrent.conf` on the config volume, which the
-   application writes itself. See `docs/design/qbittorrent-vpn.md`.
+   application writes itself. See `docs/design/media-egress.md`.
 6. Register qBittorrent as a download client in Sonarr, Radarr and Lidarr —
    host `qbittorrent.media-downloads.svc.cluster.local`, port 8080, the Web UI
    credentials. "Test" must go green before saving.

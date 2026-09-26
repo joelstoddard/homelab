@@ -15,13 +15,15 @@ document:
 | Bazarr | `docs/design/bazarr.md` |
 | Seerr | `docs/design/seerr.md` |
 | SABnzbd | `docs/design/sabnzbd.md` |
-| qBittorrent, `media-downloads` and its VPN kill switch | `docs/design/qbittorrent-vpn.md` |
+| `media-downloads`, its VPN egress and the workloads that route through it | `docs/design/media-egress.md` |
 | Recyclarr | `docs/design/recyclarr.md` |
 | Metrics (exportarr) across the stack | `docs/design/arr-metrics.md` |
 
 Every piece is deployed: the `media` namespace (`baseline` PodSecurity) and
-the `media-downloads` namespace (`privileged`, for the torrent client's VPN
-sidecar alone). The torrent client has run at full `replicas: 1` since
+the `media-downloads` namespace (`privileged`, for the standalone `media-egress`
+Deployment's `killswitch` init container alone — the tailscale container
+itself holds no capability). The torrent client has run at full `replicas: 1`
+since
 2026-09-20, and the standalone `jellyfin/` layer that predated this stack was
 retired the same week `media` took over serving `jellyfin.${DOMAIN}`.
 
@@ -50,16 +52,18 @@ The same doc left a second instruction, and this project is what triggers it:
 
 ### Two namespaces
 
-PodSecurity Admission is enforced per namespace, and exactly one workload in
-this stack needs more than `baseline`: the torrent client, which wants
-`NET_ADMIN` and `/dev/net/tun` for its VPN sidecar. Putting it alongside the
-rest would drag Jellyfin and seven \*arr applications into a privileged
-namespace to satisfy one pod.
+PodSecurity Admission is enforced per namespace, and exactly one container in
+this stack needs more than `baseline`: the `killswitch` init container on the
+standalone `media-egress` Deployment, which wants `NET_ADMIN` to install its nftables
+ruleset. There is no TUN device and no VPN sidecar — the tunnel is userspace
+Tailscale running in its own pod (`docs/design/media-egress.md`, "The VPN
+boundary"). Putting it alongside the rest would drag Jellyfin and seven \*arr
+applications into a privileged namespace to satisfy one container.
 
 | Namespace | PSA enforce | Workloads |
 | --- | --- | --- |
 | `media` | `baseline` | Jellyfin, Prowlarr, Sonarr, Radarr, Lidarr, Bazarr, Seerr, SABnzbd, Recyclarr |
-| `media-downloads` | `privileged` | qBittorrent plus its Tailscale sidecar — deployed and running |
+| `media-downloads` | `privileged` | qBittorrent, and the standalone `media-egress` Deployment — deployed and running |
 
 `baseline` rather than `restricted`, and stated explicitly on the namespace
 rather than left to the cluster default, because it is a requirement here: the
@@ -213,7 +217,7 @@ PersistentVolume scoped to the `downloads` subdirectory, mounted at
 and mounts the export root at `/media` like the \*arr do, because it is the
 importing side's peer: Sonarr reads the completed path SABnzbd reports, and
 that path has to mean the same thing in both mount namespaces. See
-`docs/design/sabnzbd.md` and `docs/design/qbittorrent-vpn.md` for how each
+`docs/design/sabnzbd.md` and `docs/design/media-egress.md` for how each
 client uses it.
 
 ## Placement and resources
