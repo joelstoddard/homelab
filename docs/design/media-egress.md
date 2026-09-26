@@ -190,6 +190,51 @@ to userspace mode — and it proved the listener and the exit node both work.
 It said nothing about where hostname lookups happen; see the DNS trap below
 for that.
 
+## FlareSolverr
+
+FlareSolverr (`kubernetes/media/app/flaresolverr.yaml`) solves Cloudflare
+challenges on Prowlarr's behalf, and it must egress through the same exit
+node Prowlarr uses. That is not a privacy preference: a Cloudflare clearance
+cookie is bound to the IP address that solved the challenge, so a cookie
+FlareSolverr earns from one address is worthless the moment Prowlarr presents
+it from another. Both carry `egress.homelab/via: media-egress`, so both are
+pinned to the one exit node the layer offers.
+
+**`PROXY_URL` makes FlareSolverr the one client in this layer whose routing
+is declarative rather than database state.** qBittorrent's and Prowlarr's
+proxy settings live in their own SQLite config, set once by hand and silent
+if it's ever unset again; FlareSolverr's `PROXY_URL` environment variable is
+read at container start, so its routing is committed alongside the label
+that permits it, and a redeploy cannot drift the two apart the way a
+forgotten UI checkbox can.
+
+FlareSolverr deliberately has no `IngressRoute`. It is an unauthenticated
+fetcher of arbitrary URLs with nothing behind it but a status page, so the
+only consumer is Prowlarr, over `.svc`; putting it behind the wildcard
+certificate would publish an open fetcher to anything that can resolve the
+domain.
+
+`media-egress-flaresolverr-restrict` narrows the remaining surface to Prowlarr,
+but it is not the same shape as the SOCKS5 deny beside it and the difference is
+deliberate. That policy also denies the `host` and `remote-node` entities;
+this one cannot, because FlareSolverr serves its API and its kubelet probes on
+the same 8191, and denying the host identity would stop the pod ever reaching
+Ready. The residue is that host-network pods — the Alloy and Beyla collectors —
+can reach it. They are ours, which is the only reason that is tolerable.
+
+**Whether tracker hostnames leak to cluster DNS is unverified.** Chrome
+resolves a `socks5://` proxy's target hostname itself before handing the
+connection to the proxy — the distinction a `socks5h://` scheme exists to
+close — so a Cloudflare-gated indexer's hostname may be looked up through
+cluster DNS and leave over the WAN even though the fetch that follows still
+goes out via the exit node. Confirm at bring-up rather than assuming either
+way.
+
+**Bring-up is partly database state, not manifest.** FlareSolverr must be
+registered in Prowlarr under Settings → Indexers → Proxies, given a tag, and
+that tag applied to each indexer that needs it — none of which a Kustomize
+resource can express.
+
 ## Inside the ruleset
 
 `kubernetes/media-downloads/app/config/ruleset.nft` is the whole kill switch,

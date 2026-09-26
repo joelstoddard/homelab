@@ -20,6 +20,7 @@ resources:
   - jellyfin-exporter.yaml
   - prowlarr.yaml
   - prowlarr-exporter.yaml
+  - flaresolverr.yaml
   - sonarr.yaml
   - sonarr-exporter.yaml
   - radarr.yaml

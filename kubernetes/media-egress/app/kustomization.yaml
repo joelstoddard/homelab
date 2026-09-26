@@ -7,3 +7,4 @@ resources:
   - ccnp-socks5-restrict.yaml
   - ccnp-egress-clients.yaml
   - ccnp-egress-prowlarr.yaml
+  - ccnp-flaresolverr-restrict.yaml
