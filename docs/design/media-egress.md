@@ -49,13 +49,11 @@ The tailscale container runs in kernel networking (`TS_USERSPACE: "false"`):
 a real `tailscale0` interface, a real default route in route table 52, and
 `gost` — not tailscaled — serving SOCKS5 on `:1055` from the same network
 namespace. That split exists because tailscaled's own SOCKS5 implementation
-answers *command not supported* for `BIND`, and libtorrent gates a proxied
-peer connection on its SOCKS5 session completing `BIND` first; tested live
-against tailscaled's SOCKS5 server, that made qBittorrent hold exactly one
-idle proxy session and connect to no peer, ever, with nothing in any log to
-say why (see "Rejected, and why"). `gost` implements `BIND` — and `UDP
-ASSOCIATE`, which was never the problem — so putting it in front of a
-kernel-mode tunnel is what makes a peer connection possible at all.
+serves `CONNECT` alone and answers *command not supported* for `BIND`, which
+leaves a torrent client with tracker announces and nothing else (see
+"Rejected, and why"). `gost` implements `BIND` and `UDP ASSOCIATE`, so putting
+it in front of a kernel-mode tunnel is what makes a peer connection possible
+at all.
 
 A TUN device means table 52's
 `0.0.0.0/0` catches the pod's own outbound traffic to cluster destinations
@@ -181,20 +179,21 @@ SOCKS5 listener does so because `gost` dials out through `tailscale0`; if it
 reaches for anything else, Cilium is what stops it, not
 `kubernetes/media-downloads/app/config/ruleset.nft`.
 
-**The `UDP ASSOCIATE` question is settled; `BIND` was the actual blocker.**
-DHT, uTP and UDP trackers are most of what a healthy swarm actually uses, and
-SOCKS5 only carries UDP through `UDP ASSOCIATE` — tested directly against the
-live proxy, from a routable address, from `127.0.0.1` and from the wildcard,
-and it works. What doesn't is `BIND`: tailscaled's own SOCKS5 server answers
-*command not supported* for it, and libtorrent gates a proxied peer
-connection on that same SOCKS5 session completing a `BIND` first, not on
-`UDP ASSOCIATE`. The failure that produced was total rather than quiet: a
-torrent that knew about 191 seeders and connected to none of them, trackers
-working throughout, because a tracker announce is a plain `CONNECT`. `gost`
-(`socks5://:1055?bind=true&udp=true`) is the fix — both flags are off by
-default in `gost`, and trimming either silently reopens one of the two
-failures, the `BIND` one total, the `UDP` one quiet. Confirm at bring-up
-(below) that libtorrent actually completes a session and downloads.
+**`UDP ASSOCIATE` needs an egress rule the SOCKS5 port does not imply.**
+DHT, uTP and UDP trackers are most of what a healthy swarm uses, and SOCKS5
+carries UDP only through `UDP ASSOCIATE`, which a client negotiates on `:1055`
+and the proxy then relays on an **ephemeral UDP port of its own choosing**.
+So `media-egress-clients` admits UDP 1024-65535 to the proxy pod alongside
+TCP 1055. Trimming that range to the one port the handshake uses reads as
+tidier and is the quietest failure in this layer: the association still
+succeeds, every datagram through it is dropped, and the only evidence is
+`cilium-dbg monitor --type drop` on the client's node. A torrent then knows
+about a thousand seeders, connects to none, and keeps announcing to its
+tracker throughout, because an announce is a plain `CONNECT` over TCP.
+`gost` runs as `socks5://:1055?bind=true&udp=true`; both flags are off by
+default, and `udp=true` without the egress range buys nothing. Confirm at
+bring-up (below) that a datagram actually round-trips, not merely that the
+association is granted.
 
 The other policy in the layer, `media-egress-socks5-restrict`, protects the listener
 itself. It takes no credentials, so without this policy it is an open proxy
@@ -616,11 +615,12 @@ Verified 2026-09-26:
    `media-egress-clients` would let one indexer's traffic bypass the proxy and
    dial out directly, for exactly that case. None has needed it, so it stays a
    contingency rather than something built.
-8. **UDP ASSOCIATE — settled, but not by this run.** Tested directly against
-   the live proxy afterward, from a routable address, from `127.0.0.1` and
-   from the wildcard: it works, and was never what stopped qBittorrent from
-   connecting to peers. See "Egress by label" and "Rejected, and why" for
-   what the actual blocker was.
+8. **UDP ASSOCIATE, end to end.** A labelled pod negotiates an association on
+   `:1055`, sends a DNS query and a DHT ping through the relay port `gost`
+   hands back, and gets both answers. Granting the association proves nothing
+   on its own — that half succeeds over the TCP control connection whatever
+   the UDP policy says, which is why the check is a round-trip and not a
+   handshake.
 
 qBittorrent's own Web UI password, hostname whitelist and registration with
 Sonarr, Radarr and Lidarr are ordinary workload bring-up, not VPN bring-up —
@@ -644,11 +644,11 @@ and from the outside the two failures look identical. Every rule keeps its
 counter for that reason, and the final `drop` is written out explicitly rather
 than left to the chain policy, because a policy cannot count.
 
-The question this run left open — whether tailscaled's SOCKS5 server
-implements `UDP ASSOCIATE` — turned out not to be the one that mattered: it
-does, and qBittorrent still never connected to a single peer. `BIND` was the
-actual gap; see "Rejected, and why" for how that surfaced and what replaced
-it.
+**Cilium keeps no such counter per rule, and a SOCKS5 UDP relay is where that
+costs most.** A denied datagram leaves nothing in the proxy's log, the
+client's log or the policy's status — only
+`cilium-dbg monitor --type drop` on the client's node names it. Reach for
+that before believing a proxy is at fault for UDP that goes nowhere.
 
 ### Outstanding after the move to gost
 
@@ -662,9 +662,8 @@ directly:
    running between `killswitch` and `tailscale` in the init sequence.
 2. A proxied HTTP client still egresses via the pinned exit node, through
    `gost`'s SOCKS5 listener.
-3. The one that motivated all of this: with a torrent added, qBittorrent's
-   SOCKS5 session completes a `BIND` and it actually connects to peers and
-   downloads, not just to trackers.
+3. The one that motivated all of this: with a torrent added, qBittorrent
+   actually connects to peers and downloads, not just to trackers.
 
 ## Rejected, and why
 
@@ -690,24 +689,20 @@ directly:
   is the same `CiliumClusterwideNetworkPolicy` mechanism that protects
   Prowlarr, covering qBittorrent's own traffic too, so both consumers share
   one guarantee rather than qBittorrent alone holding a stronger one. The cost
-  is real, and sharper than a missing `UDP ASSOCIATE`: SOCKS5
-  needs `BIND` for libtorrent's peer connections to complete at all, which
-  tailscaled's own SOCKS5 server does not offer regardless of which pod serves
-  it (see the userspace-mode entry below).
+  is real: a torrent client needs more of SOCKS5 than `CONNECT`, and
+  tailscaled's own SOCKS5 server offers only that regardless of which pod
+  serves it (see the userspace-mode entry below).
 
 - **Userspace-mode tailscaled serving SOCKS5 directly** — no host route at
   all; every proxied dial goes through tailscaled's own netstack, which would
   close the LAN-reach gap in `meta skuid 0 accept` and the
   direct-system-dial leak when an exit node drops out of the netmap
   entirely, without relying on the kill switch for either. Rejected because
-  tailscaled's SOCKS5 server implements `CONNECT` and `UDP ASSOCIATE` but
-  answers *command not supported* for `BIND`, and libtorrent will not open a
-  peer connection through a SOCKS5 proxy until its own session completes a
-  `BIND` first: against a live torrent with 191 known seeders, qBittorrent
-  held one idle proxy session and connected to none of them, trackers
-  working throughout because a tracker announce is a plain `CONNECT`, with
-  no error anywhere to point at the cause. No BitTorrent client can use
-  tailscaled's SOCKS5 server for peer traffic, which is what it exists to
+  tailscaled's SOCKS5 server serves `CONNECT` alone, answering *command not
+  supported* for `BIND`. A tracker announce is a plain `CONNECT` and works;
+  DHT and uTP are UDP and have no path at all, so a torrent reaches its
+  tracker, learns about a swarm, and stays at zero. No BitTorrent client can
+  use tailscaled's SOCKS5 server for peer traffic, which is what it exists to
   carry. `gost`, running kernel-mode tailscale as a native sidecar and
   serving `BIND` and `UDP ASSOCIATE` itself as uid 1000, is what makes peer
   connections possible, while the kill switch — not netstack's absence of a
