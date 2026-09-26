@@ -16,7 +16,7 @@ WORD = re.compile(r"\S+")
 
 
 def _tag(value):
-    return "<REDACTED sha256:%s>" % hashlib.sha256(value.encode()).hexdigest()[:8]
+    return f"<REDACTED sha256:{hashlib.sha256(value.encode()).hexdigest()[:8]}>"
 
 
 def _values(node):

@@ -62,7 +62,7 @@ addresses:
 
 
 def tag(value):
-    return "<REDACTED sha256:%s>" % hashlib.sha256(value.encode()).hexdigest()[:8]
+    return f"<REDACTED sha256:{hashlib.sha256(value.encode()).hexdigest()[:8]}>"
 
 
 class BundleRuleTest(unittest.TestCase):
@@ -76,7 +76,7 @@ class BundleRuleTest(unittest.TestCase):
             self.assertNotIn(value, self.out)
 
     def test_short_bundle_secret_is_redacted_whatever_its_shape(self):
-        self.assertIn('     secret: "%s"' % tag("shortSecret"), self.out)
+        self.assertIn(f'     secret: "{tag("shortSecret")}"', self.out)
 
     def test_bundle_value_inside_a_longer_value_is_redacted(self):
         self.assertIn("+apiUrl: https://siderolink.example.com?jointoken=" + tag("jointok3ndecoy"), self.out)
