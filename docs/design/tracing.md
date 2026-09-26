@@ -99,7 +99,7 @@ First hour live (2026-09-11), 24 h figures to follow:
 | --- | --- | --- |
 | Beyla working set | 320–390 MiB on every node at steady state; OOMKilled at 512Mi on the Grafana and Prometheus nodes | 512Mi limit at launch, 1Gi now |
 | Tempo working set | 155 MiB before the metrics-generator; OOMKilled once at 768Mi in the two days after it | 768Mi limit at launch, 1Gi now |
-| Series added by `job="beyla"` | ~37.8k (total ~382k): 28k are `http_client_*` histograms keyed by destination address, ~20k of all Beyla series are the body-size families | series-budget item in `TODO.md` |
+| Series added by `job="beyla"` | ~37.8k (total ~382k): 28k are `http_client_*` histograms keyed by destination address, ~20k of all Beyla series are the body-size families | series-budget item in #195 |
 | Instrumented namespaces | longhorn-system, traefik, monitoring, flux-system, cert-manager, tailscale | no kube-system, as designed |
 | Reconcile after merge | 6 min to both layers Ready; Beyla pods Running within 30 s of the HelmRelease | — |
 
@@ -108,7 +108,7 @@ Three days live (2026-09-15; peaks are `max_over_time[3d]`):
 | What | Measured | Budget |
 | --- | --- | --- |
 | Beyla working set, peak | 754 MiB while instrumenting a large binary; ~360 MiB steady | 1Gi limit |
-| Series from `job="beyla"` | ~66k, up from 37.8k once Grafana's node stayed instrumented | series-budget item in `TODO.md` |
+| Series from `job="beyla"` | ~66k, up from 37.8k once Grafana's node stayed instrumented | series-budget item in #195 |
 | Tempo working set, peak | 350 MiB with the metrics-generator | 1Gi limit |
 | Spans received by Tempo | ~670 a minute at the 10 % sample | — |
 | Service graph | 53 edge series; Grafana instrumented with 53 route series | — |
@@ -130,7 +130,8 @@ Three days live (2026-09-15; peaks are `max_over_time[3d]`):
   the EPHEMERAL wipe on 2026-09-15 (`docs/talos-bootstrap.md` "Recovery")
   cleared the layer and the fifteenth Beyla pod runs. Prometheus, which
   lived on that node, rescheduled
-  with its Longhorn volume within two minutes. Right-sizing is `TODO.md`.
+  with its Longhorn volume within two minutes. The VMs were sized later, on
+  zram (`docs/design/zram-swap.md`).
 - **Salsa OOM-killed `k8s-agent-06` at midnight the same way.** No operator
   VM there: 4000 + 5000 + 5000 MB of Talos VMs with ballooning off fill a
   16 GB NUC on their own once the guests do, and Beyla's footprint on two
@@ -193,7 +194,7 @@ Three days live (2026-09-15; peaks are `max_over_time[3d]`):
 - Beyla names a workload after its labels, which lumps the four Flux
   controllers together as `flux-system`, calls Traefik `traefik-traefik`
   and gives every Longhorn instance-manager pod its own hashed name in
-  the service graph (`TODO.md`).
+  the service graph (#196).
 - No SDK/OTLP ingestion from application code yet.
 - Tempo is not HA and has no object store.
 - Tempo logs `error calling scheduler … no jobs found` every 15 s while

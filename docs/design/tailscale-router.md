@@ -88,7 +88,7 @@ entry pins that.
   `exec format error` for every freshly unpacked image until its EPHEMERAL
   partition was wiped) leaves the router in CrashLoopBackOff indefinitely.
   Closing that gap needs the descheduler's `RemovePodsHavingTooManyRestarts`
-  or similar — tracked in `TODO.md`.
+  or similar — tracked in #146.
 - Resource limits are a first guess (`1` CPU / `256Mi`); benchmark and tune.
 - `:9002/metrics` is scraped via the pod's `prometheus.io/scrape` annotation;
   the dashboard is `monitoring/app/dashboards/Services/tailscale.json`.

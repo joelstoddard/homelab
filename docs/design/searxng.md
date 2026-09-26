@@ -20,7 +20,7 @@ Three constraints:
   before it — Cilium, Traefik, Longhorn, the monitoring stack — is
   infrastructure, so this layer is also the pattern the next application
   copies.
-- The NUCs have a recent history of OOM-killing Talos VMs (`TODO.md`), so
+- The NUCs run with almost no free memory (`docs/design/zram-swap.md`), so
   replica counts and memory limits are not free.
 - The repo is public.
 

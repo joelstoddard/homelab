@@ -197,8 +197,8 @@ assert on a real query.
   at ~14.4 of 15.5 GiB; the Cilium roll plus the Alloy pod on a 4 GB
   control-plane VM tipped Rumba, which also hosts the operator VM. The
   operator VM went from 8192/2048 to 4096/1024 (memory/balloon) and the
-  node was restarted; right-sizing the agents is still `TODO.md`. etcd's
-  quorum of five carried the loss.
+  node was restarted; the agents were sized later, on zram
+  (`docs/design/zram-swap.md`). etcd's quorum of five carried the loss.
 - **`apply-upgrade` did not restart etcd.** With an unchanged Talos build the
   play pushes config without a reboot; five graceful `talosctl reboot`s
   opened `:2381` (see the Talos control plane bullet above).
@@ -224,7 +224,7 @@ assert on a real query.
   0.5–1 GB and a control-plane VM otherwise keeps ~1.7 GB spare, so the
   size holds while etcd behaves; why this one member's etcd grows tenfold
   is the open question, and an alert on `process_resident_memory_bytes`
-  for `job="etcd"` is the cheap guard (`TODO.md`).
+  for `job="etcd"` is the cheap guard (#184).
 - **Rumba OOM-killed `k8s-agent-01` on 2026-09-13**, after the agents had
   been resized to 4000 MB: three 4 GB Talos VMs plus the 4 GB operator VM
   still exceed its 15.5 GiB once the guests fill. The operator VM was
