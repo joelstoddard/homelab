@@ -541,6 +541,22 @@ handler into a liveness restart.
   `qbittorrent.media-downloads.svc:8080` either — registering qBittorrent as
   a download client from inside Prowlarr fails; the \*arr applications
   register it directly instead and are unaffected.
+- **"Use proxy for BitTorrent purposes" does not proxy peer connections.**
+  That checkbox covers trackers; peer traffic is governed by a separate
+  setting, `Session\ProxyPeerConnections`, which qBittorrent defaults to
+  **false** and which is absent from `qBittorrent.conf` until it is set. Left
+  at the default, qBittorrent announces through the tunnel and then dials
+  every peer the tracker and DHT give it straight out of the pod — 658
+  distinct addresses in 100 seconds on one torrent. Only
+  `media-egress-clients` stands between that and a torrent swarm seeing the
+  home address, which is the entire case for the label. The failure looks
+  exactly like a dead VPN from inside the UI: trackers green, peers zero. See
+  "Bring-up" for the keys to confirm.
+- **`cilium-dbg monitor --related-to <endpoint>` is how a direct dial becomes
+  visible.** Run it on the client's node, against the endpoint id from
+  `cilium-dbg endpoint list`; `Policy denied ... identity <id>->world` naming
+  peer addresses is a client that never picked up its proxy setting, and a
+  quiet capture is one that did. The client logs nothing either way.
 - **The kill switch does not protect qBittorrent.** It covers only
   traffic inside the `media-egress` pod's own network namespace;
   qBittorrent runs in its own pod and gets Cilium's eBPF egress policy
@@ -597,8 +613,12 @@ Verified 2026-09-26:
      `proxyBypassFilter` (above, "Traps") before relying on any application
      test that names another `.svc` host.
    - **qBittorrent**: Options → Connection → Proxy Server. SOCKS5, same host
-     and port, with both *Use proxy for peer connections* and *Use proxy for
-     hostname lookups* enabled.
+     and port, with *Use proxy for hostname lookups* enabled and, separately,
+     *Use proxy for peer connections* — the one setting that decides whether
+     peer traffic leaves through the tunnel (below, "Traps"). Confirm all of
+     it in `/config/qBittorrent/qBittorrent.conf` rather than from the UI:
+     `Proxy\Type=SOCKS5`, `Proxy\Profiles\BitTorrent=true` and
+     `Session\ProxyPeerConnections=true` must all be present.
 5. **Client egress test.** An unlabelled pod's connection to `:1055` was
    refused, settling the `NotIn`/`DoesNotExist` selector question empirically
    rather than from source: the label is genuinely the control. With the
