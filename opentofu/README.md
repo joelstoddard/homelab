@@ -5,7 +5,7 @@ OpenTofu provisioning of resources on top of the fleet PXE-installed by `../ansi
 ## Layout
 
 - `resources/<host>/` — per-device root modules with their own state.
-- `modules/` — shared modules (`cloud-init-template/`, future `vm/`, `lxc/`, `nucs/`, `switches/`).
+- `modules/` — shared modules (`cloud-init-template/`, `k8s-vm/`, `lxc/`, `talos-image/`, `vm/`).
 - `secrets.sops.yaml` — SOPS-encrypted top-level secrets bundle. Shared values across resources (state encryption passphrase, Proxmox endpoint, LAN gateway). The Makefile extracts individual keys via `sops --extract`.
 - `resources/<host>/secrets.env` — *optional*, per-resource SOPS-encrypted dotenv. Holds keys scoped to one resource (e.g. a service password, a static IP). The Makefile eval-sources it as `export TF_VAR_*=…` lines inside the `run_tofu` loop, only when that resource is iterated. See `resources/pihole/` for the worked example.
 - `scripts/build-tf-encryption.sh` — assembles `TF_ENCRYPTION` JSON from the SOPS passphrase.
