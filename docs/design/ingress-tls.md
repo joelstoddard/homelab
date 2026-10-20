@@ -255,10 +255,10 @@ checking before touching a manifest:
   name against Pi-hole and expect the Traefik address before concluding the
   route is at fault.
 
-## LAN DNS: the wildcard and its two traps
+## LAN DNS: the wildcard and its traps
 
 The bare domain plus a wildcard gives the shortest names; the accepted cost is
-both traps below. `opentofu/resources/pihole/` writes `misc.dnsmasq_lines`:
+the traps below. `opentofu/resources/pihole/` writes `misc.dnsmasq_lines`:
 `pihole_wildcard_domain` + `pihole_cluster_ingress_ip` generate
 `address=/example.com/192.168.1.x`, and each `pihole_dns_passthrough_names` entry
 generates `server=/<name>/#` (all three SOPS-encrypted; they hold real network
@@ -295,6 +295,25 @@ IP. Two guards in the tofu: `pihole_dns_passthrough_names` validates each entry
 as an FQDN (a bare label would shadow an entire TLD), and
 `templates/install.sh.tftpl` runs `pihole-FTL dnsmasq-test`, so a malformed line
 fails the apply.
+
+**Trap 3 — any second resolver in DHCP makes names vanish one at a time.** Split
+horizon only works if clients ask Pi-hole and nothing else. When DHCP option 6
+also lists the router (a router firmware update can put it back), clients
+query both. The router answers every cluster name `NXDOMAIN`,
+and clients cache that for the zone's SOA negative TTL, up to 30 minutes, while
+dnsmasq's default `local-ttl` of 0 means Pi-hole's correct answer is never
+cached. Each lookup is a fresh race, and a name that loses one is "down" for
+up to half an hour while its neighbours resolve. One service gone while the
+rest work is the signature of this trap, not evidence against it (#249).
+`dig` straight at Pi-hole succeeding while the browser fails confirms it;
+`ipconfig getpacket en0 | grep domain_name_server` on a Mac shows the cause.
+The fix is in the router: hand out Pi-hole only, which makes the one Pi-hole
+LXC a single point of failure for LAN DNS until the second resolver in
+`docs/design/dns-chain.md` exists. `local-ttl=300` in the generated lines
+narrows the window if the router reverts, because a good answer then sticks
+for five minutes instead of re-racing on every lookup. The cost is that a
+changed Traefik LB IP, or an edited Pi-hole Local DNS record, takes up to
+five minutes to reach clients.
 
 ## Staging first
 

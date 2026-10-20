@@ -19,10 +19,10 @@ LAN name resolution rested on a single Pi-hole LXC answering every name under
 the domain from one line, `address=/example.com/192.168.1.x`. That line did the
 work of a zone, and four things followed from it.
 
-One LXC was a single point of failure for all name resolution, which is why
-"hand out Pi-hole as the ONLY resolver over DHCP" cannot be done yet —
-removing the public fallbacks needs a second resolver first, so it is folded
-into #151. Being
+One LXC was a single point of failure for all name resolution. DHCP hands out
+Pi-hole as the only resolver, because any second resolver breaks split horizon
+(`docs/design/ingress-tls.md`, trap 3), so while that LXC is down the LAN has
+no DNS at all; the chain's second resolver (#151) is what removes that. Being
 authoritative for the whole domain meant every name under it was synthesised
 from one A record and none were forwarded, so `TXT` returned NODATA and a
 missing passthrough gave a valid certificate and a Traefik 404. And every
