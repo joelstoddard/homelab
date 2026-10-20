@@ -105,7 +105,11 @@ podAnnotations:
 resources:
   requests:
     cpu: 100m
-    memory: 256Mi
+    memory: 320Mi
   limits:
     cpu: 500m
-    memory: 512Mi
+    memory: 768Mi
+# ~72 MiB of the working set sits outside GOMEMLIMIT, so the chart's 0.9 puts
+# the GC's target above the container limit. docs/design/observability.md.
+goMemLimit:
+  factor: 0.8
