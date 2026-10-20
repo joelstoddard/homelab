@@ -29,6 +29,15 @@ spec:
               port: 9617
             initialDelaySeconds: 5
             periodSeconds: 10
+          # v1.2.0 wedges for good after one timed-out scrape; restart it
+          # when /metrics stops answering. docs/design/host-monitoring.md.
+          livenessProbe:
+            httpGet:
+              path: /metrics
+              port: 9617
+            periodSeconds: 60
+            timeoutSeconds: 15
+            failureThreshold: 3
           env:
             - name: PIHOLE_HOSTNAME
               value: "${PIHOLE_IP}"

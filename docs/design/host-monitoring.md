@@ -124,6 +124,23 @@ throughout: a public repo (no address or domain in plaintext), PodSecurity
   `${PIHOLE_IP}`. Its TLS-skip variable is `SKIP_TLS_VERIFICATION` — v1.2.0's
   name for it, not the `PIHOLE_`-prefixed one the other variables suggest —
   and the LXC's certificate is self-signed, so it is on.
+- **A liveness probe on `/metrics` restarts a wedged `pihole-exporter`.**
+  When one collection outlasts the handler's 10 s deadline, v1.2.0 starts
+  a second reader on the client's shared one-slot result channel. The
+  loser of each race is left blocked forever, and it steals a later
+  scrape's result, so every scrape after it waits through several
+  collections, times out, and leaves one more reader behind. The exporter
+  never recovers by itself. The signature is the `pihole` target at
+  `up == 0` with every `scrape_duration_seconds` at exactly 10 s, while
+  Pi-hole answers each of its seven API calls in ~0.13 s (#242; upstream
+  eko/pihole-exporter#318 and #332, with no release fixing it). Any client
+  that gives up early triggers it, so `curl -m 0.2 …/metrics` reproduces
+  it at will. The probe allows 15 s against a ~1 s healthy collection and
+  restarts after three misses, so a wedge costs about three scrapes.
+  Remove the probe when a release with a fix lands. Separately, the
+  exporter fails a collection with `cannot unmarshal number … of type int`
+  while blocking is disabled on a timer, because v6 reports the time
+  left as a float; that error returns quickly and does not wedge it.
 - **The agent side is Ansible.** An `alloy` library role beside `proxmox` and
   `talos`, pinned to `alloy_version` `1.19.2-1`, dispatched from
   `02-preflights` for hosts in group `alloy` — the NetBox tag `alloy`, the
