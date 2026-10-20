@@ -71,3 +71,7 @@ chunksCache:
   enabled: false
 resultsCache:
   enabled: false
+# No Loki ruler rules exist, so the sidecar that loads them only costs memory.
+sidecar:
+  rules:
+    enabled: false
