@@ -77,7 +77,19 @@ defaults that hide the control-plane components.
   VM is ~2,000 write IOPS against ~900 from a Pi. 60 s scrape interval, the
   kube-prometheus cAdvisor drop list and the apiserver histogram drops keep
   the series budget near 100k. Limits are first guesses: Prometheus 2Gi,
-  Loki 1Gi, Grafana 512Mi, each Alloy 512Mi, events Alloy 256Mi.
+  Loki 1Gi, Grafana 768Mi, each Alloy 512Mi, events Alloy 256Mi.
+- **Grafana memory.** Grafana rests at ~270 MiB and every interactive
+  session adds a ~210 MiB burst of live Go heap within a minute of login,
+  whatever the dashboard queries return (#247). The chart sets `GOMEMLIMIT`
+  to `goMemLimit.factor` × the limit, but that covers only memory the Go
+  runtime manages, and ~72 MiB of the working set sits outside it. At
+  512Mi the chart's default factor of 0.9 puts the GC's target at 460 MiB
+  + 72 MiB, above the limit, so the GC never works hard before the OOM
+  kill, and a 10 s dashboard auto-refresh repeats the burst on every
+  restart into a crash loop. 768Mi with a factor of 0.8 gives ~614 MiB +
+  72 MiB, about 80 MiB under the limit. Keep
+  `factor × limit + ~100 MiB` at or below the limit when changing either
+  number.
 - **Talos control plane.** Scheduler and controller-manager bind to
   `127.0.0.1` and etcd has no metrics listener by default; a control-plane
   patch sets `bind-address: 0.0.0.0` and `listen-metrics-urls:
@@ -150,7 +162,7 @@ Prometheus outage in between; peaks are `max_over_time[3d]`):
 | TSDB on disk | 1.2 GiB after four days | 18 GB `retentionSize` on a 20Gi PVC |
 | Prometheus working set, peak | 1.59 GiB (WAL replay after a node loss) | 2 GiB limit |
 | Loki working set, peak | 114 MiB; ingesting ~1.6 GiB of log lines a day | 1 GiB limit |
-| Grafana working set, peak | 480 MiB | 512Mi limit: the next one to raise |
+| Grafana working set, peak | 480 MiB | 512Mi limit; 768Mi now |
 | kube-state-metrics, peak | 30 MiB | 256Mi limit |
 | Alloy, peak | 512 MiB, i.e. the limit, on the Pis during the outage | 1Gi now |
 | Scrape targets down at steady state | none (21 `alloy`, 14 `beyla`, 20 `kubelet`) | — |
