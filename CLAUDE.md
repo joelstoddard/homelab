@@ -284,7 +284,7 @@ Beyla: eBPF RED metrics and 10 %-sampled traces for every containerised
 service outside `kube-system` and the collectors, metrics scraped by Alloy
 through the pod annotations, traces OTLP straight into Tempo (a fourth
 HelmRelease in `monitoring/`, local storage on Longhorn, 72 h). Grafana's
-`tempo` datasource correlates spans with Loki and Prometheus. Beyla runs
+`tempo` datasource jumps from a span to its pod's Loki lines. Beyla runs
 hostNetwork, so its `:9090` is a node port. See `docs/design/tracing.md`.
 `host-monitoring/` (`dependsOn: monitoring, cilium-lb, cluster-secrets`,
 substituted) is the fleet outside the cluster: `pve-exporter`,

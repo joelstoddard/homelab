@@ -28,22 +28,6 @@ tempo:
         thrift_binary: null
         thrift_compact: null
         thrift_http: null
-  # The service map: Beyla's application_service_graph feature only records
-  # inside its span-metrics path (OBI pkg/export/prom), so Tempo derives the
-  # traces_service_graph_* series from the sampled traces and remote-writes
-  # them to Prometheus; span-metrics stay off to spare the series budget.
-  metricsGenerator:
-    enabled: true
-    remoteWriteUrl: http://prometheus-server.monitoring.svc/api/v1/write
-    # The chart's default is /tmp/tempo; the WAL belongs on the PVC.
-    storage:
-      path: /var/tempo/metrics
-  overrides:
-    defaults:
-      metrics_generator:
-        processors:
-          - service-graphs
-  # 155 MiB before the metrics-generator; OOMKilled once at 768Mi after it.
   resources:
     requests:
       cpu: 100m
