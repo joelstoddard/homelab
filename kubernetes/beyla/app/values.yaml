@@ -71,7 +71,7 @@ config:
       # W3C traceparent injection; needs kernel lockdown "none", which Talos has.
       context_propagation: headers
     # No application_service_graph: OBI only records it inside the span-metrics
-    # path, so it is inert on its own; Tempo's metrics-generator draws the map.
+    # path, so it is inert on its own. docs/design/tracing.md, Rejected.
     prometheus_export:
       port: 9090
       path: /metrics

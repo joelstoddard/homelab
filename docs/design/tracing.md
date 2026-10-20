@@ -53,15 +53,12 @@ instrumentation and for injecting trace context into live requests.
   services get library-level injection (TLS included); with hostNetwork the
   network-level path covers anything else.
 - **Tempo single binary** (`grafana-community/tempo` 3.0.0), local backend
-  on a 10Gi Longhorn PVC, 72 h retention, amd64, OTLP receivers only. Its
-  metrics-generator runs the `service-graphs` processor alone and
-  remote-writes the `traces_service_graph_*` series to Prometheus (WAL on
-  the PVC at `/var/tempo/metrics`), which is what Grafana's service map
-  reads; span-metrics stay off because Beyla already exports RED. Same
-  durability story as Loki: three Longhorn replicas, no object store.
+  on a 10Gi Longhorn PVC, 72 h retention, amd64, OTLP receivers only, no
+  metrics-generator. Same durability story as Loki: three Longhorn
+  replicas, no object store.
 - **Grafana.** Datasource `tempo` with traces-to-logs (Loki, by
-  `k8s.namespace.name`/`k8s.pod.name`), service map (Prometheus), node
-  graph; traces-to-metrics is left out because Grafana renders nothing from
+  `k8s.namespace.name`/`k8s.pod.name`) and the per-trace node graph;
+  traces-to-metrics is left out because Grafana renders nothing from
   it without a `queries` list and that list would need `$__tags` inside a
   substituted values file. One vendored dashboard, Beyla RED Metrics.
 - **Host network consequences.** Beyla's `:9090` sits on every worker's host
@@ -72,8 +69,7 @@ instrumentation and for injecting trace context into live requests.
   the scraper. Tempo lives in `monitoring`, which is instrumented, so
   Beyla's own exports produce Tempo server spans (which Beyla then
   exports): a small floor of infrastructure traces rooted at `tempo`,
-  converging at roughly one span per export batch. They carry no client
-  parent, so the service-graphs processor draws no edge for them.
+  converging at roughly one span per export batch.
 
 ## Failure modes
 
@@ -87,6 +83,26 @@ instrumentation and for injecting trace context into live requests.
   for a few minutes only misses RED samples.
 - Tempo down or full: the OTLP exporter retries briefly then drops spans;
   metrics unaffected; Longhorn volumes expand online.
+- **One unreadable block stops retention, and the disk fills behind it**
+  (#241). A block whose `meta.json` is truncated, most likely by a kill
+  mid-flush, fails the blocklist poll for the whole tenant with
+  `failed reading unknown blocks: unexpected end of JSON input`. With no
+  blocklist, retention and compaction have nothing to act on, so the 72 h
+  limit deletes nothing (`tempodb_retention_deleted_total` flat) and the
+  volume fills. Once it is full the live-store cannot `mkdir` its tenant
+  directory at startup, every module stops cleanly, and the pod
+  crash-loops with exit code 0, so the restart reason reads `Completed`,
+  not an error. Signals, in the order they appear:
+  `tempodb_blocklist_tenant_index_errors_total` rising, then
+  `kubelet_volume_stats_available_bytes` falling, then
+  `no space left on device` in the log. Recovery is a new volume, before
+  any Tempo HelmRelease upgrade, since an upgrade waits on a pod that
+  cannot start and fails: `kubectl delete pvc storage-tempo-0
+  --wait=false`, then delete `tempo-0`, then delete it once more if it
+  sits Pending on the terminating claim. The StatefulSet then makes a
+  fresh 10Gi claim. Every block on a volume that has been full for 72 h is past
+  retention anyway, so the only loss is traces Tempo was already
+  failing to keep.
 - A service mis-handles an injected `traceparent`: set
   `context_propagation: disabled`; single-hop traces remain.
 - A future hostNetwork workload on 9090: move `prometheus_export.port`.
@@ -153,8 +169,7 @@ Three days live (2026-09-15; peaks are `max_over_time[3d]`):
   produced nothing: in OBI's Prometheus exporter the service-graph
   recorder sits inside the block gated on span metrics
   (`otelSpanMetricsObserved`), so the feature is inert unless
-  `application_span_otel` is also on. Tempo's metrics-generator now draws
-  the graph instead.
+  `application_span_otel` is also on.
 - **Benign Beyla warnings on every node.** bpffs pinned maps unavailable
   (`/sys/fs/bpf/otel`; only the log enricher and profile correlation need
   them), cloud metadata probes timing out, and the kernel
@@ -162,17 +177,11 @@ Three days live (2026-09-15; peaks are `max_over_time[3d]`):
 - **Traces in the first hour.** Roots at `longhorn`, `loki`,
   `longhorn-csi-plugin`, `tempo` and `traefik-traefik`; an in-pod trace
   (HTTP server span → gRPC client → gRPC server) proved propagation across
-  a socket. Fifteen minutes after the metrics-generator started,
-  `traces_service_graph_request_total` held 51 edge series, among them
-  `traefik-traefik → grafana`, `traefik-traefik → prometheus` and
-  `tempo → prometheus` (its own remote-write): the processor pairs client
-  and server spans from different services. Once Grafana's node ran Beyla
+  a socket. Once Grafana's node ran Beyla
   at 1Gi (2026-09-14), single traces held Traefik's server and client spans,
   Grafana's server span and Grafana's own client spans to Prometheus and
   its database: header propagation across three services without touching
-  their code. Unpaired server spans show up under the client `user`.
-  The Tempo restart that enabled the generator dropped one live-store
-  block it could not replay (`failed to replay block. removing.`).
+  their code.
 
 ## Rejected
 
@@ -180,21 +189,22 @@ Three days live (2026-09-15; peaks are `max_over_time[3d]`):
   stops everything.
 - **Traces via Alloy's otelcol pipeline.** Add it when an SDK-instrumented
   app needs a single OTLP ingest point.
-- **Beyla `application_span_otel` to unlock its service graph.** Span
-  metrics on the order of the HTTP families again (roughly +20–30k series)
-  for a graph Tempo derives from traces it already holds. Tempo's
-  span-metrics processor is off for the same reason.
+- **A service map.** Tempo's metrics-generator can derive one from the
+  sampled traces, but nobody used it, and it costs memory on NUCs with
+  none to spare plus a remote-write stream into Prometheus's series
+  budget. Beyla's own `application_service_graph` needs
+  `application_span_otel` on too, which is span metrics on the order of
+  the HTTP families (roughly +20–30k series). Tempo's span-metrics
+  processor is off for the same reason.
 - **Beyla network flows.** Hubble covers L3/L4.
 
 ## Known limitations
 
-- 10 % sampling: a specific request may be absent from Tempo, and the
-  service-graph rates are a tenth of the RED series (they come from the
-  sampled traces).
+- 10 % sampling: a specific request may be absent from Tempo.
 - Beyla names a workload after its labels, which lumps the four Flux
   controllers together as `flux-system`, calls Traefik `traefik-traefik`
-  and gives every Longhorn instance-manager pod its own hashed name in
-  the service graph (#196).
+  and gives every Longhorn instance-manager pod its own hashed name
+  (#196).
 - No SDK/OTLP ingestion from application code yet.
 - Tempo is not HA and has no object store.
 - Tempo logs `error calling scheduler … no jobs found` every 15 s while

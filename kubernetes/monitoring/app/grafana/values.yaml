@@ -65,8 +65,6 @@ datasources:
               - key: k8s.pod.name
                 value: pod
             filterByTraceID: false
-          serviceMap:
-            datasourceUid: prometheus
           nodeGraph:
             enabled: true
 sidecar:
