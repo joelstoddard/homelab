@@ -10,9 +10,9 @@ entry, PR. The copy disappears on the next Grafana restart.
 Vendoring: `python3 vendor.py <Folder>/<name>.json --id <grafana.com id>`
 pins every datasource reference to the provisioned UIDs (`prometheus`,
 `loki`) and strips `__inputs`. Datasources with other UIDs will show
-"datasource not found". The Cilium dashboards are not here: the Cilium chart
-ships them (`dashboards.enabled` in `kubernetes/cilium/app/values.yaml`) and
-the sidecar watches every namespace.
+"datasource not found". No Cilium dashboards are provisioned: the chart's
+are off (`dashboards.enabled` in `kubernetes/cilium/app/values.yaml`) because
+most of their queries return nothing here; see `docs/design/observability.md`.
 
 | File | Folder | Source | Revision | Local edits |
 | --- | --- | --- | --- | --- |
