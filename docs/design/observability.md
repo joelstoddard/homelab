@@ -112,6 +112,34 @@ defaults that hide the control-plane components.
   node (`node-role.kubernetes.io/control-plane`) on `:2381` over plain
   HTTP; the metrics carry no key data, and a `NetworkRuleConfig` is the
   follow-up if that is unwanted.
+- **Services overview → Service → app dashboard.** Grafana is the detailed
+  view for one misbehaving workload. `Services/services-overview.json` (uid
+  `services-overview`) is one table, a row per Deployment, StatefulSet and
+  DaemonSet, sorted by restarts over the range, then memory working set
+  against limit, then error log lines; each workload links to
+  `Services/service.json` (uid `service`, variables `namespace` and
+  `workload`), whose rows are Health, Resources (with restarts as
+  annotations), Traffic, Logs and a link to the app's own dashboard. Both
+  default to 14 days, Prometheus' retention, so a slow climb towards an OOM
+  kill is visible. The mappings they rely on:
+  - Workload identity is kube-state-metrics' `kube_pod_owner`, through
+    `kube_replicaset_owner` for Deployments. Jobs, static pods and Longhorn's
+    instance managers are not workloads here.
+  - Logs carry no owner, so a pod maps to its workload by name shape:
+    `<name>-<hash>-<suffix>`, `<name>-<suffix>` or `<name>-<ordinal>`, where
+    hash and suffix use Kubernetes' vowel-free alphabet. That keeps
+    `jellyfin-exporter` pods out of `jellyfin`.
+  - A Traefik service named `<namespace>-<name>-<hash>@kubernetescrd` or
+    `<namespace>-<name>-<port>@kubernetes` belongs to workload
+    `<namespace>/<name>`. A Service named differently from its workload
+    (`longhorn-frontend` for `longhorn-ui`) reads blank, as does a workload
+    with no ingress.
+  - The App link is `homelab-<app>` for the apps with a dashboard and their
+    `-exporter` Deployments; the list is a regex in `service.json`'s App
+    panel, so a new app dashboard needs both that uid and an entry there.
+  - Error lines are a case-insensitive `error` match. The overview counts
+    the last hour only, because the same match over 14 days of every
+    namespace takes ~27 s in Loki.
 
 ## Label conventions
 

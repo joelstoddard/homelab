@@ -24,13 +24,15 @@ the sidecar watches every namespace.
 | Storage/longhorn.json | Storage | grafana.com/grafana/dashboards/13032 | 6 | datasource UIDs pinned |
 | Ingress/traefik.json | Ingress | grafana.com/grafana/dashboards/17346 | 9 | datasource UIDs pinned |
 | Ingress/cert-manager.json | Ingress | grafana.com/grafana/dashboards/20842 | 3 | datasource UIDs pinned |
-| Flux/control-plane.json | Flux | fluxcd/flux2-monitoring-example monitoring/configs/dashboards/control-plane.json | main @ 2026-09 | datasource UIDs pinned |
+| Flux/control-plane.json | Flux | fluxcd/flux2-monitoring-example monitoring/configs/dashboards/control-plane.json | main @ 2026-09 | datasource UIDs pinned; upstream's `[1m]` windows read empty at a 60 s scrape, so rates use `$__rate_interval` and the ops/min panels are `rate × 60` |
 | Logs/logs-explorer.json | Logs | hand-written | — | — |
 | Logs/kubernetes-events.json | Logs | hand-written | — | — |
 | Hosts/proxmox.json | Hosts | grafana.com/grafana/dashboards/10347 | 5 | datasource UIDs pinned |
 | Hosts/pihole.json | Hosts | grafana.com/grafana/dashboards/10176 | 3 | datasource UIDs pinned; cleared a leftover LAN IP default from the `node` template variable; the `hostname` label it lists is rewritten to `pihole` by the gateway's relabel — the exporter would otherwise emit the address |
 | Hosts/blackbox.json | Hosts | grafana.com/grafana/dashboards/7587 | 3 | datasource UIDs pinned |
 | Hosts/host-logs.json | Hosts | hand-written | — | — |
+| Services/services-overview.json | Services | hand-written | — | Every workload ranked worst first, drilling into `service`. One table merging seven Prometheus queries and one Loki query on `exported_namespace` + `workload`; a row survives only if the workload has a current pod. Mappings in `docs/design/observability.md` |
+| Services/service.json | Services | hand-written | — | One workload's health, resources, Traefik traffic, logs and App link, templated on `namespace` + `workload`. Pods are matched by name shape, not prefix, so `jellyfin` excludes `jellyfin-exporter` |
 | Services/searxng.json | Services | hand-written | — | Request panel reads Traefik's `traefik_service_*` series, matched on the `searxng-searxng-` prefix of the `service` label |
 | Services/tailscale.json | Services | hand-written | — | tailscaled's built-in metrics only; the traffic counters read zero until a peer actually sends. kube-state-metrics series are matched on `exported_namespace`, not `namespace` |
 | Services/jellyfin.json | Services | hand-written | — | Jellyfin exposes no Prometheus endpoint, so request panels come from Traefik's `traefik_service_*` series, matched on the `service` label prefix `media-jellyfin-` since the CRD provider appends a hash. kube-state-metrics series use `exported_namespace`, as tailscale's do. Longhorn robustness is `max()` because every manager reports the volume and only its owner knows the real state. Playback panels need the `jellyfin-exporter` Deployment and its API key; they read empty until that secret is populated |

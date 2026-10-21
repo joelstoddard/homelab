@@ -1,0 +1,862 @@
+{
+  "id": null,
+  "uid": "service",
+  "title": "Service",
+  "description": "One workload's correlated symptoms: health, resources, traffic, logs, and a link to its app dashboard.",
+  "tags": [
+    "services"
+  ],
+  "timezone": "browser",
+  "editable": false,
+  "schemaVersion": 39,
+  "time": {
+    "from": "now-14d",
+    "to": "now"
+  },
+  "refresh": "",
+  "links": [
+    {
+      "title": "Services overview",
+      "type": "link",
+      "url": "/d/services-overview",
+      "keepTime": true,
+      "icon": "dashboard"
+    }
+  ],
+  "annotations": {
+    "list": [
+      {
+        "name": "Restarts",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "enable": true,
+        "iconColor": "red",
+        "expr": "sum by (container, exported_pod) (changes(kube_pod_container_status_restarts_total{exported_namespace=\"$namespace\", exported_pod=~\"$workload-([b-df-hj-np-tv-xz24-9]{1,10}-)?[b-df-hj-np-tv-xz24-9]{5}|$workload-[0-9]+\"}[$__rate_interval])) > 0",
+        "step": "$__interval",
+        "titleFormat": "Restart",
+        "textFormat": "{{container}} in {{exported_pod}}"
+      }
+    ]
+  },
+  "templating": {
+    "list": [
+      {
+        "name": "namespace",
+        "label": "Namespace",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "query": {
+          "query": "label_values(kube_pod_owner, exported_namespace)",
+          "refId": "namespace"
+        },
+        "definition": "label_values(kube_pod_owner, exported_namespace)",
+        "refresh": 1,
+        "sort": 1,
+        "includeAll": false,
+        "multi": false,
+        "current": {}
+      },
+      {
+        "name": "workload",
+        "label": "Workload",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "query": {
+          "query": "query_result(group by (workload) (label_replace(kube_replicaset_owner{exported_namespace=\"$namespace\", owner_kind=\"Deployment\"}, \"workload\", \"$1\", \"owner_name\", \"(.*)\") or label_replace(kube_pod_owner{exported_namespace=\"$namespace\", owner_kind=~\"StatefulSet|DaemonSet\"}, \"workload\", \"$1\", \"owner_name\", \"(.*)\")))",
+          "refId": "workload"
+        },
+        "definition": "query_result(group by (workload) (label_replace(kube_replicaset_owner{exported_namespace=\"$namespace\", owner_kind=\"Deployment\"}, \"workload\", \"$1\", \"owner_name\", \"(.*)\") or label_replace(kube_pod_owner{exported_namespace=\"$namespace\", owner_kind=~\"StatefulSet|DaemonSet\"}, \"workload\", \"$1\", \"owner_name\", \"(.*)\")))",
+        "regex": "/workload=\"([^\"]+)\"/",
+        "refresh": 2,
+        "sort": 1,
+        "includeAll": false,
+        "multi": false,
+        "current": {}
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "row",
+      "title": "Health",
+      "collapsed": false,
+      "panels": [],
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      }
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Restarts",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 0,
+        "y": 1
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "refId": "A",
+          "expr": "sum(max_over_time(kube_pod_container_status_restarts_total{exported_namespace=\"$namespace\", exported_pod=~\"$workload-([b-df-hj-np-tv-xz24-9]{1,10}-)?[b-df-hj-np-tv-xz24-9]{5}|$workload-[0-9]+\"}[$__range]) - min_over_time(kube_pod_container_status_restarts_total{exported_namespace=\"$namespace\", exported_pod=~\"$workload-([b-df-hj-np-tv-xz24-9]{1,10}-)?[b-df-hj-np-tv-xz24-9]{5}|$workload-[0-9]+\"}[$__range]))",
+          "instant": true
+        }
+      ],
+      "description": "Container restarts over the selected range, across every pod the workload has had.",
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "auto",
+        "orientation": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Last exit reason",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 6,
+        "y": 1
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "refId": "A",
+          "expr": "max by (reason) (topk(1, kube_pod_container_status_last_terminated_reason{exported_namespace=\"$namespace\", exported_pod=~\"$workload-([b-df-hj-np-tv-xz24-9]{1,10}-)?[b-df-hj-np-tv-xz24-9]{5}|$workload-[0-9]+\"} * on (exported_namespace, exported_pod, container) group_left () max by (exported_namespace, exported_pod, container) (kube_pod_container_status_last_terminated_timestamp{exported_namespace=\"$namespace\", exported_pod=~\"$workload-([b-df-hj-np-tv-xz24-9]{1,10}-)?[b-df-hj-np-tv-xz24-9]{5}|$workload-[0-9]+\"} > 0))) * 1000",
+          "legendFormat": "{{reason}}",
+          "instant": true
+        }
+      ],
+      "description": "Why the most recently terminated container of a current pod exited, and when.",
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value_and_name",
+        "justifyMode": "auto",
+        "orientation": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "dateTimeFromNow",
+          "noValue": "No exits",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "OOMKilled"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "red"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Ready replicas",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 12,
+        "y": 1
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "refId": "A",
+          "expr": "sum(kube_pod_status_ready{exported_namespace=\"$namespace\", exported_pod=~\"$workload-([b-df-hj-np-tv-xz24-9]{1,10}-)?[b-df-hj-np-tv-xz24-9]{5}|$workload-[0-9]+\", condition=\"true\"})",
+          "legendFormat": "Ready",
+          "instant": true
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "refId": "B",
+          "expr": "max(kube_deployment_spec_replicas{exported_namespace=\"$namespace\", deployment=\"$workload\"} or kube_statefulset_replicas{exported_namespace=\"$namespace\", statefulset=\"$workload\"} or kube_daemonset_status_desired_number_scheduled{exported_namespace=\"$namespace\", daemonset=\"$workload\"})",
+          "legendFormat": "Desired",
+          "instant": true
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value_and_name",
+        "justifyMode": "auto",
+        "orientation": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 0,
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 5,
+      "type": "stat",
+      "title": "5xx rate",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 18,
+        "y": 1
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "refId": "A",
+          "expr": "sum(rate(traefik_service_requests_total{service=~\"$namespace-$workload-([0-9a-f]{20}|[0-9]+)@kubernetes(crd)?\", code=~\"5..\"}[$__rate_interval])) or sum(rate(traefik_service_requests_total{service=~\"$namespace-$workload-([0-9a-f]{20}|[0-9]+)@kubernetes(crd)?\"}[$__rate_interval])) * 0",
+          "instant": true
+        }
+      ],
+      "description": "Server errors Traefik returned for this workload's service. Blank when no Traefik service routes to it.",
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "auto",
+        "orientation": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "decimals": 3,
+          "noValue": "No Traefik service",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 0.001
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 6,
+      "type": "row",
+      "title": "Resources",
+      "collapsed": false,
+      "panels": [],
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 5
+      }
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "Memory against request and limit",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 24,
+        "x": 0,
+        "y": 6
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "refId": "A",
+          "expr": "max by (container) (container_memory_working_set_bytes{namespace=\"$namespace\", pod=~\"$workload-([b-df-hj-np-tv-xz24-9]{1,10}-)?[b-df-hj-np-tv-xz24-9]{5}|$workload-[0-9]+\", container!=\"\", container!=\"POD\"})",
+          "legendFormat": "{{container}} working set"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "refId": "B",
+          "expr": "max by (container) (kube_pod_container_resource_requests{exported_namespace=\"$namespace\", exported_pod=~\"$workload-([b-df-hj-np-tv-xz24-9]{1,10}-)?[b-df-hj-np-tv-xz24-9]{5}|$workload-[0-9]+\", resource=\"memory\"})",
+          "legendFormat": "{{container}} request"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "refId": "C",
+          "expr": "max by (container) (kube_pod_container_resource_limits{exported_namespace=\"$namespace\", exported_pod=~\"$workload-([b-df-hj-np-tv-xz24-9]{1,10}-)?[b-df-hj-np-tv-xz24-9]{5}|$workload-[0-9]+\", resource=\"memory\"})",
+          "legendFormat": "{{container}} limit"
+        }
+      ],
+      "description": "Working set of the largest pod per container, against its request and limit; the kernel OOM-kills at the limit. Red markers are restarts.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false
+          },
+          "unit": "bytes"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".* (request|limit)"
+            },
+            "properties": [
+              {
+                "id": "custom.lineStyle",
+                "value": {
+                  "fill": "dash",
+                  "dash": [
+                    10,
+                    10
+                  ]
+                }
+              },
+              {
+                "id": "custom.fillOpacity",
+                "value": 0
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": 8,
+      "type": "timeseries",
+      "title": "CPU against limit",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 15
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "refId": "A",
+          "expr": "max by (container) (rate(container_cpu_usage_seconds_total{namespace=\"$namespace\", pod=~\"$workload-([b-df-hj-np-tv-xz24-9]{1,10}-)?[b-df-hj-np-tv-xz24-9]{5}|$workload-[0-9]+\", container!=\"\", container!=\"POD\"}[$__rate_interval]))",
+          "legendFormat": "{{container}} usage"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "refId": "B",
+          "expr": "max by (container) (kube_pod_container_resource_limits{exported_namespace=\"$namespace\", exported_pod=~\"$workload-([b-df-hj-np-tv-xz24-9]{1,10}-)?[b-df-hj-np-tv-xz24-9]{5}|$workload-[0-9]+\", resource=\"cpu\"})",
+          "legendFormat": "{{container}} limit"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false
+          },
+          "unit": "short",
+          "min": 0
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".* limit"
+            },
+            "properties": [
+              {
+                "id": "custom.lineStyle",
+                "value": {
+                  "fill": "dash",
+                  "dash": [
+                    10,
+                    10
+                  ]
+                }
+              },
+              {
+                "id": "custom.fillOpacity",
+                "value": 0
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": 9,
+      "type": "timeseries",
+      "title": "CPU throttling",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 15
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "refId": "A",
+          "expr": "max by (container) (rate(container_cpu_cfs_throttled_periods_total{namespace=\"$namespace\", pod=~\"$workload-([b-df-hj-np-tv-xz24-9]{1,10}-)?[b-df-hj-np-tv-xz24-9]{5}|$workload-[0-9]+\", container!=\"\", container!=\"POD\"}[$__rate_interval]) / clamp_min(rate(container_cpu_cfs_periods_total{namespace=\"$namespace\", pod=~\"$workload-([b-df-hj-np-tv-xz24-9]{1,10}-)?[b-df-hj-np-tv-xz24-9]{5}|$workload-[0-9]+\", container!=\"\", container!=\"POD\"}[$__rate_interval]), 1))",
+          "legendFormat": "{{container}}"
+        }
+      ],
+      "description": "Share of CFS periods in which the container hit its CPU limit.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false
+          },
+          "unit": "percentunit",
+          "min": 0
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 10,
+      "type": "row",
+      "title": "Traffic",
+      "collapsed": false,
+      "panels": [],
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 23
+      }
+    },
+    {
+      "id": 11,
+      "type": "timeseries",
+      "title": "Requests by status",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 24
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "refId": "A",
+          "expr": "sum by (code) (rate(traefik_service_requests_total{service=~\"$namespace-$workload-([0-9a-f]{20}|[0-9]+)@kubernetes(crd)?\"}[$__rate_interval]))",
+          "legendFormat": "{{code}}"
+        }
+      ],
+      "description": "Traefik's view of the workload: requests through the ingress only.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false
+          },
+          "unit": "reqps",
+          "noValue": "No Traefik service",
+          "min": 0
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 12,
+      "type": "timeseries",
+      "title": "Errors",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 24
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "refId": "A",
+          "expr": "(sum(rate(traefik_service_requests_total{service=~\"$namespace-$workload-([0-9a-f]{20}|[0-9]+)@kubernetes(crd)?\", code=~\"5..\"}[$__rate_interval])) or sum(rate(traefik_service_requests_total{service=~\"$namespace-$workload-([0-9a-f]{20}|[0-9]+)@kubernetes(crd)?\"}[$__rate_interval])) * 0) / sum(rate(traefik_service_requests_total{service=~\"$namespace-$workload-([0-9a-f]{20}|[0-9]+)@kubernetes(crd)?\"}[$__rate_interval]))",
+          "legendFormat": "5xx share"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false
+          },
+          "unit": "percentunit",
+          "noValue": "No Traefik service",
+          "min": 0
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 13,
+      "type": "timeseries",
+      "title": "Latency p95",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 24
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "refId": "A",
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(traefik_service_request_duration_seconds_bucket{service=~\"$namespace-$workload-([0-9a-f]{20}|[0-9]+)@kubernetes(crd)?\"}[$__rate_interval])))",
+          "legendFormat": "p95"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false
+          },
+          "unit": "s",
+          "noValue": "No Traefik service",
+          "min": 0
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 14,
+      "type": "row",
+      "title": "Logs",
+      "collapsed": false,
+      "panels": [],
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 32
+      }
+    },
+    {
+      "id": 15,
+      "type": "timeseries",
+      "title": "Error lines",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 24,
+        "x": 0,
+        "y": 33
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "refId": "A",
+          "legendFormat": "{{pod}}",
+          "expr": "sum by (pod) (count_over_time({namespace=\"$namespace\", pod=~\"$workload-([b-df-hj-np-tv-xz24-9]{1,10}-)?[b-df-hj-np-tv-xz24-9]{5}|$workload-[0-9]+\"} |~ \"(?i)error\" [$__auto]))"
+        }
+      ],
+      "description": "Lines matching a case-insensitive \"error\"; app log formats differ, so treat it as a trend, not a count of failures.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 60,
+            "showPoints": "never",
+            "spanNulls": false,
+            "drawStyle": "bars"
+          },
+          "unit": "short",
+          "min": 0
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 16,
+      "type": "logs",
+      "title": "Logs",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {
+        "h": 14,
+        "w": 24,
+        "x": 0,
+        "y": 39
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "refId": "A",
+          "expr": "{namespace=\"$namespace\", pod=~\"$workload-([b-df-hj-np-tv-xz24-9]{1,10}-)?[b-df-hj-np-tv-xz24-9]{5}|$workload-[0-9]+\"}"
+        }
+      ],
+      "options": {
+        "showTime": true,
+        "wrapLogMessage": true,
+        "sortOrder": "Descending",
+        "enableLogDetails": true,
+        "dedupStrategy": "none",
+        "prettifyLogMessage": false,
+        "showCommonLabels": false
+      }
+    },
+    {
+      "id": 17,
+      "type": "row",
+      "title": "App",
+      "collapsed": false,
+      "panels": [],
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 53
+      }
+    },
+    {
+      "id": 18,
+      "type": "stat",
+      "title": "App dashboard",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 3,
+        "w": 24,
+        "x": 0,
+        "y": 54
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "refId": "A",
+          "expr": "group by (app) (label_replace(kube_replicaset_owner{exported_namespace=\"$namespace\", owner_name=\"$workload\", owner_name=~\"(sonarr|radarr|prowlarr|lidarr|bazarr|sabnzbd|jellyfin|home-assistant|searxng|glance|media-egress|tailscale)(-exporter)?\"}, \"app\", \"$1\", \"owner_name\", \"(.+?)(-exporter)?\"))",
+          "legendFormat": "{{app}}",
+          "instant": true
+        }
+      ],
+      "description": "The application's own dashboard, for the workloads that have one.",
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value_and_name",
+        "justifyMode": "auto",
+        "orientation": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "No app dashboard for this workload",
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "1": {
+                  "text": "Open dashboard",
+                  "index": 0
+                }
+              }
+            }
+          ],
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          },
+          "links": [
+            {
+              "title": "App dashboard",
+              "oneClick": true,
+              "url": "/d/homelab-${__field.labels.app}?${__url_time_range}"
+            }
+          ]
+        },
+        "overrides": []
+      }
+    }
+  ]
+}
