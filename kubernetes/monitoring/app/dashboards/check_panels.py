@@ -26,6 +26,7 @@ LOKI = "/api/v1/namespaces/monitoring/services/loki:3100/proxy/loki/api/v1/query
 def substitute(expr):
     expr = re.sub(r"\$__rate_interval|\$\{__rate_interval\}|\$__interval|\$__auto|\$interval", "5m", expr)
     expr = expr.replace("$__range", "1h")
+    expr = re.sub(r'!([=~])\s*"\$\{?\w+(?::\w+)?\}?"', r'!\1"__no_such_value__"', expr)
     expr = re.sub(r'(?<![|!~])=~?\s*"\$\{?\w+(?::\w+)?\}?"', '=~".*"', expr)
     return re.sub(r"\$\{\w+(?::\w+)?\}|\$[A-Za-z_]\w*", ".*", expr)
 

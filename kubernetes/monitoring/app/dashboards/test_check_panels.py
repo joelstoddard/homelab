@@ -12,6 +12,10 @@ class SubstituteTest(unittest.TestCase):
         self.assertEqual(substitute('up{namespace=~"$namespace", pod="${pod}"}'),
                          'up{namespace=~".*", pod=~".*"}')
 
+    def test_substitute_negative_matcher(self):
+        self.assertEqual(substitute('up{job!~"$job", pod!="${pod}"}'),
+                         'up{job!~"__no_such_value__", pod!="__no_such_value__"}')
+
     def test_substitute_keeps_regex_capture_references(self):
         self.assertEqual(substitute('label_replace(x, "service", "$1", "service", "(a).*")'),
                          'label_replace(x, "service", "$1", "service", "(a).*")')
