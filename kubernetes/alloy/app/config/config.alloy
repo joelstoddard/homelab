@@ -102,7 +102,7 @@ prometheus.relabel "cadvisor" {
 
 	rule {
 		source_labels = ["__name__"]
-		regex         = "container_cpu_(cfs_throttled_seconds_total|load_average_10s|system_seconds_total|user_seconds_total)"
+		regex         = "container_cpu_(load_average_10s|system_seconds_total|user_seconds_total)"
 		action        = "drop"
 	}
 
