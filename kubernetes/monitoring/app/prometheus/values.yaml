@@ -5,12 +5,13 @@ server:
   extraFlags:
     - web.enable-lifecycle
     - web.enable-remote-write-receiver
-  retention: 30d
-  # Below the PVC so the volume never fills before retention kicks in.
-  retentionSize: 18GB
+  # 14d binds first; the size limit is only the safety net that keeps the
+  # volume from filling. Change all three together: docs/design/observability.md.
+  retention: 14d
+  retentionSize: 22GB
   persistentVolume:
     enabled: true
-    size: 20Gi
+    size: 25Gi
   # RWO Longhorn volume: the old pod must release it before the new one mounts.
   strategy:
     type: Recreate

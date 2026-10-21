@@ -78,6 +78,14 @@ defaults that hide the control-plane components.
   kube-prometheus cAdvisor drop list and the apiserver histogram drops keep
   the series budget near 100k. Limits are first guesses: Prometheus 2Gi,
   Loki 1Gi, Grafana 768Mi, each Alloy 512Mi, events Alloy 256Mi.
+- **Prometheus keeps 14 days.** Blocks grow ~1.15 GiB a day and the WAL
+  and head chunks add ~0.25 GiB (2026-10-20), so 14 days is ~16.4 GiB.
+  `retentionSize: 22GB` (20.5 GiB) leaves ~20 % above that, so
+  `retention: 14d` is the limit that binds, and the 25Gi PVC keeps ~4 GiB
+  free beyond the size limit for compaction. A size-bound TSDB keeps
+  however many days fit, which was 12.7 while the config said 30 (#243),
+  so re-check that headroom when the series count grows. Longer history
+  is cheaper on the VictoriaMetrics store planned in #240.
 - **Grafana memory.** Grafana rests at ~270 MiB and every interactive
   session adds a ~210 MiB burst of live Go heap within a minute of login,
   whatever the dashboard queries return (#247). The chart sets `GOMEMLIMIT`
