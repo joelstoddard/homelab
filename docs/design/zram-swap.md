@@ -148,7 +148,7 @@ that unlikely rather than impossible; the overcommit is deliberately kept to
 31 % of guest RAM to preserve the margin.
 
 Watch host PSI (`some` sustained above a few per cent), zram `DATA` against
-the 15.5 GB device, and per-service latency from the Beyla RED metrics.
+the 15.5 GB device, and per-service latency from Traefik's `traefik_service_request_duration_seconds` histogram.
 Roll back by returning NetBox to 4000 MB and re-running the resize.
 
 ### Applying a geometry change

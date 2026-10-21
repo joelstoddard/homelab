@@ -152,8 +152,8 @@ existed:
 | jellyfin/jellyfin-config | 0.8 GiB | 1.3 GiB | 0.5 GiB |
 
 At three replicas that is about 61 GiB of raw storage. The workloads that
-churn hardest are the worst affected: Prometheus expiring retention, Loki
-compacting, Tempo's 72-hour window.
+churn hardest are the worst affected: Prometheus expiring retention and Loki
+compacting.
 
 `longhorn-jobs/` is a weekly `filesystem-trim` RecurringJob on the `default`
 group, which covers every volume including ones added later. It is a separate

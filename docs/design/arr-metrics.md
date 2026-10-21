@@ -27,7 +27,7 @@ Sonarr, Radarr, Lidarr, Bazarr and SABnzbd, every application in the stack
 that exportarr speaks. Seerr is not an exportarr target — it files requests
 with Sonarr and Radarr, whose exporters already count the result, and it
 exposes no Prometheus endpoint of its own, so its request rates and latencies
-come from Beyla like any other instrumented pod. Recyclarr is a CronJob
+come from Traefik's per-service metrics. Recyclarr is a CronJob
 rather than a service; kube-state-metrics already reports its schedule and
 per-run outcome through `kube_cronjob_*` and `kube_job_status_failed`, on
 `exported_namespace` like every other series from that collector.

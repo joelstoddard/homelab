@@ -146,7 +146,7 @@ that cost a fix round in the Glance layer.
 
 **All three PodSecurity labels, not just `enforce`.** `namespace.yaml` sets
 `enforce`, `audit` and `warn` to `privileged`, matching `tailscale`,
-`alloy`, `beyla` and `longhorn`. Talos's default `baseline` forbids
+`alloy` and `longhorn`. Talos's default `baseline` forbids
 `hostNetwork`; the audit and warn labels keep that opt-out visible in
 `kubectl` output and API server warnings, not just in effect.
 
