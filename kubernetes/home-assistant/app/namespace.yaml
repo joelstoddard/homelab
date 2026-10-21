@@ -1,4 +1,4 @@
-# PodSecurity privileged, like tailscale, alloy and beyla: Talos enforces
+# PodSecurity privileged, like tailscale and alloy: Talos enforces
 # baseline by default and baseline forbids hostNetwork, which is the only way
 # mDNS and SSDP reach the LAN. Nothing else runs in this namespace.
 apiVersion: v1
