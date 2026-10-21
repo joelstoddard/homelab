@@ -80,9 +80,11 @@ defaults that hide the control-plane components.
   Loki 1Gi, Grafana 768Mi, each Alloy 512Mi, events Alloy 256Mi.
 - **Prometheus keeps 14 days.** Blocks grow ~1.15 GiB a day and the WAL
   and head chunks add ~0.25 GiB (2026-10-20), so 14 days is ~16.4 GiB.
-  `retentionSize: 22GB` (20.5 GiB) leaves ~20 % above that, so
-  `retention: 14d` is the limit that binds, and the 25Gi PVC keeps ~4 GiB
-  free beyond the size limit for compaction. A size-bound TSDB keeps
+  Prometheus reads `retentionSize` units as base 2, so `22GB` is 22 GiB
+  (`prometheus_tsdb_retention_limit_bytes` confirms it): ~25 % above 14
+  days, so `retention: 14d` is the limit that binds, and the 25Gi PVC
+  keeps ~3 GiB beyond the size limit for compaction, more than the
+  ~1.6 GiB largest block a 14d retention produces. A size-bound TSDB keeps
   however many days fit, which was 12.7 while the config said 30 (#243),
   so re-check that headroom when the series count grows. Longer history
   is cheaper on the VictoriaMetrics store planned in #240.
