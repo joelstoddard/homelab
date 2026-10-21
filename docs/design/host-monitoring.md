@@ -134,9 +134,12 @@ throughout: a public repo (no address or domain in plaintext), PodSecurity
   `up == 0` with every `scrape_duration_seconds` at exactly 10 s, while
   Pi-hole answers each of its seven API calls in ~0.13 s (#242; upstream
   eko/pihole-exporter#318 and #332, with no release fixing it). Any client
-  that gives up early triggers it, so `curl -m 0.2 …/metrics` reproduces
-  it at will. The probe allows 15 s against a ~1 s healthy collection and
-  restarts after three misses, so a wedge costs about three scrapes.
+  that gives up early triggers it: three `curl -m 0.2` requests from a pod
+  in the cluster wedge it, and the probe restarted it 123 s later. Through
+  `kubectl port-forward` they do not, because the tunnel does not pass the
+  disconnect on before the ~0.5 s collection finishes. The probe allows
+  15 s against a ~1 s healthy collection and restarts after three misses,
+  so a wedge costs about three scrapes.
   Remove the probe when a release with a fix lands. Separately, the
   exporter fails a collection with `cannot unmarshal number … of type int`
   while blocking is disabled on a timer, because v6 reports the time
