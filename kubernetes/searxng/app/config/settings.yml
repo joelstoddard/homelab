@@ -1,6 +1,11 @@
 # Anything upstream exposes as a SEARXNG_* variable is set on the Deployment
 # instead; open_metrics is the exception, with no env override, so the metrics
 # password can only arrive here (docs/design/searxng.md).
-use_default_settings: true
+use_default_settings:
+  engines:
+    # Tor-only engines: with no Tor proxy they fail to register at every boot.
+    remove:
+      - ahmia
+      - torch
 general:
   open_metrics: "${SEARXNG_OPEN_METRICS}"
