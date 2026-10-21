@@ -312,7 +312,7 @@
           "instant": true
         }
       ],
-      "description": "Server errors Traefik returned for this workload's service. Blank when no Traefik service routes to it.",
+      "description": "Recent server errors Traefik returned for this workload's service, not the range. Blank when no Traefik service routes to it.",
       "options": {
         "reduceOptions": {
           "calcs": [

@@ -43,7 +43,7 @@
             "uid": "prometheus"
           },
           "refId": "A",
-          "expr": "group by (exported_namespace, workload) (max by (exported_namespace, exported_pod, workload) (label_replace(kube_pod_owner{owner_kind=\"ReplicaSet\"}, \"replicaset\", \"$1\", \"owner_name\", \"(.*)\") * on (exported_namespace, replicaset) group_left (workload) max by (exported_namespace, replicaset, workload) (label_replace(kube_replicaset_owner{owner_kind=\"Deployment\"}, \"workload\", \"$1\", \"owner_name\", \"(.*)\")) or label_replace(kube_pod_owner{owner_kind=~\"StatefulSet|DaemonSet\"}, \"workload\", \"$1\", \"owner_name\", \"(.*)\")))",
+          "expr": "group by (exported_namespace, workload) (max by (exported_namespace, exported_pod, workload) (label_replace(kube_pod_owner{owner_kind=\"ReplicaSet\"}, \"replicaset\", \"$1\", \"owner_name\", \"(.*)\") * on (exported_namespace, replicaset) group_left (workload) max by (exported_namespace, replicaset, workload) (label_replace(kube_replicaset_owner{owner_kind=\"Deployment\"}, \"workload\", \"$1\", \"owner_name\", \"(.*)\")) or label_replace(kube_pod_owner{owner_kind=~\"StatefulSet|DaemonSet\"}, \"workload\", \"$1\", \"owner_name\", \"(.*)\")) or label_replace(kube_deployment_spec_replicas, \"workload\", \"$1\", \"deployment\", \"(.*)\") or label_replace(kube_statefulset_replicas, \"workload\", \"$1\", \"statefulset\", \"(.*)\") or label_replace(kube_daemonset_status_desired_number_scheduled, \"workload\", \"$1\", \"daemonset\", \"(.*)\"))",
           "format": "table",
           "instant": true,
           "range": false
@@ -376,6 +376,10 @@
                 "value": 1
               },
               {
+                "id": "description",
+                "value": "Recent usage, not the 14-day range."
+              },
+              {
                 "id": "custom.cellOptions",
                 "value": {
                   "type": "gauge",
@@ -417,6 +421,10 @@
               {
                 "id": "decimals",
                 "value": 3
+              },
+              {
+                "id": "description",
+                "value": "Recent rate, not the 14-day range."
               }
             ]
           },
