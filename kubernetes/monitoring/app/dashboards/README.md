@@ -14,6 +14,14 @@ pins every datasource reference to the provisioned UIDs (`prometheus`,
 ships them (`dashboards.enabled` in `kubernetes/cilium/app/values.yaml`) and
 the sidecar watches every namespace.
 
+Guards: `drop_guard.py` fails `make -C kubernetes lint` when an Alloy
+`__name__` drop rule matches a metric any dashboard here queries.
+`check_panels.py [--namespace kube-system]` runs every panel query against the
+live cluster through the API-server proxy and lists the targets that return no
+data (the chart dashboards via `--namespace`); run it before and after a
+change to what Alloy ships. Both are stdlib-only, with unit tests beside them
+(`python3 -m unittest`).
+
 | File | Folder | Source | Revision | Local edits |
 | --- | --- | --- | --- | --- |
 | Kubernetes/k8s-views-global.json | Kubernetes | grafana.com/grafana/dashboards/15757 | 43 | datasource UIDs pinned |

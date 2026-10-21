@@ -31,8 +31,9 @@ help:
 	@echo "Targets:"
 	@echo "  build     - Verify kubectl, the kube context, the age key and the versions.env pins."
 	@echo "  lint      - gotk-components.yaml matches FLUX_VERSION, the Cilium OCIRepository matches"
-	@echo "              CILIUM_VERSION, kubectl kustomize builds the root and every */app, and every"
-	@echo "              *.sops.yaml is encrypted. Offline."
+	@echo "              CILIUM_VERSION, kubectl kustomize builds the root and every */app, the dashboard"
+	@echo "              tools' unit tests pass, no Alloy drop rule removes a metric a dashboard reads,"
+	@echo "              and every *.sops.yaml is encrypted. Offline."
 	@echo "  check     - Server-side dry run of flux-system/ (client-side before the first install)."
 	@echo "  apply     - components -> sops-age secret -> sync. Idempotent. Default."
 	@echo "  generate  - Regenerate gotk-components.yaml from FLUX_VERSION (needs the flux CLI)."
@@ -85,6 +86,9 @@ lint:
 	@kubectl kustomize . >/dev/null
 	@echo ">> kubectl kustomize . builds"
 	@for d in */app; do kubectl kustomize $$d >/dev/null && echo ">> kubectl kustomize $$d builds" || exit 1; done
+	@python3 -m unittest discover -s monitoring/app/dashboards
+	@python3 monitoring/app/dashboards/drop_guard.py --dashboards monitoring/app/dashboards --alloy alloy/app/config/*.alloy host-monitoring/app/config/*.alloy
+	@echo ">> no Alloy drop rule matches a dashboard metric"
 	@plaintext=; for f in $$(find . -name '*.sops.yaml'); do \
 		grep -q 'ENC\[' $$f || plaintext="$$plaintext $$f"; \
 	done; \
