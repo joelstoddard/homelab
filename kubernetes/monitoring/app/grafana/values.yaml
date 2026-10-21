@@ -17,6 +17,7 @@ grafana.ini:
   analytics:
     reporting_enabled: false
     check_for_updates: false
+    check_for_plugin_updates: false
   news:
     news_feed_enabled: false
   auth.anonymous:
@@ -51,7 +52,7 @@ sidecar:
     enabled: true
     label: grafana_dashboard
     labelValue: "1"
-    # Cilium's chart ships its dashboards as ConfigMaps in kube-system.
+    # Dashboards may live in any namespace.
     searchNamespace: ALL
     folderAnnotation: grafana_folder
     provider:
