@@ -81,21 +81,30 @@ defaults that hide the control-plane components.
 - **Series denylist, by name.** Alloy drops the heaviest metric families no
   dashboard reads, in the `prometheus.relabel` stage of the scrape that
   emits them, so they cost neither Alloy's remote-write WAL nor Prometheus'
-  head. Every rule matches `__name__` only, one family or one tight family
-  regex per rule; a family not on the list is kept, so anything a dashboard
-  does not use yet stays explorable. The list:
+  head. Each rule drops one family or one tight family regex by name; the
+  one rule that also reads a label is cAdvisor's, which drops the pod-level
+  `container=""` copies of the TCP and UDP usage counters. A family not on
+  the list is kept, so anything a dashboard does not use yet stays
+  explorable. A rule in the annotated-pod or annotated-Service stage
+  reaches every workload scraped through it, not only the component it is
+  written for. The list:
   - Histogram `_bucket` series of components' own machinery: apiserver,
-    kubelet, kube-scheduler, kube-controller-manager (client-go workqueue,
-    REST client, authn/authz, Go runtime), Cilium agent and operator, Alloy,
-    Prometheus, Loki, Grafana, Flux's `gotk_reconcile_duration_seconds` and
-    Traefik's per-router latency. The `_sum` and `_count` series stay, so
-    rates and means remain queryable; only quantiles are lost.
+    kubelet, kube-scheduler and kube-controller-manager (`apiserver_*`,
+    `kubelet_*`, `scheduler_*`, client-go workqueue, informer and REST
+    client, authn/authz, and kubelet's storage, volume, CSI and DRA
+    operation histograms), Cilium agent and operator, Alloy, Prometheus,
+    Loki, Grafana, Flux's `gotk_reconcile_duration_seconds` and Traefik's
+    per-router latency. `go_*_bucket` Go-runtime histograms go from the
+    Kubernetes components and from every annotated pod. The `_sum` and
+    `_count` series stay, so rates and means remain queryable; only
+    quantiles are lost.
   - `kubernetes_feature_enabled` on every Kubernetes component.
   - apiserver per-resource watch-cache and list bookkeeping
     (`apiserver_watch_cache_*`, `apiserver_cache_list_*`,
-    `apiserver_storage_list_*`, `apiserver_watch_list_duration_seconds_*`)
-    and the SLI/SLO copies of the request histogram.
-    `apiserver_request_total` and the object counts stay.
+    `apiserver_storage_list_*`, `apiserver_watch_list_duration_seconds_*`,
+    `watch_cache_capacity`, `etcd_bookmark_total`) and the SLI/SLO copies
+    of the request histogram. `apiserver_request_total` and the object
+    counts stay.
   - All of cilium-envoy's `envoy_*`: nothing here uses Cilium's L7 proxy.
   - Longhorn manager's `longhorn_workqueue_*` and `longhorn_rest_client_*`,
     one set per controller per manager pod; volume, node and disk series stay.

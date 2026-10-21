@@ -96,7 +96,8 @@ prometheus.scrape "cadvisor" {
 }
 
 // The kube-prometheus cAdvisor drop list plus unread families that are not
-// memory, CPU or pressure history. This is where most of the series budget is spent.
+// memory, CPU or pressure history. This is where most of the series budget
+// is spent.
 prometheus.relabel "cadvisor" {
 	forward_to = [prometheus.remote_write.prometheus.receiver]
 
@@ -531,12 +532,6 @@ prometheus.relabel "apiserver" {
 
 	rule {
 		source_labels = ["__name__"]
-		regex         = "apiserver_(request_duration_seconds|request_sli_duration_seconds|request_slo_duration_seconds|response_sizes|watch_events_sizes|request_body_size_bytes|admission_controller_admission_duration_seconds|admission_step_admission_duration_seconds|admission_webhook_admission_duration_seconds)_bucket"
-		action        = "drop"
-	}
-
-	rule {
-		source_labels = ["__name__"]
 		regex         = "etcd_request_duration_seconds_bucket"
 		action        = "drop"
 	}
@@ -547,11 +542,18 @@ prometheus.relabel "apiserver" {
 		action        = "drop"
 	}
 
-	// Per-resource watch-cache and list bookkeeping, and the SLI/SLO copies of
-	// the request histogram; apiserver_request_total and the object counts stay.
 	rule {
 		source_labels = ["__name__"]
-		regex         = "apiserver_(watch_cache|cache_list|storage_list|watch_list_duration_seconds|request_sli_duration_seconds|request_slo_duration_seconds)_.*|watch_cache_capacity|etcd_bookmark_total|kubernetes_feature_enabled"
+		regex         = "kubernetes_feature_enabled"
+		action        = "drop"
+	}
+
+	// Per-resource watch-cache, cache-list, storage-list and watch-list series,
+	// watch_cache_capacity, etcd_bookmark_total and the SLI/SLO request
+	// histograms; apiserver_request_total and the object counts stay.
+	rule {
+		source_labels = ["__name__"]
+		regex         = "apiserver_(watch_cache|cache_list|storage_list|watch_list_duration_seconds|request_sli_duration_seconds|request_slo_duration_seconds)_.*|watch_cache_capacity|etcd_bookmark_total"
 		action        = "drop"
 	}
 }
