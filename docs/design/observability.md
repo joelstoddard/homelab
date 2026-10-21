@@ -285,7 +285,7 @@ assert on a real query.
   room to spare (`zram-swap.md`). Per-service request, error and latency
   panels read Traefik's `traefik_service_*` metrics. Returning to traces means
   a collector that accepts OTLP, a backend with retention on a volume, and
-  either eBPF instrumentation again or SDKs in the applications.
+  either eBPF instrumentation or SDKs in the applications.
 
 ## Known limitations
 
