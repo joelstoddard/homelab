@@ -5,12 +5,16 @@ resources:
   - namespace.yaml
   - helmrepository.yaml
   - alloy/helmrelease.yaml
+  - alloy-cluster/helmrelease.yaml
   - alloy-events/helmrelease.yaml
   - config
 configMapGenerator:
   - name: alloy-values
     files:
       - values.yaml=alloy/values.yaml
+  - name: alloy-cluster-values
+    files:
+      - values.yaml=alloy-cluster/values.yaml
   - name: alloy-events-values
     files:
       - values.yaml=alloy-events/values.yaml

@@ -268,12 +268,16 @@ TSDB, Loki Monolithic on Longhorn and a stateless Grafana whose dashboards
 are JSON under `monitoring/app/dashboards/<Folder>/` (one ConfigMap per
 file, sidecar-loaded, read-only in the UI; datasource UIDs `prometheus` /
 `loki` are fixed). `alloy/` (`dependsOn: monitoring`, PSA privileged) is
-the collector: a clustered Alloy DaemonSet on all 20 nodes scraping its own
-kubelet/cAdvisor, exporting node metrics in-process, tailing
-`/var/log/pods`, and sharding the cluster-wide targets — pods and Services
-annotated `prometheus.io/scrape` + `prometheus.io/port` — plus a one-replica
-`alloy-events`. No Prometheus Operator, no CRDs: `alloy/app/config/config.alloy`
-is the one place scrape config lives. The three `monitoring` values files
+the collector: a node-local Alloy DaemonSet on all 20 nodes scraping its own
+kubelet/cAdvisor, exporting node metrics in-process and tailing
+`/var/log/pods` (`alloy/app/config/config.alloy`); one `alloy-cluster`
+replica scraping every cluster-wide target — pods and Services annotated
+`prometheus.io/scrape` + `prometheus.io/port`, the control plane, Longhorn,
+SearXNG, Home Assistant — on a Pi by preferred (not required) arm64
+affinity (`cluster.alloy`); and a one-replica `alloy-events`. No Prometheus
+Operator, no CRDs: those two River files are the only place scrape config
+lives. `alloy-cluster` is an ordinary pod, so a NetworkPolicy-protected
+target admits it by namespace + pod label. The three `monitoring` values files
 are substituted, so `${DOMAIN}` is the only `$` allowed in them; dashboards
 and River sit in nested kustomizations whose ConfigMaps carry
 `kustomize.toolkit.fluxcd.io/substitute: disabled`. Control-plane component

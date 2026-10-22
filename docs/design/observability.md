@@ -19,33 +19,51 @@ defaults that hide the control-plane components.
 ## Design
 
 - **Alloy scrapes; Prometheus only stores.** One Alloy DaemonSet on all 20
-  nodes, clustering on. Per-node work is filtered to `NODE_NAME` and never
-  clustered: the node's kubelet and cAdvisor over HTTPS with the
+  nodes does the per-node work, every discovery filtered to `NODE_NAME`
+  (`config.alloy`): the node's kubelet and cAdvisor over HTTPS with the
   service-account token and `insecure_skip_verify` (Talos kubelet serving
   certs are self-signed), node metrics from Alloy's built-in
   `prometheus.exporter.unix` against host `/proc`, `/sys` and `/` mounts,
-  and `/var/log/pods` via `loki.source.file`. Cluster-wide targets — pods and
-  Services carrying `prometheus.io/scrape: "true"` plus `prometheus.io/port`
-  — and the explicit apiserver and Longhorn jobs are sharded across the
-  DaemonSet. `prometheus-community/prometheus` runs with
+  and `/var/log/pods` via `loki.source.file`. One `alloy-cluster` replica
+  scrapes every cluster-wide target (`cluster.alloy`): pods and Services
+  carrying `prometheus.io/scrape: "true"` plus `prometheus.io/port`, the
+  apiserver, Longhorn, kube-controller-manager, kube-scheduler, etcd, and the
+  credentialed SearXNG and Home Assistant jobs.
+  `prometheus-community/prometheus` runs with
   `web.enable-remote-write-receiver` and an empty scrape config. Cilium's
   `cilium-envoy` Service carries the same chart-emitted annotations, so a
   `cilium-envoy` job shows up as a bonus of Service-based discovery.
-  Targets behind a NetworkPolicy (Longhorn's manager, the Flux controllers)
-  see the hostNetwork scraper as Cilium's `host` / `remote-node` identity,
-  which neither a `podSelector`/`namespaceSelector` nor an `ipBlock` matches
-  on Cilium; each such layer carries a `CiliumNetworkPolicy` admitting those
-  entities on the metrics port (`longhorn/app/networkpolicy-metrics.yaml`,
-  `flux-system/networkpolicy-node-scraping.yaml`), and a new
-  policy-protected target needs the same.
+  `alloy-cluster` is an ordinary pod in the `alloy` namespace, so a target
+  behind a NetworkPolicy admits it by namespace and pod label
+  (`app.kubernetes.io/instance: alloy-cluster`). Longhorn's manager needs
+  `longhorn/app/networkpolicy-metrics.yaml` for that; the Flux controllers'
+  own `allow-scraping` policy already admits any namespace on `:8080`.
+- **The cluster scraper prefers a Pi.** `alloy-cluster` holds every
+  cluster-wide series in its remote-write WAL, the bulk of Alloy's memory.
+  The scheduler sees only each VM's fixed allocatable, not the overcommitted
+  NUC under it (`zram-swap.md`), and never moves a running pod, so a
+  *preferred* `kubernetes.io/arch: arm64` affinity is what keeps that memory
+  off the NUCs; preferred rather than required, so it runs on a VM when no
+  Pi fits instead of going unschedulable. It tolerates no taint, so it never
+  lands on the control-plane Pi. A reschedule leaves the
+  cluster-wide series with a gap of a minute or two (accepted); node metrics
+  and logs come from the DaemonSet and are unaffected. `Recreate`, not a
+  rolling update, so a chart upgrade never runs two scrapers against the
+  same targets. The release creates no Service: its own metrics are scraped
+  by pod annotation, and `alloy-cluster` is the name the chart gives a
+  clustered `alloy` release's peer Service. Its control-plane targets are
+  host-network listeners on the node addresses (`0.0.0.0` binds from the
+  talos role's patch), reachable from a pod because no Talos ingress
+  firewall or Cilium host policy is configured.
 - **No Prometheus Operator, no CRDs.** Flux, Cilium, cert-manager,
   kube-state-metrics and Traefik already carry the annotations — Traefik's
   chart annotates its own pods once `metrics.prometheus` is on, so this
   branch only adds the router/service label options on top. ServiceMonitors
   would have needed a CRD layer every metrics-emitting layer depends on, and
-  the talos role seeds Cilium before any CRD exists. One River file
-  (`alloy/app/config/config.alloy`) is the single source of truth for what
-  is scraped. To monitor a new pod: annotate it. To add a dashboard: drop a
+  the talos role seeds Cilium before any CRD exists. Two River files are
+  the single source of truth for what is scraped:
+  `alloy/app/config/config.alloy` per node and `cluster.alloy` for the rest.
+  To monitor a new pod: annotate it. To add a dashboard: drop a
   JSON file in `monitoring/app/dashboards/<Folder>/`.
 - **Loki Monolithic, filesystem on Longhorn.** One replica, `auth_enabled:
   false`, schema v13/TSDB, 30-day compactor retention, gateway, canary,
@@ -61,23 +79,21 @@ defaults that hide the control-plane components.
   `baseline`; `alloy` is `privileged` because the DaemonSet needs hostPath
   mounts, hostPID and hostNetwork, and runs as root to read the 0640 log
   files. `alloy` `dependsOn: monitoring` (`wait: true`) so the write
-  endpoints exist first. Under hostNetwork Alloy must be told to advertise
-  the node IP; its default interface list (`eth0`, `en0`) matches nothing on
-  Talos.
+  endpoints exist first.
 - **Substitution is disabled where `$` lives.** `monitoring` needs
   `${DOMAIN}` for Grafana's Ingress and root URL, but dashboard JSON and
   River are full of `$__rate_interval` and `${1}`, which Flux's envsubst
   replaces with nothing. Both sit in nested kustomizations whose ConfigMaps
   carry `kustomize.toolkit.fluxcd.io/substitute: disabled`. The three values
   files are the only substituted inputs and contain no other `$`.
-- **Events from a second Alloy.** `loki.source.kubernetes_events` cannot be
-  sharded across the DaemonSet, so a one-replica `alloy-events` Deployment
-  runs it alone.
+- **Events from a separate Alloy.** `loki.source.kubernetes_events` must run
+  once, or every instance emits every event, so a one-replica `alloy-events`
+  Deployment runs it alone.
 - **Placement and budget.** Prometheus and Loki pin to amd64: Longhorn from a
   VM is ~2,000 write IOPS against ~900 from a Pi. The 60 s scrape interval
   and the series denylist below set the series budget. Limits are first
-  guesses: Prometheus 2Gi, Loki 1Gi, Grafana 768Mi, each Alloy 512Mi, events
-  Alloy 256Mi.
+  guesses: Prometheus 2Gi, Loki 1Gi, Grafana 768Mi, each node Alloy 1Gi, the
+  cluster Alloy 3Gi, events Alloy 256Mi.
 - **Series denylist, by name.** Alloy drops the heaviest metric families no
   dashboard reads, in the `prometheus.relabel` stage of the scrape that
   emits them, so they cost neither Alloy's remote-write WAL nor Prometheus'
@@ -219,6 +235,9 @@ there `namespace` and `pod` are already the subject.
 - Alloy restart: positions live in the container's writable layer (the chart
   mounts nothing at `/tmp/alloy`), so current log files are re-read (kubelet
   rotates at 10 MiB) and Loki drops exact duplicates.
+- `alloy-cluster` pod lost or rescheduled: every cluster-wide job goes
+  absent from `up` until the new pod's first scrape, a minute or two; the
+  DaemonSet's kubelet, cAdvisor, node and log collection carry on.
 - Volume fills: `retentionSize` sits below the PVC; Loki's compactor
   enforces time; Longhorn volumes expand online.
 - A `$WORD` in a comment in one of the three values files is eaten by
@@ -361,6 +380,16 @@ assert on a real query.
 - **Operator CRDs consumed by Alloy.** Ecosystem-standard interface, but a
   CRD layer plus `dependsOn` edges on every metrics-emitting layer, and
   Cilium's monitor could not live in the shared seed values.
+- **Cluster-wide scrapes sharded across the DaemonSet by Alloy clustering.**
+  Every DaemonSet pod then holds a share of the cluster-wide series, so most
+  of that memory lands on the 12 NUC-backed VMs, and the shard moves with
+  every membership change.
+- **Pinning the cluster scraper to a node, or a required Pi affinity.** A
+  named or required node turns that node's loss into an unschedulable pod
+  and a gap without end, where a preferred affinity costs a minute.
+- **Folding the cluster scrapes into `alloy-events`.** One responsibility
+  per release, as with `alloy-gateway`: the events Alloy stays small, and
+  sizing one does not resize the other.
 - **Separate node-exporter.** A second DaemonSet on 20 nodes for series
   Alloy already produces.
 - **Persistent Grafana.** Two sources of truth; drift is silent.

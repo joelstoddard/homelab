@@ -1,0 +1,38 @@
+# Third release of the same chart: every cluster-wide scrape, in one pod that
+# prefers a Pi so those series stay off NUC-backed memory. Version pinned in
+# versions.env as ALLOY_CHART_VERSION; `make lint` checks.
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: alloy-cluster
+spec:
+  interval: 1h0m0s
+  releaseName: alloy-cluster
+  timeout: 10m0s
+  chart:
+    spec:
+      chart: alloy
+      version: "1.12.1"
+      sourceRef:
+        kind: HelmRepository
+        name: grafana
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    remediation:
+      retries: 3
+  valuesFrom:
+    - kind: ConfigMap
+      name: alloy-cluster-values
+  # The chart hard-codes a 1 s readiness timeout, which a busy Alloy misses.
+  postRenderers:
+    - kustomize:
+        patches:
+          - target:
+              kind: Deployment
+              name: alloy-cluster
+            patch: |
+              - op: replace
+                path: /spec/template/spec/containers/0/readinessProbe/timeoutSeconds
+                value: 5
