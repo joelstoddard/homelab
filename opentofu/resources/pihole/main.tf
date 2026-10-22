@@ -5,11 +5,12 @@ locals {
   # handful of names that are really hosted elsewhere. dnsmasq matches the
   # most specific domain first, so the server= lines win over the address=
   # line. Both inputs empty (an unpopulated checkout) means an empty array,
-  # which clears the setting rather than half-configuring it.
+  # which clears the setting; local-ttl is trap 3 in docs/design/ingress-tls.md.
   pihole_dnsmasq_lines = (
     var.pihole_wildcard_domain == "" || var.pihole_cluster_ingress_ip == ""
     ? []
     : concat(
+      ["local-ttl=300"],
       ["address=/${var.pihole_wildcard_domain}/${var.pihole_cluster_ingress_ip}"],
       [for name in var.pihole_dns_passthrough_names : "server=/${name}/#"],
     )

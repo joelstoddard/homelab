@@ -125,8 +125,10 @@ like a DNS problem.
 
 These lines are one half of the cluster's ingress: the wildcard also
 makes dnsmasq authoritative for the domain, which breaks cert-manager's
-DNS-01 self-check unless it bypasses Pi-hole. Both traps, and the
-Traefik side, are in the repo-root `docs/design/ingress-tls.md`.
+DNS-01 self-check unless it bypasses Pi-hole. The generated lines also
+carry `local-ttl=300`, so clients cache local answers for five minutes.
+The traps, including what a second DHCP resolver does to the wildcard,
+and the Traefik side are in the repo-root `docs/design/ingress-tls.md`.
 
 ## Drift
 
