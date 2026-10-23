@@ -97,3 +97,6 @@ configMapGenerator:
   - name: dashboard-service
     files: [Services/service.json]
     options: {annotations: {grafana_folder: Services}}
+  - name: dashboard-metachat
+    files: [Services/metachat.json]
+    options: {annotations: {grafana_folder: Services}}

@@ -44,7 +44,10 @@ throughout: a public repo (no address or domain in plaintext), PodSecurity
   about UIs a person logs into. The same five hosts hold both halves, both
   sinks are write-only, and a second credential would mean four copies across
   two SOPS trees. The hash is bcrypt: envsubst replaces a classic `$apr1$`
-  hash with nothing.
+  hash with nothing. The one other user, `metachat`, belongs to the
+  internet-facing VPS skylab, which pushes metachat's metrics over the tailnet
+  (`docs/design/metachat.md`). It is outside the five-host argument, so it gets
+  its own line and is revoked without touching `hosts`.
 - **A third Alloy owns every off-cluster target.** `alloy-gateway` is a
   one-replica Deployment of the same chart version as the DaemonSet and the
   events Alloy, in the `host-monitoring` namespace, with no host access. It

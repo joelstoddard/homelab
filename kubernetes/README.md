@@ -514,7 +514,8 @@ Consequences:
   `loki.<domain>/loki/api/v1/push`, both behind the `ingest-auth` Middleware;
   every other path on those hostnames is a 404. One credential, `hosts`,
   serves both — the deliberate exception to the per-service rule under
-  "Traefik", because both sinks are write-only.
+  "Traefik", because both sinks are write-only. A second user, `metachat`,
+  is the off-LAN VPS skylab's (`docs/design/metachat.md`).
 - **`INGEST_LB_IP` is the LAN face.** The `graphite` (TCP 2003) and `syslog`
   (UDP/TCP 514) Services share that one pinned address through
   `lbipam.cilium.io/sharing-key: ingest`. It is what TrueNAS's Reporting and
