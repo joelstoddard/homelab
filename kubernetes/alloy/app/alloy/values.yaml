@@ -1,15 +1,15 @@
 # One Alloy per node: scrapes its own kubelet/cAdvisor, exports node metrics
-# from the host mounts, tails /var/log/pods, and takes its share of the
-# cluster-wide scrapes via clustering. Config is config/config.alloy, mounted
-# from the alloy-config ConfigMap; the reloader picks up edits without a
-# restart. docs/design/observability.md.
+# from the host mounts and tails /var/log/pods; cluster-wide targets are the
+# alloy-cluster release's. Config is config/config.alloy, mounted from the
+# alloy-config ConfigMap; the reloader picks up edits without a restart.
+# docs/design/observability.md.
 alloy:
   configMap:
     create: false
     name: alloy-config
     key: config.alloy
   clustering:
-    enabled: true
+    enabled: false
   mounts:
     varlog: true
     extra:
@@ -28,16 +28,6 @@ alloy:
       valueFrom:
         fieldRef:
           fieldPath: spec.nodeName
-    # hostNetwork: the pod's host IP is the node's LAN address.
-    - name: HOST_IP
-      valueFrom:
-        fieldRef:
-          fieldPath: status.hostIP
-  # Alloy's default advertise interfaces are eth0/en0, which Talos nodes do
-  # not have (end0 on the Pis, enp* on the VMs); left alone it advertises
-  # 127.0.0.1 and clustering silently collapses.
-  extraArgs:
-    - --cluster.advertise-address=$(HOST_IP):12345
   # Pod log files under /var/log/pods are root-owned 0640; the image's default
   # user cannot read them.
   securityContext:

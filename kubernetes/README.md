@@ -143,12 +143,13 @@ kubernetes/
 ├── alloy/
 │   ├── ks.yaml                   # Flux Kustomization "alloy", dependsOn monitoring
 │   └── app/
-│       ├── kustomization.yaml    # namespace alloy; wires namespace, HelmRepository and the three sub-kustomizations
+│       ├── kustomization.yaml    # namespace alloy; wires namespace, HelmRepository and the four sub-directories
 │       ├── namespace.yaml        # PodSecurity "privileged" — hostPath/hostPID/hostNetwork + root
 │       ├── helmrepository.yaml   # https://grafana.github.io/helm-charts
-│       ├── alloy/                # HelmRelease + values: the clustered DaemonSet, all 20 nodes
+│       ├── alloy/                # HelmRelease + values: the node-local DaemonSet, all 20 nodes
+│       ├── alloy-cluster/        # HelmRelease + values: one-replica Deployment for cluster-wide scrapes, prefers a Pi
 │       ├── alloy-events/         # HelmRelease + values: one-replica Deployment for Kubernetes events
-│       └── config/               # River configs, substitute disabled: config.alloy + events.alloy
+│       └── config/               # River configs, substitute disabled: config.alloy + cluster.alloy + events.alloy
 ├── host-monitoring/
 │   ├── ks.yaml                   # Flux Kustomization, dependsOn monitoring + cilium-lb + cluster-secrets, postBuild, sops
 │   └── app/
@@ -462,10 +463,11 @@ kubectl --context homelab -n monitoring logs deploy/grafana -c grafana-sc-dashbo
 
 ## Alloy
 
-`alloy/` is the collector: a clustered Alloy DaemonSet on all 20 nodes (own
+`alloy/` is the collector: a node-local Alloy DaemonSet on all 20 nodes (own
 kubelet + cAdvisor, node metrics via the built-in unix exporter, pod logs
-from `/var/log/pods`; cluster-wide scrapes sharded by clustering) and a
-one-replica `alloy-events` for Kubernetes events. Namespace is PodSecurity
+from `/var/log/pods`), a one-replica `alloy-cluster` for every cluster-wide
+scrape (preferring a Pi, falling back to a VM), and a one-replica
+`alloy-events` for Kubernetes events. Namespace is PodSecurity
 `privileged`: hostPath, hostPID, hostNetwork, root.
 
 Consequences:
@@ -474,21 +476,23 @@ Consequences:
   and `prometheus.io/port: "<n>"` (required), `prometheus.io/path` and
   `prometheus.io/scheme` optional. `job` becomes its `app.kubernetes.io/name`.
   The same on a Service works too.
-- **A target behind a NetworkPolicy needs a `CiliumNetworkPolicy`** admitting
-  the `host` and `remote-node` entities on its metrics port — Alloy is
-  hostNetwork, and on Cilium neither a namespace/pod selector nor an
-  `ipBlock` matches node identities (`longhorn/app/networkpolicy-metrics.yaml`
-  is the template).
-- **Everything else is `alloy/app/config/config.alloy`**: edit, PR, the
-  reloader applies it without a restart.
-- Alloy listens on the node's `:12345` (hostNetwork): the debug UI is
-  `port-forward` to any one pod.
+- **A target behind a NetworkPolicy must admit the `alloy-cluster` pod**
+  (namespace `alloy`, `app.kubernetes.io/instance: alloy-cluster`) on its
+  metrics port; `longhorn/app/networkpolicy-metrics.yaml` is the template.
+- **Everything else is River**: per-node scrapes and logs in
+  `alloy/app/config/config.alloy`, cluster-wide scrapes in
+  `alloy/app/config/cluster.alloy`. Edit, PR, the reloader applies it
+  without a restart.
+- The DaemonSet listens on the node's `:12345` (hostNetwork); the debug UI
+  is `port-forward` to any one pod, or to `deploy/alloy-cluster` for the
+  cluster-wide targets.
 
 ```bash
 flux --context homelab get ks alloy
-kubectl --context homelab -n alloy get pods -o wide                       # 20 + 1, both arches
-kubectl --context homelab -n alloy port-forward ds/alloy 12345:12345      # UI: targets, clustering, pipeline
+kubectl --context homelab -n alloy get pods -o wide                       # 20 + 2; alloy-cluster on an arm64 node
+kubectl --context homelab -n alloy port-forward deploy/alloy-cluster 12345:12345   # UI: cluster-wide targets, pipeline
 kubectl --context homelab -n alloy logs ds/alloy --tail=50 | grep -iE 'error|failed'
+kubectl --context homelab -n alloy logs deploy/alloy-cluster --tail=50 | grep -iE 'error|failed'
 ```
 
 ## Host monitoring
@@ -551,7 +555,7 @@ Consequences:
 - **`app/config/` is generated with a name hash, on purpose.** SearXNG reads
   both files once at startup, so without the hash an edit lands on disk and
   the running pod ignores it. Do not add `disableNameSuffixHash` here.
-- **The metrics scrape is explicit, in `alloy/app/config/config.alloy`.**
+- **The metrics scrape is explicit, in `alloy/app/config/cluster.alloy`.**
   `/metrics` is behind basic auth, which the `prometheus.io/scrape` path
   cannot carry, so the pod carries no annotation — do not add one, it would
   only log 401s.
@@ -795,7 +799,7 @@ Consequences:
 - **Metrics are an explicit scrape, like SearXNG's.** `prometheus:` in
   `configuration.yaml` serves `/api/prometheus` behind a bearer token, which
   the `prometheus.io/scrape` annotation path cannot carry — so the pod carries
-  no annotation, and `alloy/app/config/config.alloy` reads
+  no annotation, and `alloy/app/config/cluster.alloy` reads
   `HOME_ASSISTANT_TOKEN` at runtime.
 - **Trusted proxies, location and the URLs are set in the UI, and a rebuild
   that wipes the volume means setting them again.** Until trusted proxies are

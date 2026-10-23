@@ -19,7 +19,7 @@ spec:
         app.kubernetes.io/name: searxng
       # Deliberately no prometheus.io/scrape: /metrics is behind basic auth,
       # which the annotated-pods scrape cannot carry — it would log 401s
-      # forever. The credentialed job is in alloy/app/config/config.alloy.
+      # forever. The credentialed job is in alloy/app/config/cluster.alloy.
     spec:
       securityContext:
         runAsUser: 977

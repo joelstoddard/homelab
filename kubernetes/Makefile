@@ -19,7 +19,9 @@ CILIUM_VERSION := $(shell . $(VERSIONS_ENV) && echo $$CILIUM_VERSION)
 ALLOY_VERSION  := $(shell . $(VERSIONS_ENV) && echo $$ALLOY_CHART_VERSION)
 COMPONENTS     := flux-system/gotk-components.yaml
 CILIUM_SOURCE  := cilium/app/ocirepository.yaml
+ALLOY_CONFIG   := alloy/app/config
 ALLOY_RELEASES := alloy/app/alloy/helmrelease.yaml \
+                  alloy/app/alloy-cluster/helmrelease.yaml \
                   alloy/app/alloy-events/helmrelease.yaml \
                   host-monitoring/app/alloy-gateway/helmrelease.yaml
 
@@ -78,10 +80,16 @@ lint:
 	@echo ">> $(CILIUM_SOURCE) at $(CILIUM_VERSION)"
 	@for f in $(ALLOY_RELEASES); do \
 		grep -q '^      version: "$(ALLOY_VERSION)"$$' $$f || { \
-			echo "$$f is not at chart $(ALLOY_VERSION); the three Alloy releases and versions.env bump together." >&2; \
+			echo "$$f is not at chart $(ALLOY_VERSION); the four Alloy releases and versions.env bump together." >&2; \
 			exit 1; }; \
 	done
-	@echo ">> the three Alloy HelmReleases at chart $(ALLOY_VERSION)"
+	@echo ">> the four Alloy HelmReleases at chart $(ALLOY_VERSION)"
+	@a=$$(sed -n '/^prometheus\.relabel "kube_components" {/,/^}/p' $(ALLOY_CONFIG)/config.alloy); \
+	b=$$(sed -n '/^prometheus\.relabel "kube_components" {/,/^}/p' $(ALLOY_CONFIG)/cluster.alloy); \
+	[ -n "$$a" ] && [ "$$a" = "$$b" ] || { \
+		echo "kube_components differs between config.alloy and cluster.alloy; kubelet and the control plane drop the same families." >&2; \
+		exit 1; }
+	@echo ">> kube_components drop rules identical in config.alloy and cluster.alloy"
 	@kubectl kustomize . >/dev/null
 	@echo ">> kubectl kustomize . builds"
 	@for d in */app; do kubectl kustomize $$d >/dev/null && echo ">> kubectl kustomize $$d builds" || exit 1; done
