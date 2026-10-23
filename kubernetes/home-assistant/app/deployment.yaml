@@ -20,14 +20,14 @@ spec:
         app.kubernetes.io/name: home-assistant
       # Deliberately no prometheus.io/scrape: the metrics endpoint needs a
       # long-lived token minted from the web interface, which the annotation
-      # path cannot carry. Beyla reports RED metrics meanwhile.
+      # path cannot carry.
     spec:
       # The only way multicast reaches the LAN, and the only network mode
       # upstream supports for the container install.
       hostNetwork: true
       dnsPolicy: ClusterFirstWithHostNet
       # The recorder database is a steady writer and the Pis boot from slow
-      # USB, so this follows Jellyfin, Loki and Tempo. The image is multi-arch,
+      # USB, so this follows Jellyfin, Loki and Prometheus. The image is multi-arch,
       # so the pin is a placement choice and not a constraint.
       nodeSelector:
         kubernetes.io/arch: amd64

@@ -19,33 +19,51 @@ defaults that hide the control-plane components.
 ## Design
 
 - **Alloy scrapes; Prometheus only stores.** One Alloy DaemonSet on all 20
-  nodes, clustering on. Per-node work is filtered to `NODE_NAME` and never
-  clustered: the node's kubelet and cAdvisor over HTTPS with the
+  nodes does the per-node work, every discovery filtered to `NODE_NAME`
+  (`config.alloy`): the node's kubelet and cAdvisor over HTTPS with the
   service-account token and `insecure_skip_verify` (Talos kubelet serving
   certs are self-signed), node metrics from Alloy's built-in
   `prometheus.exporter.unix` against host `/proc`, `/sys` and `/` mounts,
-  and `/var/log/pods` via `loki.source.file`. Cluster-wide targets — pods and
-  Services carrying `prometheus.io/scrape: "true"` plus `prometheus.io/port`
-  — and the explicit apiserver and Longhorn jobs are sharded across the
-  DaemonSet. `prometheus-community/prometheus` runs with
+  and `/var/log/pods` via `loki.source.file`. One `alloy-cluster` replica
+  scrapes every cluster-wide target (`cluster.alloy`): pods and Services
+  carrying `prometheus.io/scrape: "true"` plus `prometheus.io/port`, the
+  apiserver, Longhorn, kube-controller-manager, kube-scheduler, etcd, and the
+  credentialed SearXNG and Home Assistant jobs.
+  `prometheus-community/prometheus` runs with
   `web.enable-remote-write-receiver` and an empty scrape config. Cilium's
   `cilium-envoy` Service carries the same chart-emitted annotations, so a
   `cilium-envoy` job shows up as a bonus of Service-based discovery.
-  Targets behind a NetworkPolicy (Longhorn's manager, the Flux controllers)
-  see the hostNetwork scraper as Cilium's `host` / `remote-node` identity,
-  which neither a `podSelector`/`namespaceSelector` nor an `ipBlock` matches
-  on Cilium; each such layer carries a `CiliumNetworkPolicy` admitting those
-  entities on the metrics port (`longhorn/app/networkpolicy-metrics.yaml`,
-  `flux-system/networkpolicy-node-scraping.yaml`), and a new
-  policy-protected target needs the same.
+  `alloy-cluster` is an ordinary pod in the `alloy` namespace, so a target
+  behind a NetworkPolicy admits it by namespace and pod label
+  (`app.kubernetes.io/instance: alloy-cluster`). Longhorn's manager needs
+  `longhorn/app/networkpolicy-metrics.yaml` for that; the Flux controllers'
+  own `allow-scraping` policy already admits any namespace on `:8080`.
+- **The cluster scraper prefers a Pi.** `alloy-cluster` holds every
+  cluster-wide series in its remote-write WAL, the bulk of Alloy's memory.
+  The scheduler sees only each VM's fixed allocatable, not the overcommitted
+  NUC under it (`zram-swap.md`), and never moves a running pod, so a
+  *preferred* `kubernetes.io/arch: arm64` affinity is what keeps that memory
+  off the NUCs; preferred rather than required, so it runs on a VM when no
+  Pi fits instead of going unschedulable. It tolerates no taint, so it never
+  lands on the control-plane Pi. A reschedule leaves the
+  cluster-wide series with a gap of a minute or two (accepted); node metrics
+  and logs come from the DaemonSet and are unaffected. `Recreate`, not a
+  rolling update, so a chart upgrade never runs two scrapers against the
+  same targets. The release creates no Service: its own metrics are scraped
+  by pod annotation, and `alloy-cluster` is the name the chart gives a
+  clustered `alloy` release's peer Service. Its control-plane targets are
+  host-network listeners on the node addresses (`0.0.0.0` binds from the
+  talos role's patch), reachable from a pod because no Talos ingress
+  firewall or Cilium host policy is configured.
 - **No Prometheus Operator, no CRDs.** Flux, Cilium, cert-manager,
   kube-state-metrics and Traefik already carry the annotations — Traefik's
   chart annotates its own pods once `metrics.prometheus` is on, so this
   branch only adds the router/service label options on top. ServiceMonitors
   would have needed a CRD layer every metrics-emitting layer depends on, and
-  the talos role seeds Cilium before any CRD exists. One River file
-  (`alloy/app/config/config.alloy`) is the single source of truth for what
-  is scraped. To monitor a new pod: annotate it. To add a dashboard: drop a
+  the talos role seeds Cilium before any CRD exists. Two River files are
+  the single source of truth for what is scraped:
+  `alloy/app/config/config.alloy` per node and `cluster.alloy` for the rest.
+  To monitor a new pod: annotate it. To add a dashboard: drop a
   JSON file in `monitoring/app/dashboards/<Folder>/`.
 - **Loki Monolithic, filesystem on Longhorn.** One replica, `auth_enabled:
   false`, schema v13/TSDB, 30-day compactor retention, gateway, canary,
@@ -61,23 +79,70 @@ defaults that hide the control-plane components.
   `baseline`; `alloy` is `privileged` because the DaemonSet needs hostPath
   mounts, hostPID and hostNetwork, and runs as root to read the 0640 log
   files. `alloy` `dependsOn: monitoring` (`wait: true`) so the write
-  endpoints exist first. Under hostNetwork Alloy must be told to advertise
-  the node IP; its default interface list (`eth0`, `en0`) matches nothing on
-  Talos.
+  endpoints exist first.
 - **Substitution is disabled where `$` lives.** `monitoring` needs
   `${DOMAIN}` for Grafana's Ingress and root URL, but dashboard JSON and
   River are full of `$__rate_interval` and `${1}`, which Flux's envsubst
   replaces with nothing. Both sit in nested kustomizations whose ConfigMaps
-  carry `kustomize.toolkit.fluxcd.io/substitute: disabled`. The four values
+  carry `kustomize.toolkit.fluxcd.io/substitute: disabled`. The three values
   files are the only substituted inputs and contain no other `$`.
-- **Events from a second Alloy.** `loki.source.kubernetes_events` cannot be
-  sharded across the DaemonSet, so a one-replica `alloy-events` Deployment
-  runs it alone.
+- **Events from a separate Alloy.** `loki.source.kubernetes_events` must run
+  once, or every instance emits every event, so a one-replica `alloy-events`
+  Deployment runs it alone.
 - **Placement and budget.** Prometheus and Loki pin to amd64: Longhorn from a
-  VM is ~2,000 write IOPS against ~900 from a Pi. 60 s scrape interval, the
-  kube-prometheus cAdvisor drop list and the apiserver histogram drops keep
-  the series budget near 100k. Limits are first guesses: Prometheus 2Gi,
-  Loki 1Gi, Grafana 768Mi, each Alloy 512Mi, events Alloy 256Mi.
+  VM is ~2,000 write IOPS against ~900 from a Pi. The 60 s scrape interval
+  and the series denylist below set the series budget. Limits are first
+  guesses: Prometheus 2Gi, Loki 1Gi, Grafana 768Mi, each node Alloy 1Gi, the
+  cluster Alloy 3Gi, events Alloy 256Mi.
+- **Series denylist, by name.** Alloy drops the heaviest metric families no
+  dashboard reads, in the `prometheus.relabel` stage of the scrape that
+  emits them, so they cost neither Alloy's remote-write WAL nor Prometheus'
+  head. Each rule drops one family or one tight family regex by name; the
+  one rule that also reads a label is cAdvisor's, which drops the pod-level
+  `container=""` copies of the TCP and UDP usage counters. A family not on
+  the list is kept, so anything a dashboard does not use yet stays
+  explorable. A rule in the annotated-pod or annotated-Service stage
+  reaches every workload scraped through it, not only the component it is
+  written for. The list:
+  - Histogram `_bucket` series of components' own machinery: apiserver,
+    kubelet, kube-scheduler and kube-controller-manager (`apiserver_*`,
+    `kubelet_*`, `scheduler_*`, client-go workqueue, informer and REST
+    client, authn/authz, and kubelet's storage, volume, CSI and DRA
+    operation histograms), Cilium agent and operator, Alloy, Prometheus,
+    Loki, Grafana, Flux's `gotk_reconcile_duration_seconds` and Traefik's
+    per-router latency. `go_*_bucket` Go-runtime histograms go from the
+    Kubernetes components and from every annotated pod. The `_sum` and
+    `_count` series stay, so rates and means remain queryable; only
+    quantiles are lost.
+  - `kubernetes_feature_enabled` on every Kubernetes component.
+  - apiserver per-resource watch-cache and list bookkeeping
+    (`apiserver_watch_cache_*`, `apiserver_cache_list_*`,
+    `apiserver_storage_list_*`, `apiserver_watch_list_duration_seconds_*`,
+    `watch_cache_capacity`, `etcd_bookmark_total`) and the SLI/SLO copies
+    of the request histogram. `apiserver_request_total` and the object
+    counts stay.
+  - All of cilium-envoy's `envoy_*`: nothing here uses Cilium's L7 proxy.
+  - Longhorn manager's `longhorn_workqueue_*` and `longhorn_rest_client_*`,
+    one set per controller per manager pod; volume, node and disk series stay.
+  - Alloy's per-target bookkeeping (`prometheus_sd_kubernetes_events_total`,
+    `prometheus_target_{sync,interval}_length_seconds`,
+    `net_conntrack_dialer_*`, `alloy_fanout_mapping_store_*`,
+    `alloy_component_graph_connection`) and Cilium's `hive_jobs_*`.
+  - gRPC per-method result codes (`grpc_server_*` from Hubble,
+    `grpc_server_handled_total` from etcd) and etcd's `etcd_debugging_*`.
+    The etcd disk, raft and request histograms stay.
+  - cAdvisor families beyond the kube-prometheus list that are not memory,
+    CPU, pressure, thread or process history: memory fault counters, fs
+    operation counts (bytes stay), `container_last_seen`,
+    `container_ulimits_soft`, `container_cpu_load_d_average_10s`.
+  - node-exporter's per-interface descriptors (`node_network_info`, flags,
+    ids, assign types, carrier change counters, queue length), CPU frequency
+    limits and governor, and `node_nfs_requests_total`. Traffic, error and
+    carrier state stay, as Node Exporter Full reads them.
+
+  A family goes on the list only when no provisioned dashboard reads it in a
+  panel target, template-variable query or annotation. A dashboard that
+  needs a dropped family removes its rule in the same change.
 - **Prometheus keeps 14 days.** Blocks grow ~1.15 GiB a day and the WAL
   and head chunks add ~0.25 GiB (2026-10-20), so 14 days is ~16.4 GiB.
   Prometheus reads `retentionSize` units as base 2, so `22GB` is 22 GiB
@@ -112,6 +177,34 @@ defaults that hide the control-plane components.
   node (`node-role.kubernetes.io/control-plane`) on `:2381` over plain
   HTTP; the metrics carry no key data, and a `NetworkRuleConfig` is the
   follow-up if that is unwanted.
+- **Services overview → Service → app dashboard.** Grafana is the detailed
+  view for one misbehaving workload. `Services/services-overview.json` (uid
+  `services-overview`) is one table, a row per Deployment, StatefulSet and
+  DaemonSet, sorted by restarts over the range, then memory working set
+  against limit, then error log lines; each workload links to
+  `Services/service.json` (uid `service`, variables `namespace` and
+  `workload`), whose rows are Health, Resources (with restarts as
+  annotations), Traffic, Logs and a link to the app's own dashboard. Both
+  default to 14 days, Prometheus' retention, so a slow climb towards an OOM
+  kill is visible. The mappings they rely on:
+  - Workload identity is kube-state-metrics' `kube_pod_owner`, through
+    `kube_replicaset_owner` for Deployments. Jobs, static pods and Longhorn's
+    instance managers are not workloads here.
+  - Logs carry no owner, so a pod maps to its workload by name shape:
+    `<name>-<hash>-<suffix>`, `<name>-<suffix>` or `<name>-<ordinal>`, where
+    hash and suffix use Kubernetes' vowel-free alphabet. That keeps
+    `jellyfin-exporter` pods out of `jellyfin`.
+  - A Traefik service named `<namespace>-<name>-<hash>@kubernetescrd` or
+    `<namespace>-<name>-<port>@kubernetes` belongs to workload
+    `<namespace>/<name>`. A Service named differently from its workload
+    (`longhorn-frontend` for `longhorn-ui`) reads blank, as does a workload
+    with no ingress.
+  - The App link is `homelab-<app>` for the apps with a dashboard and their
+    `-exporter` Deployments; the list is a regex in `service.json`'s App
+    panel, so a new app dashboard needs both that uid and an entry there.
+  - Error lines are a case-insensitive `error` match. The overview counts
+    the last hour only, because the same match over 14 days of every
+    namespace takes ~27 s in Loki.
 
 ## Label conventions
 
@@ -142,11 +235,25 @@ there `namespace` and `pod` are already the subject.
 - Alloy restart: positions live in the container's writable layer (the chart
   mounts nothing at `/tmp/alloy`), so current log files are re-read (kubelet
   rotates at 10 MiB) and Loki drops exact duplicates.
+- `alloy-cluster` pod lost or rescheduled: every cluster-wide job goes
+  absent from `up` until the new pod's first scrape, a minute or two; the
+  DaemonSet's kubelet, cAdvisor, node and log collection carry on.
 - Volume fills: `retentionSize` sits below the PVC; Loki's compactor
   enforces time; Longhorn volumes expand online.
-- A `$WORD` in a comment in one of the four values files is eaten by
+- A `$WORD` in a comment in one of the three values files is eaten by
   envsubst; the dashboards and River are exempt per resource.
 - Enabling Cilium metrics rolled every agent once.
+- **The Cilium chart's dashboards are off** (`dashboards`,
+  `operator.dashboards`, `hubble.metrics.dashboards` in
+  `kubernetes/cilium/app/values.yaml`). Of 185 panel queries across the six
+  dashboards, 6 return data. The chart writes `rate(...[1m])` against a 60 s
+  scrape interval, so a window holds fewer than two samples and `rate()` is
+  empty; the same queries over `[5m]` return data. The Cilium and Operator
+  dashboards also filter on pod labels (`k8s_app="cilium"`,
+  `io_cilium_app="operator"`) that Alloy's annotation scrape does not attach:
+  it labels `job="cilium-agent"` plus namespace, pod and node. Hubble keeps
+  `dns`, `drop`, `tcp`, `flow` and `icmp` for ad-hoc exploration;
+  `port-distribution` (~41k series, nothing reads it) is off.
 
 ## Measurements
 
@@ -273,9 +380,29 @@ assert on a real query.
 - **Operator CRDs consumed by Alloy.** Ecosystem-standard interface, but a
   CRD layer plus `dependsOn` edges on every metrics-emitting layer, and
   Cilium's monitor could not live in the shared seed values.
+- **Cluster-wide scrapes sharded across the DaemonSet by Alloy clustering.**
+  Every DaemonSet pod then holds a share of the cluster-wide series, so most
+  of that memory lands on the 12 NUC-backed VMs, and the shard moves with
+  every membership change.
+- **Pinning the cluster scraper to a node, or a required Pi affinity.** A
+  named or required node turns that node's loss into an unschedulable pod
+  and a gap without end, where a preferred affinity costs a minute.
+- **Folding the cluster scrapes into `alloy-events`.** One responsibility
+  per release, as with `alloy-gateway`: the events Alloy stays small, and
+  sizing one does not resize the other.
 - **Separate node-exporter.** A second DaemonSet on 20 nodes for series
   Alloy already produces.
 - **Persistent Grafana.** Two sources of truth; drift is silent.
+- **Tracing (Beyla and Tempo).** Beyla gave request-level eBPF spans for
+  every containerised service, sampled at 10 %, into a single-binary Tempo on
+  Longhorn with 72 h retention; it had no in-process spans and could not see
+  hostNetwork pods, because `containers_only` compares a process's network
+  namespace against Beyla's own. Tempo answered 0 queries in 30 days while
+  Beyla and Tempo held about 3.3 GiB of memory on the NUC VMs, which have no
+  room to spare (`zram-swap.md`). Per-service request, error and latency
+  panels read Traefik's `traefik_service_*` metrics. Returning to traces means
+  a collector that accepts OTLP, a backend with retention on a volume, and
+  either eBPF instrumentation or SDKs in the applications.
 
 ## Known limitations
 
@@ -285,5 +412,5 @@ assert on a real query.
   components.
 - Prometheus and Alloy UIs are not exposed; `kubectl port-forward`.
 - Loki is not HA and has no object store.
-- Off-cluster hosts (Proxmox, TrueNAS, Pi-hole, router) and eBPF
-  auto-instrumentation are separate specs.
+- Off-cluster hosts (Proxmox, TrueNAS, Pi-hole, router) are covered by
+  `host-monitoring.md`.

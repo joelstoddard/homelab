@@ -107,7 +107,7 @@ would deadlock on the volume, and two pods sharing one SQLite file corrupt it.
 
 ### Placement
 
-`nodeSelector: kubernetes.io/arch: amd64`, following Loki, Tempo and Prometheus.
+`nodeSelector: kubernetes.io/arch: amd64`, following Loki and Prometheus.
 The Pis cannot transcode and their USB storage is slow.
 
 The memory limit is 2Gi, modest on purpose against the 5397240Ki an amd64
@@ -150,8 +150,7 @@ with `runAsNonRoot: true`.
 
 **The Jellyfin pod itself carries no `prometheus.io/scrape` annotation**, and
 must not: it serves no Prometheus endpoint, so a scrape would only log 404s.
-Its request rates and latencies come from Beyla, which instruments every
-containerised service outside `kube-system` without being asked.
+Its request rates and latencies come from Traefik's per-service metrics, matched on the `media-jellyfin-` prefix of the `service` label.
 
 Jellyfin's own `EnableMetrics` setting stays `false`. It exposes .NET runtime
 and Kestrel counters through `prometheus-net` and nothing about playback, so it

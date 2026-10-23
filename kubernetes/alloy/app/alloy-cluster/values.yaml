@@ -1,0 +1,43 @@
+# One unprivileged Alloy scraping every target that is not tied to a node:
+# annotated pods and Services, the control plane, Longhorn, SearXNG and Home
+# Assistant. Config is config/cluster.alloy, mounted from the
+# alloy-cluster-config ConfigMap. docs/design/observability.md.
+alloy:
+  configMap:
+    create: false
+    name: alloy-cluster-config
+    key: cluster.alloy
+  # Holds every cluster-wide series in its remote-write WAL, which grows for
+  # as long as Prometheus is down.
+  resources:
+    requests:
+      cpu: 200m
+      memory: 1Gi
+    limits:
+      cpu: "2"
+      memory: 3Gi
+controller:
+  type: deployment
+  replicas: 1
+  # A surge pod would scrape every target alongside the old one until it is
+  # Ready; a gap of a minute is the accepted cost instead.
+  updateStrategy:
+    type: Recreate
+  # Preferred, not required: the scheduler sees only each VM's allocatable,
+  # not the overcommitted NUC under it, but a VM beats going unschedulable.
+  affinity:
+    nodeAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 100
+          preference:
+            matchExpressions:
+              - key: kubernetes.io/arch
+                operator: In
+                values: ["arm64"]
+  podAnnotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "12345"
+# No Service: its scrape goes to the pod, and `alloy-cluster` is the name a
+# clustered `alloy` release gives its peer Service.
+service:
+  enabled: false

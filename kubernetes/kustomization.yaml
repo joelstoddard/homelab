@@ -18,7 +18,6 @@ resources:
   - longhorn-jobs/ks.yaml
   - monitoring/ks.yaml
   - alloy/ks.yaml
-  - beyla/ks.yaml
   - host-monitoring/ks.yaml
   - searxng/ks.yaml
   - media/ks.yaml

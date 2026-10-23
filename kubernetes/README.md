@@ -29,8 +29,6 @@ install that gets Flux running in the first place.
 - [x] Observability — Alloy scraping/tailing every node into Prometheus and
       Loki, Grafana with dashboards from git (`monitoring/`, `alloy/`; see
       "Monitoring" and "Alloy")
-- [x] Tracing — Beyla eBPF RED metrics + traces into Tempo (`beyla/`,
-      Tempo in `monitoring/`; see "Beyla")
 - [x] Host monitoring — Alloy on the Proxmox hosts and the Pi-hole LXC,
       exporters and receivers for Proxmox, Pi-hole, TrueNAS and the router
       (`host-monitoring/`, write routes in `monitoring/`) — see
@@ -133,33 +131,25 @@ kubernetes/
 ├── monitoring/
 │   ├── ks.yaml                   # Flux Kustomization "monitoring", dependsOn cilium + longhorn + cluster-secrets + traefik-middlewares, wait
 │   └── app/
-│       ├── kustomization.yaml    # namespace monitoring; wires the four values.yaml generators + dashboards
+│       ├── kustomization.yaml    # namespace monitoring; wires the three values.yaml generators + dashboards
 │       ├── namespace.yaml        # monitoring; no PodSecurity label (baseline default)
 │       ├── helmrepositories.yaml # prometheus-community + grafana-community
 │       ├── prometheus/           # HelmRelease + values: remote-write receiver, empty scrape config
 │       ├── loki/                 # HelmRelease + values: Monolithic mode, filesystem on a Longhorn PVC
 │       ├── grafana/              # HelmRelease + values: stateless, fixed prometheus/loki datasource UIDs
-│       ├── tempo/                # HelmRelease + values: single binary, local backend, Longhorn PVC, 72h retention
 │       ├── ingest/               # the off-cluster write paths: ingest-auth Middleware + Secret, two IngressRoutes
 │       ├── secret-grafana-admin.sops.yaml  # admin password
 │       └── dashboards/           # JSON dashboards as ConfigMaps, substitute disabled (see its README)
 ├── alloy/
 │   ├── ks.yaml                   # Flux Kustomization "alloy", dependsOn monitoring
 │   └── app/
-│       ├── kustomization.yaml    # namespace alloy; wires namespace, HelmRepository and the three sub-kustomizations
+│       ├── kustomization.yaml    # namespace alloy; wires namespace, HelmRepository and the four sub-directories
 │       ├── namespace.yaml        # PodSecurity "privileged" — hostPath/hostPID/hostNetwork + root
 │       ├── helmrepository.yaml   # https://grafana.github.io/helm-charts
-│       ├── alloy/                # HelmRelease + values: the clustered DaemonSet, all 20 nodes
+│       ├── alloy/                # HelmRelease + values: the node-local DaemonSet, all 20 nodes
+│       ├── alloy-cluster/        # HelmRelease + values: one-replica Deployment for cluster-wide scrapes, prefers a Pi
 │       ├── alloy-events/         # HelmRelease + values: one-replica Deployment for Kubernetes events
-│       └── config/               # River configs, substitute disabled: config.alloy + events.alloy
-├── beyla/
-│   ├── ks.yaml                   # Flux Kustomization "beyla", dependsOn monitoring
-│   └── app/
-│       ├── kustomization.yaml    # namespace beyla; wires namespace, HelmRepository, HelmRelease and the values ConfigMap
-│       ├── namespace.yaml        # PodSecurity "privileged" — hostPID + hostNetwork for eBPF probes
-│       ├── helmrepository.yaml   # https://grafana.github.io/helm-charts
-│       ├── helmrelease.yaml      # chart beyla 1.16.11, values from the ConfigMap
-│       └── values.yaml           # instrument everything but kube-system + collectors; traces OTLP to Tempo, 10% sampled
+│       └── config/               # River configs, substitute disabled: config.alloy + cluster.alloy + events.alloy
 ├── host-monitoring/
 │   ├── ks.yaml                   # Flux Kustomization, dependsOn monitoring + cilium-lb + cluster-secrets, postBuild, sops
 │   └── app/
@@ -457,15 +447,11 @@ Consequences:
 - **Change the stack through git only** — each chart's `values.yaml`
   (watched ConfigMap) or its `helmrelease.yaml` version. Multi-arch check
   before a bump, as for Longhorn.
-- The four `values.yaml` files are substituted (`${DOMAIN}`), so no other
+- The three `values.yaml` files are substituted (`${DOMAIN}`), so no other
   `$` may appear in them — comments included. The dashboards and the Alloy
   configs are exempt via `kustomize.toolkit.fluxcd.io/substitute: disabled`.
 - Grafana authenticates itself: its Ingress carries `default-headers` only.
   The admin password is `monitoring/app/secret-grafana-admin.sops.yaml`.
-- **Tempo** (`monitoring/app/tempo/`) stores Beyla's traces on a 10Gi
-  Longhorn PVC for 72 h; Grafana's `Tempo` datasource jumps from a span to
-  its pod's Loki lines.
-  No route: Explore is the UI.
 - Prometheus and Alloy have UIs but no route: `port-forward` below.
 
 ```bash
@@ -477,10 +463,11 @@ kubectl --context homelab -n monitoring logs deploy/grafana -c grafana-sc-dashbo
 
 ## Alloy
 
-`alloy/` is the collector: a clustered Alloy DaemonSet on all 20 nodes (own
+`alloy/` is the collector: a node-local Alloy DaemonSet on all 20 nodes (own
 kubelet + cAdvisor, node metrics via the built-in unix exporter, pod logs
-from `/var/log/pods`; cluster-wide scrapes sharded by clustering) and a
-one-replica `alloy-events` for Kubernetes events. Namespace is PodSecurity
+from `/var/log/pods`), a one-replica `alloy-cluster` for every cluster-wide
+scrape (preferring a Pi, falling back to a VM), and a one-replica
+`alloy-events` for Kubernetes events. Namespace is PodSecurity
 `privileged`: hostPath, hostPID, hostNetwork, root.
 
 Consequences:
@@ -489,46 +476,23 @@ Consequences:
   and `prometheus.io/port: "<n>"` (required), `prometheus.io/path` and
   `prometheus.io/scheme` optional. `job` becomes its `app.kubernetes.io/name`.
   The same on a Service works too.
-- **A target behind a NetworkPolicy needs a `CiliumNetworkPolicy`** admitting
-  the `host` and `remote-node` entities on its metrics port — Alloy is
-  hostNetwork, and on Cilium neither a namespace/pod selector nor an
-  `ipBlock` matches node identities (`longhorn/app/networkpolicy-metrics.yaml`
-  is the template).
-- **Everything else is `alloy/app/config/config.alloy`**: edit, PR, the
-  reloader applies it without a restart.
-- Alloy listens on the node's `:12345` (hostNetwork): the debug UI is
-  `port-forward` to any one pod.
+- **A target behind a NetworkPolicy must admit the `alloy-cluster` pod**
+  (namespace `alloy`, `app.kubernetes.io/instance: alloy-cluster`) on its
+  metrics port; `longhorn/app/networkpolicy-metrics.yaml` is the template.
+- **Everything else is River**: per-node scrapes and logs in
+  `alloy/app/config/config.alloy`, cluster-wide scrapes in
+  `alloy/app/config/cluster.alloy`. Edit, PR, the reloader applies it
+  without a restart.
+- The DaemonSet listens on the node's `:12345` (hostNetwork); the debug UI
+  is `port-forward` to any one pod, or to `deploy/alloy-cluster` for the
+  cluster-wide targets.
 
 ```bash
 flux --context homelab get ks alloy
-kubectl --context homelab -n alloy get pods -o wide                       # 20 + 1, both arches
-kubectl --context homelab -n alloy port-forward ds/alloy 12345:12345      # UI: targets, clustering, pipeline
+kubectl --context homelab -n alloy get pods -o wide                       # 20 + 2; alloy-cluster on an arm64 node
+kubectl --context homelab -n alloy port-forward deploy/alloy-cluster 12345:12345   # UI: cluster-wide targets, pipeline
 kubectl --context homelab -n alloy logs ds/alloy --tail=50 | grep -iE 'error|failed'
-```
-
-## Beyla
-
-`beyla/` is eBPF auto-instrumentation: a privileged DaemonSet on every
-worker that gives each containerised service outside kube-system RED
-metrics (scraped by Alloy via annotations, job `beyla`) and 10 %-sampled
-traces (OTLP straight to Tempo) with no code changes. Rationale and the
-propagation caveats: [`docs/design/tracing.md`](../docs/design/tracing.md).
-
-Consequences:
-
-- **New workloads are instrumented automatically.** To opt a namespace out,
-  add it to `exclude_instrument` in `beyla/app/values.yaml`.
-- Beyla listens on the node's `:9090` (hostNetwork): nothing else may take
-  that port on a worker.
-- Traces from Traefik through to Grafana and Loki share one trace ID
-  because Beyla injects `traceparent`; a service that chokes on the header
-  gets `context_propagation: disabled`.
-
-```bash
-flux --context homelab get ks beyla
-kubectl --context homelab -n beyla get pods -o wide                                # 15, workers only
-kubectl --context homelab -n beyla logs ds/beyla --tail=50 | grep -iE 'error|instrumenting'
-kubectl --context homelab -n monitoring get pvc storage-tempo-0                    # Bound
+kubectl --context homelab -n alloy logs deploy/alloy-cluster --tail=50 | grep -iE 'error|failed'
 ```
 
 ## Host monitoring
@@ -592,7 +556,7 @@ Consequences:
 - **`app/config/` is generated with a name hash, on purpose.** SearXNG reads
   both files once at startup, so without the hash an edit lands on disk and
   the running pod ignores it. Do not add `disableNameSuffixHash` here.
-- **The metrics scrape is explicit, in `alloy/app/config/config.alloy`.**
+- **The metrics scrape is explicit, in `alloy/app/config/cluster.alloy`.**
   `/metrics` is behind basic auth, which the `prometheus.io/scrape` path
   cannot carry, so the pod carries no annotation — do not add one, it would
   only log 401s.
@@ -666,7 +630,7 @@ Consequences:
   the per-service rule under "Traefik".
 - **The Jellyfin pod carries no metrics annotation; the exporter does.**
   Jellyfin serves no Prometheus endpoint, so annotating it would only log 404s —
-  Beyla covers its RED metrics. Playback and transcode data come from
+  Traefik's per-service metrics cover its request rates. Playback and transcode data come from
   `jellyfin-exporter`, which polls the REST API and is scraped normally.
 - **The exporter's useful collectors are off by default.** Only `media`,
   `playing`, `system` and `users` run unless enabled; `transcoding` carries the
@@ -789,8 +753,9 @@ Consequences:
   `pihole_dns_passthrough_names`, which would break it.
 - **No metrics endpoint, and no annotation.** Glance exposes none, so the
   dashboard (`monitoring/app/dashboards/Services/glance.json`) is built from
-  Beyla, cAdvisor and kube-state-metrics. Beyla series match on
-  `k8s_namespace_name`, kube-state-metrics on `exported_namespace`.
+  Traefik, cAdvisor and kube-state-metrics. Traefik series match on the
+  `service` label's `glance-glance-` prefix, kube-state-metrics on
+  `exported_namespace`.
 
 ```bash
 flux --context homelab get ks glance
@@ -835,10 +800,8 @@ Consequences:
 - **Metrics are an explicit scrape, like SearXNG's.** `prometheus:` in
   `configuration.yaml` serves `/api/prometheus` behind a bearer token, which
   the `prometheus.io/scrape` annotation path cannot carry — so the pod carries
-  no annotation, and `alloy/app/config/config.alloy` reads
-  `HOME_ASSISTANT_TOKEN` at runtime. Beyla cannot substitute for it: it runs
-  `containers_only`, which compares a process's network namespace against
-  Beyla's own, and both it and this pod are `hostNetwork`.
+  no annotation, and `alloy/app/config/cluster.alloy` reads
+  `HOME_ASSISTANT_TOKEN` at runtime.
 - **Trusted proxies, location and the URLs are set in the UI, and a rebuild
   that wipes the volume means setting them again.** Until trusted proxies are
   set, every request through the ingress returns HTTP 400 while the pinned

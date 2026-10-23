@@ -86,7 +86,7 @@ It is gated on `general.open_metrics` being a non-empty string, checked as an
 HTTP basic-auth password (the username is ignored). This cluster scrapes
 everything else through `prometheus.io/scrape` annotations, and that path
 cannot carry credentials — an annotated pod here would log 401s forever. So
-the job is explicit, in `kubernetes/alloy/app/config/config.alloy`, and the
+the job is explicit, in `kubernetes/alloy/app/config/cluster.alloy`, and the
 pod deliberately carries no annotation.
 
 **One value, two consumers.** The password is a single `cluster-secrets` key,
@@ -95,12 +95,12 @@ Alloy reads the same Secret at runtime through `remote.kubernetes.secret`.
 Alternatives considered and rejected: a second SOPS Secret in the `alloy`
 namespace means two copies to rotate in step, and substituting the value into
 an Alloy ConfigMap would mean giving that layer a `postBuild` it deliberately
-does not have — `config.alloy` is full of `$1` and `${1}`, and keeping envsubst
+does not have — `cluster.alloy` is full of `$1` and `${1}`, and keeping envsubst
 away from it is the point. Reading the Secret needs no extra RBAC: the Alloy
 chart's ClusterRole already grants `secrets` `get,list,watch` cluster-wide.
 
-Everything else comes free. Beyla instruments the namespace for RED metrics
-and sampled traces with no configuration, and the per-node log tailer picks up
+Everything else comes free. Traefik's per-service metrics cover request rate,
+errors and latency with no configuration, and the per-node log tailer picks up
 both pods. The dashboard lives in `monitoring/app/dashboards/Services/`.
 
 ## Traps

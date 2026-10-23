@@ -1,0 +1,465 @@
+{
+  "id": null,
+  "uid": "services-overview",
+  "title": "Services overview",
+  "description": "Every workload ranked by trouble; drills into the Service dashboard.",
+  "tags": [
+    "services"
+  ],
+  "timezone": "browser",
+  "editable": false,
+  "schemaVersion": 39,
+  "time": {
+    "from": "now-14d",
+    "to": "now"
+  },
+  "refresh": "",
+  "templating": {
+    "list": []
+  },
+  "annotations": {
+    "list": []
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "table",
+      "title": "Workloads, worst first",
+      "description": "One row per Deployment, StatefulSet and DaemonSet, sorted by restarts, then memory against limit, then error log lines. Click a workload for its Service dashboard. Blank memory or CPU means no limit is set; blank 5xx means no Traefik service routes to it.",
+      "datasource": {
+        "type": "datasource",
+        "uid": "-- Mixed --"
+      },
+      "gridPos": {
+        "h": 58,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "refId": "A",
+          "expr": "group by (exported_namespace, workload) (max by (exported_namespace, exported_pod, workload) (label_replace(kube_pod_owner{owner_kind=\"ReplicaSet\"}, \"replicaset\", \"$1\", \"owner_name\", \"(.*)\") * on (exported_namespace, replicaset) group_left (workload) max by (exported_namespace, replicaset, workload) (label_replace(kube_replicaset_owner{owner_kind=\"Deployment\"}, \"workload\", \"$1\", \"owner_name\", \"(.*)\")) or label_replace(kube_pod_owner{owner_kind=~\"StatefulSet|DaemonSet\"}, \"workload\", \"$1\", \"owner_name\", \"(.*)\")) or label_replace(kube_deployment_spec_replicas, \"workload\", \"$1\", \"deployment\", \"(.*)\") or label_replace(kube_statefulset_replicas, \"workload\", \"$1\", \"statefulset\", \"(.*)\") or label_replace(kube_daemonset_status_desired_number_scheduled, \"workload\", \"$1\", \"daemonset\", \"(.*)\"))",
+          "format": "table",
+          "instant": true,
+          "range": false
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "refId": "B",
+          "expr": "sum by (exported_namespace, workload) ((max_over_time(kube_pod_container_status_restarts_total[$__range]) - min_over_time(kube_pod_container_status_restarts_total[$__range])) * on (exported_namespace, exported_pod) group_left (workload) max by (exported_namespace, exported_pod, workload) (label_replace(max_over_time(kube_pod_owner{owner_kind=\"ReplicaSet\"}[$__range]), \"replicaset\", \"$1\", \"owner_name\", \"(.*)\") * on (exported_namespace, replicaset) group_left (workload) max by (exported_namespace, replicaset, workload) (label_replace(max_over_time(kube_replicaset_owner{owner_kind=\"Deployment\"}[$__range]), \"workload\", \"$1\", \"owner_name\", \"(.*)\")) or label_replace(max_over_time(kube_pod_owner{owner_kind=~\"StatefulSet|DaemonSet\"}[$__range]), \"workload\", \"$1\", \"owner_name\", \"(.*)\")))",
+          "format": "table",
+          "instant": true,
+          "range": false
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "refId": "C",
+          "expr": "max by (exported_namespace, workload, reason) (topk by (exported_namespace, workload) (1, kube_pod_container_status_last_terminated_reason * on (exported_namespace, exported_pod, container) group_left () max by (exported_namespace, exported_pod, container) (kube_pod_container_status_last_terminated_timestamp > 0) * on (exported_namespace, exported_pod) group_left (workload) max by (exported_namespace, exported_pod, workload) (label_replace(kube_pod_owner{owner_kind=\"ReplicaSet\"}, \"replicaset\", \"$1\", \"owner_name\", \"(.*)\") * on (exported_namespace, replicaset) group_left (workload) max by (exported_namespace, replicaset, workload) (label_replace(kube_replicaset_owner{owner_kind=\"Deployment\"}, \"workload\", \"$1\", \"owner_name\", \"(.*)\")) or label_replace(kube_pod_owner{owner_kind=~\"StatefulSet|DaemonSet\"}, \"workload\", \"$1\", \"owner_name\", \"(.*)\")))) * 1000",
+          "format": "table",
+          "instant": true,
+          "range": false
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "refId": "D",
+          "expr": "max by (exported_namespace, workload) ((max by (exported_namespace, exported_pod, container) (label_replace(label_replace(container_memory_working_set_bytes{container!=\"\", container!=\"POD\"}, \"exported_namespace\", \"$1\", \"namespace\", \"(.*)\"), \"exported_pod\", \"$1\", \"pod\", \"(.*)\")) / on (exported_namespace, exported_pod, container) max by (exported_namespace, exported_pod, container) (kube_pod_container_resource_limits{resource=\"memory\"})) * on (exported_namespace, exported_pod) group_left (workload) max by (exported_namespace, exported_pod, workload) (label_replace(kube_pod_owner{owner_kind=\"ReplicaSet\"}, \"replicaset\", \"$1\", \"owner_name\", \"(.*)\") * on (exported_namespace, replicaset) group_left (workload) max by (exported_namespace, replicaset, workload) (label_replace(kube_replicaset_owner{owner_kind=\"Deployment\"}, \"workload\", \"$1\", \"owner_name\", \"(.*)\")) or label_replace(kube_pod_owner{owner_kind=~\"StatefulSet|DaemonSet\"}, \"workload\", \"$1\", \"owner_name\", \"(.*)\")))",
+          "format": "table",
+          "instant": true,
+          "range": false
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "refId": "E",
+          "expr": "sum by (exported_namespace, workload) (sum by (exported_namespace, exported_pod) (label_replace(label_replace(container_memory_working_set_bytes{container!=\"\", container!=\"POD\"}, \"exported_namespace\", \"$1\", \"namespace\", \"(.*)\"), \"exported_pod\", \"$1\", \"pod\", \"(.*)\")) * on (exported_namespace, exported_pod) group_left (workload) max by (exported_namespace, exported_pod, workload) (label_replace(kube_pod_owner{owner_kind=\"ReplicaSet\"}, \"replicaset\", \"$1\", \"owner_name\", \"(.*)\") * on (exported_namespace, replicaset) group_left (workload) max by (exported_namespace, replicaset, workload) (label_replace(kube_replicaset_owner{owner_kind=\"Deployment\"}, \"workload\", \"$1\", \"owner_name\", \"(.*)\")) or label_replace(kube_pod_owner{owner_kind=~\"StatefulSet|DaemonSet\"}, \"workload\", \"$1\", \"owner_name\", \"(.*)\")))",
+          "format": "time_series",
+          "instant": false,
+          "range": true,
+          "legendFormat": "{{exported_namespace}}/{{workload}}"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "refId": "F",
+          "expr": "max by (exported_namespace, workload) ((label_replace(label_replace(sum by (namespace, pod, container) (rate(container_cpu_usage_seconds_total{container!=\"\", container!=\"POD\"}[$__rate_interval])), \"exported_namespace\", \"$1\", \"namespace\", \"(.*)\"), \"exported_pod\", \"$1\", \"pod\", \"(.*)\") / on (exported_namespace, exported_pod, container) max by (exported_namespace, exported_pod, container) (kube_pod_container_resource_limits{resource=\"cpu\"})) * on (exported_namespace, exported_pod) group_left (workload) max by (exported_namespace, exported_pod, workload) (label_replace(kube_pod_owner{owner_kind=\"ReplicaSet\"}, \"replicaset\", \"$1\", \"owner_name\", \"(.*)\") * on (exported_namespace, replicaset) group_left (workload) max by (exported_namespace, replicaset, workload) (label_replace(kube_replicaset_owner{owner_kind=\"Deployment\"}, \"workload\", \"$1\", \"owner_name\", \"(.*)\")) or label_replace(kube_pod_owner{owner_kind=~\"StatefulSet|DaemonSet\"}, \"workload\", \"$1\", \"owner_name\", \"(.*)\")))",
+          "format": "table",
+          "instant": true,
+          "range": false
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "refId": "G",
+          "expr": "sum by (exported_namespace, workload) (label_join(group by (exported_namespace, workload) (max by (exported_namespace, exported_pod, workload) (label_replace(kube_pod_owner{owner_kind=\"ReplicaSet\"}, \"replicaset\", \"$1\", \"owner_name\", \"(.*)\") * on (exported_namespace, replicaset) group_left (workload) max by (exported_namespace, replicaset, workload) (label_replace(kube_replicaset_owner{owner_kind=\"Deployment\"}, \"workload\", \"$1\", \"owner_name\", \"(.*)\")) or label_replace(kube_pod_owner{owner_kind=~\"StatefulSet|DaemonSet\"}, \"workload\", \"$1\", \"owner_name\", \"(.*)\"))), \"svc\", \"-\", \"exported_namespace\", \"workload\") * on (svc) group_left () (sum by (svc) (label_replace(rate(traefik_service_requests_total{code=~\"5..\"}[$__rate_interval]), \"svc\", \"$1\", \"service\", \"(.+)-([0-9a-f]{20}|[0-9]+)@kubernetes(crd)?\")) or sum by (svc) (label_replace(rate(traefik_service_requests_total[$__rate_interval]), \"svc\", \"$1\", \"service\", \"(.+)-([0-9a-f]{20}|[0-9]+)@kubernetes(crd)?\")) * 0))",
+          "format": "table",
+          "instant": true,
+          "range": false
+        },
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "refId": "H",
+          "expr": "sum by (exported_namespace, workload) (label_replace(label_replace(sum by (namespace, pod) (count_over_time({namespace=~\".+\"} |~ \"(?i)error\" [1h])), \"workload\", \"$1$2\", \"pod\", \"(.+?)(?:-[b-df-hj-np-tv-xz24-9]{1,10})?-[b-df-hj-np-tv-xz24-9]{5}|(.+)-[0-9]+\"), \"exported_namespace\", \"$1\", \"namespace\", \"(.*)\"))",
+          "queryType": "instant",
+          "legendFormat": ""
+        }
+      ],
+      "transformations": [
+        {
+          "id": "timeSeriesTable",
+          "options": {
+            "E": {
+              "stat": "lastNotNull"
+            }
+          }
+        },
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "filterByValue",
+          "options": {
+            "type": "include",
+            "match": "all",
+            "filters": [
+              {
+                "fieldName": "Value #A",
+                "config": {
+                  "id": "isNotNull",
+                  "options": {}
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "Time 1": true,
+              "Value #A": true
+            },
+            "indexByName": {
+              "exported_namespace": 0,
+              "workload": 1,
+              "Value #B": 2,
+              "reason": 3,
+              "Value #C": 4,
+              "Value #D": 5,
+              "Trend #E": 6,
+              "Value #F": 7,
+              "Value #G": 8,
+              "Value #H": 9
+            },
+            "renameByName": {
+              "exported_namespace": "Namespace",
+              "workload": "Workload",
+              "Value #B": "Restarts",
+              "reason": "Last exit",
+              "Value #C": "Exited",
+              "Value #D": "Memory / limit",
+              "Trend #E": "Memory, range",
+              "Value #F": "CPU / limit",
+              "Value #G": "5xx /s",
+              "Value #H": "Error lines, 1h"
+            }
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "filterable": true
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Workload"
+            },
+            "properties": [
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "Service dashboard",
+                    "url": "/d/service?var-namespace=${__data.fields.exported_namespace}&var-workload=${__data.fields.workload}&${__url_time_range}"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Restarts"
+            },
+            "properties": [
+              {
+                "id": "decimals",
+                "value": 0
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "red",
+                      "value": 1
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Last exit"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "OOMKilled": {
+                        "color": "red",
+                        "index": 0
+                      },
+                      "Error": {
+                        "color": "orange",
+                        "index": 1
+                      },
+                      "Completed": {
+                        "color": "text",
+                        "index": 2
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Exited"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "dateTimeFromNow"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Memory / limit"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percentunit"
+              },
+              {
+                "id": "max",
+                "value": 1
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "gauge",
+                  "mode": "basic"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "orange",
+                      "value": 0.8
+                    },
+                    {
+                      "color": "red",
+                      "value": 0.9
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Memory, range"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "bytes"
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "sparkline"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "CPU / limit"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percentunit"
+              },
+              {
+                "id": "max",
+                "value": 1
+              },
+              {
+                "id": "description",
+                "value": "Recent usage, not the 14-day range."
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "gauge",
+                  "mode": "basic"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "orange",
+                      "value": 0.8
+                    },
+                    {
+                      "color": "red",
+                      "value": 0.9
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "5xx /s"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "reqps"
+              },
+              {
+                "id": "decimals",
+                "value": 3
+              },
+              {
+                "id": "description",
+                "value": "Recent rate, not the 14-day range."
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Error lines, 1h"
+            },
+            "properties": [
+              {
+                "id": "decimals",
+                "value": 0
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "sortBy": [
+          {
+            "displayName": "Restarts",
+            "desc": true
+          },
+          {
+            "displayName": "Memory / limit",
+            "desc": true
+          },
+          {
+            "displayName": "Error lines, 1h",
+            "desc": true
+          }
+        ]
+      }
+    }
+  ]
+}

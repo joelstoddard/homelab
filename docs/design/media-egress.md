@@ -251,7 +251,7 @@ FlareSolverr answers its API and its probe on 8191. The symptom is a readiness
 probe timing out against a port the container is demonstrably listening on,
 which reads as a broken application rather than a policy.
 
-The residue is that host-network pods — the Alloy and Beyla collectors — can
+The residue is that host-network pods — the Alloy collectors — can
 reach both. They are ours, which is the only reason that is tolerable.
 
 **Chrome does not resolve a `socks5://` target locally, so FlareSolverr adds

@@ -208,7 +208,7 @@ Ingress and TLS are five more layers. Root order is
 `traefik-middlewares` (the
 full list is `flux-system`, `cilium`, `cilium-lb`, `cluster-secrets`, `cert-manager`,
 `cert-manager-issuers`, `traefik`, `traefik-middlewares`, `lan-services`,
-`tailscale`, `longhorn`, `longhorn-jobs`, `monitoring`, `alloy`, `beyla`,
+`tailscale`, `longhorn`, `longhorn-jobs`, `monitoring`, `alloy`,
 `host-monitoring`, `searxng`, `media`, `media-downloads`, `media-egress`, `glance`,
 `home-assistant`).
 `cluster-secrets/` is one SOPS Secret in `flux-system` holding `DOMAIN`,
@@ -268,24 +268,21 @@ TSDB, Loki Monolithic on Longhorn and a stateless Grafana whose dashboards
 are JSON under `monitoring/app/dashboards/<Folder>/` (one ConfigMap per
 file, sidecar-loaded, read-only in the UI; datasource UIDs `prometheus` /
 `loki` are fixed). `alloy/` (`dependsOn: monitoring`, PSA privileged) is
-the collector: a clustered Alloy DaemonSet on all 20 nodes scraping its own
-kubelet/cAdvisor, exporting node metrics in-process, tailing
-`/var/log/pods`, and sharding the cluster-wide targets — pods and Services
-annotated `prometheus.io/scrape` + `prometheus.io/port` — plus a one-replica
-`alloy-events`. No Prometheus Operator, no CRDs: `alloy/app/config/config.alloy`
-is the one place scrape config lives. The four `monitoring` values files
+the collector: a node-local Alloy DaemonSet on all 20 nodes scraping its own
+kubelet/cAdvisor, exporting node metrics in-process and tailing
+`/var/log/pods` (`alloy/app/config/config.alloy`); one `alloy-cluster`
+replica scraping every cluster-wide target — pods and Services annotated
+`prometheus.io/scrape` + `prometheus.io/port`, the control plane, Longhorn,
+SearXNG, Home Assistant — on a Pi by preferred (not required) arm64
+affinity (`cluster.alloy`); and a one-replica `alloy-events`. No Prometheus
+Operator, no CRDs: those two River files are the only place scrape config
+lives. `alloy-cluster` is an ordinary pod, so a NetworkPolicy-protected
+target admits it by namespace + pod label. The three `monitoring` values files
 are substituted, so `${DOMAIN}` is the only `$` allowed in them; dashboards
 and River sit in nested kustomizations whose ConfigMaps carry
 `kustomize.toolkit.fluxcd.io/substitute: disabled`. Control-plane component
 metrics need the talos role's control-plane patch (`bind-address`,
 `listen-metrics-urls`). See `docs/design/observability.md`.
-`beyla/` (`dependsOn: monitoring`, PSA privileged, workers only) is Grafana
-Beyla: eBPF RED metrics and 10 %-sampled traces for every containerised
-service outside `kube-system` and the collectors, metrics scraped by Alloy
-through the pod annotations, traces OTLP straight into Tempo (a fourth
-HelmRelease in `monitoring/`, local storage on Longhorn, 72 h). Grafana's
-`tempo` datasource jumps from a span to its pod's Loki lines. Beyla runs
-hostNetwork, so its `:9090` is a node port. See `docs/design/tracing.md`.
 `host-monitoring/` (`dependsOn: monitoring, cilium-lb, cluster-secrets`,
 substituted) is the fleet outside the cluster: `pve-exporter`,
 `pihole-exporter` and `blackbox-exporter` poll and probe Proxmox, Pi-hole and

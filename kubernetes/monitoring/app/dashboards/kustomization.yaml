@@ -43,9 +43,6 @@ configMapGenerator:
   - name: dashboard-kubernetes-events
     files: [Logs/kubernetes-events.json]
     options: {annotations: {grafana_folder: Logs}}
-  - name: dashboard-beyla-red
-    files: [Tracing/beyla-red.json]
-    options: {annotations: {grafana_folder: Tracing}}
   - name: dashboard-proxmox
     files: [Hosts/proxmox.json]
     options: {annotations: {grafana_folder: Hosts}}
@@ -93,6 +90,12 @@ configMapGenerator:
     options: {annotations: {grafana_folder: Services}}
   - name: dashboard-media-egress
     files: [Services/media-egress.json]
+    options: {annotations: {grafana_folder: Services}}
+  - name: dashboard-services-overview
+    files: [Services/services-overview.json]
+    options: {annotations: {grafana_folder: Services}}
+  - name: dashboard-service
+    files: [Services/service.json]
     options: {annotations: {grafana_folder: Services}}
   - name: dashboard-metachat
     files: [Services/metachat.json]

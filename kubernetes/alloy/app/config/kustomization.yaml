@@ -1,5 +1,5 @@
 # The River configs as ConfigMaps the charts mount (alloy.configMap.create is
-# false in both values files). Substitution is disabled on them: this layer
+# false in every values file). Substitution is disabled on them: this layer
 # has no postBuild today, but the annotation makes that safe to change.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
@@ -11,6 +11,9 @@ configMapGenerator:
   - name: alloy-config
     files:
       - config.alloy
+  - name: alloy-cluster-config
+    files:
+      - cluster.alloy
   - name: alloy-events-config
     files:
       - events.alloy
