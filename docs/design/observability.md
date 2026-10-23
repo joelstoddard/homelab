@@ -175,6 +175,17 @@ there `namespace` and `pod` are already the subject.
 - A `$WORD` in a comment in one of the three values files is eaten by
   envsubst; the dashboards and River are exempt per resource.
 - Enabling Cilium metrics rolled every agent once.
+- **The Cilium chart's dashboards are off** (`dashboards`,
+  `operator.dashboards`, `hubble.metrics.dashboards` in
+  `kubernetes/cilium/app/values.yaml`). Of 185 panel queries across the six
+  dashboards, 6 return data. The chart writes `rate(...[1m])` against a 60 s
+  scrape interval, so a window holds fewer than two samples and `rate()` is
+  empty; the same queries over `[5m]` return data. The Cilium and Operator
+  dashboards also filter on pod labels (`k8s_app="cilium"`,
+  `io_cilium_app="operator"`) that Alloy's annotation scrape does not attach:
+  it labels `job="cilium-agent"` plus namespace, pod and node. Hubble keeps
+  `dns`, `drop`, `tcp`, `flow` and `icmp` for ad-hoc exploration;
+  `port-distribution` (~41k series, nothing reads it) is off.
 
 ## Measurements
 
