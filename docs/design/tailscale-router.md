@@ -90,5 +90,9 @@ entry pins that.
   Closing that gap needs the descheduler's `RemovePodsHavingTooManyRestarts`
   or similar — tracked in #146.
 - Resource limits are a first guess (`1` CPU / `256Mi`); benchmark and tune.
+- The router forwards packets rather than opening sockets, so reaching a
+  LoadBalancer address depends on Cilium translating pod traffic per packet
+  (`docs/design/cilium-per-packet-lb.md`). Without that, any address announced
+  by the router's own node is unreachable from the tailnet.
 - `:9002/metrics` is scraped via the pod's `prometheus.io/scrape` annotation;
   the dashboard is `monitoring/app/dashboards/Services/tailscale.json`.
