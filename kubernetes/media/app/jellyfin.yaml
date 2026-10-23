@@ -19,10 +19,10 @@ spec:
       labels:
         app.kubernetes.io/name: jellyfin
       # Deliberately no prometheus.io/scrape: Jellyfin serves no Prometheus
-      # endpoint without a plugin, and Beyla already reports its RED metrics.
+      # endpoint without a plugin; Traefik's per-service metrics cover requests.
     spec:
       # The Pis cannot transcode and their USB storage is slow, so this follows
-      # the Loki and Tempo precedent and stays on the amd64 workers.
+      # the Loki and Prometheus precedent and stays on the amd64 workers.
       nodeSelector:
         kubernetes.io/arch: amd64
       securityContext:
@@ -117,8 +117,7 @@ spec:
             sizeLimit: 256Mi
 ---
 # Carries no prometheus.io/scrape annotation for the same reason the pod does
-# not: Jellyfin serves no Prometheus endpoint without a plugin, and Beyla
-# already reports its RED metrics.
+# not: Jellyfin serves no Prometheus endpoint without a plugin.
 apiVersion: v1
 kind: Service
 metadata:

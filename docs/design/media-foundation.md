@@ -223,7 +223,7 @@ client uses it.
 ## Placement and resources
 
 `nodeSelector: kubernetes.io/arch: amd64` on everything in this stack,
-following Jellyfin, Loki, Tempo and Prometheus: SQLite on the Pis' USB-backed
+following Jellyfin, Loki and Prometheus: SQLite on the Pis' USB-backed
 Longhorn replicas is slow, and par2 repair and unpacking are CPU-heavy.
 
 **Every container gets both requests and limits. No BestEffort pods, ever.**

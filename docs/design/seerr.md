@@ -135,4 +135,4 @@ requests are Lidarr's own or nothing.
 Seerr is not an exportarr target — see `docs/design/arr-metrics.md`. It files
 requests with Sonarr and Radarr, whose exporters already count the result, and
 it exposes no Prometheus endpoint of its own, so its request rates and
-latencies come from Beyla like any other instrumented pod.
+latencies come from Traefik's per-service metrics.

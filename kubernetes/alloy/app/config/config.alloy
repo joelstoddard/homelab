@@ -703,9 +703,7 @@ prometheus.scrape "searxng" {
 
 // Home Assistant's /api/prometheus needs a bearer token, which the
 // annotation-driven scrapes cannot carry — the same reason SearXNG gets an
-// explicit job. Beyla covers neither: it runs containers_only, which compares a
-// process's network namespace against its own, so a hostNetwork pod looks like a
-// host process and is skipped (docs/design/home-assistant.md).
+// explicit job (docs/design/home-assistant.md).
 discovery.kubernetes "home_assistant" {
 	role = "endpoints"
 

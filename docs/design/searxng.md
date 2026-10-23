@@ -99,8 +99,8 @@ does not have — `config.alloy` is full of `$1` and `${1}`, and keeping envsubs
 away from it is the point. Reading the Secret needs no extra RBAC: the Alloy
 chart's ClusterRole already grants `secrets` `get,list,watch` cluster-wide.
 
-Everything else comes free. Beyla instruments the namespace for RED metrics
-and sampled traces with no configuration, and the per-node log tailer picks up
+Everything else comes free. Traefik's per-service metrics cover request rate,
+errors and latency with no configuration, and the per-node log tailer picks up
 both pods. The dashboard lives in `monitoring/app/dashboards/Services/`.
 
 ## Traps

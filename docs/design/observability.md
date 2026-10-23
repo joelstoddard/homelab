@@ -68,7 +68,7 @@ defaults that hide the control-plane components.
   `${DOMAIN}` for Grafana's Ingress and root URL, but dashboard JSON and
   River are full of `$__rate_interval` and `${1}`, which Flux's envsubst
   replaces with nothing. Both sit in nested kustomizations whose ConfigMaps
-  carry `kustomize.toolkit.fluxcd.io/substitute: disabled`. The four values
+  carry `kustomize.toolkit.fluxcd.io/substitute: disabled`. The three values
   files are the only substituted inputs and contain no other `$`.
 - **Events from a second Alloy.** `loki.source.kubernetes_events` cannot be
   sharded across the DaemonSet, so a one-replica `alloy-events` Deployment
@@ -144,7 +144,7 @@ there `namespace` and `pod` are already the subject.
   rotates at 10 MiB) and Loki drops exact duplicates.
 - Volume fills: `retentionSize` sits below the PVC; Loki's compactor
   enforces time; Longhorn volumes expand online.
-- A `$WORD` in a comment in one of the four values files is eaten by
+- A `$WORD` in a comment in one of the three values files is eaten by
   envsubst; the dashboards and River are exempt per resource.
 - Enabling Cilium metrics rolled every agent once.
 
@@ -276,6 +276,16 @@ assert on a real query.
 - **Separate node-exporter.** A second DaemonSet on 20 nodes for series
   Alloy already produces.
 - **Persistent Grafana.** Two sources of truth; drift is silent.
+- **Tracing (Beyla and Tempo).** Beyla gave request-level eBPF spans for
+  every containerised service, sampled at 10 %, into a single-binary Tempo on
+  Longhorn with 72 h retention; it had no in-process spans and could not see
+  hostNetwork pods, because `containers_only` compares a process's network
+  namespace against Beyla's own. Tempo answered 0 queries in 30 days while
+  Beyla and Tempo held about 3.3 GiB of memory on the NUC VMs, which have no
+  room to spare (`zram-swap.md`). Per-service request, error and latency
+  panels read Traefik's `traefik_service_*` metrics. Returning to traces means
+  a collector that accepts OTLP, a backend with retention on a volume, and
+  either eBPF instrumentation or SDKs in the applications.
 
 ## Known limitations
 
@@ -285,5 +295,5 @@ assert on a real query.
   components.
 - Prometheus and Alloy UIs are not exposed; `kubectl port-forward`.
 - Loki is not HA and has no object store.
-- Off-cluster hosts (Proxmox, TrueNAS, Pi-hole, router) and eBPF
-  auto-instrumentation are separate specs.
+- Off-cluster hosts (Proxmox, TrueNAS, Pi-hole, router) are covered by
+  `host-monitoring.md`.
