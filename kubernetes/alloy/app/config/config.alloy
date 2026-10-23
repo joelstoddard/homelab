@@ -69,7 +69,7 @@ discovery.relabel "cadvisor" {
 
 prometheus.scrape "kubelet" {
 	targets           = discovery.relabel.kubelet.output
-	forward_to        = [prometheus.remote_write.prometheus.receiver]
+	forward_to        = [prometheus.relabel.kube_components.receiver]
 	job_name          = "kubelet"
 	metrics_path      = "/metrics"
 	scheme            = "https"
@@ -95,32 +95,33 @@ prometheus.scrape "cadvisor" {
 	}
 }
 
-// The kube-prometheus cAdvisor drop list: per-cgroup duplicates and series
-// nothing here reads. This is where most of the series budget is spent.
+// The kube-prometheus cAdvisor drop list plus unread families that are not
+// memory, CPU or pressure history. This is where most of the series budget
+// is spent.
 prometheus.relabel "cadvisor" {
 	forward_to = [prometheus.remote_write.prometheus.receiver]
 
 	rule {
 		source_labels = ["__name__"]
-		regex         = "container_cpu_(load_average_10s|system_seconds_total|user_seconds_total)"
+		regex         = "container_cpu_(load_average_10s|load_d_average_10s|system_seconds_total|user_seconds_total)"
 		action        = "drop"
 	}
 
 	rule {
 		source_labels = ["__name__"]
-		regex         = "container_fs_(io_current|io_time_seconds_total|io_time_weighted_seconds_total|reads_merged_total|sector_reads_total|sector_writes_total|writes_merged_total)"
+		regex         = "container_fs_(io_current|io_time_seconds_total|io_time_weighted_seconds_total|reads_merged_total|reads_total|sector_reads_total|sector_writes_total|writes_merged_total|writes_total)"
 		action        = "drop"
 	}
 
 	rule {
 		source_labels = ["__name__"]
-		regex         = "container_memory_(mapped_file|swap)"
+		regex         = "container_memory_(failures_total|mapped_file|swap)"
 		action        = "drop"
 	}
 
 	rule {
 		source_labels = ["__name__"]
-		regex         = "container_(file_descriptors|tasks_state|threads_max|blkio_device_usage_total)"
+		regex         = "container_(file_descriptors|tasks_state|threads_max|blkio_device_usage_total|last_seen|ulimits_soft)"
 		action        = "drop"
 	}
 
@@ -134,6 +135,36 @@ prometheus.relabel "cadvisor" {
 	rule {
 		source_labels = ["__name__", "container"]
 		regex         = "container_(network_tcp_usage_total|network_udp_usage_total);"
+		action        = "drop"
+	}
+}
+
+// Shared by kubelet /metrics, kube-controller-manager and kube-scheduler: the
+// unread component-base histogram buckets and feature gates (_sum and _count stay).
+prometheus.relabel "kube_components" {
+	forward_to = [prometheus.remote_write.prometheus.receiver]
+
+	rule {
+		source_labels = ["__name__"]
+		regex         = "kubernetes_feature_enabled"
+		action        = "drop"
+	}
+
+	rule {
+		source_labels = ["__name__"]
+		regex         = "(rest_client|kubelet|scheduler|apiserver|go)_.*_bucket"
+		action        = "drop"
+	}
+
+	rule {
+		source_labels = ["__name__"]
+		regex         = "(workqueue_work_duration_seconds|workqueue_queue_duration_seconds|informer_processing_latency_seconds|authentication_duration_seconds|authorization_duration_seconds|authentication_token_cache_request_duration_seconds)_bucket"
+		action        = "drop"
+	}
+
+	rule {
+		source_labels = ["__name__"]
+		regex         = "(storage_operation_duration_seconds|volume_operation_total_seconds|csi_operations_seconds|dra_operations_duration_seconds)_bucket"
 		action        = "drop"
 	}
 }
@@ -176,9 +207,33 @@ discovery.relabel "node" {
 
 prometheus.scrape "node" {
 	targets         = discovery.relabel.node.output
-	forward_to      = [prometheus.remote_write.prometheus.receiver]
+	forward_to      = [prometheus.relabel.node.receiver]
 	job_name        = "node-exporter"
 	scrape_interval = "60s"
+}
+
+// Per-interface and per-CPU descriptors and NFS per-operation counters that
+// Node Exporter Full does not read; the traffic, error and carrier series stay.
+prometheus.relabel "node" {
+	forward_to = [prometheus.remote_write.prometheus.receiver]
+
+	rule {
+		source_labels = ["__name__"]
+		regex         = "node_network_(address_assign_type|carrier_changes_total|carrier_down_changes_total|carrier_up_changes_total|device_id|dormant|flags|iface_id|iface_link|iface_link_mode|info|name_assign_type|net_dev_group|protocol_type|transmit_queue_length)"
+		action        = "drop"
+	}
+
+	rule {
+		source_labels = ["__name__"]
+		regex         = "node_cpu_(scaling_governor|frequency_min_hertz|frequency_max_hertz)"
+		action        = "drop"
+	}
+
+	rule {
+		source_labels = ["__name__"]
+		regex         = "node_nfs_requests_total"
+		action        = "drop"
+	}
 }
 
 // --------------------------------------- cluster-wide: annotated pods --
@@ -269,12 +324,48 @@ discovery.relabel "annotated_pods" {
 
 prometheus.scrape "annotated_pods" {
 	targets         = discovery.relabel.annotated_pods.output
-	forward_to      = [prometheus.remote_write.prometheus.receiver]
+	forward_to      = [prometheus.relabel.annotated_pods.receiver]
 	job_name        = "annotated-pods"
 	scrape_interval = "60s"
 
 	clustering {
 		enabled = true
+	}
+}
+
+// Unread internals of Cilium, Alloy, Prometheus, Loki, Grafana, Flux and
+// Traefik: histogram buckets (_sum and _count stay) and per-target bookkeeping.
+prometheus.relabel "annotated_pods" {
+	forward_to = [prometheus.remote_write.prometheus.receiver]
+
+	rule {
+		source_labels = ["__name__"]
+		regex         = "(cilium|prometheus|loki|grafana|alloy_component|go)_.*_bucket"
+		action        = "drop"
+	}
+
+	rule {
+		source_labels = ["__name__"]
+		regex         = "(gotk_reconcile_duration_seconds|traefik_router_request_duration_seconds|remotecfg_request_duration_seconds)_bucket"
+		action        = "drop"
+	}
+
+	rule {
+		source_labels = ["__name__"]
+		regex         = "cilium_(operator_)?hive_jobs_.*"
+		action        = "drop"
+	}
+
+	rule {
+		source_labels = ["__name__"]
+		regex         = "prometheus_(sd_kubernetes_events_total|target_sync_length_seconds|target_interval_length_seconds)"
+		action        = "drop"
+	}
+
+	rule {
+		source_labels = ["__name__"]
+		regex         = "(net_conntrack_dialer|alloy_fanout_mapping_store)_.*|alloy_component_graph_connection"
+		action        = "drop"
 	}
 }
 
@@ -364,12 +455,30 @@ discovery.relabel "annotated_services" {
 
 prometheus.scrape "annotated_services" {
 	targets         = discovery.relabel.annotated_services.output
-	forward_to      = [prometheus.remote_write.prometheus.receiver]
+	forward_to      = [prometheus.relabel.annotated_services.receiver]
 	job_name        = "annotated-services"
 	scrape_interval = "60s"
 
 	clustering {
 		enabled = true
+	}
+}
+
+// cilium-envoy's proxy statistics and Hubble's gRPC server counters, which no
+// dashboard reads; the envoy pods' up and process series stay.
+prometheus.relabel "annotated_services" {
+	forward_to = [prometheus.remote_write.prometheus.receiver]
+
+	rule {
+		source_labels = ["__name__"]
+		regex         = "envoy_.*"
+		action        = "drop"
+	}
+
+	rule {
+		source_labels = ["__name__"]
+		regex         = "grpc_server_.*|hubble_metrics_http_handler_request_duration_seconds_bucket"
+		action        = "drop"
 	}
 }
 
@@ -423,13 +532,28 @@ prometheus.relabel "apiserver" {
 
 	rule {
 		source_labels = ["__name__"]
-		regex         = "apiserver_(request_duration_seconds|request_sli_duration_seconds|request_slo_duration_seconds|response_sizes|watch_events_sizes|request_body_size_bytes|admission_controller_admission_duration_seconds|admission_step_admission_duration_seconds|admission_webhook_admission_duration_seconds)_bucket"
+		regex         = "etcd_request_duration_seconds_bucket"
 		action        = "drop"
 	}
 
 	rule {
 		source_labels = ["__name__"]
-		regex         = "etcd_request_duration_seconds_bucket"
+		regex         = "(apiserver|rest_client|go)_.*_bucket|(workqueue_work_duration_seconds|workqueue_queue_duration_seconds|authentication_duration_seconds|authorization_duration_seconds|authentication_token_cache_request_duration_seconds)_bucket"
+		action        = "drop"
+	}
+
+	rule {
+		source_labels = ["__name__"]
+		regex         = "kubernetes_feature_enabled"
+		action        = "drop"
+	}
+
+	// Per-resource watch-cache, cache-list, storage-list and watch-list series,
+	// watch_cache_capacity, etcd_bookmark_total and the SLI/SLO request
+	// histograms; apiserver_request_total and the object counts stay.
+	rule {
+		source_labels = ["__name__"]
+		regex         = "apiserver_(watch_cache|cache_list|storage_list|watch_list_duration_seconds|request_sli_duration_seconds|request_slo_duration_seconds)_.*|watch_cache_capacity|etcd_bookmark_total"
 		action        = "drop"
 	}
 }
@@ -476,12 +600,24 @@ discovery.relabel "longhorn" {
 
 prometheus.scrape "longhorn" {
 	targets         = discovery.relabel.longhorn.output
-	forward_to      = [prometheus.remote_write.prometheus.receiver]
+	forward_to      = [prometheus.relabel.longhorn.receiver]
 	job_name        = "longhorn-manager"
 	scrape_interval = "60s"
 
 	clustering {
 		enabled = true
+	}
+}
+
+// The manager's controller workqueues and API client, one series set per
+// controller per manager pod; the volume, node and disk series stay.
+prometheus.relabel "longhorn" {
+	forward_to = [prometheus.remote_write.prometheus.receiver]
+
+	rule {
+		source_labels = ["__name__"]
+		regex         = "longhorn_(rest_client|workqueue)_.*"
+		action        = "drop"
 	}
 }
 
@@ -532,7 +668,7 @@ discovery.relabel "kube_controller_manager" {
 
 prometheus.scrape "kube_controller_manager" {
 	targets           = discovery.relabel.kube_controller_manager.output
-	forward_to        = [prometheus.remote_write.prometheus.receiver]
+	forward_to        = [prometheus.relabel.kube_components.receiver]
 	job_name          = "kube-controller-manager"
 	scheme            = "https"
 	bearer_token_file = "/var/run/secrets/kubernetes.io/serviceaccount/token"
@@ -576,7 +712,7 @@ discovery.relabel "kube_scheduler" {
 
 prometheus.scrape "kube_scheduler" {
 	targets           = discovery.relabel.kube_scheduler.output
-	forward_to        = [prometheus.remote_write.prometheus.receiver]
+	forward_to        = [prometheus.relabel.kube_components.receiver]
 	job_name          = "kube-scheduler"
 	scheme            = "https"
 	bearer_token_file = "/var/run/secrets/kubernetes.io/serviceaccount/token"
@@ -625,12 +761,24 @@ discovery.relabel "etcd" {
 
 prometheus.scrape "etcd" {
 	targets         = discovery.relabel.etcd.output
-	forward_to      = [prometheus.remote_write.prometheus.receiver]
+	forward_to      = [prometheus.relabel.etcd.receiver]
 	job_name        = "etcd"
 	scrape_interval = "60s"
 
 	clustering {
 		enabled = true
+	}
+}
+
+// Per-method gRPC result codes and the debugging histograms; the disk, raft
+// and request latency histograms stay.
+prometheus.relabel "etcd" {
+	forward_to = [prometheus.remote_write.prometheus.receiver]
+
+	rule {
+		source_labels = ["__name__"]
+		regex         = "grpc_server_handled_total|etcd_debugging_.*"
+		action        = "drop"
 	}
 }
 

@@ -74,10 +74,59 @@ defaults that hide the control-plane components.
   sharded across the DaemonSet, so a one-replica `alloy-events` Deployment
   runs it alone.
 - **Placement and budget.** Prometheus and Loki pin to amd64: Longhorn from a
-  VM is ~2,000 write IOPS against ~900 from a Pi. 60 s scrape interval, the
-  kube-prometheus cAdvisor drop list and the apiserver histogram drops keep
-  the series budget near 100k. Limits are first guesses: Prometheus 2Gi,
-  Loki 1Gi, Grafana 768Mi, each Alloy 512Mi, events Alloy 256Mi.
+  VM is ~2,000 write IOPS against ~900 from a Pi. The 60 s scrape interval
+  and the series denylist below set the series budget. Limits are first
+  guesses: Prometheus 2Gi, Loki 1Gi, Grafana 768Mi, each Alloy 512Mi, events
+  Alloy 256Mi.
+- **Series denylist, by name.** Alloy drops the heaviest metric families no
+  dashboard reads, in the `prometheus.relabel` stage of the scrape that
+  emits them, so they cost neither Alloy's remote-write WAL nor Prometheus'
+  head. Each rule drops one family or one tight family regex by name; the
+  one rule that also reads a label is cAdvisor's, which drops the pod-level
+  `container=""` copies of the TCP and UDP usage counters. A family not on
+  the list is kept, so anything a dashboard does not use yet stays
+  explorable. A rule in the annotated-pod or annotated-Service stage
+  reaches every workload scraped through it, not only the component it is
+  written for. The list:
+  - Histogram `_bucket` series of components' own machinery: apiserver,
+    kubelet, kube-scheduler and kube-controller-manager (`apiserver_*`,
+    `kubelet_*`, `scheduler_*`, client-go workqueue, informer and REST
+    client, authn/authz, and kubelet's storage, volume, CSI and DRA
+    operation histograms), Cilium agent and operator, Alloy, Prometheus,
+    Loki, Grafana, Flux's `gotk_reconcile_duration_seconds` and Traefik's
+    per-router latency. `go_*_bucket` Go-runtime histograms go from the
+    Kubernetes components and from every annotated pod. The `_sum` and
+    `_count` series stay, so rates and means remain queryable; only
+    quantiles are lost.
+  - `kubernetes_feature_enabled` on every Kubernetes component.
+  - apiserver per-resource watch-cache and list bookkeeping
+    (`apiserver_watch_cache_*`, `apiserver_cache_list_*`,
+    `apiserver_storage_list_*`, `apiserver_watch_list_duration_seconds_*`,
+    `watch_cache_capacity`, `etcd_bookmark_total`) and the SLI/SLO copies
+    of the request histogram. `apiserver_request_total` and the object
+    counts stay.
+  - All of cilium-envoy's `envoy_*`: nothing here uses Cilium's L7 proxy.
+  - Longhorn manager's `longhorn_workqueue_*` and `longhorn_rest_client_*`,
+    one set per controller per manager pod; volume, node and disk series stay.
+  - Alloy's per-target bookkeeping (`prometheus_sd_kubernetes_events_total`,
+    `prometheus_target_{sync,interval}_length_seconds`,
+    `net_conntrack_dialer_*`, `alloy_fanout_mapping_store_*`,
+    `alloy_component_graph_connection`) and Cilium's `hive_jobs_*`.
+  - gRPC per-method result codes (`grpc_server_*` from Hubble,
+    `grpc_server_handled_total` from etcd) and etcd's `etcd_debugging_*`.
+    The etcd disk, raft and request histograms stay.
+  - cAdvisor families beyond the kube-prometheus list that are not memory,
+    CPU, pressure, thread or process history: memory fault counters, fs
+    operation counts (bytes stay), `container_last_seen`,
+    `container_ulimits_soft`, `container_cpu_load_d_average_10s`.
+  - node-exporter's per-interface descriptors (`node_network_info`, flags,
+    ids, assign types, carrier change counters, queue length), CPU frequency
+    limits and governor, and `node_nfs_requests_total`. Traffic, error and
+    carrier state stay, as Node Exporter Full reads them.
+
+  A family goes on the list only when no provisioned dashboard reads it in a
+  panel target, template-variable query or annotation. A dashboard that
+  needs a dropped family removes its rule in the same change.
 - **Prometheus keeps 14 days.** Blocks grow ~1.15 GiB a day and the WAL
   and head chunks add ~0.25 GiB (2026-10-20), so 14 days is ~16.4 GiB.
   Prometheus reads `retentionSize` units as base 2, so `22GB` is 22 GiB
