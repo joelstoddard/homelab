@@ -333,26 +333,33 @@ and after (2026-10-24):
 | Beyla | NUC VMs | 3161 (8) | — |
 | Beyla | Pis | 2675 (7) | — |
 | Tempo | NUC VMs | 164 (1) | — |
-| Prometheus | NUC VMs | 1430 (1) | 690–770 settled (1) |
+| Prometheus | NUC VMs | 1430 (1) | 685–800 settled (1) |
 | Loki | NUC VMs | 135 (1) | 270 (1) |
 | cilium-agent | NUC VMs | 3547 (12) | 1786 (12) |
 | cilium-agent | Pis | 1690 (8) | 1125 (8) |
 
-1. Prometheus head series: 576,475 before, 157,209 after. The settled working
-   set is the window 2026-10-23 23:10 to 2026-10-24 16:10 UTC; the 23 h
-   maximum before it (2.6 GiB) is the span in which old and new series shared
-   the head ahead of compaction.
-2. All containers on the 8 agent VMs: 18,055 MiB before, 12,001 MiB after.
+1. Prometheus head series: 576,475 before, 157,209 after. The settled
+   working set is 685-800 MiB over 2026-10-23 23:10 to 2026-10-24 15:47 UTC;
+   a later 1166-1504 MiB excursion is query-driven page cache. From 19:07
+   to 23:02 on 2026-10-23 the working set stayed at 2.2-2.4 GiB while RSS was
+   already 630-665 MiB, so the excess is file-backed page cache (likely
+   block compaction and deletion), not series in the head.
+2. The 1Gi memory request is sized against RSS and heap, not working set:
+   steady RSS 605-665 MiB (892 MiB max) and Go heap 430-570 MiB (789 MiB max).
+   A working-set reading of 1.3-1.5 GiB is reclaimable page cache and does
+   not contradict it. On 2026-09-18 a 1Gi request against a ~690k-series,
+   1.8 GiB process placed it onto nodes that could not hold it.
+3. All containers on the 8 agent VMs: 18,055 MiB before, 12,001 MiB after.
    `k8s-agent-05` rises because Prometheus rescheduled onto it during the
    2026-10-23 power cut; its previous node, `k8s-agent-06`, falls.
-3. NUC hosts, MemAvailable / zram used in MiB, before to after: rumba
+4. NUC hosts, MemAvailable / zram used in MiB, before to after: rumba
    92/5835 to 340/2702, tango 149/5193 to 122/5371, salsa 84/4720 to 78/5198,
    samba 63/5902 to 126/4899. Ballooning is off, so the freed memory stays
    inside the VMs and host MemAvailable barely moves; zram usage moves both
    ways.
-4. Memory requests: Prometheus 2048 MiB to 1024 MiB. The Alloy DaemonSet
+5. Memory requests: Prometheus 2048 MiB to 1024 MiB. The Alloy DaemonSet
    requests are unchanged; resizing them is tracked in #271.
-5. cilium-agent's after values are measured; the cause of the drop is not
+6. cilium-agent's after values are measured; the cause of the drop is not
    established here.
 
 ## Observed behaviour
