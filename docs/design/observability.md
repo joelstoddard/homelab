@@ -95,7 +95,7 @@ defaults that hide the control-plane components.
 - **Placement and budget.** Prometheus and Loki pin to amd64: Longhorn from a
   VM is ~2,000 write IOPS against ~900 from a Pi. The 60 s scrape interval
   and the series denylist below set the series budget. Limits are first
-  guesses: Prometheus 2Gi, Loki 1Gi, Grafana 768Mi, each node Alloy 1Gi, the
+  guesses: Prometheus 3Gi, Loki 1Gi, Grafana 768Mi, each node Alloy 1Gi, the
   cluster Alloy 3Gi, events Alloy 256Mi.
 - **Series denylist, by name.** Alloy drops the heaviest metric families no
   dashboard reads, in the `prometheus.relabel` stage of the scrape that
@@ -249,7 +249,7 @@ there `namespace` and `pod` are already the subject.
   enforces time; Longhorn volumes expand online.
 - A `$WORD` in a comment in one of the three values files is eaten by
   envsubst; the dashboards and River are exempt per resource.
-- Enabling Cilium metrics rolled every agent once.
+- A Cilium values change rolls every agent once (`rollOutCiliumPods`).
 - **The Cilium chart's dashboards are off** (`dashboards`,
   `operator.dashboards`, `hubble.metrics.dashboards` in
   `kubernetes/cilium/app/values.yaml`). Of 185 panel queries across the six
@@ -353,7 +353,7 @@ and after (2026-10-24):
    block compaction and deletion), not series in the head.
 2. The 1Gi memory request is sized against RSS and heap, not working set:
    steady RSS 605-665 MiB (892 MiB max) and Go heap 430-570 MiB (789 MiB max).
-   A working-set reading of 1.3-1.5 GiB is reclaimable page cache and does
+   A working-set reading of 1.1-1.5 GiB is reclaimable page cache and does
    not contradict it. On 2026-09-18 a 1Gi request against a ~690k-series,
    1.8 GiB process placed it onto nodes that could not hold it.
 3. All containers on the 8 agent VMs: 18,055 MiB before, 12,001 MiB after.
