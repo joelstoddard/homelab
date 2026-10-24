@@ -34,7 +34,8 @@ alloy:
     runAsUser: 0
     runAsGroup: 0
   # The Pi pods were OOMKilled at 512Mi while their remote-write WAL grew
-  # through a Prometheus outage, and 500m throttles a scrape of ~370k series.
+  # through a Prometheus outage. The CPU sizing predates the node-local split
+  # and is oversized now; the resize is tracked in #271.
   resources:
     requests:
       cpu: 100m

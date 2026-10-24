@@ -35,13 +35,13 @@ server:
   podAnnotations:
     prometheus.io/scrape: "true"
     prometheus.io/port: "9090"
-  # Sized against 690k active series, measured 2026-09-18. Requests are honest
-  # rather than minimal: the scheduler places on them, and a 1Gi request put a
-  # 1.8 GiB process onto nodes that could not hold it.
+  # Sized against 157k active series (2026-10-24): steady RSS ~650 MiB, Go heap
+  # <= 800 MiB under query load. Requests are honest rather than minimal,
+  # because the scheduler places on them.
   resources:
     requests:
       cpu: "1"
-      memory: 2Gi
+      memory: 1Gi
     # Replay peaks above steady state, so 2Gi OOM-killed it mid-replay and it
     # never finished; 1 CPU throttled it below answering a trivial query.
     limits:

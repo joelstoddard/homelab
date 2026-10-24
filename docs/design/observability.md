@@ -45,9 +45,12 @@ defaults that hide the control-plane components.
   *preferred* `kubernetes.io/arch: arm64` affinity is what keeps that memory
   off the NUCs; preferred rather than required, so it runs on a VM when no
   Pi fits instead of going unschedulable. It tolerates no taint, so it never
-  lands on the control-plane Pi. A reschedule leaves the
-  cluster-wide series with a gap of a minute or two (accepted); node metrics
-  and logs come from the DaemonSet and are unaffected. `Recreate`, not a
+  lands on the control-plane Pi. A reschedule (pod deleted or evicted)
+  leaves the cluster-wide series with a gap under a minute; losing the node
+  takes 1-2 minutes (unreachable after ~40 s, a 30 s toleration, then the
+  reschedule). Every cluster-wide job is absent together for that gap, so
+  the Services overview goes blank and, with no alerting, nothing flags it;
+  node metrics and logs come from the DaemonSet and are unaffected. `Recreate`, not a
   rolling update, so a chart upgrade never runs two scrapers against the
   same targets. The release creates no Service: its own metrics are scraped
   by pod annotation, and `alloy-cluster` is the name the chart gives a
@@ -92,7 +95,7 @@ defaults that hide the control-plane components.
 - **Placement and budget.** Prometheus and Loki pin to amd64: Longhorn from a
   VM is ~2,000 write IOPS against ~900 from a Pi. The 60 s scrape interval
   and the series denylist below set the series budget. Limits are first
-  guesses: Prometheus 2Gi, Loki 1Gi, Grafana 768Mi, each node Alloy 1Gi, the
+  guesses: Prometheus 3Gi, Loki 1Gi, Grafana 768Mi, each node Alloy 1Gi, the
   cluster Alloy 3Gi, events Alloy 256Mi.
 - **Series denylist, by name.** Alloy drops the heaviest metric families no
   dashboard reads, in the `prometheus.relabel` stage of the scrape that
@@ -235,14 +238,18 @@ there `namespace` and `pod` are already the subject.
 - Alloy restart: positions live in the container's writable layer (the chart
   mounts nothing at `/tmp/alloy`), so current log files are re-read (kubelet
   rotates at 10 MiB) and Loki drops exact duplicates.
-- `alloy-cluster` pod lost or rescheduled: every cluster-wide job goes
-  absent from `up` until the new pod's first scrape, a minute or two; the
-  DaemonSet's kubelet, cAdvisor, node and log collection carry on.
+- `alloy-cluster` pod lost or rescheduled: every cluster-wide job
+  (kube-state-metrics, apiserver, etcd, Cilium, Flux, Longhorn) goes absent
+  from `up` together until the new pod's first scrape. A reschedule takes
+  under a minute; node loss 1-2 minutes (unreachable after ~40 s plus the
+  30 s toleration). The Services overview goes blank and, with no alerting,
+  nothing flags it; the DaemonSet's kubelet, cAdvisor, node and log
+  collection carry on.
 - Volume fills: `retentionSize` sits below the PVC; Loki's compactor
   enforces time; Longhorn volumes expand online.
 - A `$WORD` in a comment in one of the three values files is eaten by
   envsubst; the dashboards and River are exempt per resource.
-- Enabling Cilium metrics rolled every agent once.
+- A Cilium values change rolls every agent once (`rollOutCiliumPods`).
 - **The Cilium chart's dashboards are off** (`dashboards`,
   `operator.dashboards`, `hubble.metrics.dashboards` in
   `kubernetes/cilium/app/values.yaml`). Of 185 panel queries across the six
@@ -320,6 +327,48 @@ constant-expression query. Prometheus reported `Ready` through parts of this
 while serving nothing, so readiness alone is not evidence that it works —
 assert on a real query.
 
+### The observability diet (2026-10-24)
+
+Working set in MiB, summed over the pods in parentheses, before (2026-10-21)
+and after (2026-10-24):
+
+| Component | Where | Before | After |
+| --- | --- | --- | --- |
+| Alloy DaemonSet | NUC VMs | 4796 (12) | 1420 (12) |
+| Alloy DaemonSet | Pis | 2955 (8) | 710 (8) |
+| alloy-cluster | Pis | — | 724 (1) |
+| Beyla | NUC VMs | 3161 (8) | — |
+| Beyla | Pis | 2675 (7) | — |
+| Tempo | NUC VMs | 164 (1) | — |
+| Prometheus | NUC VMs | 1430 (1) | 685–800 settled (1) |
+| Loki | NUC VMs | 135 (1) | 270 (1) |
+| cilium-agent | NUC VMs | 3547 (12) | 1786 (12) |
+| cilium-agent | Pis | 1690 (8) | 1125 (8) |
+
+1. Prometheus head series: 576,475 before, 157,209 after. The settled
+   working set is 685-800 MiB over 2026-10-23 23:10 to 2026-10-24 15:47 UTC;
+   a later 1166-1504 MiB excursion is query-driven page cache. From 19:07
+   to 23:02 on 2026-10-23 the working set stayed at 2.2-2.4 GiB while RSS was
+   already 630-665 MiB, so the excess is file-backed page cache (likely
+   block compaction and deletion), not series in the head.
+2. The 1Gi memory request is sized against RSS and heap, not working set:
+   steady RSS 605-665 MiB (892 MiB max) and Go heap 430-570 MiB (789 MiB max).
+   A working-set reading of 1.1-1.5 GiB is reclaimable page cache and does
+   not contradict it. On 2026-09-18 a 1Gi request against a ~690k-series,
+   1.8 GiB process placed it onto nodes that could not hold it.
+3. All containers on the 8 agent VMs: 18,055 MiB before, 12,001 MiB after.
+   `k8s-agent-05` rises because Prometheus rescheduled onto it during the
+   2026-10-23 power cut; its previous node, `k8s-agent-06`, falls.
+4. NUC hosts, MemAvailable / zram used in MiB, before to after: rumba
+   92/5835 to 340/2702, tango 149/5193 to 122/5371, salsa 84/4720 to 78/5198,
+   samba 63/5902 to 126/4899. Ballooning is off, so the freed memory stays
+   inside the VMs and host MemAvailable barely moves; zram usage moves both
+   ways.
+5. Memory requests: Prometheus 2048 MiB to 1024 MiB. The Alloy DaemonSet
+   requests are unchanged; resizing them is tracked in #271.
+6. cilium-agent's after values are measured; the cause of the drop is not
+   established here.
+
 ## Observed behaviour
 
 - **Rumba OOM-killed `k8s-server-01` as the stack landed.** The four NUCs sat
@@ -386,7 +435,7 @@ assert on a real query.
   every membership change.
 - **Pinning the cluster scraper to a node, or a required Pi affinity.** A
   named or required node turns that node's loss into an unschedulable pod
-  and a gap without end, where a preferred affinity costs a minute.
+  and a gap without end, where a preferred affinity costs one to two minutes.
 - **Folding the cluster scrapes into `alloy-events`.** One responsibility
   per release, as with `alloy-gateway`: the events Alloy stays small, and
   sizing one does not resize the other.
