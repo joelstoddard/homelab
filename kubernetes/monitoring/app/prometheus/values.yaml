@@ -41,7 +41,8 @@ server:
   resources:
     requests:
       cpu: "1"
-      memory: 2Gi
+      memory: 1Gi
+    # The 1Gi request is the settled working set (690-770 MiB) plus ~25%.
     # Replay peaks above steady state, so 2Gi OOM-killed it mid-replay and it
     # never finished; 1 CPU throttled it below answering a trivial query.
     limits:
