@@ -34,6 +34,17 @@ controller:
               - key: kubernetes.io/arch
                 operator: In
                 values: ["arm64"]
+  # This one replica owns every cluster-wide job, and the default 300 s
+  # toleration would leave them absent for ~6 min after a node dies.
+  tolerations:
+    - key: node.kubernetes.io/unreachable
+      operator: Exists
+      effect: NoExecute
+      tolerationSeconds: 30
+    - key: node.kubernetes.io/not-ready
+      operator: Exists
+      effect: NoExecute
+      tolerationSeconds: 30
   podAnnotations:
     prometheus.io/scrape: "true"
     prometheus.io/port: "12345"

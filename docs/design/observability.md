@@ -45,9 +45,12 @@ defaults that hide the control-plane components.
   *preferred* `kubernetes.io/arch: arm64` affinity is what keeps that memory
   off the NUCs; preferred rather than required, so it runs on a VM when no
   Pi fits instead of going unschedulable. It tolerates no taint, so it never
-  lands on the control-plane Pi. A reschedule leaves the
-  cluster-wide series with a gap of a minute or two (accepted); node metrics
-  and logs come from the DaemonSet and are unaffected. `Recreate`, not a
+  lands on the control-plane Pi. A reschedule (pod deleted or evicted)
+  leaves the cluster-wide series with a gap under a minute; losing the node
+  takes 1-2 minutes (unreachable after ~40 s, a 30 s toleration, then the
+  reschedule). Every cluster-wide job is absent together for that gap, so
+  the Services overview goes blank and, with no alerting, nothing flags it;
+  node metrics and logs come from the DaemonSet and are unaffected. `Recreate`, not a
   rolling update, so a chart upgrade never runs two scrapers against the
   same targets. The release creates no Service: its own metrics are scraped
   by pod annotation, and `alloy-cluster` is the name the chart gives a
@@ -235,9 +238,13 @@ there `namespace` and `pod` are already the subject.
 - Alloy restart: positions live in the container's writable layer (the chart
   mounts nothing at `/tmp/alloy`), so current log files are re-read (kubelet
   rotates at 10 MiB) and Loki drops exact duplicates.
-- `alloy-cluster` pod lost or rescheduled: every cluster-wide job goes
-  absent from `up` until the new pod's first scrape, a minute or two; the
-  DaemonSet's kubelet, cAdvisor, node and log collection carry on.
+- `alloy-cluster` pod lost or rescheduled: every cluster-wide job
+  (kube-state-metrics, apiserver, etcd, Cilium, Flux, Longhorn) goes absent
+  from `up` together until the new pod's first scrape. A reschedule takes
+  under a minute; node loss 1-2 minutes (unreachable after ~40 s plus the
+  30 s toleration). The Services overview goes blank and, with no alerting,
+  nothing flags it; the DaemonSet's kubelet, cAdvisor, node and log
+  collection carry on.
 - Volume fills: `retentionSize` sits below the PVC; Loki's compactor
   enforces time; Longhorn volumes expand online.
 - A `$WORD` in a comment in one of the three values files is eaten by
@@ -428,7 +435,7 @@ and after (2026-10-24):
   every membership change.
 - **Pinning the cluster scraper to a node, or a required Pi affinity.** A
   named or required node turns that node's loss into an unschedulable pod
-  and a gap without end, where a preferred affinity costs a minute.
+  and a gap without end, where a preferred affinity costs one to two minutes.
 - **Folding the cluster scrapes into `alloy-events`.** One responsibility
   per release, as with `alloy-gateway`: the events Alloy stays small, and
   sizing one does not resize the other.
