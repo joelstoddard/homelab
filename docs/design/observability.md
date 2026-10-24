@@ -320,6 +320,41 @@ constant-expression query. Prometheus reported `Ready` through parts of this
 while serving nothing, so readiness alone is not evidence that it works —
 assert on a real query.
 
+### The observability diet (2026-10-24)
+
+Working set in MiB, summed over the pods in parentheses, before (2026-10-21)
+and after (2026-10-24):
+
+| Component | Where | Before | After |
+| --- | --- | --- | --- |
+| Alloy DaemonSet | NUC VMs | 4796 (12) | 1420 (12) |
+| Alloy DaemonSet | Pis | 2955 (8) | 710 (8) |
+| alloy-cluster | Pis | — | 724 (1) |
+| Beyla | NUC VMs | 3161 (8) | — |
+| Beyla | Pis | 2675 (7) | — |
+| Tempo | NUC VMs | 164 (1) | — |
+| Prometheus | NUC VMs | 1430 (1) | 690–770 settled (1) |
+| Loki | NUC VMs | 135 (1) | 270 (1) |
+| cilium-agent | NUC VMs | 3547 (12) | 1786 (12) |
+| cilium-agent | Pis | 1690 (8) | 1125 (8) |
+
+1. Prometheus head series: 576,475 before, 157,209 after. The settled working
+   set is the window 2026-10-23 23:10 to 2026-10-24 16:10 UTC; the 23 h
+   maximum before it (2.6 GiB) is the span in which old and new series shared
+   the head ahead of compaction.
+2. All containers on the 8 agent VMs: 18,055 MiB before, 12,001 MiB after.
+   `k8s-agent-05` rises because Prometheus rescheduled onto it during the
+   2026-10-23 power cut; its previous node, `k8s-agent-06`, falls.
+3. NUC hosts, MemAvailable / zram used in MiB, before to after: rumba
+   92/5835 to 340/2702, tango 149/5193 to 122/5371, salsa 84/4720 to 78/5198,
+   samba 63/5902 to 126/4899. Ballooning is off, so the freed memory stays
+   inside the VMs and host MemAvailable barely moves; zram usage moves both
+   ways.
+4. Memory requests: Prometheus 2048 MiB to 1024 MiB. The Alloy DaemonSet
+   requests are unchanged; resizing them is tracked in #271.
+5. cilium-agent's after values are measured; the cause of the drop is not
+   established here.
+
 ## Observed behaviour
 
 - **Rumba OOM-killed `k8s-server-01` as the stack landed.** The four NUCs sat
