@@ -111,8 +111,13 @@ ceiling, plus about €0.01/month per stored image snapshot.
 
 ### Machine config arrives as `user_data`
 
-`user_data = file(<the talos role's rendered skylab config>)`. tofu fails if
-the file is missing, so the order is: render the config
+`user_data = file(<the talos role's rendered skylab config>)`. Skylab takes
+its address by DHCP, which Hetzner serves for the primary IPv4, so the config
+needs no address before apply. The role's node patch
+(`templates/patches/node.yaml.j2`) sets a static LAN address, prefix and
+gateway for every node; the enrol design makes it skip that `LinkConfig` for
+a **public node**. tofu fails if the file is missing, so the order is: render
+the config
 (`make -C ansible apply-talos TAGS=config` with the branch header), then
 apply tofu. No Talos API port is ever public. The config holds the cluster
 secrets, so it lands in tofu state; that state is already encrypted
@@ -188,6 +193,9 @@ whatever the directory; the operator holds them anyway.
     widens the operator's NetBox access for every directory to save one
     manual edit per rebuild.
 12. **IPv6 as well.** Free, but nothing uses it.
+13. **A static address in the machine config.** The address exists only
+    after apply, so it needs a targeted apply of the primary IP, a NetBox
+    edit and a re-render before the server applies, on every rebuild.
 
 ## Failure mode if you change this
 
