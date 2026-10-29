@@ -50,7 +50,8 @@ git:
 2. `bpf.hostLegacyRouting: true`. eBPF host routing bypasses the kernel
    routing table and so misses KubeSpan's fwmark routing: ICMP works and TCP
    hangs. `cilium-dbg status` reports `Host: Legacy`, because
-   `bpf.masquerade` is off. The value is pinned so a later masquerade change cannot switch it.
+   `bpf.masquerade` is off. The value is pinned so a later masquerade
+   change cannot switch it.
 
 **Then `KubeSpanConfig`**, as its own document in
 `templates/patches/cluster.yaml.j2`, on every node:
@@ -124,15 +125,11 @@ Hetzner segment, and the IP becomes unreachable on the LAN.
 A node is public when its NetBox record carries the tag `public-node`
 (`is_public` in `templates/patches/node.yaml.j2`). For a public node:
 
-1. **No `LinkConfig`.** The address comes from Hetzner's DHCP, so no address
-   is needed before apply.
+1. **No `LinkConfig`** (DHCP; `docs/design/skylab-provisioning.md`).
 2. **The taint and the label**, as above.
 3. **No Longhorn mount.** The kubelet `extraMounts` block moves from
    `cluster.yaml.j2` into `node.yaml.j2` under `not is_public`.
-4. **Zone `skylab`.** This needs no change: a node with no `cluster_device`
-   already takes its own name.
-5. **Swap and the firewall**, below.
-6. **`apply.yaml` skips the node.** Its config arrives as `user_data`, and its
+4. **`apply.yaml` skips the node.** Its config arrives as `user_data`, and its
    API is never reachable in maintenance mode.
 
 The install disk stays `/dev/sda`, and the install image stays
@@ -217,17 +214,12 @@ skylab's public interface, and the Hetzner firewall is the only layer there
    License, and the docs call self-hosting a commercial licence.
 4. **Excluding the LAN prefix with `filters.excludeAdvertisedNetworks`.** It
    removes the network from every peer, which also cuts skylab off.
-5. **`NoExecute` taint.** The taint exists from registration, so it evicts
-   nothing that `NoSchedule` would allow.
-6. **Longhorn on skylab.** Replication over the WAN, through the home uplink.
-7. **Opening 50000/tcp to the home egress address.** A public API port, and
+5. **Opening 50000/tcp to the home egress address.** A public API port, and
    the home address can change.
-8. **zram through a privileged DaemonSet (`nsenter`, `mkswap`, `swapon`).**
+6. **zram through a privileged DaemonSet (`nsenter`, `mkswap`, `swapon`).**
    Unsupported, and it fails at the 1.14 bump, when the kernel drops zram.
-9. **A custom Talos kernel with zram.** Talos requires signed modules, so it
+7. **A custom Talos kernel with zram.** Talos requires signed modules, so it
    means building and maintaining the kernel for every release.
-10. **Advertising pod CIDRs (`advertiseKubernetesNetworks: true`).** Needed
-    only for native routing. The cluster tunnels.
 
 ## Failure mode if you change this
 
@@ -245,5 +237,3 @@ skylab's public interface, and the Hetzner firewall is the only layer there
    no space. Adding the cap later does nothing until the node is wiped.
 7. Point the role's direct calls at skylab's `ansible_host` and they time
    out, because 50000/tcp is closed.
-8. Set `allowDownPeerBypass: true` and a broken KubeSpan pair sends cleartext
-   traffic.
