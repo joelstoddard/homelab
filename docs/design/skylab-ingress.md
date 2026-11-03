@@ -107,11 +107,11 @@ Every record tofu owns carries `comment = "opentofu"`.
 
 ### TURN
 
-1. **Name.** `turn.example.net`, a DNS-only (`proxied = false`) A record to
-   the primary IPv4. metachat's `TURN_URLS` names it, so the address never
-   enters git or `cluster-secrets`. The primary IP survives a server rebuild
-   (`auto_delete = false`), so the record does not change. Clients learned the
-   raw address before, so the record exposes nothing new.
+1. **Name.** `turn.example.net`. metachat's `TURN_URLS` names it, so the
+   address never enters git or `cluster-secrets`. The primary IP survives a
+   rebuild (`docs/design/skylab-provisioning.md`), so the record does not
+   change. Clients learned the raw address before, so the record exposes
+   nothing new.
 2. **Ports.** 3478/tcp, 3478/udp and 49160–49500/udp from anywhere, as rules
    on the `hcloud_firewall` and on the public node's Talos firewall. 5349 stays
    closed: there is no TLS listener.
@@ -184,9 +184,6 @@ This is checked at build: the pods report Ready with the policy in place.
 3. The token is scoped to Account › Cloudflare Tunnel › Edit and
    Zone › DNS › Edit, on the two zones only.
 
-The Makefile loads each directory's `secrets.env` under `set -a`, as it does
-for `resources/pihole/`.
-
 The 8443 Origin Rule and the Origin CA certificates are removed by hand in
 the cutover runbook. They exist only for an origin on the internet, and tofu
 does not import them.
@@ -217,19 +214,14 @@ whoever created it. The two coexist under four rules:
 4. **A locally managed tunnel config** (a `config.yaml` ConfigMap in
    `kubernetes/cloudflared/`). The real hostnames need a new substitution key,
    and a route and its record change in two places.
-5. **Routing through Traefik.** It runs on LAN nodes, so each request crosses
-   KubeSpan twice.
+5. **Routing through Traefik.** See "The tunnel".
 6. **TURN on the raw IP in `cluster-secrets`.** A hand-copied address, edited
    on every rebuild that loses the IP.
-7. **TURN through the tunnel.** A `tcp://` route needs `cloudflared access` on
-   every client, and UDP is not carried.
+7. **TURN through the tunnel.** See "The constraint".
 8. **A Cloudflare redirect rule for `www`.** A `cloudflare_ruleset` and another
    token permission for a redirect nginx already does.
 9. **`TUNNEL_TOKEN` as an environment variable.** It puts the token in the
    process environment. `--token-file` does not.
-10. **One cloudflared replica.** Every rollout and crash takes both sites down.
-11. **Test hostnames two labels deep.** No Universal SSL certificate covers
-    them.
 
 ## Failure mode if you change this
 
@@ -245,7 +237,5 @@ whoever created it. The two coexist under four rules:
    into a home record.
 6. Drop the peer deny ranges and a TURN client can relay into the LAN or the
    cluster.
-7. Open 50000/tcp or any port beyond the TURN set on the Hetzner firewall and
-   it is public: Cilium handles NodePorts before the Talos firewall.
-8. Give a test hostname a second label and the edge serves a certificate
+7. Give a test hostname a second label and the edge serves a certificate
    error.
