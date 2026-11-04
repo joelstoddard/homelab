@@ -8,8 +8,9 @@ one ends at a running Talos server with a public address and a firewall.
 ## Problem
 
 Skylab is a hand-built Hetzner server in Ashburn. It is rebuilt as code in a
-Hetzner EU location as a Talos worker, and the Ashburn server shuts down at
-**cutover**. Three constraints shape the provisioning:
+Hetzner EU location as a Talos worker, and the Ashburn server shuts down 7
+days after **cutover** (`docs/design/skylab-migration.md`). Three constraints
+shape the provisioning:
 
 1. Nothing bills before the cluster side reaches parity. A merged
    `resources/skylab/` is applied by every blanket `make -C opentofu apply`,
