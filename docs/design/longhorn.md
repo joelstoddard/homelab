@@ -212,7 +212,7 @@ they are system-generated, and this cluster configures no backup target.
   roughly a gigabyte of images per node put a worker's RSS at 5–6 GB)
   otherwise OOM-kills the largest KVM process on the host, which can be a
   control-plane VM. 5 + 5 + 4 GB leaves ~1.5 GB. Rumba also hosts the
-  operator VM (8192 MB, balloon 2048) and is oversubscribed in the worst
+  operator VM (4096 MB, balloon 1024) and is oversubscribed in the worst
   case — open.
 - **A hard power-off (OOM kill, power cut) can corrupt containerd's content
   store.** The node comes back with `exec format error` from binaries whose
