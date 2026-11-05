@@ -9,9 +9,9 @@ resolvers rather than one dnsmasq line. Each link answers what it knows and
 forwards the rest to the next, until the chain reaches public DNS.
 
 Read this in the future tense. It describes the intended design and the
-reasoning behind each choice; `opentofu/resources/pihole/` is the only part
-of it that exists on `main` today, and that is the single Pi-hole LXC the
-chain would replace.
+reasoning behind each choice. `opentofu/resources/pihole/` is the single
+Pi-hole LXC the chain replaces, and `opentofu/resources/dns/` declares the
+Bind9 and lancache-dns containers, unapplied.
 
 ## Problem
 
@@ -64,8 +64,8 @@ the branch `claude/dns-appliance-bind9` (PR #212, closed, preserved). All six
 containers are seeded in NetBox at status `planned`, with their addresses
 cross-checked against the group vars.
 
-**What does not.** The OpenTofu that creates the containers, keepalived for
-the VIP, `kubernetes/lancache/`, and nebula-sync for the Pi-hole pair.
+**What does not.** The OpenTofu for the Pi-hole pair, keepalived for the
+VIP, `kubernetes/lancache/`, and nebula-sync for the Pi-hole pair.
 
 **To resume:** reopen #212 and rebase — it was stacked on the since-merged
 #211, and #214 replaced talhelper, so `roles/talos` has moved underneath it.
@@ -179,6 +179,35 @@ manual lever.
   plain-only, so they take `9.9.9.9` and `149.112.112.112` — Quad9's two
   anycast addresses. Bind9's forwarders are the one hop in the whole estate
   that can be encrypted.
+
+## Containers
+
+`opentofu/resources/dns/` builds the four lower links as Proxmox LXCs from
+the Debian 13 standard template. NetBox supplies each container's node,
+vCPUs, memory, disk and address, and the plan fails rather than guess when a
+VM has no device or no primary IPv4. The code supplies only what NetBox does
+not model: the VM ID (`310 + N` for Bind9, `320 + N` for lancache-dns), the
+template, the features, and the resolvers.
+
+- **Every container is unprivileged.** Bind9 needs nothing more. lancache-dns
+  runs Docker, which works in an unprivileged container given `nesting` and
+  `keyctl`; a privileged container would make root inside it root on the
+  hypervisor, for a process whose job is answering the whole LAN.
+
+- **Resolvers are Quad9, set in the container config.** `dns_servers` on
+  `modules/lxc` is what `pct` writes into `/etc/resolv.conf` at every start,
+  so it is the only place a resolver setting survives a reboot. Pointing it
+  into the chain would deadlock a cold rebuild, as below.
+
+- **One template download per node, shared.** Two containers on one node
+  cannot each own the same file, so the directory downloads the template once
+  per node and hands the file ID to `modules/lxc` through
+  `template_file_id`.
+
+- **The containers ignore later changes**, like the Pi-hole LXC
+  (`ignore_changes = all` in `modules/lxc`). A NetBox edit to size or
+  placement shows in the plan only for the template download; changing a
+  live container means tainting and recreating it.
 
 ## Failure modes
 
