@@ -59,16 +59,17 @@ be conflated), and so does collapsing links onto shared containers, which
 reintroduces the `:53` contention the design removes.
 
 **What exists.** The `dns` Ansible role — Bind9 and lancache-dns, with the
-NetBox-tag groups and SOPS group vars — is written, linted and idempotent on
-the branch `claude/dns-appliance-bind9` (PR #212, closed, preserved). All six
-containers are seeded in NetBox at status `planned`, with their addresses
-cross-checked against the group vars.
+NetBox-tag groups and SOPS group vars — in `ansible/roles/dns/`, run by
+`make -C ansible apply-dns`, and the OpenTofu for the Bind9 and lancache-dns
+containers in `opentofu/resources/dns/`. All six containers are in NetBox,
+with their addresses cross-checked against the group vars.
 
 **What does not.** The OpenTofu for the Pi-hole pair, keepalived for the
 VIP, `kubernetes/lancache/`, and nebula-sync for the Pi-hole pair.
 
-**To resume:** reopen #212 and rebase — it was stacked on the since-merged
-#211, and #214 replaced talhelper, so `roles/talos` has moved underneath it.
+**Order of the remaining work.** `kubernetes/lancache/` comes before any
+client reaches lancache-dns, because lancache-dns sends the game CDNs to that
+cache's address. The Pi-hole pair and the cutover come last.
 
 ## The chain
 
