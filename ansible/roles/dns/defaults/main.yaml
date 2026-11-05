@@ -1,0 +1,32 @@
+---
+# The DNS chain. See docs/design/dns-chain.md.
+
+# The only hop in the chain that can speak DoT, so it does. Mullvad refuses
+# plain :53 from non-VPN clients, which makes DoT the only way to use it.
+dns_public_forwarders:
+  - address: "9.9.9.9"
+    tls_name: quad9
+    hostname: dns.quad9.net
+  - address: "194.242.2.2"
+    tls_name: mullvad
+    hostname: dns.mullvad.net
+
+dns_tls_ca_file: /etc/ssl/certs/ca-certificates.crt
+
+# Resolved through the full forwarder path by the role's own check. A local
+# wildcard lookup cannot tell a working upstream from a broken one.
+dns_public_probe_name: deb.debian.org
+
+# Short record and negative-cache TTLs, so a changed ingress recovers fast.
+dns_zone_ttl: 300
+dns_zone_negative_ttl: 60
+
+# Pinned by digest, because lancache-dns publishes only `latest`. The digest
+# pins the code, not the domain list, which it regenerates at every start.
+dns_lancache_image: "lancachenet/lancache-dns:latest@sha256:6e046a40e9f0467b1df97ca2ba9b8b7c0d4404736a349c0f8df11fa212871a03"
+dns_lancache_dir: /opt/lancache-dns
+dns_lancache_probe_domain: "lancache.steamcontent.com"
+
+# The fail-open lever. False stops the container, so Pi-hole's strict-order
+# falls through to Bind9 and the CDN domains resolve to the real CDN.
+dns_lancache_enabled: true

@@ -152,18 +152,19 @@ manual lever.
   Git is already the source of truth and Ansible is already the replication
   mechanism.
 
-- **The SOA serial is a content hash, not a date.** Nothing compares serials,
-  because nothing transfers the zone, so the serial only has to *change* when
-  the content changes. A timestamp would make the template report `changed` on
-  every run and reload `named` each time. **If a secondary is ever added,
-  switch to `YYYYMMDDNN` first:** an IXFR/AXFR secondary only transfers on an
-  increase.
+- **The SOA serial is a constant, not a date.** Nothing compares serials,
+  because nothing transfers the zone, and `rndc reload` re-reads a primary
+  zone when its file changes whatever the serial says. A timestamp would make
+  the template report `changed` on every run and reload `named` each time.
+  **If a secondary is ever added, switch to `YYYYMMDDNN` first:** an
+  IXFR/AXFR secondary only transfers on an increase.
 
 - **Quad9 and Mullvad, both over DoT.** Two things forced this. Mullvad
   answers `REFUSED` to plain `:53` from non-VPN clients, so DoT is the only
-  way to use it at all; and BIND 9.18 and later speak DoT natively in
-  `forwarders`, so encryption costs no extra daemon — the reason it was
-  originally deferred does not exist. Both are verified by hostname against
+  way to use it at all; and BIND 9.20 and later speak DoT natively in
+  `forwarders`, so encryption costs no extra daemon. That is why every
+  container in the chain runs Debian 13: Debian 12 ships BIND 9.18, which
+  rejects the `tls` argument. Both are verified by hostname against
   the system CA bundle rather than `tls ephemeral`: Mullvad's certificate
   carries `dns.mullvad.net` in its SANs, Quad9's carries `dns.quad9.net` and
   the address literals.

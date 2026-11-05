@@ -42,6 +42,8 @@ help:
 	@echo "  apply-resize	- Power-cycle Talos VMs onto a new Proxmox geometry, serially (EXTRA_VARS resize_hosts)."
 	@echo "  check-alloy	- Dry run the Grafana Alloy install on the tagged hosts."
 	@echo "  apply-alloy	- Install Grafana Alloy on the Proxmox NUCs and the Pi-hole LXC."
+	@echo "  check-dns	- Dry run the DNS appliance config (bind9)."
+	@echo "  apply-dns	- Configure the DNS appliances tagged dns in NetBox."
 	@echo "  kubeconfig	- Merge the cluster context into this machine's ~/.kube/config (OPERATOR_SSH=user@host)."
 	@echo "  ping     	- Ping hosts."
 	@echo "  clean    	- Clean temporary files."
@@ -166,6 +168,14 @@ check-alloy:
 .PHONY: apply-alloy
 apply-alloy:
 	$(call run_playbook,playbooks/alloy.yaml,,LIMIT)
+
+.PHONY: check-dns
+check-dns:
+	$(call run_playbook,playbooks/dns.yaml,--check --diff,LIMIT TAGS)
+
+.PHONY: apply-dns
+apply-dns:
+	$(call run_playbook,playbooks/dns.yaml,,LIMIT TAGS)
 
 .PHONY: apply
 apply:

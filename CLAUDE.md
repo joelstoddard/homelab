@@ -49,6 +49,7 @@ Two stages, two playbook entry points:
 - **`playbooks/resize.yaml`** — picks up a Proxmox hardware change (memory, cores) on RUNNING Talos VMs one at a time: halt, stop, start, gated on node Ready + no degraded Longhorn volume + cluster health, then verifies the guest's own reported total. `make -C ansible apply-resize EXTRA_VARS='{"resize_hosts": [...]|"agents"|"all"}'`, after `make -C opentofu`. Renders no machine config (a power cycle pushes none), so unlike the other Talos playbooks it needs only a talosconfig — the rendered one, else `~/.talos/config`. Refuses control-plane targets unless `resize_allow_controlplane=true`: the agents run overcommitted on zram and etcd must stay resident (`docs/design/zram-swap.md`).
 - **`playbooks/pi-eeprom-netboot.yaml`** — one-time per Pi: flips the Raspberry Pi 4 bootloader EEPROM to `BOOT_ORDER=0xf42` (network, then USB, then restart), after which the `00-pxe` dnsmasq gate decides each boot. Runs over SSH against the Pi's *current* OS, and only stages the change — the firmware flashes it on the next boot. `EXTRA_VARS='pi_reboot=true'` reboots fire-and-forget, because a successful cutover leaves no SSH to come back to. `make -C ansible apply-pi-eeprom LIMIT=<Pi>`.
 - **`playbooks/pi-cutover.yaml`** — drives a Pi the rest of the way to Talos: EEPROM → netboot into maintenance → install to `/dev/sda` → boot from disk. One-way for the old OS. It probes SSH to build its own pending set, so Pis already on Talos (which answer none) are skipped and the play is safe to re-run — which is why the root `make talos` target calls it before `apply-talos`. Narrow it with `EXTRA_VARS='{"pi_cutover_hosts": [...]}'`, NOT `--limit`: the localhost and SOPS plays need every host. See `docs/netbooting-pis.md`.
+- **`playbooks/dns.yaml`** — configures the DNS chain's containers (NetBox tag `dns`, plus `pihole`/`lancache`/`bind9` per link), which `main.yaml` cannot reach. A localhost play first fails unless every configured link has two hosts; the play then runs `serial: 1`, so both instances of a link are never down at once. `make -C ansible apply-dns`. The six containers are modelled in NetBox at status `planned` and do not exist yet — see `docs/design/dns-chain.md`.
 
 Roles split into two layers:
 
@@ -132,6 +133,16 @@ Current implementation:
   `make -C ansible apply-alloy` as the targeted entry point; the read-only
   PVE token the cluster's exporter uses comes from the `proxmox` library's
   `monitoring-token` task.
+- `dns` — OS library for the DNS chain, invoked from `playbooks/dns.yaml`:
+  `bind9.yaml` (the apt package, authoritative for the LAN domain, forwarding
+  over DoT only, every template `validate:`d by `named-checkconf` /
+  `named-checkzone`) and `lancache.yaml` (the upstream `lancache-dns` image,
+  digest-pinned, whose `named.conf.options` must never name a `dnstool`
+  placeholder, even in a comment). `resolv.yaml` asserts that no link resolves
+  through the chain itself. Every container must run Debian 13, and the role
+  asserts it: Debian 12's BIND 9.18 rejects `tls` in `forwarders` and its
+  `docker-compose` is the Python v1. Addresses are in
+  `group_vars/dns.sops.yaml`. See `roles/dns/README.md`.
 - Post-cluster orchestrators (external services, extras, tests) are planned,
   not yet implemented and so not yet numbered. Cluster bootstrap is
   deliberately not one of them: it is the `talos` library +

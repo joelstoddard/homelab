@@ -91,6 +91,12 @@ keyed_groups:
     separator: ''
     key: "tags | default([]) | select('eq','alloy') | first | default('')"
 
+  # The DNS chain: `dns` for every link, plus one group per link, which
+  # roles/dns dispatches its task files on. A list key makes one group each.
+  - prefix: ''
+    separator: ''
+    key: "tags | default([]) | select('in', ['dns', 'pihole', 'lancache', 'bind9']) | list"
+
   # Device type slug → nucs / pis. Non-matching slugs → '' (no group created).
   - prefix: ''
     separator: ''

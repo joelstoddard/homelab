@@ -1,0 +1,14 @@
+---
+# Debian's named.service maps ExecReload to `rndc reload`, which re-reads the
+# zone without dropping queries. A restart blackholes the LAN for a second.
+- name: Reload named
+  ansible.builtin.systemd:
+    name: named
+    state: reloaded
+
+# Restarted, not reloaded: dnstool regenerates the RPZ at container start, so
+# a config change only lands on a full restart.
+- name: Restart lancache-dns
+  community.docker.docker_compose_v2:
+    project_src: "{{ dns_lancache_dir }}"
+    state: restarted
