@@ -17,21 +17,9 @@ dns_tls_ca_file: /etc/ssl/certs/ca-certificates.crt
 # wildcard lookup cannot tell a working upstream from a broken one.
 dns_public_probe_name: deb.debian.org
 
-# The hosts allowed to query Bind9: the lancache-dns pair, which forwards to
-# it, and the Pi-hole pair, which reaches it directly when lancache-dns is
-# down. No client ever queries it.
-dns_bind9_clients: >-
-  {{ (dns_lancache_addresses | default({}) | dict2items | map(attribute='value') | list)
-     + (dns_pihole_addresses | default({}) | dict2items | map(attribute='value') | list) }}
-
-# Refresh, retry and expire describe a secondary that does not exist. The
-# record and negative-cache TTLs are short so a changed ingress recovers fast.
+# Short record and negative-cache TTLs, so a changed ingress recovers fast.
 dns_zone_ttl: 300
-dns_zone_refresh: 3600
-dns_zone_retry: 600
-dns_zone_expire: 604800
 dns_zone_negative_ttl: 60
-dns_zone_rname: "hostmaster"
 
 # Pinned by digest, because lancache-dns publishes only `latest`. The digest
 # pins the code, not the domain list, which it regenerates at every start.

@@ -4,7 +4,7 @@
 // is down. A resolver on a flat LAN must never answer anything else.
 acl dns_chain {
     localhost;
-{% for addr in dns_bind9_clients %}
+{% for addr in (dns_lancache_addresses.values() | list) + (dns_pihole_addresses.values() | list) %}
     {{ addr }};
 {% endfor %}
 };
