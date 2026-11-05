@@ -1,19 +1,16 @@
 {#
   The authoritative LAN zone. See docs/design/dns-chain.md.
 
-  The serial is a content hash, not a date: nothing transfers this zone, so
-  the serial only has to change when the content does. Switch to YYYYMMDDNN
-  before adding any secondary.
+  Nothing transfers this zone, so the serial and the refresh, retry and
+  expire timers are never read. Switch to a YYYYMMDDNN serial before adding
+  any secondary.
 #}
-{% set _fingerprint = [dns_domain, dns_traefik_lb_ip,
-                       dns_bind9_addresses | dictsort] | to_json %}
-{% set _serial = (_fingerprint | hash('sha1'))[0:8] | int(base=16) % 4294967294 + 1 %}
 $TTL {{ dns_zone_ttl }}
-@   IN SOA ns1.{{ dns_domain }}. {{ dns_zone_rname }}.{{ dns_domain }}. (
-        {{ _serial }} ; serial
-        {{ dns_zone_refresh }} ; refresh
-        {{ dns_zone_retry }} ; retry
-        {{ dns_zone_expire }} ; expire
+@   IN SOA ns1.{{ dns_domain }}. hostmaster.{{ dns_domain }}. (
+        1 ; serial
+        3600 ; refresh
+        600 ; retry
+        604800 ; expire
         {{ dns_zone_negative_ttl }} ) ; negative cache TTL
 
 {% for host in dns_bind9_addresses | sort %}

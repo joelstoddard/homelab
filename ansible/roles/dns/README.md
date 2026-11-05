@@ -94,8 +94,8 @@ Create it with `sops ansible/inventory/group_vars/dns.sops.yaml`:
 | `dns_passthrough_names` | list | FQDNs under the domain that public DNS really hosts |
 | `dns_lancache_lb_ip` | string | The LANCache HTTP address in the cluster; what the RPZ points at |
 
-Non-secret settings — forwarders and zone timers — are in
-`defaults/main.yaml`.
+Non-secret settings — forwarders, the record TTLs and the lancache-dns image
+digest — are in `defaults/main.yaml`.
 
 ## Adding a record
 
@@ -119,8 +119,9 @@ certificate and a Traefik 404, which reads as "the site is down".
 
 Both Bind9 instances render the same zone from git, independently. There is no
 primary and no secondary, so there is no TSIG key, no `allow-transfer`, and no
-window where one instance serves a stale zone. The SOA serial is a content
-hash rather than a date, because nothing compares serials.
+window where one instance serves a stale zone. The SOA serial is a constant
+`1`, because nothing compares serials: `rndc reload` re-reads a primary zone
+when the file changes, whatever its serial.
 
 **Adding a secondary means changing the serial scheme first.** An IXFR or AXFR
-secondary only transfers when the serial increases, and a hash does not.
+secondary only transfers when the serial increases, and a constant does not.
