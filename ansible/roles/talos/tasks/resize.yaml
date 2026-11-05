@@ -33,9 +33,12 @@
 
 # NetBox drives both the Proxmox config (via OpenTofu) and this comparison,
 # so a node already carrying its target size is skipped rather than cycled.
+# The guest always sees less than configured, so seeing more means a shrink.
 - name: Decide whether the power cycle is needed — {{ inventory_hostname }}
   ansible.builtin.set_fact:
-    talos_resize_needed: "{{ (talos_resize_seen | int) < (memory | int) - talos_resize_tolerance_mb }}"
+    talos_resize_needed: >-
+      {{ not ((memory | int) - talos_resize_tolerance_mb
+              <= (talos_resize_seen | int) <= (memory | int)) }}
   vars:
     talos_resize_seen: "{{ talos_resize_before.stdout_lines[1].split()[1] | default(0) }}"
 
@@ -94,7 +97,8 @@
   register: talos_resize_after
   changed_when: false
   failed_when: >-
-    (talos_resize_after.stdout_lines[1].split()[1] | int) < (memory | int) - talos_resize_tolerance_mb
+    not ((memory | int) - talos_resize_tolerance_mb
+         <= (talos_resize_after.stdout_lines[1].split()[1] | int) <= (memory | int))
   retries: 30
   delay: 10
   until: talos_resize_after is not failed

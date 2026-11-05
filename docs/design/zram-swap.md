@@ -92,11 +92,38 @@ is Proxmox-specific.
   only way to fit another guest. zram is what runs until then, and it stays
   useful afterwards.
 
-## Deliberate overcommit: agents at 6 GB
+## Deliberate overcommit: agents at 5 GB
 
 With zram in place the hosts can carry more guest memory than they have
-physical RAM. The worker VMs went from 4000 to 6000 MB in NetBox; the four
-control-plane VMs stayed at 4000.
+physical RAM. The worker VMs are 5000 MB in NetBox; the four control-plane
+VMs are 4000.
+
+### Why 5000 MB
+
+The 4000 MB agents OOMed while Beyla and the larger Alloy pods ran
+(`docs/design/observability.md`, "The observability diet"). After the diet,
+over 10 days at 6000 MB, the agents peaked at 2.05–2.95 GB used (MemTotal
+minus MemAvailable) of the 5.75 GB they see, with no guest swap and no OOM
+kill. At 5000 MB a guest sees 4.77 GB, which leaves about 1.8 GB above the
+highest peak.
+
+The 1 GB per agent is mostly page cache, and it is the room the DNS chain's
+containers need (`docs/design/dns-chain.md`). The room is demand, not free
+RAM: a guest fills its allocation with cache over days, so a host settles
+at near-zero MemAvailable and zram holds the difference. Day 1 after a
+power cycle is therefore an upper bound, not the steady state:
+
+| tango | 6000 MB agents | 5000 MB agents, day 1 |
+| --- | --- | --- |
+| Host MemAvailable | 109 MB (lowest 41 MB) | 1431 MB (lowest 1425 MB) |
+| zram, uncompressed | 5674 MB | 1249 MB |
+| Host PSI memory, highest 5 min | — | 0.00 % |
+
+The steady state is the next table's 4 + 5 + 5 row. Six DNS containers
+allocated 3–6 GB across the four NUCs add 0.75–1.5 GB of demand per host,
+which puts the compressed share at 18–26 %: under the 31 % that 6000 MB
+agents carry with memory PSI at 0.00 %. An LXC's allocation is a cgroup limit
+rather than touched memory, so their real demand is lower.
 
 ### The measurement it rests on
 
@@ -122,8 +149,9 @@ Fitting demand `W` into physical `T` needs `S` swapped at ratio `r`, where
 
 | Per-host config | Demand | Compressed | Share of guest RAM |
 | --- | --- | --- | --- |
-| 3 × 4 GB (before) | 14.3 GB | — | 0 % |
-| **4 + 6 + 6 (now)** | 18.3 GB | **4.9 GB** | **31 %** |
+| 3 × 4 GB | 14.3 GB | — | 0 % |
+| **4 + 5 + 5** | 16.3 GB | **1.4 GB** | **10 %** |
+| 4 + 6 + 6 | 18.3 GB | 4.9 GB | 31 % |
 | 3 × 6 GB | 20.3 GB | 8.4 GB | 47 % |
 | 3 × 8 GB | 26.3 GB | 19.0 GB | 79 % |
 
@@ -145,11 +173,13 @@ the scheduler will pack pods the host may not be able to back. When a host
 runs out, the OOM killer takes a QEMU process — the whole node, not a pod —
 and Kubernetes handles node loss far worse than eviction. zram is what makes
 that unlikely rather than impossible; the overcommit is deliberately kept to
-31 % of guest RAM to preserve the margin.
+10 % of guest RAM to preserve the margin, and new guests on the hosts raise
+it.
 
 Watch host PSI (`some` sustained above a few per cent), zram `DATA` against
 the 15.5 GB device, and per-service latency from Traefik's `traefik_service_request_duration_seconds` histogram.
-Roll back by returning NetBox to 4000 MB and re-running the resize.
+Roll back by returning NetBox to 6000 MB and re-running the resize; the
+resize treats a guest that sees more than NetBox as a shrink and cycles it.
 
 ### Applying a geometry change
 

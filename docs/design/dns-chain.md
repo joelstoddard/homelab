@@ -1,7 +1,7 @@
 # The DNS chain
 
 > **Status: designed, not deployed.** Nothing in this document is running.
-> The work is parked on hypervisor memory — see "Where this stands" below and
+> The hypervisors have the memory for it — see "Where this stands" below and
 > issue #151. This file is on `main` so the reasoning outlives the branch.
 
 Name resolution for the LAN and the cluster, as a chain of single-purpose
@@ -39,34 +39,24 @@ prerequisite.
 
 **Only the 12 VMs actually carry them.** Rolling a Pi runs the `00-pxe` play
 to refresh its netboot assets, and that needs Docker, so it cannot be driven
-from macOS — it needs the operator VM, which is exactly what the memory
-shortage below rules out. The 8 Pis therefore still resolve through Talos's
+from macOS — it needs the operator VM, a 4 GB guest that rumba cannot hold
+alongside its cluster VMs. The 8 Pis therefore still resolve through Talos's
 built-in `1.1.1.1` and `8.8.8.8`. Nothing is broken by the split, since both
 sets answer public names correctly, and the rendered configs already carry
 the change: `apply-config --dry-run` against each Pi shows the four-line
-`nameservers` diff and no reboot. It applies with the same RAM that unblocks
-the rest of this.
+`nameservers` diff and no reboot.
 
 ## Where this stands
 
-**Blocked on hypervisor memory.** The chain needs six containers — two each of
-Pi-hole, lancache-dns and Bind9 — and there is nowhere to put them. Measured
-across all four NUCs on 2026-09-25:
+**Memory: available.** The chain needs six containers — two each of Pi-hole,
+lancache-dns and Bind9. With the k8s agents at 5000 MB the hosts have room
+for them in the zram overcommit, not in free RAM; the numbers are in
+`docs/design/zram-swap.md`, "Why 5000 MB". The current single Pi-hole LXC
+uses 112 MB of its allocation.
 
-| Host | used | MemAvailable | zram used |
-|---|---|---|---|
-| rumba | 98.8% | 183 MB | 37.0% |
-| salsa | 99.4% | 94 MB | 29.3% |
-| samba | 99.5% | 71 MB | 36.8% |
-| tango | 99.7% | 59 MB | 28.9% |
-
-`MemAvailable` already counts reclaimable cache, so that is roughly 400 MB of
-real headroom against a 3–6 GB requirement. Nothing is failing — zram is a
-third used and there have been no OOM kills since it landed
-(`docs/design/zram-swap.md`) — but there is no room to add guests. More
-physical RAM is the only route: shrinking the k8s agents was ruled out (they
-OOMed at 4 GB, 6 GB is the stability floor), as were the Pis (cluster nodes,
-purposes not to be conflated) and collapsing links onto shared containers.
+The Pis stay out of it (they are cluster nodes, and the purposes are not to
+be conflated), and so does collapsing links onto shared containers, which
+reintroduces the `:53` contention the design removes.
 
 **What exists.** The `dns` Ansible role — Bind9 and lancache-dns, with the
 NetBox-tag groups and SOPS group vars — is written, linted and idempotent on
@@ -77,9 +67,8 @@ cross-checked against the group vars.
 **What does not.** The OpenTofu that creates the containers, keepalived for
 the VIP, `kubernetes/lancache/`, and nebula-sync for the Pi-hole pair.
 
-**To resume:** add RAM, reopen #212 and rebase — it was stacked on the
-since-merged #211, and #214 replaced talhelper, so `roles/talos` has moved
-underneath it.
+**To resume:** reopen #212 and rebase — it was stacked on the since-merged
+#211, and #214 replaced talhelper, so `roles/talos` has moved underneath it.
 
 ## The chain
 

@@ -320,7 +320,7 @@ buys back memory and, more usefully, replay time.
 The limits above were correct for 370k series and silently stopped being
 correct at 690k. On 2026-09-18 the failure surfaced as four constraints in
 sequence, each hidden behind the one before: the node's own memory (3.7 GB,
-since resized to 6 GB), then the 2Gi container limit OOM-killing it during
+since resized to 5 GB), then the 2Gi container limit OOM-killing it during
 WAL replay, then the 3 x 15 s liveness probe killing it while Alloy flushed
 a backlog, then a 1 CPU limit throttling it below answering a
 constant-expression query. Prometheus reported `Ready` through parts of this
