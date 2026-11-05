@@ -171,17 +171,11 @@ apply-alloy:
 
 .PHONY: check-dns
 check-dns:
-	$(VENV)/bin/ansible-playbook playbooks/dns.yaml --check --diff \
-		$(if $(LIMIT),--limit=$(LIMIT)) \
-		$(if $(VERBOSITY),-$(VERBOSITY)) \
-		$(if $(EXTRA_VARS),--extra-vars='$(EXTRA_VARS)')
+	$(call run_playbook,playbooks/dns.yaml,--check --diff,LIMIT TAGS)
 
 .PHONY: apply-dns
 apply-dns:
-	$(VENV)/bin/ansible-playbook playbooks/dns.yaml \
-		$(if $(LIMIT),--limit=$(LIMIT)) \
-		$(if $(VERBOSITY),-$(VERBOSITY)) \
-		$(if $(EXTRA_VARS),--extra-vars='$(EXTRA_VARS)')
+	$(call run_playbook,playbooks/dns.yaml,,LIMIT TAGS)
 
 .PHONY: apply
 apply:
