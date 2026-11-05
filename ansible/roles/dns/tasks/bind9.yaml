@@ -45,7 +45,10 @@
     owner: root
     group: bind
     mode: "0644"
-    validate: "named-checkconf %s"
+    # Checked together with the options, which define the tls blocks that the
+    # passthrough forwarders name; on its own the file never validates.
+    validate: >-
+      sh -c 'cat /etc/bind/named.conf.options "$1" | named-checkconf /dev/stdin' -- %s
   notify: Reload named
 
 - name: Enable and start named.
