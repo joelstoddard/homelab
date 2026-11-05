@@ -6,7 +6,6 @@ zone "{{ dns_domain }}" IN {
     notify no;
 };
 
-{% if dns_passthrough_names | default([]) | length > 0 %}
 // Names under the domain that public DNS really hosts. BIND selects the
 // deepest matching zone, so these beat the wildcard in the zone above.
 {% for name in dns_passthrough_names %}
@@ -20,4 +19,3 @@ zone "{{ name }}" IN {
     };
 };
 {% endfor %}
-{% endif %}
