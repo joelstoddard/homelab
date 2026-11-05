@@ -1,15 +1,6 @@
-// Managed by ansible (roles/dns). See docs/design/dns-chain.md.
-//
-// Replaces the image's own file, which ships allow-recursion { any; } and
-// would let a LAN client bypass Pi-hole by querying this container directly.
-//
-// Written with the forwarders already substituted and none of the
-// placeholders dnstool looks for. It string-replaces this file in place at
-// every container start, so a file with nothing left to replace is written
-// back byte-identical and never drifts from what Ansible rendered.
-//
-// Do not name those placeholders here, even in a comment: dnstool would
-// rewrite the comment and reintroduce the drift. See the role README.
+// Managed by ansible (roles/dns); ansible/roles/dns/README.md gives the reasons.
+// dnstool string-replaces this file at every container start, so it must
+// contain none of the dnstool placeholders: do not name them, even in a comment.
 
 acl dns_chain {
     localhost;

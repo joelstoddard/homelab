@@ -1,9 +1,7 @@
 ---
 # The DNS chain. See docs/design/dns-chain.md.
 #
-# An OS-named library role, invoked from playbooks/dns.yaml and dispatched by
-# group membership the way 02-preflights dispatches per-OS work. Each link of
-# the chain is its own container, so each gets its own task file.
+# Each link of the chain is its own container, so each gets its own task file.
 
 - name: Load the dns group vars (SOPS-encrypted).
   # ansible.cfg does not enable the sops vars plugin, so this file never
