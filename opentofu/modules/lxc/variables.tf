@@ -103,6 +103,12 @@ variable "ipv4_gateway" {
   default     = null
 }
 
+variable "dns_servers" {
+  description = "Resolvers written to the container's /etc/resolv.conf, which pct rewrites from this on every start. Null inherits the Proxmox host's."
+  type        = list(string)
+  default     = null
+}
+
 variable "ssh_public_keys" {
   description = "SSH public keys to inject for the root account."
   type        = list(string)

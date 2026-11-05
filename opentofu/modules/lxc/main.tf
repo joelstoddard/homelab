@@ -46,6 +46,13 @@ resource "proxmox_virtual_environment_container" "this" {
   initialization {
     hostname = var.hostname
 
+    dynamic "dns" {
+      for_each = var.dns_servers == null ? [] : [var.dns_servers]
+      content {
+        servers = dns.value
+      }
+    }
+
     ip_config {
       ipv4 {
         address = var.static_ipv4_cidr != null ? var.static_ipv4_cidr : "dhcp"
