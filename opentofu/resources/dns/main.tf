@@ -73,11 +73,8 @@ module "lxc" {
   dns_servers     = ["9.9.9.9", "149.112.112.112"]
   ssh_public_keys = [trimspace(file(pathexpand(var.operator_ssh_public_key_path)))]
 
-  # Unprivileged throughout: Docker runs in an unprivileged container given
-  # nesting and keyctl, and a privileged one is root on the host.
-  unprivileged = true
-  nesting      = local.links[each.value.link].docker
-  keyctl       = local.links[each.value.link].docker
+  # The API token may set nesting but not keyctl, which needs root@pam.
+  nesting = local.links[each.value.link].docker
 }
 
 output "containers" {

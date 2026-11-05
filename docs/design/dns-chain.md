@@ -191,9 +191,12 @@ not model: the VM ID (`310 + N` for Bind9, `320 + N` for lancache-dns), the
 template, the features, and the resolvers.
 
 - **Every container is unprivileged.** Bind9 needs nothing more. lancache-dns
-  runs Docker, which works in an unprivileged container given `nesting` and
-  `keyctl`; a privileged container would make root inside it root on the
-  hypervisor, for a process whose job is answering the whole LAN.
+  runs Docker, which works in an unprivileged Debian 13 container given
+  `nesting` alone; a privileged container would make root inside it root on
+  the hypervisor, for a process whose job is answering the whole LAN.
+  `keyctl` is deliberately off: Proxmox lets only `root@pam` set it, the
+  OpenTofu API token gets `403 changing feature flags (except nesting) is
+  only allowed for root@pam`, and Docker starts lancache-dns without it.
 
 - **Resolvers are Quad9, set in the container config.** `dns_servers` on
   `modules/lxc` is what `pct` writes into `/etc/resolv.conf` at every start,
