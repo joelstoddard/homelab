@@ -26,6 +26,7 @@ resource "proxmox_virtual_environment_container" "this" {
   description   = "Managed by OpenTofu."
   unprivileged  = var.unprivileged
   start_on_boot = var.start_on_boot
+  tags          = var.tags
 
   operating_system {
     template_file_id = coalesce(var.template_file_id, one(proxmox_download_file.template[*].id))

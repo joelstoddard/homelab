@@ -151,3 +151,9 @@ variable "tls_verify" {
   type        = bool
   default     = true
 }
+
+variable "tags" {
+  description = "Proxmox tags on the container, naming its purpose."
+  type        = list(string)
+  default     = []
+}
