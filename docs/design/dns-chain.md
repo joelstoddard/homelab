@@ -1,17 +1,17 @@
 # The DNS chain
 
-> **Status: designed, not deployed.** Nothing in this document is running.
-> The hypervisors have the memory for it — see "Where this stands" below and
-> issue #151. This file is on `main` so the reasoning outlives the branch.
+> **Status: partly deployed, not in the client path.** The Bind9 and
+> lancache-dns pairs run; no client queries them, because the single Pi-hole
+> LXC keeps its own upstreams. See "Where this stands" below and issue #151.
 
 Name resolution for the LAN and the cluster, as a chain of single-purpose
 resolvers rather than one dnsmasq line. Each link answers what it knows and
 forwards the rest to the next, until the chain reaches public DNS.
 
-Read this in the future tense. It describes the intended design and the
-reasoning behind each choice. `opentofu/resources/pihole/` is the single
-Pi-hole LXC the chain replaces, and `opentofu/resources/dns/` declares the
-Bind9 and lancache-dns containers, unapplied.
+This document gives the design and the reasoning behind each choice; what is not
+built yet is listed under "What does not". `opentofu/resources/pihole/` is
+the single Pi-hole LXC the chain replaces, and `opentofu/resources/dns/`
+creates the Bind9 and lancache-dns containers.
 
 ## Problem
 
@@ -209,9 +209,10 @@ template, the features, and the resolvers.
   `template_file_id`.
 
 - **The containers ignore later changes**, like the Pi-hole LXC
-  (`ignore_changes = all` in `modules/lxc`). A NetBox edit to size or
-  placement shows in the plan only for the template download; changing a
-  live container means tainting and recreating it.
+  (`ignore_changes = all` in `modules/lxc`). A NetBox edit to size shows
+  nothing in the plan, and one to placement shows only a template download on
+  the new node; changing a live container means tainting and recreating it
+  (#315).
 
 ## Failure modes
 
