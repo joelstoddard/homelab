@@ -3,6 +3,18 @@
 #
 # Each link of the chain is its own container, so each gets its own task file.
 
+- name: Require Debian 13 or later.
+  # Bind9 needs 9.20 for DoT forwarders and lancache-dns needs Compose v2;
+  # Debian 12 ships BIND 9.18 and Compose v1.
+  ansible.builtin.assert:
+    that:
+      - ansible_facts.distribution == 'Debian'
+      - ansible_facts.distribution_major_version | int >= 13
+    fail_msg: >-
+      {{ inventory_hostname }} runs {{ ansible_facts.distribution }}
+      {{ ansible_facts.distribution_major_version }}; the DNS chain needs
+      Debian 13 — see the "Requirements" section of ansible/roles/dns/README.md.
+
 - name: Load the dns group vars (SOPS-encrypted).
   # ansible.cfg does not enable the sops vars plugin, so this file never
   # auto-loads. roles/alloy/tasks/main.yaml loads its own the same way.

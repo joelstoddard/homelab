@@ -6,9 +6,11 @@
 # uklans/cache-domains with a Go tool, and re-implementing that against a list
 # that churns is the maintenance cost this role exists to avoid.
 
-- name: Install Docker.
+- name: Install Docker and the Compose v2 plugin.
   ansible.builtin.apt:
-    name: docker.io
+    name:
+      - docker.io
+      - docker-compose
     state: present
     update_cache: true
     cache_valid_time: 3600

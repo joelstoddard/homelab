@@ -16,12 +16,23 @@ above Bind9 rather than below it, why there is no zone transfer — is in
 
 ## What it does
 
-1. Asserts that the container does not resolve through the chain.
+1. Asserts that the container runs Debian 13 or later, and does not resolve
+   through the chain.
 2. On a `bind9` host: installs Bind9 and renders the authoritative zone.
 3. On a `lancache` host: runs the upstream lancache-dns image under Docker
    with a hardened bind config.
 4. Confirms each link answers what it should, and that a host outside the
    chain gets nothing from either.
+
+## Requirements
+
+Every container runs **Debian 13 (trixie) or later**, and the role refuses
+anything older. Debian 12 fails on both links:
+
+| Link | Needs | Debian 12 | Debian 13 |
+| --- | --- | --- | --- |
+| Bind9 | `tls` in `forwarders`, added in BIND 9.20.0 | BIND 9.18 rejects it: `missing ';' before 'tls'` | BIND 9.20.30 |
+| lancache-dns | the Compose v2 CLI plugin, for `docker_compose_v2` | `docker-compose` 1.29.2 is the Python v1 | `docker-compose` 2.26.1 installs `docker compose` |
 
 ## lancache-dns hardening
 
@@ -65,8 +76,8 @@ dig @<bind9-01> +dnssec cloudflare.com  # ad flag set: validation is on
 
 Bind9 forwards to Quad9 and Mullvad on port 853, hostname-verified against
 the system CA bundle. Mullvad answers `REFUSED` to plain `:53` from non-VPN
-clients, so DoT is the only way to use it, and BIND has spoken it natively
-since 9.18 — no stub resolver in the path.
+clients, so DoT is the only way to use it, and BIND speaks it natively in
+`forwarders` from 9.20 — no stub resolver in the path.
 
 **Never add a plain `:53` entry to that list.** BIND picks forwarders by
 round-trip time, so a plain one would win routinely and send queries in

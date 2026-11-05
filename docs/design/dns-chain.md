@@ -161,9 +161,10 @@ manual lever.
 
 - **Quad9 and Mullvad, both over DoT.** Two things forced this. Mullvad
   answers `REFUSED` to plain `:53` from non-VPN clients, so DoT is the only
-  way to use it at all; and BIND 9.18 and later speak DoT natively in
-  `forwarders`, so encryption costs no extra daemon — the reason it was
-  originally deferred does not exist. Both are verified by hostname against
+  way to use it at all; and BIND 9.20 and later speak DoT natively in
+  `forwarders`, so encryption costs no extra daemon. That is why every
+  container in the chain runs Debian 13: Debian 12 ships BIND 9.18, which
+  rejects the `tls` argument. Both are verified by hostname against
   the system CA bundle rather than `tls ephemeral`: Mullvad's certificate
   carries `dns.mullvad.net` in its SANs, Quad9's carries `dns.quad9.net` and
   the address literals.

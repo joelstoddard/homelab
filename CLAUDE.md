@@ -139,8 +139,10 @@ Current implementation:
   `named-checkzone`) and `lancache.yaml` (the upstream `lancache-dns` image,
   digest-pinned, whose `named.conf.options` must never name a `dnstool`
   placeholder, even in a comment). `resolv.yaml` asserts that no link resolves
-  through the chain itself. Addresses are in `group_vars/dns.sops.yaml`. See
-  `roles/dns/README.md`.
+  through the chain itself. Every container must run Debian 13, and the role
+  asserts it: Debian 12's BIND 9.18 rejects `tls` in `forwarders` and its
+  `docker-compose` is the Python v1. Addresses are in
+  `group_vars/dns.sops.yaml`. See `roles/dns/README.md`.
 - Post-cluster orchestrators (external services, extras, tests) are planned,
   not yet implemented and so not yet numbered. Cluster bootstrap is
   deliberately not one of them: it is the `talos` library +
