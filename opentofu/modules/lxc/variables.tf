@@ -14,13 +14,21 @@ variable "hostname" {
 }
 
 variable "template_url" {
-  description = "URL of a Proxmox LXC .tar.zst template."
+  description = "URL of a Proxmox LXC .tar.zst template to download. Null downloads nothing and uses template_file_id."
   type        = string
+  default     = null
 }
 
 variable "template_file_name" {
   description = "On-disk filename for the downloaded template."
   type        = string
+  default     = null
+}
+
+variable "template_file_id" {
+  description = "Proxmox file ID of a template already on the node, e.g. \"local:vztmpl/<file>\". Used when template_url is null, so several containers on one node can share one download; it is keyed off template_url because this ID is unknown until apply."
+  type        = string
+  default     = null
 }
 
 variable "template_checksum" {
