@@ -9,7 +9,6 @@
   ansible.builtin.apt:
     name:
       - bind9
-      - bind9-utils
       - bind9-dnsutils
       # The CA bundle the forwarders' TLS blocks verify against.
       - ca-certificates
