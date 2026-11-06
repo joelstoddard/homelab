@@ -54,6 +54,8 @@
   ansible.builtin.meta: flush_handlers
 
 - name: Confirm a CDN domain resolves to the cache.
+  # Retried because named only listens once dnstool has built the RPZ, some
+  # seconds after the container starts.
   ansible.builtin.command:
     cmd: >-
       dig +short +tries=1 +time=5
@@ -61,7 +63,9 @@
       {{ dns_lancache_probe_domain }} A
   register: _dns_lancache_check
   changed_when: false
-  failed_when: dns_lancache_lb_ip not in _dns_lancache_check.stdout
+  retries: 12
+  delay: 5
+  until: dns_lancache_lb_ip in _dns_lancache_check.stdout
   when: dns_lancache_enabled
 
 - name: Confirm lancache-dns refuses a host outside the chain.

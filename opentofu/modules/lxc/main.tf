@@ -1,6 +1,8 @@
 # proxmox_download_file is the non-deprecated alias for
 # proxmox_virtual_environment_download_file (removed in bpg/proxmox v1.0).
 resource "proxmox_download_file" "template" {
+  count = var.template_url == null ? 0 : 1
+
   content_type = "vztmpl"
   datastore_id = var.template_datastore_id
   node_name    = var.node_name
@@ -13,15 +15,21 @@ resource "proxmox_download_file" "template" {
   checksum_algorithm = var.template_checksum == null ? null : var.template_checksum_algorithm
 }
 
+moved {
+  from = proxmox_download_file.template
+  to   = proxmox_download_file.template[0]
+}
+
 resource "proxmox_virtual_environment_container" "this" {
   node_name     = var.node_name
   vm_id         = var.vm_id
   description   = "Managed by OpenTofu."
   unprivileged  = var.unprivileged
   start_on_boot = var.start_on_boot
+  tags          = var.tags
 
   operating_system {
-    template_file_id = proxmox_download_file.template.id
+    template_file_id = coalesce(var.template_file_id, one(proxmox_download_file.template[*].id))
     type             = "debian"
   }
 
@@ -45,6 +53,13 @@ resource "proxmox_virtual_environment_container" "this" {
 
   initialization {
     hostname = var.hostname
+
+    dynamic "dns" {
+      for_each = var.dns_servers == null ? [] : [var.dns_servers]
+      content {
+        servers = dns.value
+      }
+    }
 
     ip_config {
       ipv4 {
