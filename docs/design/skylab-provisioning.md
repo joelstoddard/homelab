@@ -93,7 +93,9 @@ nothing else uses one.
    `delete_protection` and `rebuild_protection` are both `true` (the provider
    requires them to match). `lifecycle { ignore_changes = [image, user_data] }`,
    because both are ForceNew and a Talos version bump goes through
-   `talosctl upgrade`, not a new server.
+   `talosctl upgrade`, not a new server. The `user_data` Hetzner holds goes
+   stale after the first upgrade; only the rebuild (below) would use it,
+   and the rebuild renders it first.
 2. **`hcloud_primary_ip`** (IPv4, €0.50/month): `assignee_type = "server"`,
    `auto_delete = false`, `delete_protection = true`. It keeps the address
    through a server rebuild, so the KubeSpan endpoint and coturn's address do
@@ -135,12 +137,37 @@ skylab-image` runs `hcloud-upload-image upload` with the Image Factory's
 `versions.env`, labelled `talos_version` and `talos_schematic`. It skips the
 upload when a snapshot with both labels exists, checked with `curl` against
 the Hetzner API's `images?type=snapshot&label_selector=…`. tofu selects it with
-`with_selector` on the same labels and `most_recent = true`; with the gate
-open and no image, tofu fails with a message naming the target.
+`with_selector` on `talos_schematic` only and `most_recent = true`, so a
+`versions.env` bump does not break blanket plans while no snapshot for the
+new version exists. The running server ignores `image`, and the rebuild
+uploads before it plans, so a new server never boots an old snapshot. With
+the gate open and no image for the schematic, tofu fails with a message
+naming the target.
 
 The upload boots a temporary server, which is a billing event, so it is
 never part of `apply`: a blanket apply bills nothing. Old snapshots stay.
 `install.sh` installs `hcloud-upload-image`.
+
+### Rebuild
+
+`make -C opentofu skylab-rebuild` replaces the server. It is the path for
+anything the other nodes get through `reset.yaml`, which refuses skylab
+(`docs/design/skylab-enrolment.md`, "Day 2"). Running the target is the
+decision, so it takes no further flag. In order:
+
+1. `skylab-image`, for the current `versions.env`.
+2. The render (`make -C ansible apply-talos TAGS=config`), so `user_data`
+   is the current config, never the stale copy.
+3. An apply with `TF_VAR_skylab_protected=false`, which lifts
+   `delete_protection` and `rebuild_protection` in place.
+4. `tofu apply -replace` of the `hcloud_server`, with protection still off.
+5. A plain apply, which restores protection.
+
+Step 3 exists because Hetzner refuses to delete a protected server, and the
+provider is expected to pass that refusal through rather than lift it
+(**unverified**; checked when the directory is built). The primary IP
+(`auto_delete = false`) and the Forgejo Volume stay; Kubernetes sees the same
+node name. The sites are down from step 4 until the node is Ready.
 
 ### The new address in NetBox
 
@@ -197,6 +224,13 @@ whatever the directory; the operator holds them anyway.
 13. **A static address in the machine config.** The address exists only
     after apply, so it needs a targeted apply of the primary IP, a NetBox
     edit and a re-render before the server applies, on every rebuild.
+14. **Making `check` and `apply` depend on `skylab-image`.** It keeps the
+    version label in the selector, but a blanket apply would then upload
+    images, which is a billing event.
+15. **Hetzner's in-place `rebuild` API.** It keeps the server ID, but tofu
+    cannot express it, and whether it re-reads `user_data` is unverified.
+16. **Dropping delete protection for `prevent_destroy`.** `prevent_destroy`
+    also blocks `-replace`, so the rebuild still needs a bypass.
 
 ## Failure mode if you change this
 
@@ -213,3 +247,8 @@ whatever the directory; the operator holds them anyway.
    delete protection makes the apply fail instead.
 5. Drop the `TF_VAR_netbox_headers` mirror and rely on the provider's own
    `NETBOX_HEADERS` default, and the provider fails at configure time.
+6. Add `talos_version` to the image selector and every blanket plan
+   fails after a `versions.env` bump until someone uploads an image.
+7. Drop the render from `skylab-rebuild` and a rebuilt server boots the
+   config from the last render, which may predate the last upgrade.
+8. Drop step 5 of the rebuild and skylab runs without delete protection.
