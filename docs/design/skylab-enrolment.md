@@ -132,7 +132,16 @@ A node is public when its NetBox record carries the tag `public-node`
 4. **`apply.yaml` skips the node.** Its config arrives as `user_data`, and its
    API is never reachable in maintenance mode.
 
-The install disk stays `/dev/sda`, and the install image stays
+5. **The `hcloud-installer` image.** `machine.install.image` is
+   `factory.talos.dev/hcloud-installer/<TALOS_SCHEMATIC_ID>:<version>`, not
+   the `installer` repository the VMs use. Since Talos 1.10 the plain
+   `installer` is the metal installer, and the image carries the
+   `talos.platform` kernel argument, which a 1.13 node boots from the image
+   rather than from its own command line
+   ([Image Factory API](https://github.com/siderolabs/image-factory/blob/main/docs/api.md),
+   [1.10 notes](https://docs.siderolabs.com/talos/v1.10/getting-started/what's-new-in-talos)).
+
+The install disk stays `/dev/sda`, and the schematic stays
 `TALOS_SCHEMATIC_ID`. The other 20 nodes must dry-run as `No changes`
 (`docs/design/talos-machine-config.md`). Moving the Longhorn mount between
 patches must leave their merged config identical.
@@ -148,6 +157,44 @@ skylab's node address, and KubeSpan carries it. The talos role's direct calls
 The forwarding over KubeSpan is **unverified**. The KubeSpan roll tests it
 before skylab exists with `talosctl -e <control plane> -n <another LAN node>
 version`, because LAN↔LAN traffic is also KubeSpan traffic after the roll.
+
+### Day 2
+
+Skylab takes config changes and Talos patch bumps through
+`playbooks/upgrade.yaml`, like every other node. It is not a Pi, so it takes
+the `talosctl upgrade` branch. For a public node:
+
+1. **Every talosctl call uses a LAN control plane as `--endpoints`**, as in
+   "Operator access". The upgrade call already does: it proxies through the
+   VIP for the drain.
+2. **The image is `hcloud-installer`**, the same repository as its
+   `machine.install.image`.
+3. **It rolls last of all**, after the control plane. Its position is set
+   in the playbook, not left to sorting: NetBox's `Skylab` sorts before
+   `k8s-agent-01`. It is the only node whose reboot is a public outage, and
+   the only one reached over the WAN, so it gets a change only after all 20
+   LAN nodes have proven it.
+4. **It rolls only with `upgrade_allow_public=true`.** A roll of skylab is a
+   public outage: joelst, metachat and Forgejo can run nowhere else, so
+   their pods stay Pending and Cloudflare serves an error page until the
+   node is Ready, for about one VM upgrade. `upgrade_hosts: "all"` without
+   the flag leaves skylab out, rolls the LAN fleet, and ends with a message
+   naming skylab and the command that rolls it. Talos's version skew (the
+   kubelet up to three Kubernetes minors behind) leaves time to act on it.
+5. **The gates are unchanged**: node Ready and schedulable, no degraded
+   Longhorn volume (a no-op, since skylab holds no replica), then
+   `talosctl health`. Nothing rolls after skylab, and the cutover runbook
+   checks the three workloads through the tunnel.
+
+`reset.yaml` and `resize.yaml` leave hosts tagged `public-node` out of
+`"all"`, and refuse them when named. A reset would leave skylab in
+maintenance mode with no reachable API, because `apply.yaml` skips it. A
+resize runs Proxmox steps. The `fail_msg` names the right path: a change of
+`server_type`, or `make -C opentofu skylab-rebuild`.
+
+That rebuild is skylab's path for a Kubernetes minor bump, a multi-minor
+Talos jump, or anything else the other nodes get through `reset.yaml`
+(`docs/design/skylab-provisioning.md`, "Rebuild").
 
 ### Swap
 
@@ -220,6 +267,12 @@ skylab's public interface, and the Hetzner firewall is the only layer there
    Unsupported, and it fails at the 1.14 bump, when the kernel drops zram.
 7. **A custom Talos kernel with zram.** Talos requires signed modules, so it
    means building and maintaining the kernel for every release.
+8. **A separate upgrade playbook for public nodes.** The only difference is
+   the endpoint, and a second playbook duplicates the gates.
+9. **A gate on joelst, metachat and Forgejo being Available.** Nothing
+   rolls after skylab, so no later step depends on it.
+10. **A second public node to keep the sites up during a roll.** It doubles
+    the €8.99/month, over the cost ceiling.
 
 ## Failure mode if you change this
 
@@ -237,3 +290,8 @@ skylab's public interface, and the Hetzner firewall is the only layer there
    no space. Adding the cap later does nothing until the node is wiped.
 7. Point the role's direct calls at skylab's `ansible_host` and they time
    out, because 50000/tcp is closed.
+8. Upgrade skylab with the plain `installer` image and it boots as the metal
+   platform, without Hetzner's metadata (hostname, provider ID, external
+   IPs). The full effect is **unverified**.
+9. Drop the `public-node` filter from `reset.yaml` and `reset_hosts: "all"`
+   strands skylab in maintenance mode; only a rebuild recovers it.
