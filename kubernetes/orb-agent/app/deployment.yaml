@@ -1,0 +1,52 @@
+# A Fleet-managed agent: the NetBox Labs Console sends it the discovery jobs.
+# See docs/design/network-discovery.md.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: orb-agent
+  labels:
+    app.kubernetes.io/name: orb-agent
+spec:
+  # One agent for each Fleet client identity.
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: orb-agent
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: orb-agent
+    spec:
+      # The scan must come from a real LAN address on the LAN segment.
+      # Only then do ARP discovery and MAC addresses work.
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+      # No toleration for homelab/public-node keeps the agent off skylab,
+      # which is not on the LAN.
+      tolerations:
+        - key: node.kubernetes.io/not-ready
+          operator: Exists
+          effect: NoExecute
+          tolerationSeconds: 30
+        - key: node.kubernetes.io/unreachable
+          operator: Exists
+          effect: NoExecute
+          tolerationSeconds: 30
+      containers:
+        - name: orb-agent
+          image: netboxlabs/orb-agent:2.17.0
+          args: ["run"]
+          envFrom:
+            - secretRef:
+                name: orb-agent-fleet
+          securityContext:
+            # Root with the default capabilities, because nmap needs NET_RAW.
+            allowPrivilegeEscalation: false
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              memory: 512Mi
