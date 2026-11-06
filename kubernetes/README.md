@@ -183,16 +183,23 @@ kubernetes/
 │       ├── deployment.yaml       # one replica; no command or env — the image entrypoint reads /app/config/glance.yml
 │       ├── service.yaml          # glance:8080, no scrape annotation (Glance exposes no metrics)
 │       └── ingressroute.yaml     # Host(home.<domain>), default-headers + glance-auth
-└── home-assistant/
-    ├── ks.yaml                   # Flux Kustomization, dependsOn traefik + traefik-middlewares + longhorn + cluster-secrets, postBuild, NO sops
+├── home-assistant/
+│   ├── ks.yaml                   # Flux Kustomization, dependsOn traefik + traefik-middlewares + longhorn + cluster-secrets, postBuild, NO sops
+│   └── app/
+│       ├── kustomization.yaml    # namespace home-assistant; configuration.yaml generated WITH a name hash
+│       ├── namespace.yaml        # home-assistant, PodSecurity "privileged" — hostNetwork for mDNS/SSDP
+│       ├── pvc.yaml              # home-assistant-config, 10Gi, no storageClassName (Longhorn default)
+│       ├── config/               # configuration.yaml, mounted read-only over the claim via subPath
+│       ├── deployment.yaml       # one replica, Recreate, hostNetwork; init container seeds automations/scripts/scenes
+│       ├── service.yaml          # LoadBalancer on ${HOME_ASSISTANT_LB_IP}, externalTrafficPolicy Cluster
+│       └── ingressroute.yaml     # Host(homeassistant.<domain>), default-headers only — no auth middleware
+└── orb-agent/
+    ├── ks.yaml                   # Flux Kustomization, no dependsOn, sops decryption
     └── app/
-        ├── kustomization.yaml    # namespace home-assistant; configuration.yaml generated WITH a name hash
-        ├── namespace.yaml        # home-assistant, PodSecurity "privileged" — hostNetwork for mDNS/SSDP
-        ├── pvc.yaml              # home-assistant-config, 10Gi, no storageClassName (Longhorn default)
-        ├── config/               # configuration.yaml, mounted read-only over the claim via subPath
-        ├── deployment.yaml       # one replica, Recreate, hostNetwork; init container seeds automations/scripts/scenes
-        ├── service.yaml          # LoadBalancer on ${HOME_ASSISTANT_LB_IP}, externalTrafficPolicy Cluster
-        └── ingressroute.yaml     # Host(homeassistant.<domain>), default-headers only — no auth middleware
+        ├── kustomization.yaml    # namespace orb-agent
+        ├── namespace.yaml        # orb-agent, PodSecurity "privileged" — hostNetwork for the LAN scan
+        ├── secret.sops.yaml      # orb-agent-fleet: FLEET_AUTH_URL, FLEET_CLIENT_ID, FLEET_CLIENT_SECRET
+        └── deployment.yaml       # one replica, Recreate, hostNetwork; Fleet-managed, args [run]
 ```
 
 `flux-system/gotk-sync.yaml` declares a `GitRepository` for this repo
@@ -823,6 +830,34 @@ Consequences:
 flux --context homelab get ks home-assistant
 kubectl --context homelab -n home-assistant get pods,pvc,svc
 kubectl --context homelab -n home-assistant get svc home-assistant   # EXTERNAL-IP = the reserved address
+```
+
+## Orb agent
+
+`orb-agent/` runs one Fleet-managed `netboxlabs/orb-agent` on the home LAN. The
+NetBox Labs Console sends it a weekly Network discovery job, and NetBox
+Assurance turns the findings into deviations against NetBox. Rationale:
+[`docs/design/network-discovery.md`](../docs/design/network-discovery.md).
+
+Consequences:
+
+- **`hostNetwork` is load-bearing.** The scan must come from a real LAN
+  address on the LAN segment; only then do ARP discovery and MAC addresses work.
+- **The Console is the health check.** The agent's online status there is the
+  only lasting signal: the pod can stay Running after a credential failure.
+- **The job, its schedule and its targets live in the Console, not in git.**
+  Change them there; this layer only keeps the agent running.
+- **The Fleet client secret is shown once.** Rotating it means a new agent in
+  the Console, then `sops kubernetes/orb-agent/app/secret.sops.yaml`.
+- **Off switch: `replicas: 0` in git.** One replica: one agent for each Fleet
+  client identity.
+- **Never on skylab.** It has no toleration for `homelab/public-node`, and
+  skylab is not on the LAN.
+
+```bash
+flux --context homelab get ks orb-agent
+kubectl --context homelab -n orb-agent get pods -o wide
+kubectl --context homelab -n orb-agent logs deploy/orb-agent --tail=50
 ```
 
 ## Cluster secrets
