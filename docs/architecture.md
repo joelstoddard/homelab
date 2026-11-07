@@ -60,10 +60,11 @@ Modules under `opentofu/modules/`:
 - `cloud-init-template/` — base Proxmox cloud-init template.
 - `vm/` and `lxc/` — generic Proxmox VM and LXC wrappers.
 - `k8s-vm/` — NetBox-driven k8s VM shell (used by `resources/{rumba,tango,salsa,samba}/`).
+- `dns-lxc/` — NetBox-driven Bind9 or lancache-dns LXC of the DNS chain (used by `resources/{rumba,salsa}/dns.tf`).
 
 Resources under `opentofu/resources/`:
 
-- `rumba/`, `tango/`, `salsa/`, `samba/` — per-NUC empty-shell k8s VMs (12 total across the cluster).
+- `rumba/`, `tango/`, `salsa/`, `samba/` — per-NUC empty-shell k8s VMs (12 total across the cluster), plus the DNS chain's Bind9 and lancache-dns LXCs on `rumba/` and `salsa/`.
 - `pihole/` — Pi-hole LXC for DNS/adblock, bootstrapped to a static IP.
 
 Three secret inputs (all SOPS-encrypted, committed):
@@ -270,7 +271,7 @@ homelab/
 │   ├── Makefile                   # build / lint / check / apply targets
 │   └── README.md                  # ansible-specific workflow detail
 ├── opentofu/                      # Resources on top of the Proxmox fleet
-│   ├── modules/                   # cloud-init-template, vm, lxc, k8s-vm
+│   ├── modules/                   # cloud-init-template, vm, lxc, k8s-vm, dns-lxc
 │   ├── resources/                 # one root module per resource (per-NUC k8s VMs, pihole, …)
 │   ├── secrets.sops.yaml          # shared SOPS secrets (state passphrase, endpoint, gateway)
 │   ├── Makefile                   # check / apply iterating each resources/*/

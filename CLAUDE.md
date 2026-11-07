@@ -171,10 +171,12 @@ provider's own reboot is a hard `qmstop` + `qmstart` fired at every changed VM
 in parallel, so a geometry change (memory, cores) is left pending in the
 Proxmox config and picked up serially by `make -C ansible apply-resize` — see
 `docs/design/zram-swap.md`.
-`resources/dns/` declares the Bind9 and lancache-dns LXCs of the DNS chain
-via `modules/lxc`, one per NetBox VM (node, size and address from NetBox, the
-plan fails on a VM with no device), unprivileged, with Quad9 as each
-container's own resolver through the module's `dns_servers`; see
+The Bind9 and lancache-dns LXCs of the DNS chain sit beside the VMs, in
+`resources/{rumba,salsa}/dns.tf`: the folder is the node, as for the VMs.
+Each is a `modules/dns-lxc` call (size and address from NetBox, a `check`
+against NetBox's placement, VM ID `310 + N` / `320 + N`) wrapping
+`modules/lxc`, unprivileged, with Quad9 as its own resolver; each `dns.tf`
+stages the Debian 13 template once for both containers on its node. See
 `docs/design/dns-chain.md`, "Containers".
 
 ### Kubernetes (kubernetes/)

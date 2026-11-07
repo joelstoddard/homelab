@@ -10,8 +10,9 @@ forwards the rest to the next, until the chain reaches public DNS.
 
 This document gives the design and the reasoning behind each choice; what is not
 built yet is listed under "What does not". `opentofu/resources/pihole/` is
-the single Pi-hole LXC the chain replaces, and `opentofu/resources/dns/`
-creates the Bind9 and lancache-dns containers.
+the single Pi-hole LXC the chain replaces, and `dns.tf` in
+`opentofu/resources/rumba/` and `opentofu/resources/salsa/` creates the Bind9
+and lancache-dns containers.
 
 ## Problem
 
@@ -61,7 +62,8 @@ reintroduces the `:53` contention the design removes.
 **What exists.** The `dns` Ansible role — Bind9 and lancache-dns, with the
 NetBox-tag groups and SOPS group vars — in `ansible/roles/dns/`, run by
 `make -C ansible apply-dns`, and the OpenTofu for the Bind9 and lancache-dns
-containers in `opentofu/resources/dns/`. All six containers are in NetBox,
+containers in `dns.tf` under `opentofu/resources/rumba/` and
+`opentofu/resources/salsa/`. All six containers are in NetBox,
 with their addresses cross-checked against the group vars.
 
 **What does not.** The OpenTofu for the Pi-hole pair, keepalived for the
@@ -183,12 +185,15 @@ manual lever.
 
 ## Containers
 
-`opentofu/resources/dns/` builds the four lower links as Proxmox LXCs from
-the Debian 13 standard template. NetBox supplies each container's node,
-vCPUs, memory, disk and address, and the plan fails rather than guess when a
-VM has no device or no primary IPv4. The code supplies only what NetBox does
-not model: the VM ID (`310 + N` for Bind9, `320 + N` for lancache-dns), the
-template, the features, and the resolvers.
+`dns.tf` in each per-NUC folder builds that node's lower links as Proxmox
+LXCs from the Debian 13 standard template: `bind9-01` and `lancache-02` in
+`opentofu/resources/rumba/`, `bind9-02` and `lancache-01` in
+`opentofu/resources/salsa/`. The folder is the node, as for the k8s VMs, and
+`modules/dns-lxc` warns when NetBox places the VM elsewhere. NetBox supplies
+each container's vCPUs, memory, disk and address, and the plan fails when a
+VM has no primary IPv4. `modules/dns-lxc` supplies what NetBox does not
+model: the VM ID (`310 + N` for Bind9, `320 + N` for lancache-dns), the
+features, and the resolvers.
 
 - **Every container is unprivileged.** Bind9 needs nothing more. lancache-dns
   runs Docker, which works in an unprivileged Debian 13 container given
@@ -204,14 +209,15 @@ template, the features, and the resolvers.
   into the chain would deadlock a cold rebuild, as below.
 
 - **One template download per node, shared.** Two containers on one node
-  cannot each own the same file, so the directory downloads the template once
-  per node and hands the file ID to `modules/lxc` through
-  `template_file_id`.
+  cannot each own the same file, so each `dns.tf` downloads the template
+  once and hands the file ID to both containers, through `modules/dns-lxc`
+  to `template_file_id` on `modules/lxc`.
 
 - **The containers ignore later changes**, like the Pi-hole LXC
   (`ignore_changes = all` in `modules/lxc`). A NetBox edit to size shows
-  nothing in the plan, and one to placement shows only a template download on
-  the new node; changing a live container means tainting and recreating it
+  nothing in the plan, and one to placement shows only the check warning;
+  moving a container means moving its module call to the other node's
+  folder, and changing a live container means tainting and recreating it
   (#315).
 
 ## Failure modes
