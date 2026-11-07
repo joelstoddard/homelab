@@ -43,6 +43,9 @@ alloy:
     limits:
       cpu: "1"
       memory: 1Gi
+# alloy/app/rbac.yaml holds this release's RBAC; the chart's grants every Secret.
+rbac:
+  create: false
 controller:
   type: daemonset
   hostPID: true

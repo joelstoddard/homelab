@@ -1,0 +1,78 @@
+# Only what each release's River config reads; the chart's own RBAC (off in
+# every values.yaml) grants every Secret in the cluster. docs/design/observability.md.
+---
+# config.alloy: its own node, the pods on it, and the kubelet's
+# /metrics and /metrics/cadvisor (both authorised as nodes/metrics).
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: alloy-node-scrape
+rules:
+  - apiGroups: [""]
+    resources: ["nodes", "pods"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["nodes/metrics"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: alloy-node-scrape
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: alloy-node-scrape
+subjects:
+  - kind: ServiceAccount
+    name: alloy
+    namespace: alloy
+---
+# cluster.alloy: pod, endpoints and node discovery, and /metrics on the
+# apiserver, controller-manager and scheduler, which delegate authz to RBAC.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: alloy-cluster-scrape
+rules:
+  - apiGroups: ["", "discovery.k8s.io"]
+    resources: ["endpoints", "endpointslices", "nodes", "pods", "services"]
+    verbs: ["get", "list", "watch"]
+  - nonResourceURLs: ["/metrics"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: alloy-cluster-scrape
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: alloy-cluster-scrape
+subjects:
+  - kind: ServiceAccount
+    name: alloy-cluster
+    namespace: alloy
+---
+# events.alloy: loki.source.kubernetes_events runs one Event informer.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: alloy-events-watch
+rules:
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: alloy-events-watch
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: alloy-events-watch
+subjects:
+  - kind: ServiceAccount
+    name: alloy-events
+    namespace: alloy

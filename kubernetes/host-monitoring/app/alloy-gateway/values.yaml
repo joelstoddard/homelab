@@ -28,6 +28,10 @@ alloy:
     limits:
       cpu: 200m
       memory: 256Mi
+# Its River reads files and a socket, never the API; the chart's default
+# RBAC would grant every Secret in the cluster.
+rbac:
+  create: false
 controller:
   type: deployment
   replicas: 1

@@ -12,6 +12,9 @@ alloy:
     limits:
       cpu: 200m
       memory: 256Mi
+# alloy/app/rbac.yaml holds this release's RBAC; the chart's grants every Secret.
+rbac:
+  create: false
 controller:
   type: deployment
   replicas: 1

@@ -16,6 +16,35 @@ alloy:
     limits:
       cpu: "2"
       memory: 3Gi
+# alloy/app/rbac.yaml holds this release's RBAC; the chart's grants every Secret.
+rbac:
+  create: false
+# remote.kubernetes.secret polls one Secret with get. Here, not in rbac.yaml,
+# because the layer's `namespace: alloy` would move the Role out of flux-system.
+extraObjects:
+  - apiVersion: rbac.authorization.k8s.io/v1
+    kind: Role
+    metadata:
+      name: alloy-cluster-secrets-read
+      namespace: flux-system
+    rules:
+      - apiGroups: [""]
+        resources: ["secrets"]
+        resourceNames: ["cluster-secrets"]
+        verbs: ["get"]
+  - apiVersion: rbac.authorization.k8s.io/v1
+    kind: RoleBinding
+    metadata:
+      name: alloy-cluster-secrets-read
+      namespace: flux-system
+    roleRef:
+      apiGroup: rbac.authorization.k8s.io
+      kind: Role
+      name: alloy-cluster-secrets-read
+    subjects:
+      - kind: ServiceAccount
+        name: alloy-cluster
+        namespace: alloy
 controller:
   type: deployment
   replicas: 1

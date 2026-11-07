@@ -146,6 +146,7 @@ kubernetes/
 │       ├── kustomization.yaml    # namespace alloy; wires namespace, HelmRepository and the four sub-directories
 │       ├── namespace.yaml        # PodSecurity "privileged" — hostPath/hostPID/hostNetwork + root
 │       ├── helmrepository.yaml   # https://grafana.github.io/helm-charts
+│       ├── rbac.yaml             # one ClusterRole per release; the chart's own RBAC is off (it grants every Secret)
 │       ├── alloy/                # HelmRelease + values: the node-local DaemonSet, all 20 nodes
 │       ├── alloy-cluster/        # HelmRelease + values: one-replica Deployment for cluster-wide scrapes, prefers a Pi
 │       ├── alloy-events/         # HelmRelease + values: one-replica Deployment for Kubernetes events
