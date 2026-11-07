@@ -14,13 +14,21 @@ variable "hostname" {
 }
 
 variable "template_url" {
-  description = "URL of a Proxmox LXC .tar.zst template."
+  description = "URL of a Proxmox LXC .tar.zst template to download. Null downloads nothing and uses template_file_id."
   type        = string
+  default     = null
 }
 
 variable "template_file_name" {
   description = "On-disk filename for the downloaded template."
   type        = string
+  default     = null
+}
+
+variable "template_file_id" {
+  description = "Proxmox file ID of a template already on the node, e.g. \"local:vztmpl/<file>\". Used when template_url is null, so several containers on one node can share one download; it is keyed off template_url because this ID is unknown until apply."
+  type        = string
+  default     = null
 }
 
 variable "template_checksum" {
@@ -103,6 +111,12 @@ variable "ipv4_gateway" {
   default     = null
 }
 
+variable "dns_servers" {
+  description = "Resolvers written to the container's /etc/resolv.conf, which pct rewrites from this on every start. Null inherits the Proxmox host's."
+  type        = list(string)
+  default     = null
+}
+
 variable "ssh_public_keys" {
   description = "SSH public keys to inject for the root account."
   type        = list(string)
@@ -136,4 +150,10 @@ variable "tls_verify" {
   description = "Verify TLS when downloading the LXC template."
   type        = bool
   default     = true
+}
+
+variable "tags" {
+  description = "Proxmox tags on the container, naming its purpose."
+  type        = list(string)
+  default     = []
 }

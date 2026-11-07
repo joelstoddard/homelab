@@ -1,17 +1,18 @@
 # The DNS chain
 
-> **Status: designed, not deployed.** Nothing in this document is running.
-> The hypervisors have the memory for it — see "Where this stands" below and
-> issue #151. This file is on `main` so the reasoning outlives the branch.
+> **Status: partly deployed, not in the client path.** The Bind9 and
+> lancache-dns pairs run; no client queries them, because the single Pi-hole
+> LXC keeps its own upstreams. See "Where this stands" below and issue #151.
 
 Name resolution for the LAN and the cluster, as a chain of single-purpose
 resolvers rather than one dnsmasq line. Each link answers what it knows and
 forwards the rest to the next, until the chain reaches public DNS.
 
-Read this in the future tense. It describes the intended design and the
-reasoning behind each choice; `opentofu/resources/pihole/` is the only part
-of it that exists on `main` today, and that is the single Pi-hole LXC the
-chain would replace.
+This document gives the design and the reasoning behind each choice; what is not
+built yet is listed under "What does not". `opentofu/resources/pihole/` is
+the single Pi-hole LXC the chain replaces, and `dns.tf` in
+`opentofu/resources/rumba/` and `opentofu/resources/salsa/` creates the Bind9
+and lancache-dns containers.
 
 ## Problem
 
@@ -59,16 +60,18 @@ be conflated), and so does collapsing links onto shared containers, which
 reintroduces the `:53` contention the design removes.
 
 **What exists.** The `dns` Ansible role — Bind9 and lancache-dns, with the
-NetBox-tag groups and SOPS group vars — is written, linted and idempotent on
-the branch `claude/dns-appliance-bind9` (PR #212, closed, preserved). All six
-containers are seeded in NetBox at status `planned`, with their addresses
-cross-checked against the group vars.
+NetBox-tag groups and SOPS group vars — in `ansible/roles/dns/`, run by
+`make -C ansible apply-dns`, and the OpenTofu for the Bind9 and lancache-dns
+containers in `dns.tf` under `opentofu/resources/rumba/` and
+`opentofu/resources/salsa/`. All six containers are in NetBox,
+with their addresses cross-checked against the group vars.
 
-**What does not.** The OpenTofu that creates the containers, keepalived for
-the VIP, `kubernetes/lancache/`, and nebula-sync for the Pi-hole pair.
+**What does not.** The OpenTofu for the Pi-hole pair, keepalived for the
+VIP, `kubernetes/lancache/`, and nebula-sync for the Pi-hole pair.
 
-**To resume:** reopen #212 and rebase — it was stacked on the since-merged
-#211, and #214 replaced talhelper, so `roles/talos` has moved underneath it.
+**Order of the remaining work.** `kubernetes/lancache/` comes before any
+client reaches lancache-dns, because lancache-dns sends the game CDNs to that
+cache's address. The Pi-hole pair and the cutover come last.
 
 ## The chain
 
@@ -179,6 +182,43 @@ manual lever.
   plain-only, so they take `9.9.9.9` and `149.112.112.112` — Quad9's two
   anycast addresses. Bind9's forwarders are the one hop in the whole estate
   that can be encrypted.
+
+## Containers
+
+`dns.tf` in each per-NUC folder builds that node's lower links as Proxmox
+LXCs from the Debian 13 standard template: `bind9-01` and `lancache-02` in
+`opentofu/resources/rumba/`, `bind9-02` and `lancache-01` in
+`opentofu/resources/salsa/`. The folder is the node, as for the k8s VMs, and
+`modules/dns-lxc` warns when NetBox places the VM elsewhere. NetBox supplies
+each container's vCPUs, memory, disk and address, and the plan fails when a
+VM has no primary IPv4. `modules/dns-lxc` supplies what NetBox does not
+model: the VM ID (`310 + N` for Bind9, `320 + N` for lancache-dns), the
+features, and the resolvers.
+
+- **Every container is unprivileged.** Bind9 needs nothing more. lancache-dns
+  runs Docker, which works in an unprivileged Debian 13 container given
+  `nesting` alone; a privileged container would make root inside it root on
+  the hypervisor, for a process whose job is answering the whole LAN.
+  `keyctl` is deliberately off: Proxmox lets only `root@pam` set it, the
+  OpenTofu API token gets `403 changing feature flags (except nesting) is
+  only allowed for root@pam`, and Docker starts lancache-dns without it.
+
+- **Resolvers are Quad9, set in the container config.** `dns_servers` on
+  `modules/lxc` is what `pct` writes into `/etc/resolv.conf` at every start,
+  so it is the only place a resolver setting survives a reboot. Pointing it
+  into the chain would deadlock a cold rebuild, as below.
+
+- **One template download per node, shared.** Two containers on one node
+  cannot each own the same file, so each `dns.tf` downloads the template
+  once and hands the file ID to both containers, through `modules/dns-lxc`
+  to `template_file_id` on `modules/lxc`.
+
+- **The containers ignore later changes**, like the Pi-hole LXC
+  (`ignore_changes = all` in `modules/lxc`). A NetBox edit to size shows
+  nothing in the plan, and one to placement shows only the check warning;
+  moving a container means moving its module call to the other node's
+  folder, and changing a live container means tainting and recreating it
+  (#315).
 
 ## Failure modes
 
