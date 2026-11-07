@@ -16,26 +16,22 @@ and lancache-dns containers.
 
 ## Problem
 
-LAN name resolution rested on a single Pi-hole LXC answering every name under
-the domain from one line, `address=/example.com/192.168.1.x`. That line did the
-work of a zone, and four things followed from it.
+LAN name resolution rests on a single Pi-hole LXC answering every name under
+the domain from one line, `address=/example.com/192.168.1.x`. That line does
+the work of a zone, and four things follow from it.
 
-One LXC was a single point of failure for all name resolution, which is why
-"hand out Pi-hole as the ONLY resolver over DHCP" cannot be done yet —
-removing the public fallbacks needs a second resolver first, so it is folded
-into #151. Being
-authoritative for the whole domain meant every name under it was synthesised
-from one A record and none were forwarded, so `TXT` returned NODATA and a
-missing passthrough gave a valid certificate and a Traefik 404. And every
-machine on the LAN pulled the same multi-gigabyte game update over the same
+One LXC is a single point of failure for all name resolution, which is why
+"hand out Pi-hole as the ONLY resolver over DHCP" cannot be done without the
+chain: removing the public fallbacks needs a second resolver first. Being
+authoritative for the whole domain means every name under it is synthesised
+from one A record and none are forwarded, so `TXT` returns NODATA and a
+missing passthrough gives a valid certificate and a Traefik 404. And every
+machine on the LAN pulls the same multi-gigabyte game update over the same
 uplink.
 
-The cluster also could not resolve the names it serves, because the Talos
-machine config carried no `nameservers` at all and nodes fell through to
-Talos's built-in public resolvers. **That part has since been addressed
-separately** (#213): the nodes carry explicit `nameservers`, so the remaining
-gap is only that those resolvers are public and know nothing of the LAN
-domain. Pointing the cluster at the chain is a later step, not a
+The cluster's nodes carry explicit `nameservers` (#213), but those resolvers
+are public and know nothing of the LAN domain, so the cluster cannot resolve
+the names it serves. Pointing the cluster at the chain is a later step, not a
 prerequisite.
 
 **Only the 12 VMs actually carry them.** Rolling a Pi runs the `00-pxe` play
