@@ -152,6 +152,35 @@ not owned by `www-data`. Over NFS against a full cache that walk is the slow
 part, so the startup probe allows 30 minutes. With Mapall every file is owned
 by `www-data` on the server, so the walk changes nothing; it only takes time.
 
+## Egress
+
+The cache is an open proxy by construction. Port 80 runs
+`proxy_pass http://$host$request_uri`, and the port 443 stream block runs
+`proxy_pass $ssl_preread_server_name:443`, both with no allow-list (upstream
+`upstream.conf.d/30_primary_proxy.conf` and `stream-available/10_sni.conf`).
+Anyone who can reach the pinned address, on the LAN or the tailnet through
+the subnet router, can therefore make the pod connect anywhere it can route,
+including pod and Service addresses and LAN hosts the tailnet cannot reach
+directly.
+
+`app/cnp-egress.yaml` limits the pod's egress to what a CDN fetch needs, in
+egress default-deny:
+
+| Destination | Ports | Why |
+| --- | --- | --- |
+| Quad9's two addresses | 53 | nginx's own `resolver`, set by `UPSTREAM_DNS` |
+| cluster DNS, by endpoint | 53 | the start-up hooks resolve through `/etc/resolv.conf` to fetch `uklans/cache-domains` |
+| `0.0.0.0/0` except the private, CGNAT, link-local and loopback ranges | 80, 443 | the CDN origins themselves |
+
+Cluster DNS is matched by endpoint labels, not by Service CIDR, because
+Cilium's socket-LB rewrites a Service address to a backend before policy
+sees the connection. Ingress is left out of default-deny on purpose: the
+kubelet's probes arrive as ingress.
+
+What the policy does not close: the proxy still reaches any public host for
+anyone on the LAN or the tailnet. That is the job the cache does, and the
+same clients can reach those hosts directly.
+
 ## Failure modes
 
 - **The pod is down while lancache-dns points here.** Every game download on

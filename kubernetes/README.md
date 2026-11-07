@@ -194,14 +194,15 @@ kubernetes/
 │       ├── service.yaml          # LoadBalancer on ${HOME_ASSISTANT_LB_IP}, externalTrafficPolicy Cluster
 │       └── ingressroute.yaml     # Host(homeassistant.<domain>), default-headers only — no auth middleware
 └── lancache/
-    ├── ks.yaml                   # Flux Kustomization, dependsOn cilium-lb + cluster-secrets, postBuild, NO sops
+    ├── ks.yaml                   # Flux Kustomization, dependsOn cilium + cilium-lb + cluster-secrets, postBuild, NO sops
     └── app/
         ├── kustomization.yaml    # namespace lancache
         ├── namespace.yaml        # lancache, PodSecurity "baseline" — the image starts as root
         ├── pv-cache.yaml         # NFS /mnt/Voyager/lancache, 500Gi, Retain, pre-bound, media-library's mount options
         ├── pvc-cache.yaml        # lancache-cache, bound by volumeName
         ├── deployment.yaml       # one replica, Recreate, amd64 only, digest-pinned; cache and logs on the NFS volume
-        └── service.yaml          # LoadBalancer on ${LANCACHE_LB_IP}, ports 80 + 443, externalTrafficPolicy Cluster
+        ├── service.yaml          # LoadBalancer on ${LANCACHE_LB_IP}, ports 80 + 443, externalTrafficPolicy Cluster
+        └── cnp-egress.yaml       # egress default-deny: DNS + public addresses on 80/443 — the image is an open proxy
 ```
 
 `flux-system/gotk-sync.yaml` declares a `GitRepository` for this repo

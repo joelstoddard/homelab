@@ -1,9 +1,10 @@
 # The LANCache HTTP cache that lancache-dns sends game CDN names to —
 # docs/design/lancache.md.
 #
-# dependsOn cilium-lb for the pool the pinned address comes from, and
-# cluster-secrets for LANCACHE_LB_IP and VOYAGER_IP. No traefik: clients reach
-# the pinned address directly, never through a route.
+# dependsOn cilium for the egress policy's CRD, cilium-lb for the pool the
+# pinned address comes from, and cluster-secrets for LANCACHE_LB_IP and
+# VOYAGER_IP. No traefik: clients reach the pinned address directly, never
+# through a route.
 #
 # No decryption block: this layer carries no *.sops.yaml, like glance.
 apiVersion: kustomize.toolkit.fluxcd.io/v1
@@ -16,6 +17,7 @@ spec:
   path: ./kubernetes/lancache/app
   prune: true
   dependsOn:
+    - name: cilium
     - name: cilium-lb
     - name: cluster-secrets
   sourceRef:

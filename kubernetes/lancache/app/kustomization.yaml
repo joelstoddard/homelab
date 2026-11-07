@@ -7,3 +7,4 @@ resources:
   - pvc-cache.yaml
   - deployment.yaml
   - service.yaml
+  - cnp-egress.yaml

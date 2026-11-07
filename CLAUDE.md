@@ -436,7 +436,7 @@ rule admits the whole `media` namespace, not just the proxy) and does not
 configure an app's own proxy setting. Prowlarr is the first consumer outside
 `media-downloads` itself; see `docs/design/media-egress.md`, "Egress by
 label".
-`lancache/` (`dependsOn: cilium-lb, cluster-secrets`, substituted, no
+`lancache/` (`dependsOn: cilium, cilium-lb, cluster-secrets`, substituted, no
 `decryption`) is the LANCache HTTP cache the DNS chain's lancache-dns sends
 game CDN names to: one `lancachenet/monolithic` replica, `Recreate`,
 digest-pinned because upstream tags nothing but `latest`, amd64-only because
@@ -447,7 +447,9 @@ lancache-dns redirects whole names, so without 443 those connections are
 refused). The cache lives on its own NFS dataset (`/mnt/Voyager/lancache`,
 500 GiB quota, Mapall `www-data`) with media-library's mount options;
 `CACHE_DISK_SIZE` 450g keeps nginx under the quota, `UPSTREAM_DNS` is Quad9
-and must never be the chain (it would resolve the CDNs to itself). A missing
+and must never be the chain (it would resolve the CDNs to itself). The image
+proxies to any Host or SNI name, so a `CiliumNetworkPolicy` limits its egress
+to public addresses on 80/443 plus DNS. A missing
 `LANCACHE_LB_IP` substitutes empty, Cilium hands out a dynamic address, and
 every game download fails while the layer reports Ready. See
 `docs/design/lancache.md`.
