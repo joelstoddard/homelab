@@ -61,17 +61,19 @@ reintroduces the `:53` contention the design removes.
 
 **What exists.** The `dns` Ansible role — Bind9 and lancache-dns, with the
 NetBox-tag groups and SOPS group vars — in `ansible/roles/dns/`, run by
-`make -C ansible apply-dns`, and the OpenTofu for the Bind9 and lancache-dns
+`make -C ansible apply-dns`, the OpenTofu for the Bind9 and lancache-dns
 containers in `dns.tf` under `opentofu/resources/rumba/` and
-`opentofu/resources/salsa/`. All six containers are in NetBox,
-with their addresses cross-checked against the group vars.
+`opentofu/resources/salsa/`, and the cache lancache-dns points at,
+`kubernetes/lancache/` (`docs/design/lancache.md`). All six containers are in
+NetBox, with their addresses cross-checked against the group vars.
 
 **What does not.** The OpenTofu for the Pi-hole pair, keepalived for the
-VIP, `kubernetes/lancache/`, and nebula-sync for the Pi-hole pair.
+VIP, and nebula-sync for the Pi-hole pair.
 
-**Order of the remaining work.** `kubernetes/lancache/` comes before any
-client reaches lancache-dns, because lancache-dns sends the game CDNs to that
-cache's address. The Pi-hole pair and the cutover come last.
+**Order of the remaining work.** The cache in `kubernetes/lancache/` serves
+on its pinned address before any client reaches lancache-dns, because
+lancache-dns sends the game CDNs to that address. The Pi-hole pair and the
+cutover come last.
 
 ## The chain
 

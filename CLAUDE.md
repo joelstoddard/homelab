@@ -228,7 +228,7 @@ full list is `flux-system`, `cilium`, `cilium-lb`, `cluster-secrets`, `cert-mana
 `cert-manager-issuers`, `traefik`, `traefik-middlewares`, `lan-services`,
 `tailscale`, `longhorn`, `longhorn-jobs`, `monitoring`, `alloy`,
 `host-monitoring`, `searxng`, `media`, `media-downloads`, `media-egress`, `glance`,
-`home-assistant`).
+`home-assistant`, `lancache`).
 `cluster-secrets/` is one SOPS Secret in `flux-system` holding `DOMAIN`,
 `TRAEFIK_LB_IP` and `ACME_EMAIL`; consumers (`cert-manager-issuers`,
 `traefik`, `longhorn`) add `dependsOn: cluster-secrets` +
@@ -436,6 +436,21 @@ rule admits the whole `media` namespace, not just the proxy) and does not
 configure an app's own proxy setting. Prowlarr is the first consumer outside
 `media-downloads` itself; see `docs/design/media-egress.md`, "Egress by
 label".
+`lancache/` (`dependsOn: cilium-lb, cluster-secrets`, substituted, no
+`decryption`) is the LANCache HTTP cache the DNS chain's lancache-dns sends
+game CDN names to: one `lancachenet/monolithic` replica, `Recreate`,
+digest-pinned because upstream tags nothing but `latest`, amd64-only because
+that is all upstream publishes, PSA `baseline` because it starts as root. A
+LoadBalancer on the pinned `${LANCACHE_LB_IP}` serves port 80 (the cache) and
+443 (the image's SNI passthrough — some CDN hostnames also serve HTTPS, and
+lancache-dns redirects whole names, so without 443 those connections are
+refused). The cache lives on its own NFS dataset (`/mnt/Voyager/lancache`,
+500 GiB quota, Mapall `www-data`) with media-library's mount options;
+`CACHE_DISK_SIZE` 450g keeps nginx under the quota, `UPSTREAM_DNS` is Quad9
+and must never be the chain (it would resolve the CDNs to itself). A missing
+`LANCACHE_LB_IP` substitutes empty, Cilium hands out a dynamic address, and
+every game download fails while the layer reports Ready. See
+`docs/design/lancache.md`.
 Never `kubectl delete kustomization flux-system` — prune would remove Flux
 itself; use `flux uninstall`. Pruning `cilium/` removes the CNI; pruning
 `traefik/` takes every route in the cluster. See `kubernetes/README.md`.
