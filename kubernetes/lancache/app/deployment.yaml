@@ -1,0 +1,111 @@
+# One replica, strategy Recreate: two nginx instances over one cache directory
+# corrupt each other, and NFS enforces no access mode, so these two lines are
+# the only guard (docs/design/lancache.md).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: lancache
+  labels:
+    app.kubernetes.io/name: lancache
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: lancache
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: lancache
+    spec:
+      # The image is published for amd64 only. With the control-plane taint
+      # this leaves the eight agent VMs.
+      nodeSelector:
+        kubernetes.io/arch: amd64
+      # 30s replaces the 300s the admission controller would inject, as for
+      # Home Assistant: while the pod is down, lancache-dns still answers with
+      # this address and every game download on the LAN fails.
+      tolerations:
+        - key: node.kubernetes.io/not-ready
+          operator: Exists
+          effect: NoExecute
+          tolerationSeconds: 30
+        - key: node.kubernetes.io/unreachable
+          operator: Exists
+          effect: NoExecute
+          tolerationSeconds: 30
+      containers:
+        - name: lancache
+          # latest, 2026-10-09. Upstream publishes no versioned tags.
+          image: lancachenet/monolithic@sha256:155817065b13cc427aa0014acc34bbb389591400d7639c95abcfcfb2230ad7f0
+          env:
+            # Public, never the DNS chain: lancache-dns answers the CDN names
+            # with this cache's own address, so resolving through it loops.
+            - name: UPSTREAM_DNS
+              value: "9.9.9.9 149.112.112.112"
+            # Under the 500 GiB dataset quota, with room for MIN_FREE_DISK.
+            - name: CACHE_DISK_SIZE
+              value: 450g
+            # nginx keys_zone, shared memory charged to this container. Sizing
+            # arithmetic in docs/design/lancache.md.
+            - name: CACHE_INDEX_SIZE
+              value: 128m
+          ports:
+            - name: http
+              containerPort: 80
+            # The SNI passthrough: lancache-dns redirects whole hostnames, and
+            # some CDNs serve HTTPS on the same names. Proxied, never cached.
+            - name: https
+              containerPort: 443
+          securityContext:
+            # Root at start is required (supervisord, the entrypoint hooks, and
+            # nginx binding 80 and 443 before dropping to www-data), so the
+            # default capability set stays.
+            allowPrivilegeEscalation: false
+          # The entrypoint walks the whole cache over NFS before nginx starts
+          # (the upstream permissions hook), so a full cache can take minutes
+          # to come up. The startup probe allows 30 minutes.
+          startupProbe:
+            httpGet:
+              path: /lancache-heartbeat
+              port: http
+            periodSeconds: 10
+            failureThreshold: 180
+            timeoutSeconds: 5
+          readinessProbe:
+            httpGet:
+              path: /lancache-heartbeat
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /lancache-heartbeat
+              port: http
+            periodSeconds: 30
+            failureThreshold: 3
+            timeoutSeconds: 5
+          volumeMounts:
+            - name: cache
+              mountPath: /data/cache
+              subPath: cache
+            # On the dataset too: the image writes its access log to a file,
+            # and an emptyDir would grow on the node's ephemeral storage.
+            - name: cache
+              mountPath: /data/logs
+              subPath: logs
+          resources:
+            # Requests, not just limits: Talos's OOM controller kills the
+            # besteffort cgroup first. Figures and reasoning in
+            # docs/design/lancache.md, "Memory".
+            requests:
+              cpu: 100m
+              memory: 384Mi
+            limits:
+              cpu: "2"
+              memory: 1Gi
+      volumes:
+        - name: cache
+          persistentVolumeClaim:
+            claimName: lancache-cache

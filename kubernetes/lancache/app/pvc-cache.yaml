@@ -1,0 +1,17 @@
+# volumeName and the empty storageClassName bind this to the lancache-cache
+# PersistentVolume. Without them the default StorageClass would provision an
+# empty Longhorn volume instead.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: lancache-cache
+  labels:
+    app.kubernetes.io/name: lancache
+spec:
+  accessModes:
+    - ReadWriteMany
+  storageClassName: ""
+  volumeName: lancache-cache
+  resources:
+    requests:
+      storage: 500Gi

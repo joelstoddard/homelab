@@ -1,0 +1,10 @@
+# PodSecurity "baseline", stated explicitly for the reason media states it:
+# the image starts as root under supervisord and nginx drops its workers to
+# www-data, which "restricted" forbids. Nothing here needs more than the
+# runtime's default capabilities.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: lancache
+  labels:
+    pod-security.kubernetes.io/enforce: baseline
