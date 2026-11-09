@@ -1,9 +1,9 @@
 # The DNS chain
 
-> **Status: partly deployed, not in the client path.** All three pairs are
-> in code, the Pi-hole pair behind its VIP; no client queries any of them,
-> because every client still uses the single Pi-hole LXC, which keeps its
-> own upstreams. See "Where this stands" below and issue #151.
+> **Status: deployed, outside the client path.** All three pairs run, the
+> Pi-hole pair behind its VIP. Clients resolve through the single Pi-hole LXC
+> (`opentofu/resources/pihole/`), which has its own upstreams. See "Where this
+> stands" below and issue #151.
 
 Name resolution for the LAN and the cluster, as a chain of single-purpose
 resolvers rather than one dnsmasq line. Each link answers what it knows and
@@ -131,9 +131,9 @@ manual lever.
   records for the hosts `kubernetes/lan-services/` fronts would be actively
   harmful — see the failure modes.
 
-- **The passthroughs became BIND forward zones.** What was `server=/<name>/#`
-  in Pi-hole is now `zone "<name>" { type forward; }`, plus an NS record that
-  delegates the name out of the authoritative zone. Both halves are needed:
+- **The passthroughs are BIND forward zones.** Each is
+  `zone "<name>" { type forward; }`, plus an NS record that delegates the
+  name out of the authoritative zone. Both halves are needed:
   BIND answers from a zone it is authoritative for before it recurses, so a
   forward zone below that zone, with no delegation, never wins over the
   wildcard. One source of truth, the `dns_passthrough_names` list.
