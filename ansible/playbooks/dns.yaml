@@ -27,3 +27,31 @@
   serial: 1
   roles:
     - dns
+
+# After every instance is configured, because serial: 1 runs a run_once task
+# once per batch. Delegation reaches both instances whatever the --limit.
+- name: Check the Pi-hole pair agrees.
+  hosts: pihole
+  become: true
+  gather_facts: false
+  run_once: true
+  tags: [pihole]
+  tasks:
+    - name: Check the pair, except in check mode, where nothing ran.
+      when: not ansible_check_mode
+      block:
+        - name: Read each instance's FTL version.
+          ansible.builtin.command:
+            cmd: pihole-FTL --version
+          delegate_to: "{{ item }}"
+          loop: "{{ groups['pihole'] }}"
+          register: _dns_pihole_versions
+          changed_when: false
+
+        - name: Require both instances on the same FTL version.
+          # The installer is unpinned, so two installs a release apart differ.
+          ansible.builtin.assert:
+            that: _dns_pihole_versions.results | map(attribute='stdout') | unique | length == 1
+            fail_msg: >-
+              The Pi-hole instances run different FTL versions; run
+              `pihole -up` on the older one.

@@ -30,3 +30,7 @@ dns_lancache_probe_domain: "lancache.steamcontent.com"
 # The fail-open lever. False stops the container, so Pi-hole's strict-order
 # falls through to Bind9 and the CDN domains resolve to the real CDN.
 dns_lancache_enabled: true
+
+# Unpinned: Pi-hole publishes no package. The pair's versions are asserted
+# equal instead, at the end of playbooks/dns.yaml.
+dns_pihole_installer_url: "https://install.pi-hole.net"

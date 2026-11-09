@@ -47,3 +47,8 @@
   ansible.builtin.import_tasks: lancache.yaml
   when: "'lancache' in group_names"
   tags: [lancache]
+
+- name: Filter and answer the LAN with Pi-hole.
+  ansible.builtin.import_tasks: pihole.yaml
+  when: "'pihole' in group_names"
+  tags: [pihole]

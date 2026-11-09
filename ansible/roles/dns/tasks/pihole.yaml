@@ -1,0 +1,269 @@
+---
+# Pi-hole, the chain's first link: this role owns each instance's config, and
+# not its adlists, groups or clients. See ansible/roles/dns/README.md.
+
+- name: Require the Pi-hole inputs.
+  ansible.builtin.assert:
+    that:
+      - dns_lancache_addresses | length > 0
+      - dns_pihole_web_password is defined
+      - dns_pihole_web_password | length > 0
+      # pihole setpassword reads it, then its confirmation, one line each.
+      - "'\n' not in dns_pihole_web_password"
+    fail_msg: >-
+      dns_lancache_addresses and dns_pihole_web_password must be set — see the
+      "Group variables" section of ansible/roles/dns/README.md.
+  no_log: true
+
+- name: Order the upstreams, lancache pair first, then Bind9.
+  # By instance name, so strict-order tries lancache-01 before lancache-02.
+  ansible.builtin.set_fact:
+    _dns_pihole_upstreams: >-
+      {{ (dns_lancache_addresses | dictsort | map(attribute=1) | list)
+         + (dns_bind9_addresses | dictsort | map(attribute=1) | list) }}
+
+- name: Install the Pi-hole prerequisites.
+  ansible.builtin.apt:
+    name:
+      - curl
+      - ca-certificates
+      # dig, for keepalived's health check and the checks below.
+      - bind9-dnsutils
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Check whether Pi-hole is installed.
+  ansible.builtin.stat:
+    path: /usr/local/bin/pihole
+  register: _dns_pihole_bin
+
+- name: Install Pi-hole.
+  when: not _dns_pihole_bin.stat.exists
+  block:
+    - name: Create /etc/pihole.
+      ansible.builtin.file:
+        path: /etc/pihole
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
+
+    - name: Seed setupVars.conf.
+      # The installer runs unattended only when this file exists. FTL migrates
+      # its keys into pihole.toml and moves it away, so it is seeded once.
+      ansible.builtin.copy:
+        dest: /etc/pihole/setupVars.conf
+        owner: root
+        group: root
+        mode: "0644"
+        content: |
+          PIHOLE_INTERFACE=eth0
+          QUERY_LOGGING=true
+          DNSSEC=false
+          {% for addr in _dns_pihole_upstreams %}
+          PIHOLE_DNS_{{ loop.index }}={{ addr }}
+          {% endfor %}
+
+    - name: Download the installer.
+      ansible.builtin.get_url:
+        url: "{{ dns_pihole_installer_url }}"
+        dest: /root/pihole-install.sh
+        owner: root
+        group: root
+        mode: "0700"
+
+    - name: Run the installer.
+      ansible.builtin.command:
+        argv: [bash, /root/pihole-install.sh, --unattended]
+      changed_when: true
+
+    - name: Remove the installer.
+      ansible.builtin.file:
+        path: /root/pihole-install.sh
+        state: absent
+
+- name: Log in with the web password.
+  # Retried because FTL takes a moment to serve the API after a start. A 200
+  # with no session ID means no password is set.
+  ansible.builtin.uri:
+    url: http://127.0.0.1/api/auth
+    method: POST
+    body_format: json
+    body:
+      password: "{{ dns_pihole_web_password }}"
+    status_code: [200, 401]
+  register: _dns_pihole_auth
+  until: _dns_pihole_auth.status in [200, 401]
+  retries: 10
+  delay: 3
+  no_log: true
+
+- name: Set the web password through the API.
+  # A fresh install has no password, so the API is open and the password goes
+  # in a request body, never on any process's command line.
+  ansible.builtin.uri:
+    url: http://127.0.0.1/api/config
+    method: PATCH
+    body_format: json
+    body:
+      config:
+        webserver:
+          api:
+            password: "{{ dns_pihole_web_password }}"
+  when:
+    - _dns_pihole_auth.status == 200
+    - _dns_pihole_auth.json.session.sid | default(none) is not string
+  changed_when: true
+  no_log: true
+
+- name: Replace a different web password.
+  # The API refuses the old password, so only the CLI can reset it, and
+  # pihole-FTL briefly holds the new one in its argv. See the role README.
+  ansible.builtin.command:
+    cmd: pihole setpassword
+    stdin: "{{ dns_pihole_web_password }}\n{{ dns_pihole_web_password }}"
+  when: _dns_pihole_auth.status == 401
+  changed_when: true
+  no_log: true
+
+- name: Confirm the web password logs in.
+  # Retried because setting the password makes FTL reload, and a login in
+  # that window fails although the password is set.
+  ansible.builtin.uri:
+    url: http://127.0.0.1/api/auth
+    method: POST
+    body_format: json
+    body:
+      password: "{{ dns_pihole_web_password }}"
+    status_code: [200, 401]
+  register: _dns_pihole_auth_after
+  until: _dns_pihole_auth_after.json.session.sid | default(none) is string
+  retries: 10
+  delay: 3
+  failed_when: _dns_pihole_auth_after.json.session.sid | default(none) is not string
+  when: _dns_pihole_auth.json.session.sid | default(none) is not string
+  no_log: true
+
+- name: Log out, so the check uses no API session seat.
+  ansible.builtin.uri:
+    url: http://127.0.0.1/api/auth
+    method: DELETE
+    headers:
+      sid: "{{ item.json.session.sid }}"
+    status_code: [204]
+  loop: "{{ [_dns_pihole_auth, _dns_pihole_auth_after] | selectattr('json', 'defined') | list }}"
+  when: item.json.session.sid | default(none) is string
+  no_log: true
+
+- name: Set the FTL config keys.
+  # Compared against the CLI's own rendering, because `--config <key> <value>`
+  # reports no change. Arrays render as `[ a, b ]` and are set as JSON.
+  ansible.builtin.command:
+    argv:
+      - sh
+      - -c
+      - '[ "$(pihole-FTL --config "$1")" = "$2" ] && exit 0; pihole-FTL --config "$1" "$3" >/dev/null && echo changed'
+      - ftl-config
+      - "{{ item.key }}"
+      - "{{ item.show }}"
+      - "{{ item.set | default(item.show) }}"
+  loop:
+    - key: dns.upstreams
+      show: "[ {{ _dns_pihole_upstreams | join(', ') }} ]"
+      set: "{{ _dns_pihole_upstreams | to_json }}"
+    # Fails over down the list in order, so the lancache pair is always tried
+    # first and Bind9 only when both are down. See docs/design/dns-chain.md.
+    - key: misc.dnsmasq_lines
+      show: "[ strict-order ]"
+      # A literal JSON string is re-read as a list and reaches FTL as Python's
+      # ['strict-order'], which it rejects; to_json keeps it valid JSON.
+      set: "{{ ['strict-order'] | to_json }}"
+    - key: dns.interface
+      show: eth0
+    # LOCAL binds the wildcard, so FTL answers on the VIP keepalived adds
+    # after it starts. BIND and SINGLE would not.
+    - key: dns.listeningMode
+      show: LOCAL
+    - key: dns.dnssec
+      show: "false"
+    # The OpenTofu provider opens several sessions per plan.
+    - key: webserver.api.max_sessions
+      show: "50"
+  loop_control:
+    label: "{{ item.key }}"
+  register: _dns_pihole_config
+  changed_when: "'changed' in _dns_pihole_config.stdout"
+  notify: Restart pihole-FTL
+
+- name: Refuse local DNS records.
+  # Bind9 owns the zone, and nothing copies config between the instances, so
+  # a record here would answer on one instance only.
+  ansible.builtin.command:
+    cmd: "pihole-FTL --config {{ item }}"
+  loop:
+    - dns.hosts
+    - dns.cnameRecords
+  register: _dns_pihole_local_records
+  changed_when: false
+  failed_when: _dns_pihole_local_records.stdout | trim != '[]'
+
+- name: Restart FTL now, so the checks below see the new config.
+  ansible.builtin.meta: flush_handlers
+
+- name: Confirm a public name resolves through the chain.
+  # Retried because FTL takes a moment to listen after a restart.
+  ansible.builtin.command:
+    cmd: >-
+      dig +short +tries=1 +time=5
+      @{{ dns_pihole_addresses[inventory_hostname] }}
+      {{ dns_public_probe_name }} A
+  delegate_to: localhost
+  become: false
+  register: _dns_pihole_public_check
+  changed_when: false
+  until: _dns_pihole_public_check.stdout | trim | length > 0
+  retries: 10
+  delay: 3
+
+- name: Confirm the wildcard answers through the chain.
+  ansible.builtin.command:
+    cmd: >-
+      dig +short +tries=1 +time=5
+      @{{ dns_pihole_addresses[inventory_hostname] }}
+      dns-role-check.{{ dns_domain }} A
+  delegate_to: localhost
+  become: false
+  register: _dns_pihole_wildcard_check
+  changed_when: false
+  failed_when: _dns_pihole_wildcard_check.stdout | trim != dns_traefik_lb_ip
+
+- name: Confirm each passthrough name bypasses the wildcard.
+  ansible.builtin.command:
+    cmd: >-
+      dig +short +tries=1 +time=5
+      @{{ dns_pihole_addresses[inventory_hostname] }}
+      {{ item }} A
+  loop: "{{ dns_passthrough_names }}"
+  delegate_to: localhost
+  become: false
+  register: _dns_pihole_passthrough_check
+  changed_when: false
+  failed_when: >-
+    _dns_pihole_passthrough_check.stdout | trim | length == 0
+    or dns_traefik_lb_ip in _dns_pihole_passthrough_check.stdout_lines
+
+- name: Confirm a CDN domain resolves to the cache.
+  # strict-order hides a lancache-dns REFUSED by falling through to Bind9,
+  # which bypasses the cache silently. Only this check sees it.
+  ansible.builtin.command:
+    cmd: >-
+      dig +short +tries=1 +time=5
+      @{{ dns_pihole_addresses[inventory_hostname] }}
+      {{ dns_lancache_probe_domain }} A
+  delegate_to: localhost
+  become: false
+  register: _dns_pihole_lancache_check
+  changed_when: false
+  failed_when: dns_lancache_lb_ip not in _dns_pihole_lancache_check.stdout_lines
+  when: dns_lancache_enabled
