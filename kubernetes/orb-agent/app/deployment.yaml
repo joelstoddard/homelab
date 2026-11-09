@@ -22,7 +22,9 @@ spec:
       # The scan must come from a real LAN address on the LAN segment.
       # Only then do ARP discovery and MAC addresses work.
       hostNetwork: true
-      dnsPolicy: ClusterFirstWithHostNet
+      # CoreDNS answers reverse lookups for lan-services hosts with cluster
+      # names, and the scan reports them as dns_name drift from NetBox.
+      dnsPolicy: Default
       # No toleration for homelab/public-node keeps the agent off skylab,
       # which is not on the LAN.
       tolerations:
