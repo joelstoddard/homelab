@@ -1,0 +1,9 @@
+# Every resource here is namespaced, so a top-level namespace: is safe.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: nebula-sync
+resources:
+  - namespace.yaml
+  - secret.sops.yaml
+  - cronjob.yaml
+  - cnp-egress.yaml

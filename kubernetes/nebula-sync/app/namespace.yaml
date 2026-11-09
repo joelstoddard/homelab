@@ -1,0 +1,8 @@
+# PodSecurity "restricted": the image runs as uid 1001 from scratch and needs
+# no capability, no writable path and no service account token.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: nebula-sync
+  labels:
+    pod-security.kubernetes.io/enforce: restricted

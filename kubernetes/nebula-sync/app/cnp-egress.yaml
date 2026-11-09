@@ -1,0 +1,36 @@
+# The pod holds the Pi-hole admin password, so it may reach only cluster DNS
+# and the two instances. toServices resolves the selectorless lan-services
+# Services to their EndpointSlice addresses, so no LAN address is written here.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: nebula-sync-egress
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: nebula-sync
+  enableDefaultDeny:
+    egress: true
+    ingress: false
+  egress:
+    # By endpoint, not by Service CIDR: socket-LB rewrites the Service address
+    # before policy sees it.
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: ANY
+    - toServices:
+        - k8sService:
+            serviceName: pihole-01
+            namespace: lan-services
+        - k8sService:
+            serviceName: pihole-02
+            namespace: lan-services
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP
