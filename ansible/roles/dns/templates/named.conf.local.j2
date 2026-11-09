@@ -6,8 +6,8 @@ zone "{{ dns_domain }}" IN {
     notify no;
 };
 
-// Names under the domain that public DNS really hosts. BIND selects the
-// deepest matching zone, so these beat the wildcard in the zone above.
+// Names under the domain that public DNS really hosts. They are used only
+// because the zone file delegates each name; see db.zone.j2.
 {% for name in dns_passthrough_names %}
 zone "{{ name }}" IN {
     type forward;

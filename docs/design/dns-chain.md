@@ -132,9 +132,11 @@ manual lever.
   harmful — see the failure modes.
 
 - **The passthroughs became BIND forward zones.** What was `server=/<name>/#`
-  in Pi-hole is now `zone "<name>" { type forward; }`. BIND selects the
-  deepest matching zone and a forward zone is a zone, so these beat the
-  authoritative parent. One source of truth, in one file.
+  in Pi-hole is now `zone "<name>" { type forward; }`, plus an NS record that
+  delegates the name out of the authoritative zone. Both halves are needed:
+  BIND answers from a zone it is authoritative for before it recurses, so a
+  forward zone below that zone, with no delegation, never wins over the
+  wildcard. One source of truth, the `dns_passthrough_names` list.
 
 - **`validate-except` scoped to the domain.** Bind9 is authoritative for an
   unsigned copy of a name whose public zone may be signed, so a forwarded

@@ -198,9 +198,12 @@ own certificate instead.
 ## Adding a passthrough
 
 Append the FQDN to `dns_passthrough_names` and re-apply. The name becomes a
-BIND forward zone, which beats the wildcard because BIND selects the deepest
-matching zone. Confirm with a `dig`: a wrong answer here gives a valid
-certificate and a Traefik 404, which reads as "the site is down".
+BIND forward zone in `named.conf.local` and an NS delegation in the zone file.
+The delegation is what takes the name away from the wildcard: BIND answers
+from its own zone before it recurses, so the forward zone alone is never
+used. The role's passthrough check fails if the wildcard still answers; a
+wrong answer gives a valid certificate and a Traefik 404, which reads as
+"the site is down".
 
 ## Why no zone transfer
 
