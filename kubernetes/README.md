@@ -193,13 +193,23 @@ kubernetes/
 │       ├── deployment.yaml       # one replica, Recreate, hostNetwork; init container seeds automations/scripts/scenes
 │       ├── service.yaml          # LoadBalancer on ${HOME_ASSISTANT_LB_IP}, externalTrafficPolicy Cluster
 │       └── ingressroute.yaml     # Host(homeassistant.<domain>), default-headers only — no auth middleware
-└── orb-agent/
-    ├── ks.yaml                   # Flux Kustomization, no dependsOn, sops decryption
+├── orb-agent/
+│   ├── ks.yaml                   # Flux Kustomization, no dependsOn, sops decryption
+│   └── app/
+│       ├── kustomization.yaml    # namespace orb-agent
+│       ├── namespace.yaml        # orb-agent, PodSecurity "privileged" — hostNetwork for the LAN scan
+│       ├── secret.sops.yaml      # orb-agent-fleet: FLEET_AUTH_URL, FLEET_CLIENT_ID, FLEET_CLIENT_SECRET
+│       └── deployment.yaml       # one replica, Recreate, hostNetwork; Fleet-managed, args [run]
+└── lancache/
+    ├── ks.yaml                   # Flux Kustomization, dependsOn cilium + cilium-lb + cluster-secrets, postBuild, NO sops
     └── app/
-        ├── kustomization.yaml    # namespace orb-agent
-        ├── namespace.yaml        # orb-agent, PodSecurity "privileged" — hostNetwork for the LAN scan
-        ├── secret.sops.yaml      # orb-agent-fleet: FLEET_AUTH_URL, FLEET_CLIENT_ID, FLEET_CLIENT_SECRET
-        └── deployment.yaml       # one replica, Recreate, hostNetwork; Fleet-managed, args [run]
+        ├── kustomization.yaml    # namespace lancache
+        ├── namespace.yaml        # lancache, PodSecurity "baseline" — the image starts as root
+        ├── pv-cache.yaml         # NFS /mnt/Voyager/lancache, 500Gi, Retain, pre-bound, media-library's mount options
+        ├── pvc-cache.yaml        # lancache-cache, bound by volumeName
+        ├── deployment.yaml       # one replica, Recreate, amd64 only, digest-pinned; cache and logs on the NFS volume
+        ├── service.yaml          # LoadBalancer on ${LANCACHE_LB_IP}, ports 80 + 443, externalTrafficPolicy Cluster
+        └── cnp-egress.yaml       # egress default-deny: DNS + public addresses on 80/443 — the image is an open proxy
 ```
 
 `flux-system/gotk-sync.yaml` declares a `GitRepository` for this repo
@@ -229,12 +239,13 @@ ordering) rather than by growing the root tree — see "Adding workloads".
 | `TANGO_IP` | same Secret | Same, for `tango.yaml`. |
 | `SALSA_IP` | same Secret | Same, for `salsa.yaml`. |
 | `SAMBA_IP` | same Secret | Same, for `samba.yaml`. |
-| `VOYAGER_IP` | same Secret | TrueNAS's LAN address, for `voyager.yaml`. |
+| `VOYAGER_IP` | same Secret | TrueNAS's LAN address, for `voyager.yaml` and the NFS PersistentVolumes in `media` and `lancache`. |
 | `PIHOLE_IP` | same Secret | Pi-hole's LAN address, for `pihole.yaml`. |
 | `ROUTER_IP` | same Secret | The router's LAN address, for `james-webb.yaml`. |
 | `NETBOX_URL` | same Secret | The NetBox Cloud tenant URL, for the Glance bookmark. Encrypted for the same reason the repo only ever refers to it as `$NETBOX_API` elsewhere: the tenant name identifies the account. |
 | `INGEST_LB_IP` | same Secret | The address TrueNAS and the router send graphite and syslog to — reserved in the `cilium-lb` pool, shared by the two receiver Services. The seven addresses above are also the `host-monitoring` probe and poll targets. |
 | `HOME_ASSISTANT_LB_IP` | same Secret | Home Assistant's pinned LAN address — reserved in the `cilium-lb` pool, the same pattern as `TRAEFIK_LB_IP` and `INGEST_LB_IP`, so mDNS/SSDP discovery keeps working across a pod reschedule. |
+| `LANCACHE_LB_IP` | same Secret | The LANCache's pinned LAN address — reserved in the `cilium-lb` pool, and the address lancache-dns answers game CDN names with, so it must equal that setting and must not float. |
 | `HOME_ASSISTANT_TOKEN` | same Secret | Long-lived access token for Home Assistant's `/api/prometheus`. Read at runtime by the `alloy` layer, never substituted. Minted under a user's profile → Security, so it dies with that user and with any rebuild that wipes the volume. |
 
 ## Bootstrap
@@ -860,6 +871,34 @@ kubectl --context homelab -n orb-agent get pods -o wide
 kubectl --context homelab -n orb-agent logs deploy/orb-agent --tail=50
 ```
 
+## LANCache
+
+`lancache/` is the game download cache that the DNS chain's lancache-dns
+containers send CDN hostnames to: one `lancachenet/monolithic` replica,
+`Recreate`, on the pinned `${LANCACHE_LB_IP}`. Rationale and sizing:
+[`docs/design/lancache.md`](../docs/design/lancache.md).
+
+Consequences:
+
+- **Ports 80 and 443, and only 80 caches.** 443 is the image's SNI
+  passthrough for CDN hostnames that also serve HTTPS; without it those
+  connections are refused.
+- **Its own NFS dataset, not the media export.** `/mnt/Voyager/lancache`,
+  500 GiB quota, Mapall `www-data`; `CACHE_DISK_SIZE` is 450g to stay under
+  it. Logs are files on the same dataset (`logs/`), not stdout.
+- **amd64 only.** Upstream publishes no other architecture.
+- **No route, no auth.** Clients reach the pinned address directly because
+  lancache-dns sends them there; nothing goes through Traefik.
+- **Merge only once `LANCACHE_LB_IP` is in `cluster-secrets`.** An undefined
+  key substitutes empty, and Cilium hands out a dynamic address lancache-dns
+  does not know.
+
+```bash
+flux --context homelab get ks lancache
+kubectl --context homelab -n lancache get pods,pvc,svc
+kubectl --context homelab -n lancache get svc lancache   # EXTERNAL-IP = the reserved address
+```
+
 ## Cluster secrets
 
 `cluster-secrets/` is one SOPS-encrypted `Secret` in `flux-system` holding
@@ -882,7 +921,7 @@ namespace, not in the namespace being written to; `wait: true` on the layer
 is what makes a consumer's `dependsOn` mean "the keys are there".
 Consumers today: `cert-manager-issuers`, `traefik`, `longhorn`, `lan-services`,
 `monitoring`, `host-monitoring`, `searxng`, `media`, `glance`,
-`home-assistant`.
+`home-assistant`, `lancache`.
 
 This is why the domain and the LB address are not simply SOPS-encrypted:
 `TRAEFIK_LB_IP` has to reach Traefik's Helm values, which are a

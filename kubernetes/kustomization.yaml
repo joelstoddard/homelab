@@ -26,3 +26,4 @@ resources:
   - glance/ks.yaml
   - home-assistant/ks.yaml
   - orb-agent/ks.yaml
+  - lancache/ks.yaml

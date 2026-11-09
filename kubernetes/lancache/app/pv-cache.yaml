@@ -1,0 +1,37 @@
+# The cache's own dataset on voyager, not a directory in the media export: its
+# 500 GiB quota is what bounds the cache, and nothing it evicts can touch the
+# library. Mount options match media-library's (docs/design/media-foundation.md,
+# "Mount options"): nfsvers=4.1 because Talos runs no rpcbind, hard because
+# this volume is written.
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: lancache-cache
+  labels:
+    app.kubernetes.io/name: lancache
+spec:
+  capacity:
+    # The dataset quota. NFS enforces nothing from here; CACHE_DISK_SIZE on
+    # the Deployment keeps nginx under it.
+    storage: 500Gi
+  accessModes:
+    - ReadWriteMany
+  # Retain, so pruning this layer never proposes deleting the cache.
+  persistentVolumeReclaimPolicy: Retain
+  # Empty, not absent: an absent class means "use the default", which would
+  # hand this volume to Longhorn.
+  storageClassName: ""
+  mountOptions:
+    - nfsvers=4.1
+    - hard
+    - timeo=600
+    - retrans=2
+    - noatime
+    - nodiratime
+  nfs:
+    server: ${VOYAGER_IP}
+    path: /mnt/Voyager/lancache
+  # Pre-bound, so no other claim in the cluster can take the volume.
+  claimRef:
+    name: lancache-cache
+    namespace: lancache

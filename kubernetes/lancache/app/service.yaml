@@ -1,0 +1,27 @@
+# The address lancache-dns answers game CDN names with, pinned from the
+# cilium-lb pool so it survives the pod moving.
+#
+# externalTrafficPolicy Cluster, not Local: Cilium announces a Service address
+# from every node matching the L2 policy, and with Local a node without the
+# endpoint drops what it receives. The cost is that nginx logs the announcing
+# node as the client; the cache key carries no client address.
+apiVersion: v1
+kind: Service
+metadata:
+  name: lancache
+  labels:
+    app.kubernetes.io/name: lancache
+  annotations:
+    lbipam.cilium.io/ips: "${LANCACHE_LB_IP}"
+spec:
+  type: LoadBalancer
+  externalTrafficPolicy: Cluster
+  selector:
+    app.kubernetes.io/name: lancache
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+    - name: https
+      port: 443
+      targetPort: https

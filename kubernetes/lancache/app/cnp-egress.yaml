@@ -1,0 +1,51 @@
+# The cache is an open proxy to any Host or SNI name, so its egress is limited
+# to public addresses on 80 and 443. See docs/design/lancache.md, "Egress".
+#
+# The explicit `ingress: false` keeps the kubelet's probes out of default-deny
+# even if an ingress rule is added here later.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: lancache-egress
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: lancache
+  enableDefaultDeny:
+    egress: true
+    ingress: false
+  egress:
+    # nginx's own resolver: UPSTREAM_DNS in the Deployment.
+    - toCIDRSet:
+        - cidr: 9.9.9.9/32
+        - cidr: 149.112.112.112/32
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: ANY
+    # The image's start-up hooks resolve through /etc/resolv.conf, which is
+    # cluster DNS. By endpoint, not by Service CIDR: socket-LB rewrites the
+    # Service address before policy sees it.
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: ANY
+    - toCIDRSet:
+        - cidr: 0.0.0.0/0
+          except:
+            - 10.0.0.0/8
+            - 172.16.0.0/12
+            - 192.168.0.0/16
+            - 100.64.0.0/10
+            - 169.254.0.0/16
+            - 127.0.0.0/8
+      toPorts:
+        - ports:
+            - port: "80"
+              protocol: TCP
+            - port: "443"
+              protocol: TCP
