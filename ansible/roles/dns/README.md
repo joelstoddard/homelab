@@ -25,8 +25,10 @@ above Bind9 rather than below it, why there is no zone transfer — is in
    upstreams and listening mode (see "Pi-hole" below).
 5. Confirms each link answers what it should, and that a host outside the
    chain gets nothing from Bind9 or lancache-dns.
-6. Once every host is done, confirms both Pi-hole instances run the same FTL
-   version.
+6. On a `pihole` host: runs keepalived, which floats `dns_pihole_vip`
+   between the pair (see "The Pi-hole VIP" below).
+7. Once every host is done, confirms both Pi-hole instances run the same FTL
+   version, exactly one of them holds the VIP, and the VIP answers.
 
 ## Requirements
 
@@ -133,6 +135,34 @@ back as the LANCache address. The last is the only one that sees a
 lancache-dns ACL refusing the instance: `strict-order` would fall through to
 Bind9 and every other answer would still be right.
 
+## The Pi-hole VIP
+
+keepalived runs unicast VRRP between the two instances, virtual router ID
+`dns_pihole_vrid` (53), advert every second. The first instance by name has
+priority 150 and the second 100; both start as `BACKUP` and preemption is
+on, so the VIP sits on the first instance whenever it is healthy. Unicast
+needs no multicast across the NUCs' bridges, and `check_unicast_src` drops
+adverts from any other address.
+
+The health check, `files/check-pihole`, asks FTL on loopback for `pi.hole`,
+which FTL answers itself. Three failures two seconds apart put the instance
+in `FAULT` and release the VIP. It deliberately does not test an upstream:
+both instances share the same upstreams, so failing over on an upstream
+fault would only move the VIP back and forth.
+
+The VIP carries the instances' own prefix length, read from facts, and the
+role fails when the VIP is outside their subnet. Forwarded queries leave
+from the instance address, so no ACL in the chain lists the VIP.
+
+The last play counts VIP holders across both instances after waiting out
+the VRRP master-down interval. Two holders is a split brain: both answer
+ARP for the VIP. Read `journalctl -u keepalived` on each.
+
+**Before the first apply, and before changing `dns_pihole_vrid`,** check
+that nothing else on the LAN speaks VRRP with a passive capture from a
+Proxmox host: `timeout 120 tcpdump -ni vmbr0 -c 20 vrrp`. No packets means
+the ID is free; any packet prints its `vrid`, which must differ.
+
 ## Group variables
 
 `ansible/inventory/group_vars/dns.sops.yaml`, loaded explicitly by
@@ -146,7 +176,7 @@ Create it with `sops ansible/inventory/group_vars/dns.sops.yaml`:
 | `dns_bind9_addresses` | map | NetBox name → LAN address, one per Bind9 instance |
 | `dns_pihole_addresses` | map | Same, for the Pi-hole pair; gates the ACL |
 | `dns_lancache_addresses` | map | Same, for the lancache-dns pair; gates the ACL |
-| `dns_pihole_vip` | string | The floating address, once keepalived lands |
+| `dns_pihole_vip` | string | The address keepalived floats between the Pi-hole pair; reserved in NetBox with tag `pihole-vip` |
 | `dns_pihole_web_password` | string | The Pi-hole admin password, the same on both instances |
 | `dns_passthrough_names` | list | FQDNs under the domain that public DNS really hosts |
 | `dns_lancache_lb_ip` | string | The LANCache HTTP address in the cluster; what the RPZ points at |

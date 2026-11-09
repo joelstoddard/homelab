@@ -1,0 +1,6 @@
+#!/bin/sh
+# keepalived's health check (roles/dns): FTL answers pi.hole itself, so this
+# fails on a dead resolver and never on an upstream fault both instances share.
+# The exit status is checked too, because dig prints its timeout on stdout.
+answer=$(dig +short +tries=1 +time=1 @127.0.0.1 pi.hole A) || exit 1
+[ -n "$answer" ]

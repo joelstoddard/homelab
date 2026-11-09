@@ -1,0 +1,60 @@
+---
+# keepalived: floats the Pi-hole VIP between the pair over unicast VRRP. See
+# "The Pi-hole VIP" in roles/dns/README.md.
+
+- name: Require a VIP inside the instances' own subnet.
+  # Outside it, the address lands on eth0 with no route that answers from it.
+  ansible.builtin.assert:
+    that:
+      - dns_pihole_vip | length > 0
+      - dns_pihole_vip not in dns_pihole_addresses.values()
+      - (dns_pihole_vip ~ '/' ~ ansible_facts.default_ipv4.prefix) | ansible.utils.ipaddr('network')
+        == ansible_facts.default_ipv4.network
+    fail_msg: >-
+      dns_pihole_vip must be a free address in the subnet of
+      {{ inventory_hostname }}'s eth0 — see the "Group variables" section of
+      ansible/roles/dns/README.md.
+
+- name: Install keepalived.
+  ansible.builtin.apt:
+    name: keepalived
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Create the health-check user.
+  # enable_script_security refuses to run a check as root.
+  ansible.builtin.user:
+    name: keepalived_script
+    system: true
+    shell: /usr/sbin/nologin
+    create_home: false
+
+- name: Install the health check.
+  # Installed before the config, which keepalived -t checks it against.
+  ansible.builtin.copy:
+    src: check-pihole
+    dest: /usr/local/bin/check-pihole
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Render keepalived.conf.
+  ansible.builtin.template:
+    src: keepalived.conf.j2
+    dest: /etc/keepalived/keepalived.conf
+    owner: root
+    group: root
+    mode: "0644"
+    validate: "keepalived -t -f %s"
+  notify: Reload keepalived
+
+- name: Enable and start keepalived.
+  # The unit has ConditionFileNotEmpty on the config, so it only starts here.
+  ansible.builtin.systemd:
+    name: keepalived
+    enabled: true
+    state: started
+
+- name: Reload keepalived now, so the pair check sees the new config.
+  ansible.builtin.meta: flush_handlers

@@ -35,11 +35,16 @@
   become: true
   gather_facts: false
   run_once: true
-  tags: [pihole]
+  tags: [pihole, keepalived]
   tasks:
     - name: Check the pair, except in check mode, where nothing ran.
       when: not ansible_check_mode
       block:
+        - name: Load the dns group vars (SOPS-encrypted).
+          community.sops.load_vars:
+            file: "{{ inventory_dir }}/group_vars/dns.sops.yaml"
+          no_log: true
+
         - name: Read each instance's FTL version.
           ansible.builtin.command:
             cmd: pihole-FTL --version
@@ -55,3 +60,42 @@
             fail_msg: >-
               The Pi-hole instances run different FTL versions; run
               `pihole -up` on the older one.
+
+        - name: Wait out the VRRP master-down interval.
+          # A backup claims the VIP only after three missed adverts, so a
+          # split brain counted sooner than this would be missed.
+          ansible.builtin.pause:
+            seconds: 5
+
+        - name: Read each instance's addresses.
+          ansible.builtin.command:
+            cmd: ip -4 -o addr show dev eth0
+          delegate_to: "{{ item }}"
+          loop: "{{ groups['pihole'] }}"
+          register: _dns_pihole_eth0
+          changed_when: false
+
+        - name: Require exactly one VIP holder.
+          # Two holders is a split brain: both answer ARP, and clients flap.
+          ansible.builtin.assert:
+            that: _dns_vip_holders | length == 1
+            fail_msg: >-
+              {{ _dns_vip_holders | length }} instances hold the VIP
+              ({{ _dns_vip_holders | join(', ') }}); expected exactly one.
+              Read journalctl -u keepalived on both.
+          vars:
+            _dns_vip_holders: >-
+              {{ _dns_pihole_eth0.results
+                 | selectattr('stdout', 'search', ' ' ~ (dns_pihole_vip | regex_escape) ~ '/')
+                 | map(attribute='item') | list }}
+
+        - name: Confirm the VIP answers from the operator.
+          ansible.builtin.command:
+            cmd: >-
+              dig +short +tries=1 +time=5
+              @{{ dns_pihole_vip }} dns-role-check.{{ dns_domain }} A
+          delegate_to: localhost
+          become: false
+          register: _dns_vip_check
+          changed_when: false
+          failed_when: _dns_vip_check.stdout | trim != dns_traefik_lb_ip
