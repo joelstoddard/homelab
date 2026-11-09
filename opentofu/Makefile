@@ -17,10 +17,14 @@ VERSIONS_ENV        := $(abspath ../versions.env)
 
 # Resource dirs to iterate. resources/ may not exist yet on scaffold
 # commit; the wildcard returns empty and targets become no-ops.
+#
+# pihole-config runs only by name: it needs Pi-hole installed by
+# `make -C ../ansible apply-dns`, so the root Makefile's `dns` target calls it
+# after that playbook.
 ifneq ($(LIMIT),)
 RESOURCE_DIRS := resources/$(LIMIT)
 else
-RESOURCE_DIRS := $(wildcard resources/*)
+RESOURCE_DIRS := $(filter-out resources/pihole-config,$(wildcard resources/*))
 endif
 
 default: apply
@@ -38,6 +42,7 @@ help:
 	@echo "  clean   - Remove .terraform/ in each dir."
 	@echo
 	@echo "Filter to one resource dir with LIMIT=<dirname>."
+	@echo "resources/pihole-config runs only with LIMIT=pihole-config, after 'make -C ../ansible apply-dns'."
 
 check-secrets:
 	@command -v tofu >/dev/null 2>&1 || { echo "tofu not installed; run install.sh." >&2; exit 1; }

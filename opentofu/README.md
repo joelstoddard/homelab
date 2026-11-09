@@ -4,7 +4,7 @@ OpenTofu provisioning of resources on top of the fleet PXE-installed by `../ansi
 
 ## Layout
 
-- `resources/<dir>/` — root modules with their own state: one per NUC (`rumba/`, `tango/`, `salsa/`, `samba/`) for the guests that run on it, so the folder defines the node, and `pihole/` for the Pi-hole LXC.
+- `resources/<dir>/` — root modules with their own state: one per NUC (`rumba/`, `tango/`, `salsa/`, `samba/`) for the guests that run on it, so the folder defines the node, `pihole/` for the Pi-hole LXC, and `pihole-config/` for the Pi-hole pair's adlists, groups and clients on pihole-01. `pihole-config/` runs only with `LIMIT=pihole-config`, after `make -C ../ansible apply-dns` (the root `make dns` runs both), because it writes to a Pi-hole that Ansible installs.
 - `modules/` — shared modules (`cloud-init-template/`, `dns-lxc/`, `k8s-vm/`, `lxc/`, `talos-image/`, `vm/`).
 - `secrets.sops.yaml` — SOPS-encrypted top-level secrets bundle. Shared values across resources (state encryption passphrase, Proxmox endpoint, LAN gateway). The Makefile extracts individual keys via `sops --extract`.
 - `resources/<host>/secrets.env` — *optional*, per-resource SOPS-encrypted dotenv. Holds keys scoped to one resource (e.g. a service password, a static IP). The Makefile eval-sources it as `export TF_VAR_*=…` lines inside the `run_tofu` loop, only when that resource is iterated. See `resources/pihole/` for the worked example.
