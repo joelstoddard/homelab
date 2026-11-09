@@ -114,6 +114,11 @@ when `pihole-FTL --config <key>` reports something else:
 | `dns.dnssec` | `false` | Bind9 validates |
 | `webserver.api.max_sessions` | `50` | The OpenTofu provider opens several sessions per plan |
 
+**Lists, groups and clients are not this role's.**
+`opentofu/resources/pihole-config/` writes them to pihole-01 through the API,
+and `kubernetes/nebula-sync/` copies them to pihole-02 every hour. Edit
+pihole-01 only: anything written to pihole-02 is overwritten at the next sync.
+
 **Nothing else belongs in instance config.** No `address=` wildcard and no
 `server=/<name>/#` passthrough, because Bind9 serves both. No `dns.hosts` or
 `dns.cnameRecords`: nothing copies config between the instances, so a record
@@ -163,6 +168,26 @@ that nothing else on the LAN speaks VRRP with a passive capture from a
 Proxmox host: `timeout 120 tcpdump -ni vmbr0 -c 20 vrrp`. No packets means
 the ID is free; any packet prints its `vrid`, which must differ.
 
+## Rebuilding pihole-01
+
+nebula-sync copies pihole-01's gravity tables over pihole-02's and has no
+guard against an empty source, so a freshly rebuilt pihole-01, holding only
+the installer's default list, would wipe pihole-02's lists, groups and
+clients within the hour. Stop it first:
+
+1. Commit `spec.suspend: true` on the CronJob in
+   `kubernetes/nebula-sync/app/cronjob.yaml` and merge it. A live
+   `kubectl patch` is reverted by Flux at its next reconcile.
+2. Rebuild the container (taint and re-apply its `dns.tf`), then
+   `make -C ansible apply-dns LIMIT=pihole-01`.
+3. `make -C opentofu apply LIMIT=pihole-config`. Its state still lists the
+   old instance's lists, so the plan recreates every one the new instance
+   lacks, and the new list IDs rebuild gravity.
+4. Check pihole-01's lists, groups and clients in its UI, then revert the
+   suspend.
+
+Rebuilding pihole-02 needs none of this: the next sync fills it.
+
 ## Group variables
 
 `ansible/inventory/group_vars/dns.sops.yaml`, loaded explicitly by
@@ -177,7 +202,7 @@ Create it with `sops ansible/inventory/group_vars/dns.sops.yaml`:
 | `dns_pihole_addresses` | map | Same, for the Pi-hole pair; gates the ACL |
 | `dns_lancache_addresses` | map | Same, for the lancache-dns pair; gates the ACL |
 | `dns_pihole_vip` | string | The address keepalived floats between the Pi-hole pair; reserved in NetBox with tag `pihole-vip` |
-| `dns_pihole_web_password` | string | The Pi-hole admin password, the same on both instances |
+| `dns_pihole_web_password` | string | The Pi-hole admin password, the same on both instances. Two more SOPS copies must match it: `opentofu/resources/pihole-config/secrets.env` and `kubernetes/nebula-sync/app/secret.sops.yaml`; a rotation that misses one fails with a 401 |
 | `dns_passthrough_names` | list | FQDNs under the domain that public DNS really hosts |
 | `dns_lancache_lb_ip` | string | The LANCache HTTP address in the cluster; what the RPZ points at |
 

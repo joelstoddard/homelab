@@ -1,7 +1,8 @@
 # The DNS chain
 
 > **Status: deployed, outside the client path.** All three pairs run, the
-> Pi-hole pair behind its VIP. Clients resolve through the single Pi-hole LXC
+> Pi-hole pair behind its VIP, with its lists managed on pihole-01 and synced
+> to pihole-02. Clients resolve through the single Pi-hole LXC
 > (`opentofu/resources/pihole/`), which has its own upstreams. See "Where this
 > stands" below and issue #151.
 
@@ -61,16 +62,17 @@ vars — in `ansible/roles/dns/`, run by `make -C ansible apply-dns`; the
 OpenTofu for all six containers in `dns.tf` under the four
 `opentofu/resources/<nuc>/` folders; and the cache lancache-dns points at,
 `kubernetes/lancache/` (`docs/design/lancache.md`). All six containers are in
-NetBox, with their addresses cross-checked against the group vars.
+NetBox, with their addresses cross-checked against the group vars. The Pi-hole
+pair's adlists, groups and clients are `opentofu/resources/pihole-config/`,
+applied to pihole-01 by `make dns`, and `kubernetes/nebula-sync/` copies them
+to pihole-02 (see "Lists and their sync"). `kubernetes/lan-services/` names
+each instance in-cluster, with no route.
 
-**What does not.** The Pi-hole pair's adlists, groups and clients (they are
-in the old LXC's `opentofu/resources/pihole/` only), nebula-sync to copy
-them from pihole-01 to pihole-02, the pair's monitoring and `lan-services`
-routes, and every client-path change: NUC `resolv.conf`, then DHCP option 6.
+**What does not.** The pair's monitoring, its admin UI route, and every
+client-path change: NUC `resolv.conf`, then DHCP option 6.
 
-**Order of the remaining work.** Lists and their sync before any client
-reaches the pair, because an instance without lists filters nothing. The
-cutover comes last, NUCs first.
+**Order of the remaining work.** Monitoring before any client reaches the
+pair. The cutover comes last, NUCs first.
 
 ## The chain
 
@@ -96,8 +98,8 @@ nebula-sync replicator are Flux layers, and neither is in the query path.
 Two positions are forced, and only the middle one was a real choice.
 
 - **Pi-hole first**, because only the first link sees real client addresses.
-  The MAC-keyed client groups in `opentofu/resources/pihole/clients.tf` and the
-  whole per-client dashboard depend on that. It runs off-cluster for the same
+  The MAC-keyed client groups in `opentofu/resources/pihole-config/clients.tf`
+  and the whole per-client dashboard depend on that. It runs off-cluster for the same
   reason: a Cilium LoadBalancer address source-NATs every packet to the
   announcing node (`docs/design/home-assistant.md`), so an in-cluster Pi-hole
   would see one client — a node.
@@ -196,6 +198,42 @@ manual lever.
   passthroughs, so neither instance has an `address=` or `server=/<name>/#`
   line, and the role refuses local DNS records, which would answer on one
   instance only.
+
+## Lists and their sync
+
+Adlists, groups and clients are declared once, in
+`opentofu/resources/pihole-config/`, and written to **pihole-01 only**.
+nebula-sync, an hourly `CronJob` in `kubernetes/nebula-sync/`, copies them
+one way to pihole-02 through the Pi-hole API and runs gravity there.
+
+- **One writer per kind of state.** The `dns` role owns each instance's
+  config (upstreams, `strict-order`, interface, listening mode) on both
+  instances; the provider root owns the gravity tables on pihole-01;
+  nebula-sync owns them on pihole-02. nebula-sync runs with `FULL_SYNC=false`
+  and every config section off, so it never touches what Ansible sets, and
+  it cannot reach the webserver section (password, sessions) at all.
+
+- **The provider writes to pihole-01, never the VIP.** The VIP moves to
+  pihole-02 whenever pihole-01 fails its check, and pihole-02 is a replica:
+  anything written there is overwritten at the next sync. Both the root and
+  nebula-sync name the instance — the root through NetBox, nebula-sync through
+  the `lan-services` Service `pihole-01`.
+
+- **nebula-sync rather than the provider applied twice.** It is the only path
+  by which a change made in pihole-01's UI, such as an allowed domain,
+  reaches the standby. The cost is the rebuild trap below.
+
+- **The installer's default list is adopted, not left alongside.** The
+  installer seeds StevenBlack on every instance; an `import` block takes it
+  into the root, so pihole-01 holds exactly the declared set.
+
+- **A failed sync is not urgent.** The standby serves slightly older lists.
+  Job failures show in kube-state-metrics.
+
+**Rebuilding pihole-01 wipes pihole-02** unless nebula-sync is suspended
+first: an empty primary is copied like any other, and nebula-sync has no
+empty-source guard. The runbook is in `ansible/roles/dns/README.md`,
+"Rebuilding pihole-01".
 
 ## Containers
 
