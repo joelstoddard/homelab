@@ -71,6 +71,21 @@
   changed_when: false
   failed_when: _dns_wildcard_check.stdout | trim != dns_traefik_lb_ip
 
+- name: Confirm each passthrough name leaves the wildcard.
+  # Only the zone's NS delegation makes BIND use the forward zone; without it
+  # the wildcard answers and every other check here still passes.
+  ansible.builtin.command:
+    cmd: >-
+      dig +short +tries=1 +time=10
+      @{{ dns_bind9_addresses[inventory_hostname] }}
+      {{ item }} A
+  loop: "{{ dns_passthrough_names }}"
+  register: _dns_passthrough_check
+  changed_when: false
+  failed_when: >-
+    _dns_passthrough_check.stdout | trim | length == 0
+    or dns_traefik_lb_ip in _dns_passthrough_check.stdout_lines
+
 - name: Confirm a public name resolves through the DoT forwarders.
   # The wildcard check above is answered locally, so it passes even when
   # every upstream is unreachable. This is the one that exercises the path.

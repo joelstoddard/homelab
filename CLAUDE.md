@@ -49,7 +49,7 @@ Two stages, two playbook entry points:
 - **`playbooks/resize.yaml`** — picks up a Proxmox hardware change (memory, cores) on RUNNING Talos VMs one at a time: halt, stop, start, gated on node Ready + no degraded Longhorn volume + cluster health, then verifies the guest's own reported total. `make -C ansible apply-resize EXTRA_VARS='{"resize_hosts": [...]|"agents"|"all"}'`, after `make -C opentofu`. Renders no machine config (a power cycle pushes none), so unlike the other Talos playbooks it needs only a talosconfig — the rendered one, else `~/.talos/config`. Refuses control-plane targets unless `resize_allow_controlplane=true`: the agents run overcommitted on zram and etcd must stay resident (`docs/design/zram-swap.md`).
 - **`playbooks/pi-eeprom-netboot.yaml`** — one-time per Pi: flips the Raspberry Pi 4 bootloader EEPROM to `BOOT_ORDER=0xf42` (network, then USB, then restart), after which the `00-pxe` dnsmasq gate decides each boot. Runs over SSH against the Pi's *current* OS, and only stages the change — the firmware flashes it on the next boot. `EXTRA_VARS='pi_reboot=true'` reboots fire-and-forget, because a successful cutover leaves no SSH to come back to. `make -C ansible apply-pi-eeprom LIMIT=<Pi>`.
 - **`playbooks/pi-cutover.yaml`** — drives a Pi the rest of the way to Talos: EEPROM → netboot into maintenance → install to `/dev/sda` → boot from disk. One-way for the old OS. It probes SSH to build its own pending set, so Pis already on Talos (which answer none) are skipped and the play is safe to re-run — which is why the root `make talos` target calls it before `apply-talos`. Narrow it with `EXTRA_VARS='{"pi_cutover_hosts": [...]}'`, NOT `--limit`: the localhost and SOPS plays need every host. See `docs/netbooting-pis.md`.
-- **`playbooks/dns.yaml`** — configures the DNS chain's containers (NetBox tag `dns`, plus `pihole`/`lancache`/`bind9` per link), which `main.yaml` cannot reach. A localhost play first fails unless every configured link has two hosts; the play then runs `serial: 1`, so both instances of a link are never down at once. `make -C ansible apply-dns`. The six containers are modelled in NetBox at status `planned` and do not exist yet — see `docs/design/dns-chain.md`.
+- **`playbooks/dns.yaml`** — configures the DNS chain's containers (NetBox tag `dns`, plus `pihole`/`lancache`/`bind9` per link), which `main.yaml` cannot reach. A localhost play first fails unless every configured link has two hosts; the play then runs `serial: 1`, so both instances of a link are never down at once. `make -C ansible apply-dns`. A last play, after every host, asserts the Pi-hole pair runs one FTL version and exactly one instance holds the VIP; it delegates to both instances whatever the `--limit`. The Pi-hole pair is outside the client path — see `docs/design/dns-chain.md`.
 
 Roles split into two layers:
 
@@ -138,7 +138,13 @@ Current implementation:
   over DoT only, every template `validate:`d by `named-checkconf` /
   `named-checkzone`) and `lancache.yaml` (the upstream `lancache-dns` image,
   digest-pinned, whose `named.conf.options` must never name a `dnstool`
-  placeholder, even in a comment). `resolv.yaml` asserts that no link resolves
+  placeholder, even in a comment), `pihole.yaml` (the unattended upstream
+  installer, unpinned, then a compare-and-set of six `pihole.toml` keys:
+  upstreams lancache pair then Bind9 under `strict-order`, `LOCAL`
+  listening; no wildcard or passthrough lines, which Bind9 serves; the web
+  password on stdin from `dns_pihole_web_password`) and `keepalived.yaml`
+  (unicast VRRP, VRID `dns_pihole_vrid` 53, preempt, a `pi.hole` health
+  check, floating `dns_pihole_vip`). `resolv.yaml` asserts that no link resolves
   through the chain itself. Every container must run Debian 13, and the role
   asserts it: Debian 12's BIND 9.18 rejects `tls` in `forwarders` and its
   `docker-compose` is the Python v1. Addresses are in
@@ -171,12 +177,14 @@ provider's own reboot is a hard `qmstop` + `qmstart` fired at every changed VM
 in parallel, so a geometry change (memory, cores) is left pending in the
 Proxmox config and picked up serially by `make -C ansible apply-resize` — see
 `docs/design/zram-swap.md`.
-The Bind9 and lancache-dns LXCs of the DNS chain sit beside the VMs, in
-`resources/{rumba,salsa}/dns.tf`: the folder is the node, as for the VMs.
-Each is a `modules/dns-lxc` call (size and address from NetBox, a `check`
-against NetBox's placement, VM ID `310 + N` / `320 + N`) wrapping
-`modules/lxc`, unprivileged, with Quad9 as its own resolver; each `dns.tf`
-stages the Debian 13 template once for both containers on its node. See
+The six LXCs of the DNS chain sit beside the VMs, in `dns.tf`: Bind9 and
+lancache-dns in `resources/{rumba,salsa}/`, `pihole-01` in `resources/tango/`
+and `pihole-02` in `resources/samba/`; the folder is the node, as for the
+VMs. Each is a `modules/dns-lxc` call (size and address from NetBox, a
+`check` against NetBox's placement, VM ID `310 + N` / `320 + N` / `330 + N`
+for Bind9 / lancache-dns / Pi-hole) wrapping `modules/lxc`, unprivileged,
+with Quad9 as its own resolver; each `dns.tf` stages the Debian 13 template
+once for every container on its node. See
 `docs/design/dns-chain.md`, "Containers".
 
 ### Kubernetes (kubernetes/)

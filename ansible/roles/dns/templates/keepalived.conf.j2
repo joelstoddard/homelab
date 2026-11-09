@@ -1,0 +1,44 @@
+! Managed by ansible (roles/dns). See docs/design/dns-chain.md.
+{% set _primary = (dns_pihole_addresses | dictsort | first)[0] %}
+
+global_defs {
+    enable_script_security
+    script_user keepalived_script
+}
+
+! No weight, so a failing check puts the instance in FAULT and releases the VIP.
+vrrp_script chk_pihole {
+    script "/usr/local/bin/check-pihole"
+    interval 2
+    timeout 3
+    fall 3
+    rise 2
+}
+
+vrrp_instance PIHOLE {
+    ! Both start as BACKUP; priority elects, and preemption returns the VIP to
+    ! the first instance whenever it is healthy.
+    state BACKUP
+    interface eth0
+    virtual_router_id {{ dns_pihole_vrid }}
+    priority {{ 150 if inventory_hostname == _primary else 100 }}
+    advert_int 1
+
+    ! Unicast, so the adverts need no multicast across the bridges and switch,
+    ! and an advert from any other source is dropped.
+    unicast_src_ip {{ dns_pihole_addresses[inventory_hostname] }}
+    unicast_peer {
+{% for host, addr in dns_pihole_addresses | dictsort if host != inventory_hostname %}
+        {{ addr }}
+{% endfor %}
+    }
+    check_unicast_src
+
+    virtual_ipaddress {
+        {{ dns_pihole_vip }}/{{ ansible_facts.default_ipv4.prefix }} dev eth0
+    }
+
+    track_script {
+        chk_pihole
+    }
+}

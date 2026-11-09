@@ -12,3 +12,16 @@
   community.docker.docker_compose_v2:
     project_src: "{{ dns_lancache_dir }}"
     state: restarted
+
+# Every key the role sets carries FLAG_RESTART_FTL: FTL regenerates its
+# dnsmasq config only at start.
+- name: Restart pihole-FTL
+  ansible.builtin.systemd:
+    name: pihole-FTL
+    state: restarted
+
+# SIGHUP: a restart would drop the VIP for a failover's length.
+- name: Reload keepalived
+  ansible.builtin.systemd:
+    name: keepalived
+    state: reloaded

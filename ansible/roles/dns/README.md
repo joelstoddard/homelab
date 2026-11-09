@@ -6,7 +6,7 @@ for its own link. Task files dispatch on that second tag, the way
 
 | Link | Group | Owned by | State |
 |---|---|---|---|
-| Pi-hole | `pihole` | `opentofu/resources/pihole/` | keepalived lands here later |
+| Pi-hole | `pihole` | this role | implemented; outside the client path |
 | lancache-dns | `lancache` | this role | implemented |
 | Bind9 | `bind9` | this role | implemented |
 
@@ -21,8 +21,14 @@ above Bind9 rather than below it, why there is no zone transfer — is in
 2. On a `bind9` host: installs Bind9 and renders the authoritative zone.
 3. On a `lancache` host: runs the upstream lancache-dns image under Docker
    with a hardened bind config.
-4. Confirms each link answers what it should, and that a host outside the
-   chain gets nothing from either.
+4. On a `pihole` host: installs Pi-hole, sets its web password and pins its
+   upstreams and listening mode (see "Pi-hole" below).
+5. Confirms each link answers what it should, and that a host outside the
+   chain gets nothing from Bind9 or lancache-dns.
+6. On a `pihole` host: runs keepalived, which floats `dns_pihole_vip`
+   between the pair (see "The Pi-hole VIP" below).
+7. Once every host is done, confirms both Pi-hole instances run the same FTL
+   version, exactly one of them holds the VIP, and the VIP answers.
 
 ## Requirements
 
@@ -88,6 +94,75 @@ A broken forwarder path is invisible to the wildcard check, because that is
 answered from the local zone. `dig deb.debian.org` against the instance is
 the one that fails, and `journalctl -u named` carries the TLS error.
 
+## Pi-hole
+
+Installed by the upstream installer, run unattended. It is unpinned, because
+Pi-hole publishes no package, so the playbook's last play fails when the two
+instances report different `pihole-FTL --version`; `pihole -up` on the older
+one fixes it. The installer runs only when `/usr/local/bin/pihole` is
+missing, so an upgrade is always that manual step.
+
+The role owns these `pihole.toml` keys on both instances, and sets each only
+when `pihole-FTL --config <key>` reports something else:
+
+| Key | Value | Why |
+| --- | --- | --- |
+| `dns.upstreams` | lancache-01, lancache-02, bind9-01, bind9-02 | The chain, in failover order |
+| `misc.dnsmasq_lines` | `strict-order` | Tries them in that order; Pi-hole v6 has no key for it |
+| `dns.interface` | `eth0` | |
+| `dns.listeningMode` | `LOCAL` | Binds the wildcard, so FTL answers on the VIP |
+| `dns.dnssec` | `false` | Bind9 validates |
+| `webserver.api.max_sessions` | `50` | The OpenTofu provider opens several sessions per plan |
+
+**Nothing else belongs in instance config.** No `address=` wildcard and no
+`server=/<name>/#` passthrough, because Bind9 serves both. No `dns.hosts` or
+`dns.cnameRecords`: nothing copies config between the instances, so a record
+would answer on one of them only, and the role fails if either is set.
+`misc.dnsmasq_lines` can only be set on the host, never through the API.
+
+The web password is set only when a login with `dns_pihole_web_password`
+does not return a session, so a run that changes nothing logs in, logs out,
+and leaves the password alone. On a fresh install the API has no password,
+so the role sets it through `PATCH /api/config` and it appears on no command
+line. If a different password is already set, the API refuses it and the
+role falls back to `pihole setpassword` on stdin; Pi-hole's script then hands
+the password to `pihole-FTL --config` as an argument, so for that moment it
+is readable in the container's process list and by root on the host.
+
+The checks run from the operator, against each instance's own address: a
+public name, the wildcard, every passthrough, and a CDN name that must come
+back as the LANCache address. The last is the only one that sees a
+lancache-dns ACL refusing the instance: `strict-order` would fall through to
+Bind9 and every other answer would still be right.
+
+## The Pi-hole VIP
+
+keepalived runs unicast VRRP between the two instances, virtual router ID
+`dns_pihole_vrid` (53), advert every second. The first instance by name has
+priority 150 and the second 100; both start as `BACKUP` and preemption is
+on, so the VIP sits on the first instance whenever it is healthy. Unicast
+needs no multicast across the NUCs' bridges, and `check_unicast_src` drops
+adverts from any other address.
+
+The health check, `files/check-pihole`, asks FTL on loopback for `pi.hole`,
+which FTL answers itself. Three failures two seconds apart put the instance
+in `FAULT` and release the VIP. It deliberately does not test an upstream:
+both instances share the same upstreams, so failing over on an upstream
+fault would only move the VIP back and forth.
+
+The VIP carries the instances' own prefix length, read from facts, and the
+role fails when the VIP is outside their subnet. Forwarded queries leave
+from the instance address, so no ACL in the chain lists the VIP.
+
+The last play counts VIP holders across both instances after waiting out
+the VRRP master-down interval. Two holders is a split brain: both answer
+ARP for the VIP. Read `journalctl -u keepalived` on each.
+
+**Before the first apply, and before changing `dns_pihole_vrid`,** check
+that nothing else on the LAN speaks VRRP with a passive capture from a
+Proxmox host: `timeout 120 tcpdump -ni vmbr0 -c 20 vrrp`. No packets means
+the ID is free; any packet prints its `vrid`, which must differ.
+
 ## Group variables
 
 `ansible/inventory/group_vars/dns.sops.yaml`, loaded explicitly by
@@ -101,12 +176,13 @@ Create it with `sops ansible/inventory/group_vars/dns.sops.yaml`:
 | `dns_bind9_addresses` | map | NetBox name → LAN address, one per Bind9 instance |
 | `dns_pihole_addresses` | map | Same, for the Pi-hole pair; gates the ACL |
 | `dns_lancache_addresses` | map | Same, for the lancache-dns pair; gates the ACL |
-| `dns_pihole_vip` | string | The floating address, once keepalived lands |
+| `dns_pihole_vip` | string | The address keepalived floats between the Pi-hole pair; reserved in NetBox with tag `pihole-vip` |
+| `dns_pihole_web_password` | string | The Pi-hole admin password, the same on both instances |
 | `dns_passthrough_names` | list | FQDNs under the domain that public DNS really hosts |
 | `dns_lancache_lb_ip` | string | The LANCache HTTP address in the cluster; what the RPZ points at |
 
-Non-secret settings — forwarders, the record TTLs and the lancache-dns image
-digest — are in `defaults/main.yaml`.
+Non-secret settings — forwarders, the record TTLs, the lancache-dns image
+digest and the Pi-hole installer URL — are in `defaults/main.yaml`.
 
 ## Adding a record
 
@@ -122,9 +198,12 @@ own certificate instead.
 ## Adding a passthrough
 
 Append the FQDN to `dns_passthrough_names` and re-apply. The name becomes a
-BIND forward zone, which beats the wildcard because BIND selects the deepest
-matching zone. Confirm with a `dig`: a wrong answer here gives a valid
-certificate and a Traefik 404, which reads as "the site is down".
+BIND forward zone in `named.conf.local` and an NS delegation in the zone file.
+The delegation is what takes the name away from the wildcard: BIND answers
+from its own zone before it recurses, so the forward zone alone is never
+used. The role's passthrough check fails if the wildcard still answers; a
+wrong answer gives a valid certificate and a Traefik 404, which reads as
+"the site is down".
 
 ## Why no zone transfer
 
