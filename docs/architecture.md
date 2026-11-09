@@ -64,7 +64,7 @@ Modules under `opentofu/modules/`:
 
 Resources under `opentofu/resources/`:
 
-- `rumba/`, `tango/`, `salsa/`, `samba/` — per-NUC empty-shell k8s VMs (12 total across the cluster), plus the DNS chain's Bind9 and lancache-dns LXCs on `rumba/` and `salsa/`.
+- `rumba/`, `tango/`, `salsa/`, `samba/` — per-NUC empty-shell k8s VMs (12 total across the cluster), plus the DNS chain's Bind9 and lancache-dns LXCs on `rumba/` and `salsa/` and its Pi-hole pair on `tango/` and `samba/`.
 - `pihole/` — Pi-hole LXC for DNS/adblock, bootstrapped to a static IP.
 
 Three secret inputs (all SOPS-encrypted, committed):

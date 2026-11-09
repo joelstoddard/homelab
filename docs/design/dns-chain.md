@@ -1,8 +1,9 @@
 # The DNS chain
 
-> **Status: partly deployed, not in the client path.** The Bind9 and
-> lancache-dns pairs run; no client queries them, because the single Pi-hole
-> LXC keeps its own upstreams. See "Where this stands" below and issue #151.
+> **Status: partly deployed, not in the client path.** All three pairs are
+> in code, the Pi-hole pair behind its VIP; no client queries any of them,
+> because every client still uses the single Pi-hole LXC, which keeps its
+> own upstreams. See "Where this stands" below and issue #151.
 
 Name resolution for the LAN and the cluster, as a chain of single-purpose
 resolvers rather than one dnsmasq line. Each link answers what it knows and
@@ -10,9 +11,8 @@ forwards the rest to the next, until the chain reaches public DNS.
 
 This document gives the design and the reasoning behind each choice; what is not
 built yet is listed under "What does not". `opentofu/resources/pihole/` is
-the single Pi-hole LXC the chain replaces, and `dns.tf` in
-`opentofu/resources/rumba/` and `opentofu/resources/salsa/` creates the Bind9
-and lancache-dns containers.
+the single Pi-hole LXC the chain replaces, and `dns.tf` in each of the four
+`opentofu/resources/<nuc>/` folders creates the chain's containers.
 
 ## Problem
 
@@ -55,21 +55,22 @@ The Pis stay out of it (they are cluster nodes, and the purposes are not to
 be conflated), and so does collapsing links onto shared containers, which
 reintroduces the `:53` contention the design removes.
 
-**What exists.** The `dns` Ansible role — Bind9 and lancache-dns, with the
-NetBox-tag groups and SOPS group vars — in `ansible/roles/dns/`, run by
-`make -C ansible apply-dns`, the OpenTofu for the Bind9 and lancache-dns
-containers in `dns.tf` under `opentofu/resources/rumba/` and
-`opentofu/resources/salsa/`, and the cache lancache-dns points at,
+**What exists.** The `dns` Ansible role — Bind9, lancache-dns, Pi-hole and
+keepalived for the Pi-hole VIP, with the NetBox-tag groups and SOPS group
+vars — in `ansible/roles/dns/`, run by `make -C ansible apply-dns`; the
+OpenTofu for all six containers in `dns.tf` under the four
+`opentofu/resources/<nuc>/` folders; and the cache lancache-dns points at,
 `kubernetes/lancache/` (`docs/design/lancache.md`). All six containers are in
 NetBox, with their addresses cross-checked against the group vars.
 
-**What does not.** The OpenTofu for the Pi-hole pair, keepalived for the
-VIP, and nebula-sync for the Pi-hole pair.
+**What does not.** The Pi-hole pair's adlists, groups and clients (they are
+in the old LXC's `opentofu/resources/pihole/` only), nebula-sync to copy
+them from pihole-01 to pihole-02, the pair's monitoring and `lan-services`
+routes, and every client-path change: NUC `resolv.conf`, then DHCP option 6.
 
-**Order of the remaining work.** The cache in `kubernetes/lancache/` serves
-on its pinned address before any client reaches lancache-dns, because
-lancache-dns sends the game CDNs to that address. The Pi-hole pair and the
-cutover come last.
+**Order of the remaining work.** Lists and their sync before any client
+reaches the pair, because an instance without lists filters nothing. The
+cutover comes last, NUCs first.
 
 ## The chain
 
@@ -181,22 +182,41 @@ manual lever.
   anycast addresses. Bind9's forwarders are the one hop in the whole estate
   that can be encrypted.
 
+- **The Pi-hole VIP is keepalived, unicast VRRP, health-checked on FTL
+  itself.** The check asks FTL for `pi.hole`, which it answers without an
+  upstream, so a dead resolver releases the VIP and a shared upstream fault
+  does not move it. FTL listens in `LOCAL` mode, which binds the wildcard, so
+  it answers on the VIP whenever keepalived adds it. Preemption keeps the
+  VIP on pihole-01 in steady state. Mechanics and the split-brain check are
+  in `ansible/roles/dns/README.md`, "The Pi-hole VIP".
+
+- **Pi-hole carries no zone data.** Bind9 serves the wildcard and the
+  passthroughs, so neither instance has an `address=` or `server=/<name>/#`
+  line, and the role refuses local DNS records, which would answer on one
+  instance only.
+
 ## Containers
 
-`dns.tf` in each per-NUC folder builds that node's lower links as Proxmox
-LXCs from the Debian 13 standard template: `bind9-01` and `lancache-02` in
+`dns.tf` in each per-NUC folder builds that node's links as Proxmox LXCs
+from the Debian 13 standard template: `bind9-01` and `lancache-02` in
 `opentofu/resources/rumba/`, `bind9-02` and `lancache-01` in
-`opentofu/resources/salsa/`. The folder is the node, as for the k8s VMs, and
-`modules/dns-lxc` warns when NetBox places the VM elsewhere. NetBox supplies
-each container's vCPUs, memory, disk and address, and the plan fails when a
-VM has no primary IPv4. `modules/dns-lxc` supplies what NetBox does not
-model: the VM ID (`310 + N` for Bind9, `320 + N` for lancache-dns), the
-features, and the resolvers.
+`opentofu/resources/salsa/`, `pihole-01` in `opentofu/resources/tango/` and
+`pihole-02` in `opentofu/resources/samba/`. No NUC carries both instances of
+a link. The folder is the node, as for the k8s VMs, and `modules/dns-lxc`
+warns when NetBox places the VM elsewhere. NetBox supplies each container's
+vCPUs, memory, disk and address, and the plan fails when a VM has no primary
+IPv4. `modules/dns-lxc` supplies what NetBox does not model: the VM ID
+(`310 + N` for Bind9, `320 + N` for lancache-dns, `330 + N` for Pi-hole),
+the features, and the resolvers.
 
-- **Every container is unprivileged.** Bind9 needs nothing more. lancache-dns
-  runs Docker, which works in an unprivileged Debian 13 container given
-  `nesting` alone; a privileged container would make root inside it root on
-  the hypervisor, for a process whose job is answering the whole LAN.
+- **Every container is unprivileged.** Bind9 and Pi-hole need nothing more,
+  and keepalived needs only `CAP_NET_ADMIN` and `CAP_NET_RAW` in the
+  container's own network namespace, which an unprivileged container keeps.
+  lancache-dns runs Docker, which works in an unprivileged Debian 13
+  container given `nesting` alone; a privileged container would make root
+  inside it root on the hypervisor, for a process whose job is answering the
+  whole LAN. If VRRP ever cannot run unprivileged, the fallback is both
+  instance addresses in DHCP option 6, never a privileged container.
   `keyctl` is deliberately off: Proxmox lets only `root@pam` set it, the
   OpenTofu API token gets `403 changing feature flags (except nesting) is
   only allowed for root@pam`, and Docker starts lancache-dns without it.
@@ -208,7 +228,7 @@ features, and the resolvers.
 
 - **One template download per node, shared.** Two containers on one node
   cannot each own the same file, so each `dns.tf` downloads the template
-  once and hands the file ID to both containers, through `modules/dns-lxc`
+  once and hands the file ID to every container on its node, through `modules/dns-lxc`
   to `template_file_id` on `modules/lxc`.
 
 - **The containers ignore later changes**, like the Pi-hole LXC
