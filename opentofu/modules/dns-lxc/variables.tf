@@ -1,10 +1,10 @@
 variable "name" {
-  description = "Container name. Must match a NetBox VM, e.g. 'bind9-01' or 'lancache-02'."
+  description = "Container name. Must match a NetBox VM, e.g. 'bind9-01', 'lancache-02' or 'pihole-01'."
   type        = string
 
   validation {
-    condition     = can(regex("^(bind9|lancache)-[0-9]{2}$", var.name))
-    error_message = "name must look like 'bind9-NN' or 'lancache-NN' (NN is two digits)."
+    condition     = can(regex("^(bind9|lancache|pihole)-[0-9]{2}$", var.name))
+    error_message = "name must look like 'bind9-NN', 'lancache-NN' or 'pihole-NN' (NN is two digits)."
   }
 }
 
