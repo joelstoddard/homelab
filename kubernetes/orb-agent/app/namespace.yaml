@@ -1,0 +1,10 @@
+# PodSecurity privileged: Talos enforces baseline, and baseline forbids
+# hostNetwork. Only hostNetwork lets the scan see the real LAN.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: orb-agent
+  labels:
+    pod-security.kubernetes.io/enforce: privileged
+    pod-security.kubernetes.io/audit: privileged
+    pod-security.kubernetes.io/warn: privileged
