@@ -25,4 +25,5 @@ resources:
   - media-egress/ks.yaml
   - glance/ks.yaml
   - home-assistant/ks.yaml
+  - orb-agent/ks.yaml
   - lancache/ks.yaml

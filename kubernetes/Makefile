@@ -101,6 +101,12 @@ lint:
 		echo "run 'sops <file>' on each before committing; this repo is public and its history cannot be revoked." >&2; \
 		exit 1; }
 	@echo ">> every *.sops.yaml is encrypted"
+	@raw=$$(grep -l '^data:' $$(find . -name '*.sops.yaml')); \
+	[ -z "$$raw" ] || { \
+		echo "Secret uses data: (needs base64):$$raw" >&2; \
+		echo "use stringData:, which takes raw values; a raw value under data: fails the Flux apply." >&2; \
+		exit 1; }
+	@echo ">> every *.sops.yaml Secret uses stringData"
 
 # Only flux-system/ is dry-run: SOPS-encrypted Secrets elsewhere fail a
 # server dry run (top-level `sops:` field, non-base64 values). Before the
