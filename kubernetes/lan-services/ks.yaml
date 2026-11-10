@@ -8,15 +8,16 @@
 # those two objects exist per backend. The Pi-hole pair's two instances get
 # the same Service and EndpointSlice with no route, as in-cluster names.
 #
-# dependsOn traefik-middlewares as well as traefik, because every route here
-# references the default-headers Middleware and Traefik refuses a router whose
-# middleware is missing. The dashboard route and Longhorn's Ingress do eat that
-# transient 404 — but neither can avoid it: the dashboard route is rendered by
-# the chart inside the traefik layer, and pointing longhorn at ingress would let
-# a broken traefik block storage. This layer is nothing but routing, so it has
-# no reason not to wait, and waiting costs one reconcile against 404s on seven
-# hostnames. dependsOn cluster-secrets for ${DOMAIN} and the address
-# variables; postBuild substitutes both after decryption.
+# dependsOn traefik-middlewares as well as traefik, because every route but the
+# router's references the default-headers Middleware and Traefik refuses a
+# router whose middleware is missing. The dashboard route and Longhorn's
+# Ingress do eat that transient 404 — but neither can avoid it: the dashboard
+# route is rendered by the chart inside the traefik layer, and pointing
+# longhorn at ingress would let a broken traefik block storage. This layer is
+# nothing but routing, so it has no reason not to wait, and waiting costs one
+# reconcile against 404s on seven hostnames. dependsOn cluster-secrets for
+# ${DOMAIN} and the address variables; postBuild substitutes both after
+# decryption.
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:
