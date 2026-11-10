@@ -49,6 +49,38 @@
     validate: "keepalived -t -f %s"
   notify: Reload keepalived
 
+- name: Read the pair's eth0 MACs.
+  ansible.builtin.command:
+    cmd: cat /sys/class/net/eth0/address
+  delegate_to: "{{ item }}"
+  loop: "{{ dns_pihole_addresses.keys() | list }}"
+  register: dns_pihole_macs
+  changed_when: false
+  check_mode: false
+
+- name: Ask the LAN which MAC answers for the VIP.
+  # Empty when this instance holds it, or when nothing answers.
+  ansible.builtin.shell:
+    cmd: |
+      set -o pipefail
+      ip -4 -o addr show | grep -q -F ' {{ dns_pihole_vip }}/' && exit 0
+      ping -c1 -W1 {{ dns_pihole_vip }} >/dev/null 2>&1 || true
+      ip neigh show {{ dns_pihole_vip }} | { grep -o -E 'lladdr [0-9a-f:]+' || true; } | cut -d' ' -f2
+    executable: /bin/bash
+  register: dns_pihole_vip_answerer
+  changed_when: false
+  check_mode: false
+
+- name: Refuse a VIP that a host outside the pair already answers for.
+  # Two holders split the LAN by ARP cache, silently.
+  ansible.builtin.assert:
+    that:
+      - dns_pihole_vip_answerer.stdout | length == 0
+        or dns_pihole_vip_answerer.stdout in (dns_pihole_macs.results | map(attribute='stdout') | list)
+    fail_msg: >-
+      {{ dns_pihole_vip }} is answered by a MAC outside the Pi-hole pair. Move
+      that host off the address before keepalived takes it.
+
 - name: Enable and start keepalived.
   # The unit has ConditionFileNotEmpty on the config, so it only starts here.
   ansible.builtin.systemd:

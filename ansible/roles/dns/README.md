@@ -159,6 +159,12 @@ The VIP carries the instances' own prefix length, read from facts, and the
 role fails when the VIP is outside their subnet. Forwarded queries leave
 from the instance address, so no ACL in the chain lists the VIP.
 
+Before keepalived starts, the role pings the VIP and fails when a MAC outside
+the pair answers ARP for it: a host already on that address and the pair's
+holder would split the LAN between them by ARP cache, with no error anywhere.
+An answer from either instance passes, so a re-run on a running pair does
+not trip it. It does not see a second holder that a neighbour has not cached.
+
 The last play counts VIP holders across both instances after waiting out
 the VRRP master-down interval. Two holders is a split brain: both answer
 ARP for the VIP. Read `journalctl -u keepalived` on each.

@@ -18,17 +18,11 @@ public_dns_servers:
 cidr_subnet: "/20"
 gateway: "{{ ansible_default_ipv4.gateway }}"
 
-# Resolver order for /etc/resolv.conf (02-preflights resolv.yaml): the
-# Pi-hole LXC first — it alone answers the LAN wildcard the write routes
-# live under — then the public fallbacks. The LXC is looked up by its NetBox
-# name so its address never enters git; without it (static inventory) the
-# hosts fall back to the public resolvers alone. Search domain = the host's
-# NetBox dns_name minus its first label.
-#
-# Three entries is glibc's MAXNS: a fourth would be parsed and then ignored.
-dns_primary_host: Pihole
+# /etc/resolv.conf order: the Pi-hole VIP (dns_pihole_vip, which resolv.yaml
+# loads from dns.sops.yaml), then the public fallbacks; docs/design/host-monitoring.md.
+# Three entries is glibc's MAXNS, and dns_search is the NetBox dns_name minus its first label.
 dns_servers: >-
-  {{ ([hostvars[dns_primary_host].ansible_host | default('', true)]
+  {{ ([dns_pihole_vip | default('', true)]
       | reject('equalto', '') | list) + public_dns_servers }}
 dns_search: "{{ (dns_name | default('')).split('.')[1:] | join('.') }}"
 

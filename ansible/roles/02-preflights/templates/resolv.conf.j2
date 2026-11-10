@@ -1,5 +1,5 @@
-# Managed by ansible (02-preflights resolv.yaml). Pi-hole first so the
-# LAN wildcard resolves; a public resolver second. docs/design/host-monitoring.md.
+# Managed by ansible (02-preflights resolv.yaml). The Pi-hole VIP first so the
+# LAN domain resolves; a public resolver second. docs/design/host-monitoring.md.
 {% if dns_search %}
 search {{ dns_search }}
 {% endif %}

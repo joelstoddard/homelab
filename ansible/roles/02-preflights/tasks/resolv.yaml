@@ -1,13 +1,18 @@
 ---
 # The hosts outside the cluster reach it by name (prometheus.<domain>,
-# loki.<domain>), and only Pi-hole answers for that wildcard: a host left on
-# the public resolvers gets NXDOMAIN and the Alloy agent buffers forever.
+# loki.<domain>), and only the DNS chain answers for that domain: a host left
+# on the public resolvers gets NXDOMAIN and the Alloy agent buffers forever.
 # /etc/resolv.conf is a plain file on these hosts (ifupdown2, no resolvconf,
 # no systemd-resolved), so the template is the whole story. glibc only moves
 # to the next nameserver on timeout, so the public fallback never masks
-# Pi-hole with a cached NXDOMAIN — docs/design/host-monitoring.md.
+# the chain with a cached NXDOMAIN — docs/design/host-monitoring.md.
 
-- name: Point name resolution at Pi-hole first, a public resolver second.
+- name: Load the DNS chain group vars for the Pi-hole VIP (SOPS-encrypted).
+  community.sops.load_vars:
+    file: "{{ inventory_dir }}/group_vars/dns.sops.yaml"
+  no_log: true
+
+- name: Point name resolution at the Pi-hole VIP first, a public resolver second.
   ansible.builtin.template:
     src: resolv.conf.j2
     dest: /etc/resolv.conf
