@@ -9,6 +9,8 @@ LIMIT ?=
 export NETBOX_URL ?= $(NETBOX_API)
 
 ANSIBLE_TOKEN_FILE  := ../ansible/inventory/group_vars/proxmox.sops.yaml
+# The Pi-hole web password's only source; pihole-config reads it at run time.
+DNS_VARS_FILE       := ../ansible/inventory/group_vars/dns.sops.yaml
 OPENTOFU_SECRETS    := secrets.sops.yaml
 # Single source of truth for the Talos version and VM schematic (shared with
 # ansible + install.sh). Sourced in run_tofu and exported as
@@ -62,6 +64,7 @@ check-secrets:
 		echo "NETBOX_API (or NETBOX_URL) and NETBOX_TOKEN must be exported (e.g. 'set -a; . ~/.config/netbox/env; set +a')." >&2; \
 		exit 1; }
 	@sops -d --extract '["proxmox_api_token"]' $(ANSIBLE_TOKEN_FILE) >/dev/null
+	@sops -d --extract '["dns_pihole_web_password"]' $(DNS_VARS_FILE) >/dev/null
 	@sops -d --extract '["state_encryption_passphrase"]' $(OPENTOFU_SECRETS) >/dev/null
 	@sops -d --extract '["proxmox_endpoint"]' $(OPENTOFU_SECRETS) >/dev/null
 	@sops -d --extract '["lan_gateway"]'      $(OPENTOFU_SECRETS) >/dev/null
@@ -117,6 +120,10 @@ define run_tofu
 		echo ">> tofu $(1) in $$d"; \
 		rc=0; \
 		( \
+			if [ "$$d" = resources/pihole-config ]; then \
+				TF_VAR_pihole_web_password="$$(sops -d --extract '["dns_pihole_web_password"]' $(DNS_VARS_FILE))"; \
+				export TF_VAR_pihole_web_password; \
+			fi; \
 			if [ -f $$d/secrets.env ]; then \
 				set -a; eval "$$(sops -d $$d/secrets.env)"; set +a; \
 			fi; \

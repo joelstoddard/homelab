@@ -480,7 +480,9 @@ through the `lan-services` names, then running gravity on pihole-02:
 instance's config. The image is digest-pinned and multi-arch; the namespace
 is PSA `restricted`; a `CiliumNetworkPolicy` limits egress to cluster DNS
 and the two Services on 443 via `toServices`. The password is
-`PIHOLE_PASSWORD` in `app/secret.sops.yaml`, appended to `PRIMARY` and
+`PIHOLE_PASSWORD` in `app/secret.sops.yaml`, a copy of
+`dns_pihole_web_password` (the only source; Flux decrypts only its own
+layer) that `make -C kubernetes lint` fails on if it differs, appended to `PRIMARY` and
 `REPLICAS` as `$(PIHOLE_PASSWORD)` — kubelet expansion, which is why the
 layer has no `postBuild`. An empty, rebuilt pihole-01 would wipe pihole-02:
 commit `spec.suspend: true` first (`ansible/roles/dns/README.md`,

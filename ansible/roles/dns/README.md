@@ -202,7 +202,7 @@ Create it with `sops ansible/inventory/group_vars/dns.sops.yaml`:
 | `dns_pihole_addresses` | map | Same, for the Pi-hole pair; gates the ACL |
 | `dns_lancache_addresses` | map | Same, for the lancache-dns pair; gates the ACL |
 | `dns_pihole_vip` | string | The address keepalived floats between the Pi-hole pair; reserved in NetBox with tag `pihole-vip` |
-| `dns_pihole_web_password` | string | The Pi-hole admin password, the same on both instances. Two more SOPS copies must match it: `opentofu/resources/pihole-config/secrets.env` and `kubernetes/nebula-sync/app/secret.sops.yaml`; a rotation that misses one fails with a 401 |
+| `dns_pihole_web_password` | string | The Pi-hole admin password, the same on both instances, and its only source: `opentofu/Makefile` reads it for `resources/pihole-config`. Flux can decrypt only its own layer, so `kubernetes/nebula-sync/app/secret.sops.yaml` holds a copy, and `make -C kubernetes lint` fails if the two differ |
 | `dns_passthrough_names` | list | FQDNs under the domain that public DNS really hosts |
 | `dns_lancache_lb_ip` | string | The LANCache HTTP address in the cluster; what the RPZ points at |
 

@@ -16,7 +16,7 @@ variable "operator_ssh_private_key_path" {
 }
 
 variable "pihole_web_password" {
-  description = "Pi-hole admin/API password, the same on both instances. Injected via TF_VAR_pihole_web_password from this directory's secrets.env; must equal dns_pihole_web_password in ansible/inventory/group_vars/dns.sops.yaml."
+  description = "Pi-hole admin/API password, the same on both instances. opentofu/Makefile reads it from dns_pihole_web_password in ansible/inventory/group_vars/dns.sops.yaml, its only source."
   type        = string
   sensitive   = true
 }

@@ -219,7 +219,7 @@ kubernetes/
     └── app/
         ├── kustomization.yaml    # namespace nebula-sync
         ├── namespace.yaml        # nebula-sync, PodSecurity "restricted"
-        ├── secret.sops.yaml      # nebula-sync: PIHOLE_PASSWORD, the Pi-hole web password
+        ├── secret.sops.yaml      # nebula-sync: PIHOLE_PASSWORD, a copy of dns_pihole_web_password that `make lint` holds equal
         ├── cronjob.yaml          # hourly, digest-pinned; gravity tables only, pihole-01 -> pihole-02
         └── cnp-egress.yaml       # egress default-deny: cluster DNS + the two instances on 443
 ```

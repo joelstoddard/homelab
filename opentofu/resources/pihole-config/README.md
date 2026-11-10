@@ -33,7 +33,7 @@ pihole-02 is overwritten at the next nebula-sync run.
 | Variable | Source |
 |---|---|
 | `netbox_url`, `netbox_token` | `NETBOX_URL` / `NETBOX_TOKEN`, exported by `opentofu/Makefile` |
-| `pihole_web_password` | `TF_VAR_pihole_web_password` in this directory's `secrets.env`; the same value as `dns_pihole_web_password` in `ansible/inventory/group_vars/dns.sops.yaml` |
+| `pihole_web_password` | `dns_pihole_web_password` in `ansible/inventory/group_vars/dns.sops.yaml`, read by `opentofu/Makefile` for this directory only |
 | `pihole_clients` | `TF_VAR_pihole_clients` in `secrets.env`; names and MACs both, because a client list is a household device inventory |
 | `pihole_groups`, `pihole_adlists` | Defaults in `variables.tf`; policy, not inventory, so in git |
 
