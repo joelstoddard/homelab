@@ -255,9 +255,10 @@ ordering) rather than by growing the root tree — see "Adding workloads".
 | `PIHOLE_IP` | same Secret | Pi-hole's LAN address, for `pihole.yaml`. |
 | `PIHOLE_01_IP` | same Secret | pihole-01's own LAN address (not the VIP), for `pihole-pair.yaml`. |
 | `PIHOLE_02_IP` | same Secret | Same, for pihole-02. |
+| `PIHOLE_VIP` | same Secret | The Pi-hole pair's keepalived VIP, equal to `dns_pihole_vip`, for the `host-monitoring` DNS probe. |
 | `ROUTER_IP` | same Secret | The router's LAN address, for `james-webb.yaml`. |
 | `NETBOX_URL` | same Secret | The NetBox Cloud tenant URL, for the Glance bookmark. Encrypted for the same reason the repo only ever refers to it as `$NETBOX_API` elsewhere: the tenant name identifies the account. |
-| `INGEST_LB_IP` | same Secret | The address TrueNAS and the router send graphite and syslog to — reserved in the `cilium-lb` pool, shared by the two receiver Services. `RUMBA_IP`, `TANGO_IP`, `SALSA_IP`, `SAMBA_IP`, `VOYAGER_IP`, `PIHOLE_IP` and `ROUTER_IP` are also the `host-monitoring` probe and poll targets. |
+| `INGEST_LB_IP` | same Secret | The address TrueNAS and the router send graphite and syslog to — reserved in the `cilium-lb` pool, shared by the two receiver Services. `RUMBA_IP`, `TANGO_IP`, `SALSA_IP`, `SAMBA_IP`, `VOYAGER_IP`, `PIHOLE_IP`, `PIHOLE_01_IP`, `PIHOLE_02_IP`, `PIHOLE_VIP` and `ROUTER_IP` are also the `host-monitoring` probe and poll targets. |
 | `HOME_ASSISTANT_LB_IP` | same Secret | Home Assistant's pinned LAN address — reserved in the `cilium-lb` pool, the same pattern as `TRAEFIK_LB_IP` and `INGEST_LB_IP`, so mDNS/SSDP discovery keeps working across a pod reschedule. |
 | `LANCACHE_LB_IP` | same Secret | The LANCache's pinned LAN address — reserved in the `cilium-lb` pool, and the address lancache-dns answers game CDN names with, so it must equal that setting and must not float. |
 | `HOME_ASSISTANT_TOKEN` | same Secret | Long-lived access token for Home Assistant's `/api/prometheus`. Read at runtime by the `alloy` layer, never substituted. Minted under a user's profile → Security, so it dies with that user and with any rebuild that wipes the volume. |
