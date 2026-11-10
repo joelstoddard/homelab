@@ -13,4 +13,4 @@ resources:
   - voyager.yaml
   - pihole.yaml
   - pihole-pair.yaml
-  - james-webb.yaml
+  - hubble.yaml

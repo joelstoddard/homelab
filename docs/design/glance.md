@@ -153,7 +153,7 @@ the same way:
 | Proxmox nodes | `https://<node>.lan-services.svc:8006/` | 200 | self-signed |
 | TrueNAS | `https://voyager.lan-services.svc/ui/` | 200 | `/` redirects to `/ui/` |
 | Pi-hole | `https://pihole.lan-services.svc/admin/` | 200 | `/` is 403; settles on `/admin/login` |
-| Router | `http://james-webb.lan-services.svc/` | 200 | plain HTTP |
+| Router | `http://hubble.lan-services.svc/` | 200 | plain HTTP |
 | Jellyfin | `http://jellyfin.media.svc:8096/health` | 200 | answers `Healthy` — see below |
 
 **Jellyfin's path was taken from its own probes rather than measured** when

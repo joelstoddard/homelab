@@ -24,7 +24,7 @@ throughout: a public repo (no address or domain in plaintext), PodSecurity
 | pihole | Debian LXC on a NUC, Pi-hole v6 | yes | Alloy pushes node metrics and journald; `pihole-exporter` polls the v6 API |
 | pihole-01, pihole-02 | The DNS chain's Pi-hole pair, Debian 13 LXCs (`docs/design/dns-chain.md`) | no — they resolve through Quad9, which cannot answer the ingest hostnames | `pihole-exporter` polls each v6 API; blackbox `dns_lookup` probes each instance and the VIP |
 | voyager | TrueNAS CORE (FreeBSD) | no — the base system stays stock, there are no Apps | Reporting → remote Graphite; System → Advanced → remote syslog |
-| james-webb | ASUS router, stock firmware | no — nothing is installable | blackbox probes from the cluster; its own remote syslog |
+| hubble | ASUS router, stock firmware | no — nothing is installable | blackbox probes from the cluster; its own remote syslog |
 
 ## Design
 
@@ -77,7 +77,7 @@ throughout: a public repo (no address or domain in plaintext), PodSecurity
   and `instance` stays the NUC's name. The `probe` group does the same
   against `blackbox-exporter:9115/probe` and takes `__param_module` from the
   target's `module` label; that label survives the relabel because
-  `james-webb` appears once per module and nothing else tells the three
+  `hubble` appears once per module and nothing else tells the three
   series apart.
 - **The exporters whose `/metrics` is the data are scraped once.**
   `pihole-exporter` and `graphite-exporter` carry no `prometheus.io/scrape`
@@ -104,7 +104,7 @@ throughout: a public repo (no address or domain in plaintext), PodSecurity
   RFC5424 instead would need a second port. Neither sender uses the name the
   rest of the stack does: the router announces its model name plus a serial
   suffix and TrueNAS capitalises its hostname, so the syslog relabel maps the
-  first to `james-webb` and lowercases the rest, and `host` joins with the
+  first to `hubble` and lowercases the rest, and `host` joins with the
   metrics' `instance` values.
 - **Both LB Services keep `externalTrafficPolicy: Cluster`.** Source IPs
   arrive SNAT'd; harmless here because `host` comes from the syslog message
@@ -216,7 +216,7 @@ comes from a `loki.relabel` rule, because `loki.source.journal` stamps its
 own component id over the static `labels` map (the first rollout shipped
 `job="loki.source.journal.journal"` and the dashboard stayed empty);
 `job="syslog"` with `host`, `severity`, `facility`, `app`, where `host` is
-lowercased and the router's self-reported name mapped to `james-webb`, so a
+lowercased and the router's self-reported name mapped to `hubble`, so a
 syslog `host` always equals some metric's `instance`. Host names, never
 addresses, in labels.
 
