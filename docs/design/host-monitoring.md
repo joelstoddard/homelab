@@ -139,8 +139,13 @@ throughout: a public repo (no address or domain in plaintext), PodSecurity
 - **Each Pi-hole instance and the VIP get a whole-chain DNS probe.** Blackbox
   `dns_lookup` asks `${PIHOLE_01_IP}`, `${PIHOLE_02_IP}` and `${PIHOLE_VIP}`
   for a public name, which only succeeds when that Pi-hole and a path through
-  lancache-dns or Bind9 to the DoT upstreams all answer. The exporter shows
-  an instance's own state; the probe shows whether it resolves.
+  lancache-dns or Bind9 to the DoT upstreams all answer.
+- **`probe_success`, not `pihole_status`, says an instance is down.** With
+  pihole-FTL stopped on pihole-02 for two minutes, `pihole_status` for it
+  stayed 1 and the `pihole` job stayed `up`: the exporter keeps reporting the
+  last values it read when one host's API stops answering. Only that
+  instance's `dns_lookup` probe dropped to 0, and it recovered within a
+  minute of FTL starting. An alert on a Pi-hole being down uses the probe.
 - **A liveness probe on `/metrics` restarts a wedged `pihole-exporter`.**
   When one collection outlasts the handler's 10 s deadline, v1.2.0 starts
   a second reader on the client's shared one-slot result channel. The
