@@ -66,13 +66,12 @@ NetBox, with their addresses cross-checked against the group vars. The Pi-hole
 pair's adlists, groups and clients are `opentofu/resources/pihole-config/`,
 applied to pihole-01 by `make dns`, and `kubernetes/nebula-sync/` copies them
 to pihole-02 (see "Lists and their sync"). `kubernetes/lan-services/` names
-each instance in-cluster, with no route.
+each instance in-cluster, with no route. `kubernetes/host-monitoring/` polls
+both instances' APIs and probes each one and the VIP with a DNS lookup
+(`docs/design/host-monitoring.md`).
 
-**What does not.** The pair's monitoring, its admin UI route, and every
-client-path change: NUC `resolv.conf`, then DHCP option 6.
-
-**Order of the remaining work.** Monitoring before any client reaches the
-pair. The cutover comes last, NUCs first.
+**What does not.** The pair's admin UI route, and every client-path change:
+NUC `resolv.conf`, then DHCP option 6. The cutover comes last, NUCs first.
 
 ## The chain
 

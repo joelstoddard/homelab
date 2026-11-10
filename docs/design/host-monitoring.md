@@ -22,6 +22,7 @@ throughout: a public repo (no address or domain in plaintext), PodSecurity
 | --- | --- | --- | --- |
 | rumba, tango, salsa, samba | Debian 13 + Proxmox VE, Ansible group `proxmox` | yes | Alloy pushes node metrics and journald; `pve-exporter` polls the PVE API |
 | pihole | Debian LXC on a NUC, Pi-hole v6 | yes | Alloy pushes node metrics and journald; `pihole-exporter` polls the v6 API |
+| pihole-01, pihole-02 | The DNS chain's Pi-hole pair, Debian 13 LXCs (`docs/design/dns-chain.md`) | no — they resolve through Quad9, which cannot answer the ingest hostnames | `pihole-exporter` polls each v6 API; blackbox `dns_lookup` probes each instance and the VIP |
 | voyager | TrueNAS CORE (FreeBSD) | no — the base system stays stock, there are no Apps | Reporting → remote Graphite; System → Advanced → remote syslog |
 | james-webb | ASUS router, stock firmware | no — nothing is installable | blackbox probes from the cluster; its own remote syslog |
 
@@ -59,8 +60,9 @@ throughout: a public repo (no address or domain in plaintext), PodSecurity
 - **Addresses are only ever substituted variables.** `app/targets/targets.json`
   is a `discovery.file` list whose targets are `${RUMBA_IP}` … `${ROUTER_IP}`
   and whose labels are host names; it is the only generator input that
-  carries any, and `pihole-exporter.yaml` and the two LoadBalancer Services
-  take one each the same way. The other three generator inputs (blackbox
+  carries any, and the two LoadBalancer Services take one each the same way.
+  `pihole-exporter.yaml` takes none: it names its hosts by their
+  `lan-services` Services. The other three generator inputs (blackbox
   config, graphite mapping, gateway values) are substituted as well and must
   hold no stray `$`. The River in `app/config/` sits in a nested kustomization
   with `kustomize.toolkit.fluxcd.io/substitute: disabled` as defence in depth:
@@ -82,7 +84,8 @@ throughout: a public repo (no address or domain in plaintext), PodSecurity
   annotation: their endpoints are the Pi-hole and TrueNAS data, and the
   cluster DaemonSet would ingest the same series a second time labelled with
   the exporter pod's own identity. The gateway scrapes each once, with
-  `instance` set to `pihole` and `voyager`. `pve-exporter` and
+  `instance` set to `pihole` and `voyager`; the Pi-hole series tell their
+  hosts apart by `hostname`. `pve-exporter` and
   `blackbox-exporter` keep the annotations, because there their `/metrics` is
   only process health — the data comes from `/pve` and `/probe`.
 - **One LAN address for both receivers.** `${INGEST_LB_IP}`, reserved from
@@ -123,10 +126,21 @@ throughout: a public repo (no address or domain in plaintext), PodSecurity
   `api-token.yaml`; tofu's `root@pam!terraform` is untouched.
   `PVE_VERIFY_SSL=false` because PVE serves its own certificate.
 - **Pi-hole is polled over its v6 session API.** `pihole-exporter` v1.2.0
-  takes the web password from a SOPS Secret and the LXC's address from
-  `${PIHOLE_IP}`. Its TLS-skip variable is `SKIP_TLS_VERIFICATION` — v1.2.0's
-  name for it, not the `PIHOLE_`-prefixed one the other variables suggest —
-  and the LXC's certificate is self-signed, so it is on.
+  polls `pihole`, `pihole-01` and `pihole-02` through their `lan-services`
+  Services, comma-separated in `PIHOLE_HOSTNAME`; a single password, port and
+  protocol apply to every host (v1.2.0's `Split()`), so all three must share
+  one web password. The Secret holds a copy of `dns_pihole_web_password`,
+  and `make -C kubernetes lint` fails if the two differ. The gateway keeps
+  the label `hostname` only up to its first dot, so each series names its
+  instance and no address reaches a label. Its TLS-skip variable is
+  `SKIP_TLS_VERIFICATION` — v1.2.0's name for it, not the `PIHOLE_`-prefixed
+  one the other variables suggest — and each LXC's certificate is
+  self-signed, so it is on.
+- **Each Pi-hole instance and the VIP get a whole-chain DNS probe.** Blackbox
+  `dns_lookup` asks `${PIHOLE_01_IP}`, `${PIHOLE_02_IP}` and `${PIHOLE_VIP}`
+  for a public name, which only succeeds when that Pi-hole and a path through
+  lancache-dns or Bind9 to the DoT upstreams all answer. The exporter shows
+  an instance's own state; the probe shows whether it resolves.
 - **A liveness probe on `/metrics` restarts a wedged `pihole-exporter`.**
   When one collection outlasts the handler's 10 s deadline, v1.2.0 starts
   a second reader on the client's shared one-slot result channel. The
@@ -194,8 +208,9 @@ throughout: a public repo (no address or domain in plaintext), PodSecurity
 
 Metrics `job`: `node-exporter` (the five agent hosts, `instance` = host
 name), `pve` (`instance` = NUC name; the exporter's own `id` and `node`
-labels carry the guests), `pihole` (`instance` = `pihole`), `truenas`
-(`instance` = `voyager`), `blackbox` (`instance` = probed host, `module` =
+labels carry the guests), `pihole` (`instance` = `pihole`, `hostname` =
+`pihole`, `pihole-01` or `pihole-02`), `truenas` (`instance` = `voyager`),
+`blackbox` (`instance` = probed host, `pihole-vip` for the VIP, `module` =
 prober). Logs: `job="journal"` with `host`, `unit`, `priority` — the `job`
 comes from a `loki.relabel` rule, because `loki.source.journal` stamps its
 own component id over the static `labels` map (the first rollout shipped
