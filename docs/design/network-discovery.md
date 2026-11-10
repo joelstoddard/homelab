@@ -41,6 +41,34 @@ expected and accepted; it converges as devices are modelled.
   Colima on the operator Mac, every address in a test range answered "up" in
   0.07 ms. The same range scanned from the Mac itself showed 13 up, which
   matched NetBox.
+- **Reverse DNS outside the cluster.** The Deployment uses `dnsPolicy:
+  Default`, not `ClusterFirstWithHostNet`. CoreDNS answers PTR queries for
+  the `lan-services` headless Services with cluster names (for example
+  `<ip>.rumba.lan-services.svc.cluster.local`), and the scan sent those
+  as `dns_name`, which made a deviation for every one of those hosts. The
+  node's resolvers hold no LAN PTRs, so the agent sends no `dns_name`.
+- **The job's YAML in the Console:**
+
+  ```yaml
+  config:
+    schedule: "0 3 * * 0"
+    timeout: 15
+    options:
+      emit_scan_metadata: false
+  scope:
+    targets:
+      - <LAN prefix>
+    fast_mode: true
+  ```
+
+  `fast_mode` scans the top 100 ports (`nmap -F`). Without it, the default
+  1,000-port scan of the `/20` timed out at the 5-minute default, because some
+  consumer devices drop probes (one Samsung device took 112 seconds alone).
+  With it, a run takes about 40 seconds. `emit_scan_metadata: false` stops
+  the port list being written to each IP's `comments`, which made every host
+  a deviation on every run. Target the prefix, not NetBox IP addresses: the
+  Console passes an IP-address target with its prefix length
+  (`<ip>/20`), so each one sweeps the whole `/20`.
 - **Credentials are SOPS, as everywhere else.**
   `kubernetes/orb-agent/app/secret.sops.yaml` is Secret `orb-agent-fleet`,
   which holds `FLEET_AUTH_URL`, `FLEET_CLIENT_ID` and `FLEET_CLIENT_SECRET`
@@ -61,46 +89,56 @@ expected and accepted; it converges as devices are modelled.
 
 ## Dependencies outside this repo
 
-These are platform settings on NetBox Cloud, not homelab code. The operator
-makes them by hand in the platform admin UI; the builder never touches the
-instance. As of 2026-11-06 the operator has enabled them, and the Console's
-agent wizard has issued credentials, so Fleet is at least partly working.
+These are platform settings on NetBox Cloud instance nb-aa3d0cb3b6c9, not
+homelab code. The operator sets them by hand in the platform admin UI:
+`NETBOX_ASSURANCE_ENABLED` (which brings Diode with it) and
+`NETBOX_FLEET_ENABLED` on the instance, followed by a start-all, and the
+Assurance preview flags on the org. The Fleet path ingests through its own
+Orb secrets and has worked since the first run.
 
-1. `NETBOX_FLEET_ENABLED` on instance nb-aa3d0cb3b6c9, followed by a
-   start-all. core-lambda syncs the Fleet secrets only on start.
-2. `ASSURANCE_PRIVATE_PREVIEW_ENABLED` and `ASSURANCE_DEVIATIONS_ENABLED` on
-   the org. These are believed, not confirmed, to be what surfaces Assurance
-   and Fleet management in the Console.
-3. Assurance (`NETBOX_ASSURANCE_ENABLED`, which brings Diode with it) is
-   already on. The in-NetBox plugin's own Diode client
-   (`netbox-to-diode-nb-aa3d0cb3b6c9`) is unknown to the regional Hydra, so
-   the plugin returns 401. The Fleet path uses separate Orb ingest and
-   reconciler secrets and may not be affected; verifying that is part of the
-   first run.
+## Triage model
+
+NetBox records what the network should look like, not every device on it.
+
+- **Infrastructure is modelled per IP.** Every server, VM, container and VIP
+  has an `active` IP address. The four Cilium LoadBalancer IPs
+  are modelled as `vip` addresses, because each is pinned
+  in `cluster-secrets` and DNS points at it. Their range
+  is not marked populated, because NetBox refuses IP addresses inside a
+  populated range.
+- **Client devices are not modelled.** Phones, TVs, speakers and similar get
+  addresses from the Main DHCP range (role DHCP, marked
+  populated), and that range is the statement that any address in it is
+  valid. Assurance does not honour populated ranges yet: a new client
+  appears once as "Discovered new IP". Investigate it, then ignore it if it
+  belongs. An ignore carries over to later runs, because Assurance keeps one
+  deviation per IP and updates its count.
+- **The agent's own node** (`voskhod`) reports `dns_name`
+  `voskhod`, because nmap resolves the scanning host's own name from the
+  node. That deviation is ignored.
+- **A healthy run shows no active deviations.** Anything that appears is new
+  or changed and needs triage.
 
 ## Verification
 
-1. The agent shows online in Console → Fleet management → Orb agents.
-2. A Network job with an empty schedule (run once), targeting a single small
-   range already modelled in NetBox, completes in Run history.
-3. Its deviations match expectation for that range. At least one modelled,
-   live host should produce no deviation.
-4. Only then is the weekly job created, against the full LAN prefix.
+Done on 2026-11-10:
 
-The Flux layer merges before these steps run, because step 1 needs the agent
-running in the cluster. If step 1 or 2 fails because of a platform problem
-(the agent is never online, or the run fails on Diode auth), scale the
-Deployment to zero in git, and raise the problem with the platform team.
-Don't look for another route: the only other one, a self-configured agent,
-hits the same Hydra gap.
+1. The agent is online in Console → Fleet management → Orb agents. It runs
+   on a home node with `podIP == hostIP`.
+2. A run of the `/20` finished in 36 seconds, found 44 hosts and sent 44
+   entities to Diode.
+3. After the triage above, the run left 0 active deviations. Every modelled
+   host reported "no changes".
 
 ## Rejected
 
 - **A self-configured agent** (`agent.yaml` with a Diode client and a
-  network-discovery policy). It needs a Diode ingest credential, which the
-  in-NetBox plugin cannot mint while its Hydra client is missing. It also
-  puts the subnet and schedule in the repo, and duplicates what the Console
-  manages.
+  network-discovery policy). It puts the subnet and schedule in the repo, and
+  duplicates what the Console manages.
+- **Modelling client devices in NetBox.** DHCP leases move, so a pinned
+  address creates deviations instead of removing them. A device record does
+  not clear a deviation either, because network discovery reports IP
+  addresses only.
 - **A one-off from the operator Mac.** Colima's NAT makes every address look
   alive (see above).
 - **A custom exporter for a deviation-count dashboard.** Deviations live in
@@ -124,9 +162,11 @@ hits the same Hydra gap.
 - **Tailscale (`100.64.0.0/10`) and skylab's public address.** They are not
   on the LAN.
 
-## Left to the builder
+## Known gaps
 
-- The image tag. Pin a current release, as other workloads pin theirs.
-  `2.17.0` was current on 2026-11-06.
-- Resource requests and limits on a 5 GB worker.
-- Whether to add a node affinity on top of the skylab taint.
+- **The `orb-agent:2.17.0` image has no nmap scripting engine**
+  (`nse_main.lua` is missing). Script-based probes such as mDNS or NetBIOS
+  fail inside it. Identify devices with `dig` against port 5353 from a LAN
+  host instead.
+- **No node affinity backs up the skylab taint.** If skylab enrols without
+  the taint, the agent can be scheduled there.
