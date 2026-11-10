@@ -178,14 +178,14 @@ prometheus.scrape "pihole" {
 }
 
 // ekofr/pihole-exporter labels every series with the hostname it was given
-// to reach the API — the LAN address from cluster-secrets, not a name.
-// Rewrite it to "pihole", the value the scrape's own instance label already uses.
+// to reach the API, a lan-services name. Keep its first label: pihole, pihole-01, pihole-02.
 prometheus.relabel "pihole" {
 	forward_to = [prometheus.remote_write.prometheus.receiver]
 
 	rule {
-		target_label = "hostname"
-		replacement  = "pihole"
+		source_labels = ["hostname"]
+		regex         = "([^.]+)\\..*"
+		target_label  = "hostname"
 	}
 }
 
