@@ -51,8 +51,8 @@ loki.relabel "syslog" {
 	// TrueNAS capitalises; the dashboards join on the metrics' instance names.
 	rule {
 		source_labels = ["host"]
-		regex         = "(?i)james-webb.*"
-		replacement   = "james-webb"
+		regex         = "(?i)(hubble|james-webb).*"
+		replacement   = "hubble"
 		target_label  = "host"
 	}
 
@@ -149,7 +149,7 @@ discovery.relabel "blackbox" {
 		replacement  = "blackbox-exporter:9115"
 	}
 
-	// module stays: james-webb appears once per probe module and it is the only label telling them apart.
+	// module stays: hubble appears once per probe module and it is the only label telling them apart.
 	rule {
 		regex  = "group"
 		action = "labeldrop"

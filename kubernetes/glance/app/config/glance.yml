@@ -225,6 +225,6 @@ pages:
                 icon: di:pi-hole
 
               - title: Router
-                url: https://james-webb.${DOMAIN}
-                check-url: http://james-webb.lan-services.svc/
+                url: https://hubble.${DOMAIN}
+                check-url: http://hubble.lan-services.svc/
                 icon: mdi:router-network

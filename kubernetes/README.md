@@ -112,7 +112,7 @@ kubernetes/
 │       ├── voyager.yaml          # TrueNAS CORE
 │       ├── pihole.yaml           # Pi-hole's admin UI
 │       ├── pihole-pair.yaml      # pihole-01 + pihole-02: headless Service + EndpointSlice, no route
-│       └── james-webb.yaml       # the router; plain HTTP, no serversTransport
+│       └── hubble.yaml       # the router; plain HTTP, no serversTransport
 ├── tailscale/
 │   ├── ks.yaml                   # Flux Kustomization "tailscale", sops decryption
 │   └── app/
@@ -255,7 +255,7 @@ ordering) rather than by growing the root tree — see "Adding workloads".
 | `PIHOLE_IP` | same Secret | Pi-hole's LAN address, for `pihole.yaml`. |
 | `PIHOLE_01_IP` | same Secret | pihole-01's own LAN address (not the VIP), for `pihole-pair.yaml`. |
 | `PIHOLE_02_IP` | same Secret | Same, for pihole-02. |
-| `ROUTER_IP` | same Secret | The router's LAN address, for `james-webb.yaml`. |
+| `ROUTER_IP` | same Secret | The router's LAN address, for `hubble.yaml`. |
 | `NETBOX_URL` | same Secret | The NetBox Cloud tenant URL, for the Glance bookmark. Encrypted for the same reason the repo only ever refers to it as `$NETBOX_API` elsewhere: the tenant name identifies the account. |
 | `INGEST_LB_IP` | same Secret | The address TrueNAS and the router send graphite and syslog to — reserved in the `cilium-lb` pool, shared by the two receiver Services. `RUMBA_IP`, `TANGO_IP`, `SALSA_IP`, `SAMBA_IP`, `VOYAGER_IP`, `PIHOLE_IP` and `ROUTER_IP` are also the `host-monitoring` probe and poll targets. |
 | `HOME_ASSISTANT_LB_IP` | same Secret | Home Assistant's pinned LAN address — reserved in the `cilium-lb` pool, the same pattern as `TRAEFIK_LB_IP` and `INGEST_LB_IP`, so mDNS/SSDP discovery keeps working across a pod reschedule. |
