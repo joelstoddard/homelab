@@ -1114,11 +1114,12 @@ own self-signed one (the router: instead of no TLS at all). Traefik cannot
 route to a bare IP, so each backend is a headless `Service` paired with a
 hand-maintained `EndpointSlice` naming its one real address, plus an
 `IngressRoute`. It `dependsOn` **`traefik-middlewares` as well as
-`traefik`**: every route here names the `default-headers` Middleware, and
-Traefik refuses a router whose middleware is missing. The dashboard route and
-Longhorn's `Ingress` do eat that transient, but neither can avoid it — the
-dashboard route is rendered by the chart inside the `traefik` layer, and
-pointing `longhorn` at ingress would let a broken `traefik` block storage.
+`traefik`**: every route here but the router's names the `default-headers`
+Middleware, and Traefik refuses a router whose middleware is missing. The
+dashboard route and Longhorn's `Ingress` do eat that transient, but neither
+can avoid it — the dashboard route is rendered by the chart inside the
+`traefik` layer, and pointing `longhorn` at ingress would let a broken
+`traefik` block storage.
 This layer is nothing but routing, so waiting one reconcile beats 404s on
 seven hostnames. Also `dependsOn: cluster-secrets`, for `${DOMAIN}` and the
 address variables.
