@@ -231,6 +231,17 @@ LAN today — the hostname adds TLS and a memorable name, not new exposure.
 That is a different call from the Traefik dashboard or Longhorn, neither of
 which has a login of its own.
 
+The router's route uses its own `hubble-headers` Middleware, in
+`lan-services/app/hubble.yaml`, not `default-headers`. The two differ in one
+header: `X-Frame-Options` is `SAMEORIGIN`, the value the router sends
+itself, where `default-headers` sets `DENY`. The router's settings pages
+submit every Apply as a form post into a hidden same-origin iframe. Under
+`DENY` the browser refuses that frame's response, the page spins on
+"Applying Settings…" indefinitely, and the router applies nothing. The same
+request body sent with `fetch()` through the same route does apply, which is
+what isolates the header. Any other backend whose UI saves through a frame
+needs the same treatment.
+
 One caveat worth having on record: Pi-hole and the router are now reachable
 under names that Pi-hole itself resolves. If Traefik is down, those names go
 down with it — DNS still answers, nothing behind it does — so the fallback
