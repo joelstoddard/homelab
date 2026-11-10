@@ -190,10 +190,11 @@ throughout: a public repo (no address or domain in plaintext), PodSecurity
   which only helps a host that asks Pi-hole. The NUCs were installed on
   public resolvers and the LXC inherits its host's `/etc/resolv.conf` at
   container start (PVE's default; the LXC module sets no DNS and ignores
-  drift), so `02-preflights/tasks/resolv.yaml` writes the Pi-hole LXC first
-  and `9.9.9.9` second on every Debian-based host. glibc only moves on after
-  a timeout, never on NXDOMAIN, so the fallback cannot mask Pi-hole; when
-  Pi-hole is down each lookup stalls `timeout:2` and Alloy's WAL buffers.
+  drift), so `02-preflights/tasks/resolv.yaml` writes the Pi-hole pair's VIP
+  (`dns_pihole_vip`, the DNS chain's entry point) first and `9.9.9.9` second
+  on every Debian-based host. glibc only moves on after a timeout, never on
+  NXDOMAIN, so the fallback cannot mask the chain; when the VIP is
+  unreachable each lookup stalls `timeout:2` and Alloy's WAL buffers.
   The write routes sit idle until `make -C ansible apply-alloy` runs. The
   read-only PVE token it depends on comes from the `proxmox` library's
   `monitoring-token` task — user `alloy@pve`, role `PVEAuditor` on `/`,

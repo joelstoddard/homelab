@@ -75,9 +75,10 @@ Current implementation:
 - `01-wake-on-lan` — Sends WOL magic packets at the end of `pxe.yaml` to bring
   up sleeping target hosts.
 - `02-preflights` — OS-agnostic orchestrator. Generic hygiene first:
-  `resolv.yaml` writes `/etc/resolv.conf` with the Pi-hole LXC (looked up by
-  its NetBox name, `dns_primary_host`) ahead of a public fallback, because only
-  Pi-hole answers the LAN wildcard the hosts push metrics and logs to.
+  `resolv.yaml` writes `/etc/resolv.conf` with the Pi-hole pair's VIP
+  (`dns_pihole_vip`, loaded from `dns.sops.yaml`) ahead of a public fallback,
+  because only the DNS chain answers the LAN domain the hosts push metrics
+  and logs to.
   `zram.yaml` (tag `zram`, proxmox-group only) then gives the hypervisors a
   compressed in-RAM swap device via `systemd-zram-generator`, because the
   preseed installs them with no swap at all and the kernel's only answer to

@@ -1,10 +1,10 @@
 # The DNS chain
 
-> **Status: deployed, outside the client path.** All three pairs run, the
+> **Status: deployed, in the client path for the NUCs only.** All three pairs run, the
 > Pi-hole pair behind its VIP, with its lists managed on pihole-01 and synced
-> to pihole-02. Clients resolve through the single Pi-hole LXC
-> (`opentofu/resources/pihole/`), which has its own upstreams. See "Where this
-> stands" below and issue #151.
+> to pihole-02. The four NUCs resolve through the VIP; every other client
+> resolves through the single Pi-hole LXC (`opentofu/resources/pihole/`),
+> which has its own upstreams. See "Where this stands" below and issue #151.
 
 Name resolution for the LAN and the cluster, as a chain of single-purpose
 resolvers rather than one dnsmasq line. Each link answers what it knows and
@@ -68,10 +68,11 @@ applied to pihole-01 by `make dns`, and `kubernetes/nebula-sync/` copies them
 to pihole-02 (see "Lists and their sync"). `kubernetes/lan-services/` names
 each instance in-cluster, with no route. `kubernetes/host-monitoring/` polls
 both instances' APIs and probes each one and the VIP with a DNS lookup
-(`docs/design/host-monitoring.md`).
+(`docs/design/host-monitoring.md`). The NUCs' `/etc/resolv.conf` lists the
+VIP first (`02-preflights/tasks/resolv.yaml`): they are the canary.
 
-**What does not.** The pair's admin UI route, and every client-path change:
-NUC `resolv.conf`, then DHCP option 6. The cutover comes last, NUCs first.
+**What does not.** The pair's admin UI route, and DHCP option 6 and Tailscale
+DNS, which point at the old Pi-hole until the VIP has carried the NUCs.
 
 ## The chain
 
