@@ -31,8 +31,8 @@ that runs on Ashburn during that time must be safe there as well.
 
 | Layer | Namespace | PodSecurity | Workload | Port |
 |---|---|---|---|---|
-| `kubernetes/joelst/` | `joelst` | `restricted` | nginx, 1 replica | Service 8080 |
-| `kubernetes/metachat/` | `metachat` | `restricted` | server, 1 replica, `Recreate` | Service 8080 |
+| `kubernetes/clusters/skylab/joelst/` | `joelst` | `restricted` | nginx, 1 replica | Service 8080 |
+| `kubernetes/clusters/skylab/metachat/` | `metachat` | `restricted` | server, 1 replica, `Recreate` | Service 8080 |
 | (same layer) | `metachat-turn` | `privileged` | coturn on `hostNetwork`, 1 replica, `Recreate` | none (host ports) |
 
 coturn shares the metachat layer because it exists only for metachat and
