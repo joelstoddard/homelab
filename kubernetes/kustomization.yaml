@@ -27,3 +27,4 @@ resources:
   - home-assistant/ks.yaml
   - orb-agent/ks.yaml
   - lancache/ks.yaml
+  - nebula-sync/ks.yaml

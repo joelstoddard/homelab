@@ -41,6 +41,9 @@ install that gets Flux running in the first place.
 - [-] Media egress — cluster-scoped Cilium policies gating the
       `egress.homelab/via: media-egress` label onto the `media-egress` Deployment's SOCKS5 proxy
       (`media-egress/`, `dependsOn: cilium, media-downloads`) — see "Media egress"
+- [x] Pi-hole sync — an hourly CronJob copying the Pi-hole pair's lists,
+      groups and clients from pihole-01 to pihole-02 (`nebula-sync/`) — see
+      "nebula-sync"
 
 ## Layout
 
@@ -108,6 +111,7 @@ kubernetes/
 │       ├── samba.yaml            # ditto
 │       ├── voyager.yaml          # TrueNAS CORE
 │       ├── pihole.yaml           # Pi-hole's admin UI
+│       ├── pihole-pair.yaml      # pihole-01 + pihole-02: headless Service + EndpointSlice, no route
 │       └── james-webb.yaml       # the router; plain HTTP, no serversTransport
 ├── tailscale/
 │   ├── ks.yaml                   # Flux Kustomization "tailscale", sops decryption
@@ -200,16 +204,24 @@ kubernetes/
 │       ├── namespace.yaml        # orb-agent, PodSecurity "privileged" — hostNetwork for the LAN scan
 │       ├── secret.sops.yaml      # orb-agent-fleet: FLEET_AUTH_URL, FLEET_CLIENT_ID, FLEET_CLIENT_SECRET
 │       └── deployment.yaml       # one replica, Recreate, hostNetwork; Fleet-managed, args [run]
-└── lancache/
-    ├── ks.yaml                   # Flux Kustomization, dependsOn cilium + cilium-lb + cluster-secrets, postBuild, NO sops
+├── lancache/
+│   ├── ks.yaml                   # Flux Kustomization, dependsOn cilium + cilium-lb + cluster-secrets, postBuild, NO sops
+│   └── app/
+│       ├── kustomization.yaml    # namespace lancache
+│       ├── namespace.yaml        # lancache, PodSecurity "baseline" — the image starts as root
+│       ├── pv-cache.yaml         # NFS /mnt/Voyager/lancache, 500Gi, Retain, pre-bound, media-library's mount options
+│       ├── pvc-cache.yaml        # lancache-cache, bound by volumeName
+│       ├── deployment.yaml       # one replica, Recreate, amd64 only, digest-pinned; cache and logs on the NFS volume
+│       ├── service.yaml          # LoadBalancer on ${LANCACHE_LB_IP}, ports 80 + 443, externalTrafficPolicy Cluster
+│       └── cnp-egress.yaml       # egress default-deny: DNS + public addresses on 80/443 — the image is an open proxy
+└── nebula-sync/
+    ├── ks.yaml                   # Flux Kustomization, dependsOn cilium + lan-services, sops decryption, NO postBuild
     └── app/
-        ├── kustomization.yaml    # namespace lancache
-        ├── namespace.yaml        # lancache, PodSecurity "baseline" — the image starts as root
-        ├── pv-cache.yaml         # NFS /mnt/Voyager/lancache, 500Gi, Retain, pre-bound, media-library's mount options
-        ├── pvc-cache.yaml        # lancache-cache, bound by volumeName
-        ├── deployment.yaml       # one replica, Recreate, amd64 only, digest-pinned; cache and logs on the NFS volume
-        ├── service.yaml          # LoadBalancer on ${LANCACHE_LB_IP}, ports 80 + 443, externalTrafficPolicy Cluster
-        └── cnp-egress.yaml       # egress default-deny: DNS + public addresses on 80/443 — the image is an open proxy
+        ├── kustomization.yaml    # namespace nebula-sync
+        ├── namespace.yaml        # nebula-sync, PodSecurity "restricted"
+        ├── secret.sops.yaml      # nebula-sync: PIHOLE_PASSWORD, a copy of dns_pihole_web_password that `make lint` holds equal
+        ├── cronjob.yaml          # hourly, digest-pinned; gravity tables only, pihole-01 -> pihole-02
+        └── cnp-egress.yaml       # egress default-deny: cluster DNS + the two instances on 443
 ```
 
 `flux-system/gotk-sync.yaml` declares a `GitRepository` for this repo
@@ -241,9 +253,11 @@ ordering) rather than by growing the root tree — see "Adding workloads".
 | `SAMBA_IP` | same Secret | Same, for `samba.yaml`. |
 | `VOYAGER_IP` | same Secret | TrueNAS's LAN address, for `voyager.yaml` and the NFS PersistentVolumes in `media` and `lancache`. |
 | `PIHOLE_IP` | same Secret | Pi-hole's LAN address, for `pihole.yaml`. |
+| `PIHOLE_01_IP` | same Secret | pihole-01's own LAN address (not the VIP), for `pihole-pair.yaml`. |
+| `PIHOLE_02_IP` | same Secret | Same, for pihole-02. |
 | `ROUTER_IP` | same Secret | The router's LAN address, for `james-webb.yaml`. |
 | `NETBOX_URL` | same Secret | The NetBox Cloud tenant URL, for the Glance bookmark. Encrypted for the same reason the repo only ever refers to it as `$NETBOX_API` elsewhere: the tenant name identifies the account. |
-| `INGEST_LB_IP` | same Secret | The address TrueNAS and the router send graphite and syslog to — reserved in the `cilium-lb` pool, shared by the two receiver Services. The seven addresses above are also the `host-monitoring` probe and poll targets. |
+| `INGEST_LB_IP` | same Secret | The address TrueNAS and the router send graphite and syslog to — reserved in the `cilium-lb` pool, shared by the two receiver Services. `RUMBA_IP`, `TANGO_IP`, `SALSA_IP`, `SAMBA_IP`, `VOYAGER_IP`, `PIHOLE_IP` and `ROUTER_IP` are also the `host-monitoring` probe and poll targets. |
 | `HOME_ASSISTANT_LB_IP` | same Secret | Home Assistant's pinned LAN address — reserved in the `cilium-lb` pool, the same pattern as `TRAEFIK_LB_IP` and `INGEST_LB_IP`, so mDNS/SSDP discovery keeps working across a pod reschedule. |
 | `LANCACHE_LB_IP` | same Secret | The LANCache's pinned LAN address — reserved in the `cilium-lb` pool, and the address lancache-dns answers game CDN names with, so it must equal that setting and must not float. |
 | `HOME_ASSISTANT_TOKEN` | same Secret | Long-lived access token for Home Assistant's `/api/prometheus`. Read at runtime by the `alloy` layer, never substituted. Minted under a user's profile → Security, so it dies with that user and with any rebuild that wipes the volume. |
@@ -899,6 +913,37 @@ kubectl --context homelab -n lancache get pods,pvc,svc
 kubectl --context homelab -n lancache get svc lancache   # EXTERNAL-IP = the reserved address
 ```
 
+## nebula-sync
+
+`nebula-sync/` keeps the DNS chain's Pi-hole pair filtering alike: an hourly
+`CronJob` that copies the gravity tables (groups, adlists, domain lists,
+clients and their group links) from pihole-01 to pihole-02 through the
+Pi-hole API, then runs gravity on pihole-02. pihole-01 is written by
+`opentofu/resources/pihole-config/` and by hand in its UI. Rationale:
+[`docs/design/dns-chain.md`](../docs/design/dns-chain.md), "Lists and their
+sync".
+
+- **One way, gravity only.** `FULL_SYNC=false` and no `SYNC_CONFIG_*`, so the
+  `dns` Ansible role stays the only writer of each instance's config.
+- **Instance names, never the VIP.** `PRIMARY` and `REPLICAS` are the
+  `lan-services` names `pihole-01` and `pihole-02`; the VIP can move to
+  pihole-02.
+- **Not substituted.** `PRIMARY` and `REPLICAS` append `$(PIHOLE_PASSWORD)`,
+  which the kubelet expands from the Secret, so the layer has no `postBuild`.
+  nebula-sync splits `REPLICAS` on commas and each entry on its first `|`,
+  so the password must contain neither.
+- **Egress is cluster DNS and the two instances on 443 only**, through
+  `toServices` on the selectorless `lan-services` Services.
+- **An empty pihole-01 empties pihole-02.** Before rebuilding pihole-01,
+  commit `spec.suspend: true` on the CronJob (Flux reverts a live suspend);
+  the runbook is in `ansible/roles/dns/README.md`, "Rebuilding pihole-01".
+
+```bash
+flux --context homelab get ks nebula-sync
+kubectl --context homelab -n nebula-sync create job --from=cronjob/nebula-sync nebula-sync-manual
+kubectl --context homelab -n nebula-sync logs job/nebula-sync-manual
+```
+
 ## Cluster secrets
 
 `cluster-secrets/` is one SOPS-encrypted `Secret` in `flux-system` holding
@@ -919,7 +964,7 @@ manifests *after* SOPS decryption. The Secret lives in `flux-system` because
 `substituteFrom` resolves Secrets in the **consuming** Kustomization's
 namespace, not in the namespace being written to; `wait: true` on the layer
 is what makes a consumer's `dependsOn` mean "the keys are there".
-Consumers today: `cert-manager-issuers`, `traefik`, `longhorn`, `lan-services`,
+Consumers: `cert-manager-issuers`, `traefik`, `longhorn`, `lan-services`,
 `monitoring`, `host-monitoring`, `searxng`, `media`, `glance`,
 `home-assistant`, `lancache`.
 
@@ -1075,7 +1120,15 @@ dashboard route is rendered by the chart inside the `traefik` layer, and
 pointing `longhorn` at ingress would let a broken `traefik` block storage.
 This layer is nothing but routing, so waiting one reconcile beats 404s on
 seven hostnames. Also `dependsOn: cluster-secrets`, for `${DOMAIN}` and the
-seven address variables.
+address variables.
+
+`pihole-pair.yaml` adds the Pi-hole pair's two instances, `pihole-01` and
+`pihole-02`, as a headless `Service` and `EndpointSlice` each with **no
+route**: they are in-cluster names, for `nebula-sync`, that reach one
+instance each rather than whichever holds the VIP. Their addresses are
+`${PIHOLE_01_IP}` and `${PIHOLE_02_IP}`, so merge only once both are in
+`cluster-secrets`: an undefined key substitutes empty, the `EndpointSlice`
+fails validation, and the whole layer stops applying.
 
 Six of the seven backends serve a self-signed certificate: their routes use
 the shared `ServersTransport` `lan-insecure` (renamed from its earlier

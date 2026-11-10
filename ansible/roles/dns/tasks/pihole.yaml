@@ -97,6 +97,8 @@
   until: _dns_pihole_auth.status in [200, 401]
   retries: 10
   delay: 3
+  # Read-only, so it runs in check mode too: the tasks after it read its result.
+  check_mode: false
   no_log: true
 
 - name: Set the web password through the API.
@@ -154,6 +156,8 @@
     status_code: [204]
   loop: "{{ [_dns_pihole_auth, _dns_pihole_auth_after] | selectattr('json', 'defined') | list }}"
   when: item.json.session.sid | default(none) is string
+  # Ends the session the login opened, in check mode as well.
+  check_mode: false
   no_log: true
 
 - name: Set the FTL config keys.
@@ -225,6 +229,8 @@
   until: _dns_pihole_public_check.stdout | trim | length > 0
   retries: 10
   delay: 3
+  # Check mode skips the dig, so the retry would wait for an answer that never comes.
+  when: not ansible_check_mode
 
 - name: Confirm the wildcard answers through the chain.
   ansible.builtin.command:

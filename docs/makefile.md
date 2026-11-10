@@ -15,22 +15,29 @@ is the canonical entry point: from an empty disk (well, a Linux operator
 workstation) to a running fleet. Internally it expands to:
 
 ```
-make homelab → check-env install ansible opentofu talos kubernetes
+make homelab → check-env install ansible opentofu dns talos kubernetes
 ```
 
-(See `Makefile:79`.) The dependency list is also the execution order —
+(See `Makefile:82`.) The dependency list is also the execution order —
 make runs prerequisites left-to-right, and the file declares
 `.NOTPARALLEL:` so the layers never overlap.
 
 So `make homelab` runs
 `check-env` → `install.sh` → `make -C ansible` (PXE server, NUCs Debian →
 Proxmox) → `make -C opentofu` (LXCs, the 12 k8s VMs booted from the Talos
-ISO) → `make -C ansible apply-pi-cutover` + `apply-talos` (Pis to Talos,
+ISO) → `make -C ansible apply-dns` + `make -C opentofu apply
+LIMIT=pihole-config` (the DNS chain's containers configured, then the Pi-hole
+pair's lists, groups and clients written to pihole-01) →
+`make -C ansible apply-pi-cutover` + `apply-talos` (Pis to Talos,
 every node configured, etcd bootstrapped, kubeconfig merged) →
 `make -C kubernetes` (Flux CD installed and pointed at this repo). The
 `talos` stage comes after `opentofu` because the bootstrap's health check
 waits for all 20 nodes; `kubernetes` comes last because it needs the merged
-kubeconfig.
+kubeconfig. `dns` follows `opentofu` because it configures the containers
+`opentofu` creates, and `pihole-config` writes to a Pi-hole API that only
+exists once `apply-dns` has installed it — which is why `opentofu/Makefile`
+leaves `resources/pihole-config/` out of its default loop and runs it only
+with `LIMIT=pihole-config`.
 
 Every stage is a no-op on a healthy fleet: the WOL role leaves hosts that
 already answer SSH alone, `pi-cutover` skips Pis that no longer have SSH
@@ -203,7 +210,7 @@ The exports at `Makefile:37` push these to every subdir invocation.
 
 ## `check-env`: fail fast
 
-`make homelab` chains `check-env` first (`Makefile:79`). It does three
+`make homelab` chains `check-env` first (`Makefile:82`). It does three
 existence checks:
 
 - `NETBOX_API` non-empty (with a hint pointing at `make bootstrap-secrets`).

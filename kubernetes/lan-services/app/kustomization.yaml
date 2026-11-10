@@ -12,4 +12,5 @@ resources:
   - samba.yaml
   - voyager.yaml
   - pihole.yaml
+  - pihole-pair.yaml
   - james-webb.yaml

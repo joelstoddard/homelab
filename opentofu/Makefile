@@ -9,6 +9,8 @@ LIMIT ?=
 export NETBOX_URL ?= $(NETBOX_API)
 
 ANSIBLE_TOKEN_FILE  := ../ansible/inventory/group_vars/proxmox.sops.yaml
+# The Pi-hole web password's only source; pihole-config reads it at run time.
+DNS_VARS_FILE       := ../ansible/inventory/group_vars/dns.sops.yaml
 OPENTOFU_SECRETS    := secrets.sops.yaml
 # Single source of truth for the Talos version and VM schematic (shared with
 # ansible + install.sh). Sourced in run_tofu and exported as
@@ -17,10 +19,14 @@ VERSIONS_ENV        := $(abspath ../versions.env)
 
 # Resource dirs to iterate. resources/ may not exist yet on scaffold
 # commit; the wildcard returns empty and targets become no-ops.
+#
+# pihole-config runs only by name: it needs Pi-hole installed by
+# `make -C ../ansible apply-dns`, so the root Makefile's `dns` target calls it
+# after that playbook.
 ifneq ($(LIMIT),)
 RESOURCE_DIRS := resources/$(LIMIT)
 else
-RESOURCE_DIRS := $(wildcard resources/*)
+RESOURCE_DIRS := $(filter-out resources/pihole-config,$(wildcard resources/*))
 endif
 
 default: apply
@@ -38,6 +44,7 @@ help:
 	@echo "  clean   - Remove .terraform/ in each dir."
 	@echo
 	@echo "Filter to one resource dir with LIMIT=<dirname>."
+	@echo "resources/pihole-config runs only with LIMIT=pihole-config, after 'make -C ../ansible apply-dns'."
 
 check-secrets:
 	@command -v tofu >/dev/null 2>&1 || { echo "tofu not installed; run install.sh." >&2; exit 1; }
@@ -57,6 +64,7 @@ check-secrets:
 		echo "NETBOX_API (or NETBOX_URL) and NETBOX_TOKEN must be exported (e.g. 'set -a; . ~/.config/netbox/env; set +a')." >&2; \
 		exit 1; }
 	@sops -d --extract '["proxmox_api_token"]' $(ANSIBLE_TOKEN_FILE) >/dev/null
+	@sops -d --extract '["dns_pihole_web_password"]' $(DNS_VARS_FILE) >/dev/null
 	@sops -d --extract '["state_encryption_passphrase"]' $(OPENTOFU_SECRETS) >/dev/null
 	@sops -d --extract '["proxmox_endpoint"]' $(OPENTOFU_SECRETS) >/dev/null
 	@sops -d --extract '["lan_gateway"]'      $(OPENTOFU_SECRETS) >/dev/null
@@ -112,6 +120,10 @@ define run_tofu
 		echo ">> tofu $(1) in $$d"; \
 		rc=0; \
 		( \
+			if [ "$$d" = resources/pihole-config ]; then \
+				TF_VAR_pihole_web_password="$$(sops -d --extract '["dns_pihole_web_password"]' $(DNS_VARS_FILE))"; \
+				export TF_VAR_pihole_web_password; \
+			fi; \
 			if [ -f $$d/secrets.env ]; then \
 				set -a; eval "$$(sops -d $$d/secrets.env)"; set +a; \
 			fi; \

@@ -66,7 +66,8 @@
   retries: 12
   delay: 5
   until: dns_lancache_lb_ip in _dns_lancache_check.stdout
-  when: dns_lancache_enabled
+  # Check mode skips the dig, so the retry would wait for an answer that never comes.
+  when: dns_lancache_enabled and not ansible_check_mode
 
 - name: Confirm lancache-dns refuses a host outside the chain.
   # Run from the operator, which is not in the dns_chain ACL. Without this the

@@ -33,7 +33,7 @@ make clean                        # Stop containers, remove cache/retry files
 
 All make targets accept: `LIMIT=<host>`, `TAGS=<tag>`, `VERBOSITY=-vvv`, `EXTRA_VARS='key=val'`.
 
-The root `Makefile` delegates to subdirectory Makefiles; `ansible/`, `opentofu/` and `kubernetes/` exist. The tailnet policy is not in the chain (applied by CI from a private repo — see the Kubernetes section).
+The root `Makefile` delegates to subdirectory Makefiles; `ansible/`, `opentofu/` and `kubernetes/` exist. `make homelab` runs `install ansible opentofu dns talos kubernetes`; `dns` is `make -C ansible apply-dns` then `make -C opentofu apply LIMIT=pihole-config`. The tailnet policy is not in the chain (applied by CI from a private repo — see the Kubernetes section).
 
 ## Architecture
 
@@ -186,6 +186,15 @@ for Bind9 / lancache-dns / Pi-hole) wrapping `modules/lxc`, unprivileged,
 with Quad9 as its own resolver; each `dns.tf` stages the Debian 13 template
 once for every container on its node. See
 `docs/design/dns-chain.md`, "Containers".
+`resources/pihole-config/` holds the Pi-hole pair's adlists, groups and
+clients (`dklesev/pihole` provider) and writes them to **pihole-01 only**,
+by its NetBox address and never the VIP; nebula-sync copies them to
+pihole-02. It creates nothing on Proxmox, adopts the installer's seeded
+StevenBlack list with an `import` block, and is left out of the Makefile's
+default loop (it needs Pi-hole installed by `apply-dns` first): it runs only
+with `LIMIT=pihole-config`, which the root `make dns` does. Its
+`secrets.env` holds the web password and the client set. See
+`docs/design/dns-chain.md`, "Lists and their sync".
 
 ### Kubernetes (kubernetes/)
 
@@ -236,7 +245,7 @@ full list is `flux-system`, `cilium`, `cilium-lb`, `cluster-secrets`, `cert-mana
 `cert-manager-issuers`, `traefik`, `traefik-middlewares`, `lan-services`,
 `tailscale`, `longhorn`, `longhorn-jobs`, `monitoring`, `alloy`,
 `host-monitoring`, `searxng`, `media`, `media-downloads`, `media-egress`, `glance`,
-`home-assistant`, `lancache`).
+`home-assistant`, `lancache`, `nebula-sync`).
 `cluster-secrets/` is one SOPS Secret in `flux-system` holding `DOMAIN`,
 `TRAEFIK_LB_IP` and `ACME_EMAIL`; consumers (`cert-manager-issuers`,
 `traefik`, `longhorn`) add `dependsOn: cluster-secrets` +
@@ -282,7 +291,9 @@ instead of its own self-signed one, or none at all. Traefik cannot route to a
 bare IP, so every backend is a headless `Service` (no selector — there is no
 pod to select) paired with a hand-maintained `EndpointSlice` naming its one
 address: a re-addressed host needs a `cluster-secrets` edit, not just a DHCP
-change.
+change. `pihole-pair.yaml` adds the Pi-hole pair's instances, `pihole-01` and
+`pihole-02` (`${PIHOLE_01_IP}`, `${PIHOLE_02_IP}`), the same way but with no
+route: they are in-cluster names for nebula-sync.
 The wildcard `Certificate` is on `letsencrypt-production`. LAN DNS is not in
 this tree: the `address=` wildcard plus a
 `server=/<name>/#` passthrough per publicly-hosted name is
@@ -461,6 +472,21 @@ to public addresses on 80/443 plus DNS. A missing
 `LANCACHE_LB_IP` substitutes empty, Cilium hands out a dynamic address, and
 every game download fails while the layer reports Ready. See
 `docs/design/lancache.md`.
+`nebula-sync/` (`dependsOn: cilium, lan-services`, `decryption`, NOT
+substituted) is an hourly `CronJob` copying the Pi-hole pair's gravity tables
+(groups, adlists, domain lists, clients) one way from pihole-01 to pihole-02
+through the `lan-services` names, then running gravity on pihole-02:
+`FULL_SYNC=false` and no `SYNC_CONFIG_*`, because the `dns` role owns each
+instance's config. The image is digest-pinned and multi-arch; the namespace
+is PSA `restricted`; a `CiliumNetworkPolicy` limits egress to cluster DNS
+and the two Services on 443 via `toServices`. The password is
+`PIHOLE_PASSWORD` in `app/secret.sops.yaml`, a copy of
+`dns_pihole_web_password` (the only source; Flux decrypts only its own
+layer) that `make -C kubernetes lint` fails on if it differs, appended to `PRIMARY` and
+`REPLICAS` as `$(PIHOLE_PASSWORD)` — kubelet expansion, which is why the
+layer has no `postBuild`. An empty, rebuilt pihole-01 would wipe pihole-02:
+commit `spec.suspend: true` first (`ansible/roles/dns/README.md`,
+"Rebuilding pihole-01").
 Never `kubectl delete kustomization flux-system` — prune would remove Flux
 itself; use `flux uninstall`. Pruning `cilium/` removes the CNI; pruning
 `traefik/` takes every route in the cluster. See `kubernetes/README.md`.

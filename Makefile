@@ -1,5 +1,5 @@
 .POSIX:
-.PHONY: default help homelab install bootstrap-secrets ansible opentofu talos kubernetes kubeconfig \
+.PHONY: default help homelab install bootstrap-secrets ansible opentofu dns talos kubernetes kubeconfig \
         build dev lint check clean check-env
 .NOTPARALLEL:
 
@@ -42,11 +42,12 @@ help:
 	@echo "Homelab orchestration."
 	@echo
 	@echo "Top-level targets:"
-	@echo "  homelab           - One command: install -> ansible -> opentofu -> talos -> kubernetes."
+	@echo "  homelab           - One command: install -> ansible -> opentofu -> dns -> talos -> kubernetes."
 	@echo "  install           - Host prerequisites via install.sh (idempotent, needs sudo)."
 	@echo "  bootstrap-secrets - Interactively write the operator's age key + NetBox env."
 	@echo "  ansible           - PXE-install hosts, then convert Debian -> Proxmox."
 	@echo "  opentofu          - Provision Proxmox guests (LXCs, k8s VMs on the Talos ISO) via OpenTofu."
+	@echo "  dns               - Configure the DNS chain, then the Pi-hole pair's adlists, groups and clients."
 	@echo "  talos             - Cut the Pis over to Talos, configure every node, bootstrap etcd, merge kubeconfig."
 	@echo "  kubernetes        - Bootstrap Flux CD (components, sops-age key, self-managing sync)."
 	@echo
@@ -73,10 +74,12 @@ bootstrap-secrets:
 #
 #   ansible   PXE server up; NUCs netbooted Debian → Proxmox (SSH-managed hosts).
 #   opentofu  Proxmox guests: LXCs, the 12 k8s VMs booted from the Talos ISO.
+#   dns       The DNS chain's containers configured, then the Pi-hole pair's
+#             adlists, groups and clients written to pihole-01.
 #   talos     Pis cut over to Talos; every node configured; etcd bootstrapped;
 #             kubeconfig merged. Needs both stages above: the health check at
 #             the end waits for all 20 nodes.
-homelab: check-env install ansible opentofu talos kubernetes
+homelab: check-env install ansible opentofu dns talos kubernetes
 
 # install.sh is idempotent and cheap to re-run; we invoke it every
 # time rather than gating on a sentinel, which keeps the chain
@@ -97,6 +100,12 @@ opentofu:
 	else \
 		echo ">> opentofu/ Makefile not present; skipping."; \
 	fi
+
+# pihole-config writes to the Pi-hole API, so it runs only once apply-dns has
+# installed Pi-hole; opentofu/Makefile leaves it out of its default loop.
+dns:
+	$(MAKE) -C ansible apply-dns
+	$(MAKE) -C opentofu apply LIMIT=pihole-config
 
 # The Talos cluster. pi-cutover skips Pis that are already on Talos (no
 # SSH); apply-talos tolerates installed nodes and an already-bootstrapped
@@ -153,6 +162,8 @@ check: check-env
 	$(MAKE) -C ansible check-pxe
 	$(MAKE) -C ansible check
 	$(MAKE) -C opentofu check
+	$(MAKE) -C ansible check-dns
+	$(MAKE) -C opentofu check LIMIT=pihole-config
 	$(MAKE) -C ansible check-pi-cutover
 	$(MAKE) -C ansible check-talos
 	$(MAKE) -C kubernetes check
