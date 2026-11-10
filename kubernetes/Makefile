@@ -20,9 +20,10 @@ ALLOY_VERSION  := $(shell . $(VERSIONS_ENV) && echo $$ALLOY_CHART_VERSION)
 COMPONENTS     := flux-system/gotk-components.yaml
 CILIUM_SOURCE  := cilium/app/ocirepository.yaml
 ALLOY_CONFIG   := alloy/app/config
-# The Pi-hole web password's source, and the copy Flux needs in its own layer.
+# The Pi-hole web password's source, and the copies Flux needs, one per layer.
 DNS_VARS_FILE      := ../ansible/inventory/group_vars/dns.sops.yaml
-NEBULA_SYNC_SECRET := nebula-sync/app/secret.sops.yaml
+PIHOLE_PASSWORD_COPIES := nebula-sync/app/secret.sops.yaml \
+                          host-monitoring/app/secret-pihole-exporter.sops.yaml
 ALLOY_RELEASES := alloy/app/alloy/helmrelease.yaml \
                   alloy/app/alloy-cluster/helmrelease.yaml \
                   alloy/app/alloy-events/helmrelease.yaml \
@@ -110,12 +111,15 @@ lint:
 		echo "use stringData:, which takes raw values; a raw value under data: fails the Flux apply." >&2; \
 		exit 1; }
 	@echo ">> every *.sops.yaml Secret uses stringData"
-	@a=$$(sops -d --extract '["stringData"]["PIHOLE_PASSWORD"]' $(NEBULA_SYNC_SECRET)) || exit 1; \
-	b=$$(sops -d --extract '["dns_pihole_web_password"]' $(DNS_VARS_FILE)) || exit 1; \
-	[ -n "$$b" ] && [ "$$a" = "$$b" ] || { \
-		echo "$(NEBULA_SYNC_SECRET) PIHOLE_PASSWORD differs from dns_pihole_web_password; Flux can only decrypt this layer's own copy, so change both." >&2; \
-		exit 1; }
-	@echo ">> nebula-sync's PIHOLE_PASSWORD matches dns_pihole_web_password"
+	@b=$$(sops -d --extract '["dns_pihole_web_password"]' $(DNS_VARS_FILE)) || exit 1; \
+	[ -n "$$b" ] || { echo "dns_pihole_web_password is empty in $(DNS_VARS_FILE)." >&2; exit 1; }; \
+	for f in $(PIHOLE_PASSWORD_COPIES); do \
+		a=$$(sops -d --extract '["stringData"]["PIHOLE_PASSWORD"]' $$f) || exit 1; \
+		[ "$$a" = "$$b" ] || { \
+			echo "$$f PIHOLE_PASSWORD differs from dns_pihole_web_password; Flux can only decrypt each layer's own copy, so change them all." >&2; \
+			exit 1; }; \
+	done
+	@echo ">> every PIHOLE_PASSWORD copy matches dns_pihole_web_password"
 
 # Only flux-system/ is dry-run: SOPS-encrypted Secrets elsewhere fail a
 # server dry run (top-level `sops:` field, non-base64 values). Before the

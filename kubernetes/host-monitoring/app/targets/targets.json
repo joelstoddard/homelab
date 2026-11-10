@@ -12,5 +12,8 @@
   {"targets": ["${PIHOLE_IP}:443"],  "labels": {"group": "probe", "module": "tcp_connect", "instance": "pihole"}},
   {"targets": ["http://${ROUTER_IP}/"],   "labels": {"group": "probe", "module": "http_2xx", "instance": "hubble"}},
   {"targets": ["https://${VOYAGER_IP}/"], "labels": {"group": "probe", "module": "http_2xx", "instance": "voyager"}},
-  {"targets": ["${ROUTER_IP}"],      "labels": {"group": "probe", "module": "dns_lookup", "instance": "hubble"}}
+  {"targets": ["${ROUTER_IP}"],      "labels": {"group": "probe", "module": "dns_lookup", "instance": "hubble"}},
+  {"targets": ["${PIHOLE_VIP}"],     "labels": {"group": "probe", "module": "dns_lookup", "instance": "pihole-vip"}},
+  {"targets": ["${PIHOLE_01_IP}"],   "labels": {"group": "probe", "module": "dns_lookup", "instance": "pihole-01"}},
+  {"targets": ["${PIHOLE_02_IP}"],   "labels": {"group": "probe", "module": "dns_lookup", "instance": "pihole-02"}}
 ]

@@ -945,7 +945,7 @@
       "steppedLine": false,
       "targets": [
         {
-          "expr": "pihole_querytypes",
+          "expr": "pihole_querytypes{hostname=~'$node'}",
           "interval": "",
           "legendFormat": "{{ type }}",
           "refId": "A"
@@ -1047,7 +1047,7 @@
       "steppedLine": false,
       "targets": [
         {
-          "expr": "pihole_ads_percentage_today",
+          "expr": "pihole_ads_percentage_today{hostname=~'$node'}",
           "interval": "",
           "legendFormat": "{{ job }}",
           "refId": "A"
@@ -1145,7 +1145,7 @@
       ],
       "targets": [
         {
-          "expr": "topk(15, pihole_top_queries)",
+          "expr": "topk(15, pihole_top_queries{hostname=~'$node'})",
           "instant": true,
           "interval": "30s",
           "intervalFactor": 1,
@@ -1214,7 +1214,7 @@
       ],
       "targets": [
         {
-          "expr": "topk(15, pihole_top_ads)",
+          "expr": "topk(15, pihole_top_ads{hostname=~'$node'})",
           "instant": true,
           "interval": "",
           "legendFormat": "{{ domain }}",
