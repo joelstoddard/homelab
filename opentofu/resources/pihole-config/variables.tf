@@ -138,7 +138,6 @@ variable "pihole_adlists" {
     "https://v.firebog.net/hosts/RPiList-Phishing.txt",
     "https://raw.githubusercontent.com/Spam404/lists/master/main-blacklist.txt",
     "https://raw.githubusercontent.com/AssoEchap/stalkerware-indicators/master/generated/hosts",
-    "https://urlhaus.abuse.ch/downloads/hostfile/",
     "https://malware-filter.gitlab.io/malware-filter/phishing-filter-hosts.txt",
     "https://v.firebog.net/hosts/Prigent-Malware.txt",
   ]
