@@ -16,11 +16,11 @@ skylab. Run them once, in order. The reasons are in
 3. Measure each container's steady-state memory on Ashburn
    (`docker stats --no-stream`). These are the layers' memory requests.
 4. Create the classic token (`read:packages`, 1-year expiry) and encrypt it
-   into `kubernetes/joelst/app/pull-secret.sops.yaml` and
-   `kubernetes/metachat/app/pull-secret.sops.yaml`.
+   into `kubernetes/clusters/skylab/joelst/app/pull-secret.sops.yaml` and
+   `kubernetes/clusters/skylab/metachat/app/pull-secret.sops.yaml`.
 5. homelab: merge `resources/cloudflare/`. The import plan must show no change
    to the three live records. Apply it, then pipe the tunnel token into
-   `kubernetes/cloudflared/app/secret.sops.yaml` and merge the `cloudflared`
+   `kubernetes/clusters/skylab/cloudflared/app/secret.sops.yaml` and merge the `cloudflared`
    layer (`docs/design/skylab-ingress.md`).
 6. homelab: merge the `joelst` and `metachat` layers, the `METACHAT_ZONE` and
    `METACHAT_METRICS_TOKEN` keys and the `alloy-cluster` scrape job. The pods

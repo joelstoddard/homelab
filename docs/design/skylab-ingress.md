@@ -136,7 +136,7 @@ deny list are coturn's only boundary.
 
 ### The cloudflared layer
 
-`kubernetes/cloudflared/`, in the shape of `kubernetes/tailscale/`:
+`kubernetes/clusters/skylab/cloudflared/`, in the shape of `kubernetes/tailscale/`:
 
 | Setting | Value |
 |---|---|
@@ -212,7 +212,7 @@ whoever created it. The two coexist under four rules:
 3. **Importing the whole zones.** Unrelated records, DDNS's included, become
    tofu's, and the two tools fight.
 4. **A locally managed tunnel config** (a `config.yaml` ConfigMap in
-   `kubernetes/cloudflared/`). The real hostnames need a new substitution key,
+   `kubernetes/clusters/skylab/cloudflared/`). The real hostnames need a new substitution key,
    and a route and its record change in two places.
 5. **Routing through Traefik.** See "The tunnel".
 6. **TURN on the raw IP in `cluster-secrets`.** A hand-copied address, edited

@@ -58,7 +58,7 @@ exists. The vars file holds what differs per cluster:
 | Build dir | `.talos/clusterconfig/` | `.talos/skylab/` |
 | Apply step | `apply-config --insecure` in maintenance mode | skipped: `user_data` delivered it |
 | Extra patches | none | `templates/patches/skylab/` |
-| Cilium values | `kubernetes/cilium/app/values.yaml` | the skylab path from the Flux design |
+| Cilium values | `kubernetes/cilium/app/values.yaml` | `kubernetes/clusters/skylab/cilium/app/values.yaml` (`docs/design/skylab-flux.md`) |
 
 The shared tasks (secrets bundle, `gen config` + patch, bootstrap,
 kubeconfig, Cilium seed, health) take these values; the VIP lookup and the
@@ -137,7 +137,7 @@ L2 announcements. Cilium also gives the security design its network policy.
 3. Wait for `skylab` to appear on the tailnet.
 4. `make -C ansible apply-talos CLUSTER=skylab`: bootstrap, kubeconfig,
    Cilium seed, health.
-5. `make -C kubernetes` for skylab's Flux (the Flux design).
+5. `make -C kubernetes CLUSTER=skylab` for skylab's Flux (`docs/design/skylab-flux.md`).
 
 `docs/skylab-cutover.md` places these steps in the cutover.
 
