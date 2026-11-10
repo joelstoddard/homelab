@@ -1,5 +1,6 @@
 # eko/pihole-exporter v1.x speaks the Pi-hole v6 API (session auth with the
-# web password). The LXC's address comes from cluster-secrets at reconcile.
+# web password). It polls the old Pi-hole and both pair instances by their
+# lan-services names; one password, port and protocol apply to every host.
 # Not annotated for the DaemonSet: its /metrics IS the data and the gateway
 # scrapes it with a proper instance label. docs/design/host-monitoring.md.
 apiVersion: apps/v1
@@ -40,7 +41,7 @@ spec:
             failureThreshold: 3
           env:
             - name: PIHOLE_HOSTNAME
-              value: "${PIHOLE_IP}"
+              value: pihole.lan-services.svc,pihole-01.lan-services.svc,pihole-02.lan-services.svc
             - name: PIHOLE_PROTOCOL
               value: https
             - name: PIHOLE_PORT
