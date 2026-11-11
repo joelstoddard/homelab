@@ -388,6 +388,36 @@ after the wipe (stale OVMF boot entry), recreate that one VM with
 `tofu apply -replace=module.<vm>.module.vm.proxmox_virtual_environment_vm.vm`
 — `vm_id`/MAC are derived, so nothing else changes.
 
+## Skylab
+
+Skylab is a separate single-node cluster on Hetzner; every step names it
+with `CLUSTER=skylab`, and every step is a full outage of its apps. Roll it
+only after the home cluster has taken the same `versions.env` and is
+healthy. Design: [`design/skylab-upgrades.md`](design/skylab-upgrades.md).
+
+In-place upgrade (one Talos minor, one Kubernetes minor):
+
+```bash
+make -C ansible apply-talos CLUSTER=skylab TAGS=config
+make -C ansible apply-upgrade CLUSTER=skylab   # apply-config, upgrade, upgrade-k8s, health
+```
+
+Rebuild (multi-minor Talos jump, or a broken node):
+
+```bash
+# 1. Tailscale admin console: remove the skylab device, so the new
+#    server takes the same MagicDNS name.
+make -C ansible apply-talos CLUSTER=skylab TAGS=config
+make -C opentofu skylab-rebuild                # image, render, replace
+# 2. Wait for skylab to appear on the tailnet.
+make -C ansible apply-talos CLUSTER=skylab     # bootstrap, Cilium seed, health
+make -C kubernetes CLUSTER=skylab
+make -C kubernetes probe CLUSTER=skylab
+```
+
+After a Cilium or coturn bump reconciles on skylab:
+`make -C kubernetes probe CLUSTER=skylab`.
+
 ## Recovery
 
 - **Lost `ansible/roles/talos/files/secrets.sops.yaml`.** The cluster CA
