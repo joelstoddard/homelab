@@ -66,8 +66,8 @@ polls both instances' APIs and probes each one and the VIP with a DNS lookup
 (`docs/design/host-monitoring.md`). The NUCs' `/etc/resolv.conf` lists the
 VIP first (`02-preflights/tasks/resolv.yaml`).
 
-**What does not.** Destroying the standalone Pi-hole container outside the
-chain, which no OpenTofu root or Flux layer references.
+**What does not.** The cluster's own resolution: Talos nodes keep public
+`nameservers` (#213), so pods still cannot resolve the LAN domain.
 
 ## The chain
 
