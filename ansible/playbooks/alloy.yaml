@@ -1,7 +1,7 @@
 ---
-# Grafana Alloy on the hosts tagged `alloy` in NetBox (the Proxmox NUCs and
-# the Pi-hole LXC). Its own play: main.yaml targets PXE-installed hosts, and
-# the LXC is not one — docs/design/host-monitoring.md.
+# Grafana Alloy on the hosts tagged `alloy` in NetBox (the four Proxmox NUCs).
+# The targeted entry point: main.yaml reaches the same hosts only through all
+# of 02-preflights — docs/design/host-monitoring.md.
 
 # A play whose pattern matches no host is skipped whole, pre_tasks included,
 # and exits 0; only a play on localhost can turn "nothing tagged" into a failure.

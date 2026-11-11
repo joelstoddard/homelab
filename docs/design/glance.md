@@ -90,7 +90,7 @@ clock is already correct.
 Every site carries both, and the split is load-bearing rather than cosmetic.
 
 `url` is followed by the **browser**, which resolves `*.${DOMAIN}` through
-Pi-hole's `address=` wildcard and reaches Traefik. `check-url` is fetched by
+Bind9's wildcard record and reaches Traefik. `check-url` is fetched by
 the **pod**, and the cluster cannot resolve that wildcard at all: CoreDNS
 forwards to the nodes' own resolvers, and those know nothing of the domain.
 **The earlier reasoning here was wrong** about which resolvers those are —
@@ -228,9 +228,9 @@ provider in #150.
 
 ## LAN DNS needs no change
 
-`home.${DOMAIN}` is covered by the existing `address=/${DOMAIN}/<LB IP>` line
-that Pi-hole already serves. It must **not** be added to
-`pihole_dns_passthrough_names` in `opentofu/resources/pihole/`: that list is
+`home.${DOMAIN}` is covered by the `*` record at the LB IP that Bind9
+already serves. It must **not** be added to `dns_passthrough_names` in
+`ansible/inventory/group_vars/dns.sops.yaml`: that list is
 the opt-out for names hosted publicly, and an entry there would send `home.` to
 public DNS and produce a valid certificate with a Traefik 404 — trap 2 of
 `docs/design/ingress-tls.md`.

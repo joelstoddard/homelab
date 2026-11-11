@@ -106,9 +106,8 @@ each `tofu` call:
 Per-resource secrets live in `resources/<dir>/secrets.env` — an
 optional SOPS-encrypted dotenv with `export TF_VAR_*=…` lines. The
 `run_tofu` loop eval-sources each one inside its `tofu` iteration, so
-values stay scoped to that single resource (e.g. Pi-hole's admin
-password and static IP only enter the env while `resources/pihole/`
-runs).
+values stay scoped to that single resource (e.g. the Pi-hole pair's
+client set only enters the env while `resources/pihole-config/` runs).
 
 The state encryption key (`TF_ENCRYPTION`) is built by
 `scripts/build-tf-encryption.sh` from the SOPS passphrase.

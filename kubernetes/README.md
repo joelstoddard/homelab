@@ -29,7 +29,7 @@ install that gets Flux running in the first place.
 - [x] Observability — Alloy scraping/tailing every node into Prometheus and
       Loki, Grafana with dashboards from git (`monitoring/`, `alloy/`; see
       "Monitoring" and "Alloy")
-- [x] Host monitoring — Alloy on the Proxmox hosts and the Pi-hole LXC,
+- [x] Host monitoring — Alloy on the Proxmox hosts,
       exporters and receivers for Proxmox, Pi-hole, TrueNAS and the router
       (`host-monitoring/`, write routes in `monitoring/`) — see
       "Host monitoring"
@@ -110,7 +110,6 @@ kubernetes/
 │       ├── salsa.yaml            # ditto
 │       ├── samba.yaml            # ditto
 │       ├── voyager.yaml          # TrueNAS CORE
-│       ├── pihole.yaml           # the old single Pi-hole: Service + EndpointSlice, no route
 │       ├── pihole-pair.yaml      # pihole-01, pihole-02, pihole-vip; the admin UI route on the VIP
 │       └── hubble.yaml       # the router; plain HTTP, no serversTransport
 ├── tailscale/
@@ -245,20 +244,19 @@ ordering) rather than by growing the root tree — see "Adding workloads".
 | `FLUX_VERSION` | repo-root `versions.env` | Pins `gotk-components.yaml`; `make lint` refuses a mismatch. |
 | `CILIUM_VERSION` | repo-root `versions.env` | The chart the `talos` role seeds; `make lint` refuses a `cilium/app/ocirepository.yaml` tag that differs. |
 | `DOMAIN` | `cluster-secrets/app/secrets.sops.yaml` | The root domain every route hangs off. Reaches manifests through Flux `postBuild` substitution, so this public repo never carries it. |
-| `TRAEFIK_LB_IP` | same Secret | Traefik's pinned LoadBalancer address — inside the `cilium-lb` pool, reserved in NetBox. Pi-hole's wildcard points at it, so it must not float. It has to be *substituted* rather than SOPS-encrypted: it lands in a `configMapGenerator` input, which kustomize reads before decryption applies. |
+| `TRAEFIK_LB_IP` | same Secret | Traefik's pinned LoadBalancer address — inside the `cilium-lb` pool, reserved in NetBox. Bind9's wildcard record points at it, so it must not float. It has to be *substituted* rather than SOPS-encrypted: it lands in a `configMapGenerator` input, which kustomize reads before decryption applies. |
 | `ACME_EMAIL` | same Secret | Let's Encrypt account contact on both `ClusterIssuer`s. |
 | `RUMBA_IP` | same Secret | A Proxmox node's LAN address, hand-copied into `lan-services/app/rumba.yaml`'s `EndpointSlice`. |
 | `TANGO_IP` | same Secret | Same, for `tango.yaml`. |
 | `SALSA_IP` | same Secret | Same, for `salsa.yaml`. |
 | `SAMBA_IP` | same Secret | Same, for `samba.yaml`. |
 | `VOYAGER_IP` | same Secret | TrueNAS's LAN address, for `voyager.yaml` and the NFS PersistentVolumes in `media` and `lancache`. |
-| `PIHOLE_IP` | same Secret | Pi-hole's LAN address, for `pihole.yaml`. |
 | `PIHOLE_01_IP` | same Secret | pihole-01's own LAN address (not the VIP), for `pihole-pair.yaml`. |
 | `PIHOLE_02_IP` | same Secret | Same, for pihole-02. |
 | `PIHOLE_VIP` | same Secret | The Pi-hole pair's keepalived VIP, equal to `dns_pihole_vip`, for the `host-monitoring` DNS probe and `pihole-pair.yaml`'s `pihole-vip`. |
 | `ROUTER_IP` | same Secret | The router's LAN address, for `hubble.yaml`. |
 | `NETBOX_URL` | same Secret | The NetBox Cloud tenant URL, for the Glance bookmark. Encrypted for the same reason the repo only ever refers to it as `$NETBOX_API` elsewhere: the tenant name identifies the account. |
-| `INGEST_LB_IP` | same Secret | The address TrueNAS and the router send graphite and syslog to — reserved in the `cilium-lb` pool, shared by the two receiver Services. `RUMBA_IP`, `TANGO_IP`, `SALSA_IP`, `SAMBA_IP`, `VOYAGER_IP`, `PIHOLE_IP`, `PIHOLE_01_IP`, `PIHOLE_02_IP`, `PIHOLE_VIP` and `ROUTER_IP` are also the `host-monitoring` probe and poll targets. |
+| `INGEST_LB_IP` | same Secret | The address TrueNAS and the router send graphite and syslog to — reserved in the `cilium-lb` pool, shared by the two receiver Services. `RUMBA_IP`, `TANGO_IP`, `SALSA_IP`, `SAMBA_IP`, `VOYAGER_IP`, `PIHOLE_01_IP`, `PIHOLE_02_IP`, `PIHOLE_VIP` and `ROUTER_IP` are also the `host-monitoring` probe and poll targets. |
 | `HOME_ASSISTANT_LB_IP` | same Secret | Home Assistant's pinned LAN address — reserved in the `cilium-lb` pool, the same pattern as `TRAEFIK_LB_IP` and `INGEST_LB_IP`, so mDNS/SSDP discovery keeps working across a pod reschedule. |
 | `LANCACHE_LB_IP` | same Secret | The LANCache's pinned LAN address — reserved in the `cilium-lb` pool, and the address lancache-dns answers game CDN names with, so it must equal that setting and must not float. |
 | `HOME_ASSISTANT_TOKEN` | same Secret | Long-lived access token for Home Assistant's `/api/prometheus`. Read at runtime by the `alloy` layer, never substituted. Minted under a user's profile → Security, so it dies with that user and with any rebuild that wipes the volume. |
@@ -534,7 +532,7 @@ kubectl --context homelab -n alloy logs deploy/alloy-cluster --tail=50 | grep -i
 `pve-exporter` and `pihole-exporter` polling APIs, `blackbox-exporter`
 probing the router and every UI port, `graphite-exporter` receiving TrueNAS's
 collectd stream, and a third Alloy (`alloy-gateway`) that scrapes all four
-and runs the syslog receiver. The Proxmox hosts and the Pi-hole LXC push
+and runs the syslog receiver. The Proxmox hosts push
 their own node metrics and journald in from an Alloy installed by the
 `ansible/roles/alloy` role — the write routes below sit idle until
 `make -C ansible apply-alloy` runs. Rationale:
@@ -597,7 +595,7 @@ Consequences:
   `cluster-secrets` is substituted into the settings file and read at runtime
   by Alloy through `remote.kubernetes.secret`. Rotating it is one `sops set`
   and two reconciles.
-- **Nothing to add for DNS or TLS.** The Pi-hole wildcard resolves the name
+- **Nothing to add for DNS or TLS.** Bind9's wildcard resolves the name
   and `TLSStore/default` serves the certificate.
 
 ```bash
@@ -684,7 +682,7 @@ Consequences:
   collector walks every series' subtitles. A large library reads as `up == 0`
   with a healthy exporter and an empty log; the fix is an explicit Alloy job
   with a longer timeout, as `searxng` and `home-assistant` have.
-- **Nothing to add for DNS or TLS.** The Pi-hole wildcard resolves the name and
+- **Nothing to add for DNS or TLS.** Bind9's wildcard resolves the name and
   `TLSStore/default` serves the certificate.
 - **Pruning this layer deletes the Longhorn config claims in it** (reclaim
   policy `Delete`), taking Jellyfin's users and watch history with them.
@@ -781,9 +779,9 @@ Consequences:
 - **Its own basic auth**, `glance-auth` with the Secret in `traefik/app/`
   beside the dashboard's and Longhorn's. This is the rule; SearXNG is the
   exception.
-- **Nothing to add for DNS or TLS.** The Pi-hole wildcard resolves the name and
+- **Nothing to add for DNS or TLS.** Bind9's wildcard resolves the name and
   `TLSStore/default` serves the certificate — and `home.` must NOT be added to
-  `pihole_dns_passthrough_names`, which would break it.
+  `dns_passthrough_names`, which would break it.
 - **No metrics endpoint, and no annotation.** Glance exposes none, so the
   dashboard (`monitoring/app/dashboards/Services/glance.json`) is built from
   Traefik, cAdvisor and kube-state-metrics. Traefik series match on the
@@ -849,7 +847,7 @@ Consequences:
 - **The runtime keeps its default capability set.** `drop: [ALL]` breaks
   first boot: `s6-overlay` needs `CHOWN`/`SETUID`/`SETGID`/`DAC_OVERRIDE`
   during init, and the DHCP discovery integration needs `NET_RAW`.
-- **Nothing to add for DNS or TLS.** The Pi-hole wildcard resolves the name
+- **Nothing to add for DNS or TLS.** Bind9's wildcard resolves the name
   and `TLSStore/default` serves the certificate.
 
 ```bash
@@ -1005,7 +1003,7 @@ the same reason `cilium` and `cilium-lb` are split.
 Two things about this pair are load-bearing:
 
 - **`dns01RecursiveNameserversOnly: true`** with public resolvers in
-  `cert-manager/app/values.yaml`. Pi-hole answers authoritatively for the
+  `cert-manager/app/values.yaml`. Bind9 is authoritative for the
   whole wildcarded domain and returns NODATA for `TXT` rather than
   forwarding, so a DNS-01 self-check through cluster DNS would never see the
   record cert-manager just wrote at Cloudflare. Symptom without it: a
@@ -1044,7 +1042,7 @@ physical-host label, `ScheduleAnyway`). Rationale and the request path hop by
 hop: [`docs/design/ingress-tls.md`](../docs/design/ingress-tls.md).
 
 **Adding a service needs one route object and nothing else.** No
-`Certificate`, no `tls.secretName`, no DNS record — Pi-hole wildcards the
+`Certificate`, no `tls.secretName`, no DNS record — Bind9 wildcards the
 whole domain at Traefik's address, and the default TLSStore supplies the
 certificate:
 
@@ -1100,10 +1098,10 @@ cluster's first `LoadBalancer` Service, so it is also the first live exercise
 of Cilium LB-IPAM and L2 announcement.
 
 LAN DNS is not in this directory: the wildcard and its passthrough
-exceptions are `misc.dnsmasq_lines` on the Pi-hole LXC, written by
-`opentofu/resources/pihole/`. A name that is hosted publicly but missing from
+exceptions are Bind9's zone, rendered by the `dns` Ansible role from
+`dns_passthrough_names`. A name that is hosted publicly but missing from
 the passthrough list fails confusingly — valid certificate, Traefik 404. See
-that directory's README and the design doc.
+`ansible/roles/dns/README.md`, "Adding a passthrough", and the design doc.
 
 ## LAN services
 
@@ -1131,8 +1129,7 @@ holds the VIP. A third, `pihole-vip`, names the VIP and carries the
 `pihole.${DOMAIN}` route, so the admin UI is the instance holding the VIP.
 Their addresses are `${PIHOLE_01_IP}`, `${PIHOLE_02_IP}` and `${PIHOLE_VIP}`:
 an undefined key substitutes empty, the `EndpointSlice` fails validation, and
-the whole layer stops applying. `pihole.yaml` is the old single Pi-hole, with
-no route, kept for `pihole-exporter` and the blackbox probe.
+the whole layer stops applying.
 
 Six of the seven backends serve a self-signed certificate: their routes use
 the shared `ServersTransport` `lan-insecure` (renamed from its earlier

@@ -53,19 +53,14 @@ A new PXE-managed host needs `platform` set (e.g. `proxmox`) and tag
 `pxe` applied in NetBox before it shows up in the corresponding
 groups. Set those via the NetBox UI when adding a device.
 
-The Pi-hole LXC has no PXE story of its own, so it's modelled in NetBox as a
-VM with platform `debian`, tagged `alloy` — that tag is all NetBox needs;
-`ansible/inventory/group_vars/alloy.yaml` sets `ansible_user: root` for the
-whole `alloy` group, not per-host. See `ansible/roles/alloy/README.md` for
-the SOPS-encrypted group vars the `alloy` group also needs.
-
-The DNS chain is modelled the same way: VMs with platform `debian`, tagged
-`dns` plus the tag for their link (`pihole`, `lancache` or `bind9`), with
-`group_vars/dns.yaml` setting `ansible_user: root`. Tag
-them `alloy` as well only once the LXC exists — the inventory applies no
+The DNS chain's containers have no PXE story of their own, so they're
+modelled in NetBox as VMs with platform `debian`, tagged `dns` plus the tag
+for their link (`pihole`, `lancache` or `bind9`), with `group_vars/dns.yaml`
+setting `ansible_user: root`. None is tagged `alloy`: each resolves through
+Quad9, which cannot answer the ingest hostnames. The inventory applies no
 status filter, so a VM still at status `planned` joins its groups
-immediately and `make -C ansible apply-alloy` would then try to reach a host
-that has not been built. See `ansible/roles/dns/README.md`.
+immediately and a play would then try to reach a host that has not been
+built. See `ansible/roles/dns/README.md`.
 
 ## Bootstrap fallback: static inventory files
 

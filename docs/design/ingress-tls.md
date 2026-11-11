@@ -5,7 +5,8 @@ How a LAN or tailnet client reaches a cluster service at
 per-service TLS configuration. Layers:
 `kubernetes/{cluster-secrets,cert-manager,cert-manager-issuers,traefik,traefik-middlewares}/`,
 plus `lan-services/` for hosts outside the cluster; LAN DNS
-`opentofu/resources/pihole/`; first in-cluster consumer `kubernetes/longhorn/`.
+`ansible/roles/dns/` (`docs/design/dns-chain.md`); first in-cluster consumer
+`kubernetes/longhorn/`.
 
 ## Problem
 
@@ -20,7 +21,7 @@ decryption is in scope, out of SOPS's reach.
 ## The request path
 
 ```
-client → Pi-hole: address=/example.com/192.168.1.x  (every name under the domain)
+client → Pi-hole VIP → lancache-dns → Bind9: * IN A 192.168.1.x  (every name under the domain)
        → 192.168.1.x: Traefik's Service, pinned by lbipam.cilium.io/ips, ARP'd by Cilium L2
        → :80 web, 301 → https → :443 websecure, TLS from TLSStore/default → wildcard-tls
        → router: an IngressRoute Host rule, or a plain Ingress
@@ -242,8 +243,8 @@ request body sent with `fetch()` through the same route does apply, which is
 what isolates the header. Any other backend whose UI saves through a frame
 needs the same treatment.
 
-One caveat worth having on record: Pi-hole and the router are now reachable
-under names that Pi-hole itself resolves. If Traefik is down, those names go
+One caveat worth having on record: Pi-hole and the router are reachable
+under names that the DNS chain itself resolves. If Traefik is down, those names go
 down with it — DNS still answers, nothing behind it does — so the fallback
 for that specific outage is the plain IP, not the hostname. Fine to accept,
 worth knowing before the day it matters.
@@ -257,29 +258,28 @@ checking before touching a manifest:
   frames renders empty through Traefik while working perfectly by IP. The fix
   is a per-route `Middleware` setting `customFrameOptionsValue: SAMEORIGIN`
   in place of `frameDeny`, not dropping the headers.
-- **The name never reaches Traefik at all.** dnsmasq answers a locally-known
-  name — its own hostname, an `/etc/hosts` entry, a hand-added Local DNS
-  Record — *before* the `address=/<domain>/` wildcard, so the client gets the
-  real host and its self-signed certificate instead of the route. `pihole` is
-  the likeliest name to hit this. Nothing in `opentofu/resources/pihole/`
-  creates such records, so it can only come from a manual leftover: `dig` the
-  name against Pi-hole and expect the Traefik address before concluding the
-  route is at fault.
+- **The name never reaches Traefik at all.** An explicit record in Bind9's
+  zone shadows the wildcard, so the client gets the real host and its
+  self-signed certificate instead of the route. The `dns` role adds no record
+  for a `lan-services` host, so it can only come from a manual edit: `dig` the
+  name against the Pi-hole VIP and expect the Traefik address before
+  concluding the route is at fault.
 
 ## LAN DNS: the wildcard and its two traps
 
 The bare domain plus a wildcard gives the shortest names; the accepted cost is
-both traps below. `opentofu/resources/pihole/` writes `misc.dnsmasq_lines`:
-`pihole_wildcard_domain` + `pihole_cluster_ingress_ip` generate
-`address=/example.com/192.168.1.x`, and each `pihole_dns_passthrough_names` entry
-generates `server=/<name>/#` (all three SOPS-encrypted; they hold real network
-data). dnsmasq matches the **most specific** domain first, so a passthrough
-beats the wildcard, and `#` means "use the configured upstreams".
+both traps below. Bind9's zone (`ansible/roles/dns/templates/db.zone.j2`)
+carries an apex and a `*` record at `dns_traefik_lb_ip`, and each
+`dns_passthrough_names` entry becomes an NS delegation plus a BIND forward zone
+(all in `ansible/inventory/group_vars/dns.sops.yaml`, SOPS-encrypted; they hold
+real network data). The delegation takes the name out of the wildcard, and the
+forward zone sends it to the public upstreams — `docs/design/dns-chain.md`,
+"Design".
 
-**Trap 1 — DNS-01 self-checks.** That `address=` line makes dnsmasq
-*authoritative* for the whole domain: every name under it is answered from that
-one line and none are forwarded, so a `TXT` query returns NODATA rather than a
-referral. A self-check that asked Pi-hole would therefore get NODATA for
+**Trap 1 — DNS-01 self-checks.** Bind9 is *authoritative* for the whole
+domain: every name under it is answered from the zone and none are forwarded,
+so a `TXT` query returns NODATA from the wildcard rather than a referral. A
+self-check that asked the LAN chain would therefore get NODATA for
 `_acme-challenge.example.com` and conclude the record had not propagated — while
 it sits at Cloudflare, correct. Expect a `Challenge` stuck at
 **`Waiting for DNS-01 challenge propagation`** indefinitely; search that string,
@@ -295,17 +295,16 @@ they become load-bearing the day cluster DNS is pointed at the LAN's own
 resolver. Do not remove them on the grounds that challenges currently pass.
 Hence `dns01RecursiveNameservers:
 "1.1.1.1:53,9.9.9.9:53"` + `dns01RecursiveNameserversOnly: true` in
-`cert-manager/app/values.yaml`, which must land before the Pi-hole apply.
+`cert-manager/app/values.yaml`.
 
 **Trap 2 — a missing passthrough gives a valid certificate and a Traefik 404.**
 The wildcard certificate legitimately covers the public name, so TLS is perfect
 and the site is simply gone: it reads as "that site is down", not "DNS is wrong".
-Any LAN-visible breakage of a publicly-hosted name after a Pi-hole apply is this
+Any LAN-visible breakage of a publicly-hosted name after an `apply-dns` is this
 until proven otherwise — a LAN `dig` must return the public answer, not the LB
-IP. Two guards in the tofu: `pihole_dns_passthrough_names` validates each entry
-as an FQDN (a bare label would shadow an entire TLD), and
-`templates/install.sh.tftpl` runs `pihole-FTL dnsmasq-test`, so a malformed line
-fails the apply.
+IP. Two guards in the `dns` role: `named-checkzone` validates the rendered
+zone, so a malformed entry fails the apply, and a per-name check fails when
+the wildcard still answers a passthrough name.
 
 ## Staging first
 
@@ -340,11 +339,13 @@ A rebuild re-creates all of this from git except what lives outside it:
 3. **The LoadBalancer address.** Reserve it in NetBox inside the `cilium-lb`
    pool range, described as Traefik's: NetBox stays the IPAM source of truth
    even though Flux cannot query it, and the address must not float — the
-   Pi-hole wildcard points at it.
+   Bind9 wildcard points at it.
 
 Then the encrypted inputs: `cluster-secrets/app/secrets.sops.yaml` (the three
 keys above), `cert-manager-issuers/app/secret.sops.yaml` (`api-token`),
-`traefik/app/secret-basic-auth.sops.yaml` (`users`, bcrypt), Pi-hole's three.
+`traefik/app/secret-basic-auth.sops.yaml` (`users`, bcrypt), and the `dns`
+role's `dns_traefik_lb_ip` and `dns_passthrough_names` in
+`ansible/inventory/group_vars/dns.sops.yaml`.
 
 ## Known limitations
 

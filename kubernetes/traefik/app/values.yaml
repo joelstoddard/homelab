@@ -18,7 +18,7 @@ topologySpreadConstraints:
 service:
   annotations:
     # Cilium LB-IPAM hands out this exact address from the cilium-lb pool.
-    # The Pi-hole wildcard points at it, so it must not float.
+    # Bind9's wildcard record points at it, so it must not float.
     lbipam.cilium.io/ips: "${TRAEFIK_LB_IP}"
 ports:
   web:

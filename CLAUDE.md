@@ -42,14 +42,14 @@ The root `Makefile` delegates to subdirectory Makefiles; `ansible/`, `opentofu/`
 Two stages, two playbook entry points:
 
 - **`pxe.yaml`** — provisions baremetal by network-booting target hosts (iPXE chainload for x86, u-boot for the Pis). Targets `hosts: pxe` (devices tagged `pxe` in NetBox). Per-OS group membership (`proxmox` and `talos` now, planned `truenas`) is derived from NetBox `platform.slug` and drives the boot path: Proxmox hosts get a Debian netinstall + per-host preseed; Talos hosts (the arm64 Pis) get a purpose-built u-boot over TFTP that fetches the Talos kernel/initramfs over HTTP and boots into maintenance mode — offered only to Pis listed in `talos_pi_provision_hosts`; every other Pi is ignored by dnsmasq and falls through to its local disk.
-- **`playbooks/main.yaml`** — runs against PXE-installed hosts via the `02-preflights` orchestrator. Targets `hosts: pxe:!talos` over SSH with `become`; the orchestrator dispatches per-OS work via `'<group>' in group_names` guards (currently `proxmox` and `alloy`; TrueNAS later). The alloy dispatch therefore only reaches the NUCs (both `pxe` and `alloy`-tagged); the Pi-hole LXC isn't PXE-provisioned, so it's reached by `playbooks/alloy.yaml` instead.
+- **`playbooks/main.yaml`** — runs against PXE-installed hosts via the `02-preflights` orchestrator. Targets `hosts: pxe:!talos` over SSH with `become`; the orchestrator dispatches per-OS work via `'<group>' in group_names` guards (currently `proxmox` and `alloy`; TrueNAS later). The alloy dispatch reaches the NUCs, the only hosts both `pxe` and `alloy`-tagged; `playbooks/alloy.yaml` is the targeted entry point for the same group.
 - **`playbooks/talos.yaml`** — bootstraps the Kubernetes cluster. Targets `hosts: talos` but runs `connection: local`, driving nodes over the Talos API (`talosctl`) because Talos nodes have no SSH or Python. This is why the Talos lifecycle is its own play rather than a branch of `02-preflights`. Dispatches the `talos` library's `config`/`apply`/`bootstrap`/`kubeconfig` tasks.
 - **`playbooks/reset.yaml`** — wipes named Talos nodes back to maintenance mode (`talosctl reset --wipe-mode all`, working the Pi netboot gate around it) so `talos.yaml` can reinstall them. The rebuild path for version bumps; deliberately not part of `make homelab`. See `docs/talos-bootstrap.md` "Rebuild / bumping versions".
 - **`playbooks/upgrade.yaml`** — rolls a config change / new installer image onto RUNNING Talos nodes one at a time (authenticated apply-config; talosctl upgrade for VMs, reboot into refreshed netboot assets for Pis; health between nodes). `make -C ansible apply-upgrade EXTRA_VARS='{"upgrade_hosts": [...]|"all"}'`. The day-2 path; `reset.yaml` is for multi-minor jumps.
 - **`playbooks/resize.yaml`** — picks up a Proxmox hardware change (memory, cores) on RUNNING Talos VMs one at a time: halt, stop, start, gated on node Ready + no degraded Longhorn volume + cluster health, then verifies the guest's own reported total. `make -C ansible apply-resize EXTRA_VARS='{"resize_hosts": [...]|"agents"|"all"}'`, after `make -C opentofu`. Renders no machine config (a power cycle pushes none), so unlike the other Talos playbooks it needs only a talosconfig — the rendered one, else `~/.talos/config`. Refuses control-plane targets unless `resize_allow_controlplane=true`: the agents run overcommitted on zram and etcd must stay resident (`docs/design/zram-swap.md`).
 - **`playbooks/pi-eeprom-netboot.yaml`** — one-time per Pi: flips the Raspberry Pi 4 bootloader EEPROM to `BOOT_ORDER=0xf42` (network, then USB, then restart), after which the `00-pxe` dnsmasq gate decides each boot. Runs over SSH against the Pi's *current* OS, and only stages the change — the firmware flashes it on the next boot. `EXTRA_VARS='pi_reboot=true'` reboots fire-and-forget, because a successful cutover leaves no SSH to come back to. `make -C ansible apply-pi-eeprom LIMIT=<Pi>`.
 - **`playbooks/pi-cutover.yaml`** — drives a Pi the rest of the way to Talos: EEPROM → netboot into maintenance → install to `/dev/sda` → boot from disk. One-way for the old OS. It probes SSH to build its own pending set, so Pis already on Talos (which answer none) are skipped and the play is safe to re-run — which is why the root `make talos` target calls it before `apply-talos`. Narrow it with `EXTRA_VARS='{"pi_cutover_hosts": [...]}'`, NOT `--limit`: the localhost and SOPS plays need every host. See `docs/netbooting-pis.md`.
-- **`playbooks/dns.yaml`** — configures the DNS chain's containers (NetBox tag `dns`, plus `pihole`/`lancache`/`bind9` per link), which `main.yaml` cannot reach. A localhost play first fails unless every configured link has two hosts; the play then runs `serial: 1`, so both instances of a link are never down at once. `make -C ansible apply-dns`. A last play, after every host, asserts the Pi-hole pair runs one FTL version and exactly one instance holds the VIP; it delegates to both instances whatever the `--limit`. The Pi-hole pair is outside the client path — see `docs/design/dns-chain.md`.
+- **`playbooks/dns.yaml`** — configures the DNS chain's containers (NetBox tag `dns`, plus `pihole`/`lancache`/`bind9` per link), which `main.yaml` cannot reach. A localhost play first fails unless every configured link has two hosts; the play then runs `serial: 1`, so both instances of a link are never down at once. `make -C ansible apply-dns`. A last play, after every host, asserts the Pi-hole pair runs one FTL version and exactly one instance holds the VIP; it delegates to both instances whatever the `--limit`. The chain is every client's only resolver — see `docs/design/dns-chain.md`.
 
 Roles split into two layers:
 
@@ -128,8 +128,8 @@ Current implementation:
   Invoked from `playbooks/talos.yaml`. See the role README and
   `docs/talos-bootstrap.md`.
 - `alloy` — OS library installing Grafana Alloy on the hosts outside the
-  cluster (the four NUCs and the Pi-hole LXC, NetBox tag `alloy` → group
-  `alloy`): apt repo, one `config.alloy` template, journald access, service.
+  cluster (the four NUCs, NetBox tag `alloy` → group `alloy`): apt repo,
+  one `config.alloy` template, journald access, service.
   Dispatched from `02-preflights`, with `playbooks/alloy.yaml` /
   `make -C ansible apply-alloy` as the targeted entry point; the read-only
   PVE token the cluster's exporter uses comes from the `proxmox` library's
@@ -265,8 +265,8 @@ sets no top-level `namespace:`, because kustomize's namespace transformer
 stamps one onto cluster-scoped CRs it does not recognise — `ClusterIssuer`
 is one, `Namespace` is exempt — so any new cluster-scoped CR needs the same
 treatment. `dns01RecursiveNameserversOnly: true` with public resolvers is
-load-bearing, not tuning: Pi-hole answers authoritatively for the wildcarded
-domain and returns NODATA for TXT, so a DNS-01 self-check through cluster
+load-bearing, not tuning: Bind9 is authoritative for the wildcarded domain
+and returns NODATA for TXT, so a DNS-01 self-check through cluster
 DNS hangs at `Waiting for DNS-01 challenge propagation` indefinitely.
 `traefik/` is the ingress on a pinned LB IP from the `cilium-lb` pool, `web`
 redirecting to `websecure`, `TLSStore/default` serving `wildcard-tls` — the
@@ -295,13 +295,13 @@ address: a re-addressed host needs a `cluster-secrets` edit, not just a DHCP
 change. `pihole-pair.yaml` adds the Pi-hole pair's instances, `pihole-01` and
 `pihole-02` (`${PIHOLE_01_IP}`, `${PIHOLE_02_IP}`), the same way, as
 in-cluster names for nebula-sync, plus `pihole-vip` (`${PIHOLE_VIP}`), which
-carries the `pihole.${DOMAIN}` admin UI route. `pihole.yaml` is the old single
-Pi-hole, kept by name for the exporter and probe until it is retired.
+carries the `pihole.${DOMAIN}` admin UI route.
 The wildcard `Certificate` is on `letsencrypt-production`. LAN DNS is not in
-this tree: the `address=` wildcard plus a
-`server=/<name>/#` passthrough per publicly-hosted name is
-`opentofu/resources/pihole/`, and a missing passthrough gives a valid
-certificate and a Traefik 404. See `docs/design/ingress-tls.md`.
+this tree: Bind9 serves the zone's apex and `*` wildcard at
+`dns_traefik_lb_ip`, plus an NS delegation per publicly-hosted name in
+`dns_passthrough_names` (`ansible/roles/dns/README.md`, "Adding a
+passthrough"), and a missing passthrough gives a valid certificate and a
+Traefik 404. See `docs/design/ingress-tls.md`.
 `monitoring/` (`dependsOn: cilium, longhorn, cluster-secrets,
 traefik-middlewares`, `wait: true`) is Prometheus as a remote-write-only
 TSDB, Loki Monolithic on Longhorn and a stateless Grafana whose dashboards
@@ -330,7 +330,7 @@ the router, `graphite-exporter` receives TrueNAS's collectd stream, and a
 third Alloy (`alloy-gateway`) scrapes all four and runs the syslog receiver;
 the two receivers share one pinned `${INGEST_LB_IP}` through
 `lbipam.cilium.io/sharing-key`, syslog on 1514 in the pod so it needs neither
-root nor NET_BIND_SERVICE. The Alloys on the Proxmox hosts and the Pi-hole LXC push
+root nor NET_BIND_SERVICE. The Alloys on the Proxmox hosts push
 in through `prometheus.${DOMAIN}/api/v1/write` and
 `loki.${DOMAIN}/loki/api/v1/push` — `monitoring/app/ingest/`, one `hosts`
 credential behind the `ingest-auth` Middleware, a deliberate exception to the

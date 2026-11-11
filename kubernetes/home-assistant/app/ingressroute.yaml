@@ -1,5 +1,5 @@
 # No Certificate and no tls.secretName: TLSStore/default serves the wildcard,
-# and Pi-hole's address=/<domain>/ already resolves the name, so a new service
+# and Bind9's wildcard record already resolves the name, so a new service
 # needs one route and nothing else (docs/design/ingress-tls.md).
 #
 # No auth middleware, deliberately: Home Assistant has accounts, sessions and

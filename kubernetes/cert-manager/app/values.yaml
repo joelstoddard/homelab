@@ -5,10 +5,10 @@
 crds:
   # The chart installs no CRDs unless asked (crds.enabled defaults to false).
   enabled: true
-# DNS-01 self-checks must bypass Pi-hole. Pi-hole answers authoritatively for
-# the whole domain (address=/<domain>/<traefik-ip>) and never forwards those
-# names upstream, returning NODATA for TXT — so the _acme-challenge lookup
-# would never see the record cert-manager just wrote at Cloudflare, and every
-# order would sit in propagation forever. Ask the public resolvers directly.
+# DNS-01 self-checks must bypass the LAN's DNS chain: Bind9 is authoritative
+# for the whole domain and answers TXT under it with NODATA from the wildcard,
+# so the _acme-challenge lookup would never see the record cert-manager just
+# wrote at Cloudflare and every order would sit in propagation forever. Ask
+# the public resolvers directly.
 dns01RecursiveNameservers: "1.1.1.1:53,9.9.9.9:53"
 dns01RecursiveNameserversOnly: true

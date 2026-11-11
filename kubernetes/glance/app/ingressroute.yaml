@@ -1,5 +1,5 @@
 # No Certificate and no tls.secretName: TLSStore/default serves the wildcard, so
-# a new hostname needs one route and nothing else, and Pi-hole's address=/<domain>/
+# a new hostname needs one route and nothing else, and Bind9's wildcard record
 # already resolves it (docs/design/ingress-tls.md).
 #
 # Behind basic auth, unlike SearXNG: this page is a complete map of the
