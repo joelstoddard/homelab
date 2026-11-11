@@ -1,6 +1,5 @@
-# Pi-hole's admin UI, on 443 with the self-signed certificate it ships;
-# `/` returns 403 because the UI lives at /admin, not because of anything
-# Traefik does. Pi-hole also answers on 80, unused here.
+# The old single Pi-hole, by name for pihole-exporter and the blackbox probe.
+# The admin UI route is the pair's, in pihole-pair.yaml.
 apiVersion: v1
 kind: Service
 metadata:
@@ -27,22 +26,3 @@ endpoints:
       - ${PIHOLE_IP}
     conditions:
       ready: true
----
-apiVersion: traefik.io/v1alpha1
-kind: IngressRoute
-metadata:
-  name: pihole
-spec:
-  entryPoints:
-    - websecure
-  routes:
-    - kind: Rule
-      match: Host(`pihole.${DOMAIN}`)
-      middlewares:
-        - name: default-headers
-          namespace: traefik
-      services:
-        - name: pihole
-          port: 443
-          scheme: https
-          serversTransport: traefik-lan-insecure@kubernetescrd

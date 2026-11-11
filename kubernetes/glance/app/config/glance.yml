@@ -219,8 +219,8 @@ pages:
 
               - title: Pi-hole
                 url: https://pihole.${DOMAIN}/admin
-                # / answers 403; /admin/ settles on 200 at /admin/login.
-                check-url: https://pihole.lan-services.svc/admin/
+                # / answers 404; /admin/ settles on 200 at /admin/login.
+                check-url: https://pihole-vip.lan-services.svc/admin/
                 allow-insecure: true
                 icon: di:pi-hole
 
