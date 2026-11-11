@@ -14,6 +14,7 @@
       {{ inventory_hostname }} runs {{ ansible_facts.distribution }}
       {{ ansible_facts.distribution_major_version }}; the DNS chain needs
       Debian 13 — see the "Requirements" section of ansible/roles/dns/README.md.
+  tags: [always]
 
 - name: Load the dns group vars (SOPS-encrypted).
   # ansible.cfg does not enable the sops vars plugin, so this file never
@@ -21,8 +22,10 @@
   community.sops.load_vars:
     file: "{{ inventory_dir }}/group_vars/dns.sops.yaml"
   no_log: true
+  tags: [always]
 
 - name: Require the chain inputs.
+  tags: [always]
   ansible.builtin.assert:
     that:
       - dns_domain is defined
