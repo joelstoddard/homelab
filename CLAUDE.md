@@ -293,8 +293,10 @@ bare IP, so every backend is a headless `Service` (no selector — there is no
 pod to select) paired with a hand-maintained `EndpointSlice` naming its one
 address: a re-addressed host needs a `cluster-secrets` edit, not just a DHCP
 change. `pihole-pair.yaml` adds the Pi-hole pair's instances, `pihole-01` and
-`pihole-02` (`${PIHOLE_01_IP}`, `${PIHOLE_02_IP}`), the same way but with no
-route: they are in-cluster names for nebula-sync.
+`pihole-02` (`${PIHOLE_01_IP}`, `${PIHOLE_02_IP}`), the same way, as
+in-cluster names for nebula-sync, plus `pihole-vip` (`${PIHOLE_VIP}`), which
+carries the `pihole.${DOMAIN}` admin UI route. `pihole.yaml` is the old single
+Pi-hole, kept by name for the exporter and probe until it is retired.
 The wildcard `Certificate` is on `letsencrypt-production`. LAN DNS is not in
 this tree: the `address=` wildcard plus a
 `server=/<name>/#` passthrough per publicly-hosted name is

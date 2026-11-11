@@ -1,10 +1,11 @@
 # The DNS chain
 
-> **Status: deployed, in the client path for the NUCs only.** All three pairs run, the
-> Pi-hole pair behind its VIP, with its lists managed on pihole-01 and synced
-> to pihole-02. The four NUCs resolve through the VIP; every other client
-> resolves through the single Pi-hole LXC (`opentofu/resources/pihole/`),
-> which has its own upstreams. See "Where this stands" below and issue #151.
+> **Status: deployed, in the client path.** All three pairs run, the Pi-hole
+> pair behind its VIP, with its lists managed on pihole-01 and synced to
+> pihole-02. DHCP option 6, Tailscale DNS and the NUCs all name the VIP. The
+> old single Pi-hole LXC (`opentofu/resources/pihole/`) runs on a new address
+> as the rollback until it is retired. See "Where this stands" below and
+> issue #151.
 
 Name resolution for the LAN and the cluster, as a chain of single-purpose
 resolvers rather than one dnsmasq line. Each link answers what it knows and
@@ -66,13 +67,14 @@ NetBox, with their addresses cross-checked against the group vars. The Pi-hole
 pair's adlists, groups and clients are `opentofu/resources/pihole-config/`,
 applied to pihole-01 by `make dns`, and `kubernetes/nebula-sync/` copies them
 to pihole-02 (see "Lists and their sync"). `kubernetes/lan-services/` names
-each instance in-cluster, with no route. `kubernetes/host-monitoring/` polls
-both instances' APIs and probes each one and the VIP with a DNS lookup
+each instance and the VIP in-cluster, and routes `pihole.<domain>` to the VIP,
+so the admin UI is whichever instance holds it. `kubernetes/host-monitoring/`
+polls both instances' APIs and probes each one and the VIP with a DNS lookup
 (`docs/design/host-monitoring.md`). The NUCs' `/etc/resolv.conf` lists the
-VIP first (`02-preflights/tasks/resolv.yaml`): they are the canary.
+VIP first (`02-preflights/tasks/resolv.yaml`).
 
-**What does not.** The pair's admin UI route, and DHCP option 6 and Tailscale
-DNS, which point at the old Pi-hole until the VIP has carried the NUCs.
+**What does not.** Retiring the old Pi-hole, its OpenTofu root and
+`PIHOLE_IP`.
 
 ## The chain
 

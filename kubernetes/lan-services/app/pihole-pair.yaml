@@ -1,7 +1,5 @@
-# The two instances of the DNS chain's Pi-hole pair, each by its own address,
-# never the VIP. No IngressRoute: the names exist for in-cluster clients,
-# nebula-sync first, which must reach each instance rather than whichever holds
-# the VIP.
+# The DNS chain's Pi-hole pair: each instance by its own address, for
+# nebula-sync, and the VIP, for the admin UI on pihole.${DOMAIN}.
 apiVersion: v1
 kind: Service
 metadata:
@@ -55,3 +53,51 @@ endpoints:
       - ${PIHOLE_02_IP}
     conditions:
       ready: true
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: pihole-vip
+spec:
+  clusterIP: None
+  ports:
+    - name: https
+      port: 443
+      targetPort: 443
+---
+apiVersion: discovery.k8s.io/v1
+kind: EndpointSlice
+metadata:
+  name: pihole-vip
+  labels:
+    kubernetes.io/service-name: pihole-vip
+addressType: IPv4
+ports:
+  - name: https
+    port: 443
+endpoints:
+  - addresses:
+      - ${PIHOLE_VIP}
+    conditions:
+      ready: true
+---
+# The UI is the instance holding the VIP. Lists are managed in
+# opentofu/resources/pihole-config, so the UI is for reading.
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: pihole
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - kind: Rule
+      match: Host(`pihole.${DOMAIN}`)
+      middlewares:
+        - name: default-headers
+          namespace: traefik
+      services:
+        - name: pihole-vip
+          port: 443
+          scheme: https
+          serversTransport: traefik-lan-insecure@kubernetescrd
