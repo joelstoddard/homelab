@@ -178,7 +178,7 @@ prometheus.scrape "pihole" {
 }
 
 // ekofr/pihole-exporter labels every series with the hostname it was given
-// to reach the API, a lan-services name. Keep its first label: pihole, pihole-01, pihole-02.
+// to reach the API, a lan-services name. Keep its first label: pihole-01, pihole-02.
 prometheus.relabel "pihole" {
 	forward_to = [prometheus.remote_write.prometheus.receiver]
 

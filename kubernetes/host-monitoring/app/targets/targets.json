@@ -9,7 +9,6 @@
   {"targets": ["${SALSA_IP}:8006"],  "labels": {"group": "probe", "module": "tcp_connect", "instance": "salsa"}},
   {"targets": ["${SAMBA_IP}:8006"],  "labels": {"group": "probe", "module": "tcp_connect", "instance": "samba"}},
   {"targets": ["${VOYAGER_IP}:443"], "labels": {"group": "probe", "module": "tcp_connect", "instance": "voyager"}},
-  {"targets": ["${PIHOLE_IP}:443"],  "labels": {"group": "probe", "module": "tcp_connect", "instance": "pihole"}},
   {"targets": ["http://${ROUTER_IP}/"],   "labels": {"group": "probe", "module": "http_2xx", "instance": "hubble"}},
   {"targets": ["https://${VOYAGER_IP}/"], "labels": {"group": "probe", "module": "http_2xx", "instance": "voyager"}},
   {"targets": ["${ROUTER_IP}"],      "labels": {"group": "probe", "module": "dns_lookup", "instance": "hubble"}},
