@@ -6,7 +6,7 @@ for its own link. Task files dispatch on that second tag, the way
 
 | Link | Group | Owned by | State |
 |---|---|---|---|
-| Pi-hole | `pihole` | this role | implemented; outside the client path |
+| Pi-hole | `pihole` | this role | implemented; every client's resolver, behind the VIP |
 | lancache-dns | `lancache` | this role | implemented |
 | Bind9 | `bind9` | this role | implemented |
 

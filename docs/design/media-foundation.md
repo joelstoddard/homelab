@@ -259,7 +259,7 @@ way Jellyfin's still need to be.
 
 Each application gets one `IngressRoute` on `websecure` carrying
 `default-headers` and nothing else. No `Certificate` and no `tls.secretName`:
-`TLSStore/default` serves the wildcard, and the Pi-hole wildcard already resolves
+`TLSStore/default` serves the wildcard, and Bind9's wildcard record already resolves
 the names — no per-name passthrough, which applies only to publicly-hosted names
 (`docs/design/ingress-tls.md`).
 

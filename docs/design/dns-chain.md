@@ -1,35 +1,29 @@
 # The DNS chain
 
-> **Status: deployed, in the client path.** All three pairs run, the Pi-hole
+> **Status: deployed, the only resolver.** All three pairs run, the Pi-hole
 > pair behind its VIP, with its lists managed on pihole-01 and synced to
-> pihole-02. DHCP option 6, Tailscale DNS and the NUCs all name the VIP. The
-> old single Pi-hole LXC (`opentofu/resources/pihole/`) runs on a new address
-> as the rollback until it is retired. See "Where this stands" below and
-> issue #151.
+> pihole-02. DHCP option 6, Tailscale DNS and the NUCs all name the VIP. See
+> "Where this stands" below and issue #151.
 
 Name resolution for the LAN and the cluster, as a chain of single-purpose
 resolvers rather than one dnsmasq line. Each link answers what it knows and
 forwards the rest to the next, until the chain reaches public DNS.
 
 This document gives the design and the reasoning behind each choice; what is not
-built yet is listed under "What does not". `opentofu/resources/pihole/` is
-the single Pi-hole LXC the chain replaces, and `dns.tf` in each of the four
+built yet is listed under "What does not". `dns.tf` in each of the four
 `opentofu/resources/<nuc>/` folders creates the chain's containers.
 
 ## Problem
 
-LAN name resolution rests on a single Pi-hole LXC answering every name under
-the domain from one line, `address=/example.com/192.168.1.x`. That line does
-the work of a zone, and four things follow from it.
+Every client on the LAN uses one resolver address, with no public fallback,
+so that address has to survive the loss of any one container. The LAN domain
+needs a zone that answers every name under it with Traefik's address and
+still hands publicly-hosted names to public DNS. And every machine on the
+LAN pulls the same multi-gigabyte game update over the same uplink.
 
-One LXC is a single point of failure for all name resolution, which is why
-"hand out Pi-hole as the ONLY resolver over DHCP" cannot be done without the
-chain: removing the public fallbacks needs a second resolver first. Being
-authoritative for the whole domain means every name under it is synthesised
-from one A record and none are forwarded, so `TXT` returns NODATA and a
-missing passthrough gives a valid certificate and a Traefik 404. And every
-machine on the LAN pulls the same multi-gigabyte game update over the same
-uplink.
+One resolver that answers every name under the domain from a single wildcard
+line in its own config is a single point of failure for all name resolution,
+and it does the work of a zone without being one.
 
 The cluster's nodes carry explicit `nameservers` (#213), but those resolvers
 are public and know nothing of the LAN domain, so the cluster cannot resolve
@@ -50,8 +44,7 @@ the change: `apply-config --dry-run` against each Pi shows the four-line
 **Memory: available.** The chain needs six containers — two each of Pi-hole,
 lancache-dns and Bind9. With the k8s agents at 5000 MB the hosts have room
 for them in the zram overcommit, not in free RAM; the numbers are in
-`docs/design/zram-swap.md`, "Why 5000 MB". The current single Pi-hole LXC
-uses 112 MB of its allocation.
+`docs/design/zram-swap.md`, "Why 5000 MB".
 
 The Pis stay out of it (they are cluster nodes, and the purposes are not to
 be conflated), and so does collapsing links onto shared containers, which
@@ -73,8 +66,8 @@ polls both instances' APIs and probes each one and the VIP with a DNS lookup
 (`docs/design/host-monitoring.md`). The NUCs' `/etc/resolv.conf` lists the
 VIP first (`02-preflights/tasks/resolv.yaml`).
 
-**What does not.** Retiring the old Pi-hole, its OpenTofu root and
-`PIHOLE_IP`.
+**What does not.** The cluster's own resolution: Talos nodes keep public
+`nameservers` (#213), so pods still cannot resolve the LAN domain.
 
 ## The chain
 
@@ -273,8 +266,8 @@ the features, and the resolvers.
   once and hands the file ID to every container on its node, through `modules/dns-lxc`
   to `template_file_id` on `modules/lxc`.
 
-- **The containers ignore later changes**, like the Pi-hole LXC
-  (`ignore_changes = all` in `modules/lxc`). A NetBox edit to size shows
+- **The containers ignore later changes** (`ignore_changes = all` in
+  `modules/lxc`). A NetBox edit to size shows
   nothing in the plan, and one to placement shows only the check warning;
   moving a container means moving its module call to the other node's
   folder, and changing a live container means tainting and recreating it
@@ -317,9 +310,9 @@ the features, and the resolvers.
   `dns_servers`); the role only asserts, because healing would not survive a
   reboot.
 
-- **DNS-01 challenges hang.** Unchanged in mechanism, moved in actor: Bind9 is
-  authoritative for the domain and returns NODATA for
-  `_acme-challenge.example.com` TXT, exactly as dnsmasq did.
+- **DNS-01 challenges hang.** Bind9 is authoritative for the domain and
+  returns NODATA for `_acme-challenge.example.com` TXT from the wildcard, so
+  the query never reaches public DNS.
   `dns01RecursiveNameservers` and `dns01RecursiveNameserversOnly` in
   `kubernetes/cert-manager/app/values.yaml` stay load-bearing. Search
   `Waiting for DNS-01 challenge propagation`.

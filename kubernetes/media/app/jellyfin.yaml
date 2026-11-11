@@ -133,7 +133,7 @@ spec:
       targetPort: http
 ---
 # No Certificate and no tls.secretName: TLSStore/default serves the wildcard,
-# and Pi-hole's address=/<domain>/ already resolves it.
+# and Bind9's wildcard record already resolves it.
 #
 # No auth middleware, deliberately: Jellyfin has its own login, and a basic-auth
 # prompt breaks every native client, which cannot answer one.

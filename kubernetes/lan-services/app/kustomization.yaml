@@ -11,6 +11,5 @@ resources:
   - salsa.yaml
   - samba.yaml
   - voyager.yaml
-  - pihole.yaml
   - pihole-pair.yaml
   - hubble.yaml

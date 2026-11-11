@@ -1,8 +1,8 @@
 # Host monitoring: the fleet outside the cluster
 
 Metrics and logs from everything that is not a Talos node. The four Proxmox
-NUCs and the Pi-hole LXC run Grafana Alloy and push to the cluster; TrueNAS
-CORE and the router run nothing, so the cluster polls and receives from them
+NUCs run Grafana Alloy and push to the cluster; the Pi-hole pair, TrueNAS
+CORE and the router run no agent, so the cluster polls and receives from them
 instead. Pieces: the write routes in `kubernetes/monitoring/app/ingest/`, the
 layer `kubernetes/host-monitoring/` (exporters, receivers and a gateway
 Alloy), and the `alloy` role in `ansible/`. The backends and the in-cluster
@@ -11,17 +11,15 @@ collectors are `docs/design/observability.md`.
 ## Problem
 
 The observability stack measures the cluster and nothing under it. A NUC's
-root filesystem filling, a Pi-hole LXC out of memory, a TrueNAS pool
-degrading, the router dropping its uplink — none of it reaches Prometheus or
-Loki, and the NUCs are where the cluster's own nodes live. Two of the seven
-hosts cannot run an agent at all, and the constraints of the stack apply
-throughout: a public repo (no address or domain in plaintext), PodSecurity
+root filesystem filling, a TrueNAS pool degrading, the router dropping its
+uplink — none of it reaches Prometheus or Loki, and the NUCs are where the
+cluster's own nodes live. Two of the hosts cannot run an agent at all, and
+the constraints of the stack apply throughout: a public repo (no address or domain in plaintext), PodSecurity
 `baseline` in the new namespace, and no inbound port opened on a host.
 
 | Host | What it is | Agent | Data path |
 | --- | --- | --- | --- |
 | rumba, tango, salsa, samba | Debian 13 + Proxmox VE, Ansible group `proxmox` | yes | Alloy pushes node metrics and journald; `pve-exporter` polls the PVE API |
-| pihole | Debian LXC on a NUC, Pi-hole v6 | yes | Alloy pushes node metrics and journald; `pihole-exporter` polls the v6 API |
 | pihole-01, pihole-02 | The DNS chain's Pi-hole pair, Debian 13 LXCs (`docs/design/dns-chain.md`) | no — they resolve through Quad9, which cannot answer the ingest hostnames | `pihole-exporter` polls each v6 API; blackbox `dns_lookup` probes each instance and the VIP |
 | voyager | TrueNAS CORE (FreeBSD) | no — the base system stays stock, there are no Apps | Reporting → remote Graphite; System → Advanced → remote syslog |
 | hubble | ASUS router, stock firmware | no — nothing is installable | blackbox probes from the cluster; its own remote syslog |
@@ -29,7 +27,7 @@ throughout: a public repo (no address or domain in plaintext), PodSecurity
 ## Design
 
 - **An agent where one fits, receivers and pollers where one does not.**
-  Alloy on the five Debian hosts gives node metrics and journald for the
+  Alloy on the four NUCs gives node metrics and journald for the
   price of one config file; the two appliances give what their own UI can be
   told to send. Nothing is installed where nothing may be installed, and no
   host listens on a new port: the agents push out, the appliances push out,
@@ -42,12 +40,12 @@ throughout: a public repo (no address or domain in plaintext), PodSecurity
   hostnames answer 404 everywhere else and the Prometheus and Loki UIs stay
   unexposed. One machine credential, `hosts`, serves both — a deliberate
   exception to the per-service rule of `docs/design/ingress-tls.md`, which is
-  about UIs a person logs into. The same five hosts hold both halves, both
+  about UIs a person logs into. The same four hosts hold both halves, both
   sinks are write-only, and a second credential would mean four copies across
   two SOPS trees. The hash is bcrypt: envsubst replaces a classic `$apr1$`
   hash with nothing. The one other user, `metachat`, belongs to the
   internet-facing VPS skylab, which pushes metachat's metrics over the tailnet
-  (`docs/design/metachat.md`). It is outside the five-host argument, so it gets
+  (`docs/design/metachat.md`). It is outside the four-host argument, so it gets
   its own line and is revoked without touching `hosts`.
 - **A third Alloy owns every off-cluster target.** `alloy-gateway` is a
   one-replica Deployment of the same chart version as the DaemonSet and the
@@ -126,9 +124,9 @@ throughout: a public repo (no address or domain in plaintext), PodSecurity
   `api-token.yaml`; tofu's `root@pam!terraform` is untouched.
   `PVE_VERIFY_SSL=false` because PVE serves its own certificate.
 - **Pi-hole is polled over its v6 session API.** `pihole-exporter` v1.2.0
-  polls `pihole`, `pihole-01` and `pihole-02` through their `lan-services`
+  polls `pihole-01` and `pihole-02` through their `lan-services`
   Services, comma-separated in `PIHOLE_HOSTNAME`; a single password, port and
-  protocol apply to every host (v1.2.0's `Split()`), so all three must share
+  protocol apply to every host (v1.2.0's `Split()`), so both must share
   one web password. The Secret holds a copy of `dns_pihole_web_password`,
   and `make -C kubernetes lint` fails if the two differ. The gateway keeps
   the label `hostname` only up to its first dot, so each series names its
@@ -169,9 +167,9 @@ throughout: a public repo (no address or domain in plaintext), PodSecurity
 - **The agent side is Ansible.** An `alloy` library role beside `proxmox` and
   `talos`, pinned to `alloy_version` `1.19.2-1`, dispatched from
   `02-preflights` for hosts in group `alloy` — the NetBox tag `alloy`, the
-  same mechanism as `pxe`, with the Pi-hole LXC modelled in NetBox as a VM —
-  and also reachable directly via `playbooks/alloy.yaml` /
-  `make -C ansible check-alloy|apply-alloy` as the targeted entry point.
+  same mechanism as `pxe` — and also reachable directly via
+  `playbooks/alloy.yaml` / `make -C ansible check-alloy|apply-alloy` as the
+  targeted entry point.
   `tasks/main.yaml` asserts `alloy_domain` and `alloy_hosts_password` are
   defined before doing anything else. It adds the Grafana apt repository,
   installs `alloy`, renders one `/etc/alloy/config.alloy` at mode 0600 owned
@@ -186,12 +184,10 @@ throughout: a public repo (no address or domain in plaintext), PodSecurity
   `community.sops.load_vars` (the vars plugin isn't enabled in
   `ansible.cfg`, so it never auto-loads); that domain and `cluster-secrets`'
   `DOMAIN` must agree. The hosts trust the public wildcard certificate, and
-  Pi-hole's `address=` wildcard already points both hostnames at Traefik —
-  which only helps a host that asks Pi-hole. The NUCs were installed on
-  public resolvers and the LXC inherits its host's `/etc/resolv.conf` at
-  container start (PVE's default; the LXC module sets no DNS and ignores
-  drift), so `02-preflights/tasks/resolv.yaml` writes the Pi-hole pair's VIP
-  (`dns_pihole_vip`, the DNS chain's entry point) first and `9.9.9.9` second
+  Bind9's wildcard record already points both hostnames at Traefik —
+  which only helps a host that resolves through the DNS chain. The NUCs are
+  installed on public resolvers, so `02-preflights/tasks/resolv.yaml` writes
+  the Pi-hole pair's VIP (`dns_pihole_vip`, the DNS chain's entry point) first and `9.9.9.9` second
   on every Debian-based host. glibc only moves on after a timeout, never on
   NXDOMAIN, so the fallback cannot mask the chain; when the VIP is
   unreachable each lookup stalls `timeout:2` and Alloy's WAL buffers.
@@ -212,10 +208,10 @@ throughout: a public repo (no address or domain in plaintext), PodSecurity
 
 ## Label conventions
 
-Metrics `job`: `node-exporter` (the five agent hosts, `instance` = host
+Metrics `job`: `node-exporter` (the four agent hosts, `instance` = host
 name), `pve` (`instance` = NUC name; the exporter's own `id` and `node`
 labels carry the guests), `pihole` (`instance` = `pihole`, `hostname` =
-`pihole`, `pihole-01` or `pihole-02`), `truenas` (`instance` = `voyager`),
+`pihole-01` or `pihole-02`), `truenas` (`instance` = `voyager`),
 `blackbox` (`instance` = probed host, `pihole-vip` for the VIP, `module` =
 prober). Logs: `job="journal"` with `host`, `unit`, `priority` — the `job`
 comes from a `loki.relabel` rule, because `loki.source.journal` stamps its
@@ -247,7 +243,7 @@ addresses, in labels.
   only signal there is for the router and the NAS.
 - The `hosts` credential leaks: it writes into Prometheus and Loki and reads
   nothing, but rotate the bcrypt hash in `ingest-auth-users` and the password
-  in the Ansible SOPS file together, or the five agents stop pushing.
+  in the Ansible SOPS file together, or the four agents stop pushing.
 - `INGEST_LB_IP` colliding with a DHCP lease: both receivers flap. The
   address comes from the pool's reserved range, like Traefik's.
 - Alloy's footprint on a NUC (~150 MiB) sits outside the VM memory budget the
@@ -263,9 +259,8 @@ Nothing is live yet. After the first day, record:
 - The gateway's and each exporter's working set against their limits; the
   graphite exporter's is the open one, since a passthrough mapping mints a
   series for every collectd path TrueNAS sends.
-- Alloy's resident size on a NUC and in the LXC, against what the host has
-  spare.
-- Loki's ingest rate before and after five journals and two syslog senders.
+- Alloy's resident size on a NUC, against what the host has spare.
+- Loki's ingest rate before and after four journals and two syslog senders.
 - `probe_duration_seconds` per target, to know what normal looks like before
   anything alerts on it.
 - Whether a 60 s interval with a 30 s timeout is enough for four PVE APIs
@@ -278,7 +273,7 @@ Nothing is live yet. After the first day, record:
 - **node_exporter pulled by the cluster.** Logs need a push path regardless,
   so this buys a second agent's worth of configuration on every host.
 - **Nothing on the hosts at all.** Loses journald, per-process and filesystem
-  detail, and would leave the LXC's operating system entirely invisible.
+  detail.
 - **Installing on the router or on TrueNAS CORE.** Out of scope by decision:
   stock firmware, and a base system not meant to carry packages.
 - **Static targets in the DaemonSet.** Would put `postBuild` substitution on

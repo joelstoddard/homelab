@@ -60,14 +60,13 @@ pointing at the case statement to extend. Add your distro there.
 make bootstrap-secrets             # interactive, run as your user (not root)
 ```
 
-This script writes four files:
+This script writes three files:
 
 | File | Where | What |
 | --- | --- | --- |
 | `~/.config/sops/age/keys.txt` | Operator home, 0600 | Age private key — decrypts everything SOPS-encrypted in the repo. |
 | `~/.config/netbox/env` | Operator home, 0600 | Shell script with `export NETBOX_API=` + `export NETBOX_TOKEN=`. |
 | `opentofu/secrets.sops.yaml` | Repo (committed, encrypted) | State encryption passphrase, Proxmox API endpoint URL, LAN gateway. |
-| `opentofu/resources/pihole/secrets.env` | Repo (committed, encrypted dotenv) | Pi-hole static IPv4 CIDR + admin web password as `export TF_VAR_*=…`. |
 
 You'll be prompted for:
 
@@ -75,12 +74,6 @@ You'll be prompted for:
   personal access token from `$NETBOX_API/account/personal-access-tokens/`.
 - **Proxmox API endpoint URL** (e.g. `https://<leader>.example.com:8006/`).
 - **LAN gateway IPv4** (the router on the lab segment, e.g. `192.168.1.1`).
-- **Pi-hole static IPv4 CIDR** (e.g. `192.168.1.2/24`).
-- **Pi-hole admin password** — leave blank to auto-generate 24 random
-  bytes (read it back later with
-  `sops -d opentofu/resources/pihole/secrets.env | grep pihole_web_password`).
-  Note: a literal `'` in the password breaks the LXC installer's escaping,
-  so the script rejects it.
 
 For the Age key, the script offers two paths:
 
@@ -94,8 +87,7 @@ For the Age key, the script offers two paths:
 The script is idempotent — existing files are skipped unless you pass
 `FORCE=1 make bootstrap-secrets`. **Don't `--force` on a healthy
 install**: rotating the SOPS passphrase makes every existing encrypted
-state file unreadable, *and* re-prompts every other key — so a
-`--force` rotation also rotates the Pi-hole admin password.
+state file unreadable, *and* re-prompts every other key.
 
 ### Adding yourself as a SOPS recipient
 

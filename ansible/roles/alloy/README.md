@@ -29,9 +29,8 @@ only `inventory_hostname` differs.
 ## NetBox tag / how to add a host
 
 Targets the `alloy` inventory group, populated from the NetBox tag `alloy`.
-To add a host, tag it `alloy` in NetBox (the Pi-hole LXC is modelled there
-as a VM) — no inventory file to edit. Run `make -C ansible apply-alloy` to
-pick it up.
+To add a host, tag it `alloy` in NetBox — no inventory file to edit. Run
+`make -C ansible apply-alloy` to pick it up.
 
 ## Variables
 

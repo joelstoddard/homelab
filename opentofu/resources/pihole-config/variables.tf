@@ -86,7 +86,7 @@ variable "pihole_clients" {
 }
 
 variable "pihole_adlists" {
-  description = "Adlist URLs for Pi-hole's Default group. The default is the set in resources/pihole/, from the 2026-05-10 teleporter backup."
+  description = "Adlist URLs for Pi-hole's Default group, from the 2026-05-10 teleporter backup."
   type        = list(string)
 
   validation {

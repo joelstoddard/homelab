@@ -11,7 +11,7 @@ The repo is sliced into top-level directories, each a layer with its own
 ┌──────────────────────────────────────────────────────────────────────┐
 │ kubernetes/   Flux CD bootstrap + Flux-managed workloads             │
 ├──────────────────────────────────────────────────────────────────────┤
-│ opentofu/     VMs / LXCs / k8s-VM shells / Pi-hole, on Proxmox       │
+│ opentofu/     VMs / LXCs / k8s-VM shells / DNS chain, on Proxmox     │
 ├──────────────────────────────────────────────────────────────────────┤
 │ ansible/      PXE-install OS, convert to Proxmox, form cluster       │
 ├──────────────────────────────────────────────────────────────────────┤
@@ -65,7 +65,7 @@ Modules under `opentofu/modules/`:
 Resources under `opentofu/resources/`:
 
 - `rumba/`, `tango/`, `salsa/`, `samba/` — per-NUC empty-shell k8s VMs (12 total across the cluster), plus the DNS chain's Bind9 and lancache-dns LXCs on `rumba/` and `salsa/` and its Pi-hole pair on `tango/` and `samba/`.
-- `pihole/` — Pi-hole LXC for DNS/adblock, bootstrapped to a static IP.
+- `pihole-config/` — the Pi-hole pair's adlists, groups and clients, written to pihole-01 (`docs/design/dns-chain.md`, "Lists and their sync").
 
 Three secret inputs (all SOPS-encrypted, committed):
 
@@ -74,7 +74,7 @@ Three secret inputs (all SOPS-encrypted, committed):
   `sops --extract` in `opentofu/Makefile`.
 - `opentofu/resources/<dir>/secrets.env` — *optional* per-resource
   dotenv with `export TF_VAR_*=…` lines scoped to one resource (e.g.
-  `pihole/secrets.env` carries the static IP and admin password).
+  `pihole-config/secrets.env` carries the Pi-hole pair's client set).
   Eval-sourced inside the `run_tofu` loop only when that resource is
   iterated.
 - `ansible/inventory/group_vars/proxmox.sops.yaml` — the
@@ -152,7 +152,7 @@ Eight encrypted artifacts, three different lifecycles:
 | `ansible/inventory/host_vars/*.sops.yaml` | Age (via SOPS) | Committed. Encrypted at rest. | Per-host `root_password` and friends. |
 | `ansible/inventory/group_vars/proxmox.sops.yaml` | Age (via SOPS) | Committed. Encrypted at rest. | `proxmox_api_token`, minted by the api-token task. |
 | `opentofu/secrets.sops.yaml` | Age (via SOPS) | Committed. Encrypted at rest. | State encryption passphrase, Proxmox endpoint URL, LAN gateway. |
-| `opentofu/resources/<dir>/secrets.env` | Age (via SOPS) | Committed. Encrypted at rest. | Resource-scoped `TF_VAR_*` (e.g. Pi-hole password, static IP). |
+| `opentofu/resources/<dir>/secrets.env` | Age (via SOPS) | Committed. Encrypted at rest. | Resource-scoped `TF_VAR_*` (e.g. the Pi-hole pair's client set). |
 | `kubernetes/**/*.sops.yaml` | Age (via SOPS), `data`/`stringData` only | Committed. Encrypted at rest. | Kubernetes Secrets, decrypted in-cluster by kustomize-controller. |
 | Secret `flux-system/sops-age` | n/a (it *is* the Age private key) | In-cluster only. Never in git. | Created by `make -C kubernetes` from `$SOPS_AGE_KEY_FILE`; what lets Flux decrypt the row above. |
 
@@ -180,8 +180,8 @@ Everything sits on that single segment:
 - Bare metal: NUCs, Pis, the operator workstation.
 - Proxmox guests: VMs and LXCs bridge directly onto the LAN via `vmbr0`
   (no internal Proxmox networks in use).
-- The Pi-hole LXC takes a static address from this same range
-  (`pihole_static_ipv4_cidr` in the bootstrap secrets).
+- The DNS chain's LXCs take static addresses from this same range,
+  from NetBox.
 
 The PXE server (whichever machine you run `make apply-pxe` from) must
 sit on this segment — dnsmasq runs in *DHCP-proxy* mode (it doesn't
@@ -207,7 +207,7 @@ separate physical NICs. Neither is in place today.
 ### IPAM
 
 NetBox is the source of truth for IP assignment. Static IPs (NUCs, Pis,
-Pi-hole) are reserved there; everything else gets a DHCP lease from
+the DNS chain's LXCs) are reserved there; everything else gets a DHCP lease from
 whatever DHCP server is on the LAN (the home router today, not anything
 this repo manages).
 
@@ -244,7 +244,7 @@ deadlocks). Anything once-bootstrapped *could* migrate inward later.
 | **download.proxmox.com** | Proxmox VE no-subscription apt repo, used by `proxmox/debian-to-pve.yaml`. | Same as Debian — upstream provider. |
 | **boot.ipxe.org** | iPXE chainloader binary (`ipxe.efi`), downloaded by `00-pxe` once per change. | Upstream binary distribution; alternative is building iPXE ourselves, not worth it. |
 | **github.com/getsops/sops**, **github.com/opentofu/opentofu** | `install.sh` pulls SOPS and OpenTofu binaries that aren't in Debian apt. | Upstream releases; pinned by version in `install.sh:57-66`. |
-| **Quad9 (`9.9.9.9`)** | Default DNS server during install (`ansible/inventory/group_vars/all.yaml` exposes it as `quad_nine_dns_server`). Pi-hole takes over post-install for in-lab clients. | DNS resolution must work before anything else (including before Pi-hole exists). |
+| **Quad9 (`9.9.9.9`)** | Default DNS server during install (`ansible/inventory/group_vars/all.yaml` lists it first in `public_dns_servers`). The DNS chain takes over post-install for in-lab clients. | DNS resolution must work before anything else (including before the DNS chain exists). |
 | **`pool.ntp.org`-style NTP** | Time sync during install (`ntp_server: "192.168.1.1"` in `00-pxe/defaults`, which delegates to the LAN gateway → upstream NTP). | Time has to work before TLS, which has to work before package installs. |
 | **operator's Age key** | All SOPS-encrypted material in the repo. | Operator-private by design; can be generated fresh per workstation, or copied between operator machines (no central key escrow). |
 
@@ -272,7 +272,7 @@ homelab/
 │   └── README.md                  # ansible-specific workflow detail
 ├── opentofu/                      # Resources on top of the Proxmox fleet
 │   ├── modules/                   # cloud-init-template, vm, lxc, k8s-vm, dns-lxc
-│   ├── resources/                 # one root module per resource (per-NUC k8s VMs, pihole, …)
+│   ├── resources/                 # one root module per resource (per-NUC k8s VMs, pihole-config, …)
 │   ├── secrets.sops.yaml          # shared SOPS secrets (state passphrase, endpoint, gateway)
 │   ├── Makefile                   # check / apply iterating each resources/*/
 │   └── README.md                  # opentofu-specific layout, recovery, provider mirror

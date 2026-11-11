@@ -118,8 +118,8 @@ storage transport down with it.
 ### Ingress
 
 One `IngressRoute` on `websecure` with the `default-headers` middleware, and
-nothing else: `TLSStore/default` serves the wildcard certificate and Pi-hole's
-`address=/<domain>/` wildcard resolves the name. No `Certificate`, no DNS
+nothing else: `TLSStore/default` serves the wildcard certificate and Bind9's
+wildcard record resolves the name. No `Certificate`, no DNS
 record.
 
 There is no basic-auth, which is the second documented exception to the

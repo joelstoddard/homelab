@@ -51,7 +51,7 @@ Settings live in `ansible/roles/02-preflights/defaults/main.yaml`:
 | `zram_swappiness` | `180` | The kernel maximum is 200. A high value reclaims anonymous pages ahead of page cache, which is correct when swap is RAM-backed and faster than the disk the cache would be re-read from. |
 | `zram_page_cluster` | `0` | zram is genuinely random access. Swap readahead only spends cycles decompressing neighbouring pages that nothing asked for. |
 
-Scope is the `proxmox` group — the four NUCs. The Pi-hole LXC is excluded: an
+Scope is the `proxmox` group — the four NUCs. The DNS chain's LXCs are excluded: an
 unprivileged container cannot load the module, and its swap belongs to the
 host. Talos does not support swap at all.
 
