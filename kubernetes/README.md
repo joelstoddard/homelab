@@ -110,8 +110,8 @@ kubernetes/
 │       ├── salsa.yaml            # ditto
 │       ├── samba.yaml            # ditto
 │       ├── voyager.yaml          # TrueNAS CORE
-│       ├── pihole.yaml           # Pi-hole's admin UI
-│       ├── pihole-pair.yaml      # pihole-01 + pihole-02: headless Service + EndpointSlice, no route
+│       ├── pihole.yaml           # the old single Pi-hole: Service + EndpointSlice, no route
+│       ├── pihole-pair.yaml      # pihole-01, pihole-02, pihole-vip; the admin UI route on the VIP
 │       └── hubble.yaml       # the router; plain HTTP, no serversTransport
 ├── tailscale/
 │   ├── ks.yaml                   # Flux Kustomization "tailscale", sops decryption
@@ -255,7 +255,7 @@ ordering) rather than by growing the root tree — see "Adding workloads".
 | `PIHOLE_IP` | same Secret | Pi-hole's LAN address, for `pihole.yaml`. |
 | `PIHOLE_01_IP` | same Secret | pihole-01's own LAN address (not the VIP), for `pihole-pair.yaml`. |
 | `PIHOLE_02_IP` | same Secret | Same, for pihole-02. |
-| `PIHOLE_VIP` | same Secret | The Pi-hole pair's keepalived VIP, equal to `dns_pihole_vip`, for the `host-monitoring` DNS probe. |
+| `PIHOLE_VIP` | same Secret | The Pi-hole pair's keepalived VIP, equal to `dns_pihole_vip`, for the `host-monitoring` DNS probe and `pihole-pair.yaml`'s `pihole-vip`. |
 | `ROUTER_IP` | same Secret | The router's LAN address, for `hubble.yaml`. |
 | `NETBOX_URL` | same Secret | The NetBox Cloud tenant URL, for the Glance bookmark. Encrypted for the same reason the repo only ever refers to it as `$NETBOX_API` elsewhere: the tenant name identifies the account. |
 | `INGEST_LB_IP` | same Secret | The address TrueNAS and the router send graphite and syslog to — reserved in the `cilium-lb` pool, shared by the two receiver Services. `RUMBA_IP`, `TANGO_IP`, `SALSA_IP`, `SAMBA_IP`, `VOYAGER_IP`, `PIHOLE_IP`, `PIHOLE_01_IP`, `PIHOLE_02_IP`, `PIHOLE_VIP` and `ROUTER_IP` are also the `host-monitoring` probe and poll targets. |
@@ -1125,12 +1125,14 @@ seven hostnames. Also `dependsOn: cluster-secrets`, for `${DOMAIN}` and the
 address variables.
 
 `pihole-pair.yaml` adds the Pi-hole pair's two instances, `pihole-01` and
-`pihole-02`, as a headless `Service` and `EndpointSlice` each with **no
-route**: they are in-cluster names, for `nebula-sync`, that reach one
-instance each rather than whichever holds the VIP. Their addresses are
-`${PIHOLE_01_IP}` and `${PIHOLE_02_IP}`, so merge only once both are in
-`cluster-secrets`: an undefined key substitutes empty, the `EndpointSlice`
-fails validation, and the whole layer stops applying.
+`pihole-02`, as a headless `Service` and `EndpointSlice` each: in-cluster
+names, for `nebula-sync`, that reach one instance each rather than whichever
+holds the VIP. A third, `pihole-vip`, names the VIP and carries the
+`pihole.${DOMAIN}` route, so the admin UI is the instance holding the VIP.
+Their addresses are `${PIHOLE_01_IP}`, `${PIHOLE_02_IP}` and `${PIHOLE_VIP}`:
+an undefined key substitutes empty, the `EndpointSlice` fails validation, and
+the whole layer stops applying. `pihole.yaml` is the old single Pi-hole, with
+no route, kept for `pihole-exporter` and the blackbox probe.
 
 Six of the seven backends serve a self-signed certificate: their routes use
 the shared `ServersTransport` `lan-insecure` (renamed from its earlier
