@@ -244,7 +244,7 @@ deadlocks). Anything once-bootstrapped *could* migrate inward later.
 | **download.proxmox.com** | Proxmox VE no-subscription apt repo, used by `proxmox/debian-to-pve.yaml`. | Same as Debian — upstream provider. |
 | **boot.ipxe.org** | iPXE chainloader binary (`ipxe.efi`), downloaded by `00-pxe` once per change. | Upstream binary distribution; alternative is building iPXE ourselves, not worth it. |
 | **github.com/getsops/sops**, **github.com/opentofu/opentofu** | `install.sh` pulls SOPS and OpenTofu binaries that aren't in Debian apt. | Upstream releases; pinned by version in `install.sh:57-66`. |
-| **Quad9 (`9.9.9.9`)** | Default DNS server during install (`ansible/inventory/group_vars/all.yaml` exposes it as `quad_nine_dns_server`). The DNS chain takes over post-install for in-lab clients. | DNS resolution must work before anything else (including before the DNS chain exists). |
+| **Quad9 (`9.9.9.9`)** | Default DNS server during install (`ansible/inventory/group_vars/all.yaml` lists it first in `public_dns_servers`). The DNS chain takes over post-install for in-lab clients. | DNS resolution must work before anything else (including before the DNS chain exists). |
 | **`pool.ntp.org`-style NTP** | Time sync during install (`ntp_server: "192.168.1.1"` in `00-pxe/defaults`, which delegates to the LAN gateway → upstream NTP). | Time has to work before TLS, which has to work before package installs. |
 | **operator's Age key** | All SOPS-encrypted material in the repo. | Operator-private by design; can be generated fresh per workstation, or copied between operator machines (no central key escrow). |
 
