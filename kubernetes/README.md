@@ -1132,8 +1132,7 @@ an undefined key substitutes empty, the `EndpointSlice` fails validation, and
 the whole layer stops applying.
 
 Six of the seven backends serve a self-signed certificate: their routes use
-the shared `ServersTransport` `lan-insecure` (renamed from its earlier
-Proxmox-only name now that Proxmox is not its only user) via
+the shared `ServersTransport` `lan-insecure` via
 `serversTransport: traefik-lan-insecure@kubernetescrd`. The router speaks plain HTTP with no TLS
 at all, so its route sets neither `scheme` nor `serversTransport`. None of
 the seven carry basic auth — each already authenticates on its own. Full

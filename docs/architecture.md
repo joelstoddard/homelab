@@ -60,7 +60,7 @@ Modules under `opentofu/modules/`:
 - `cloud-init-template/` — base Proxmox cloud-init template.
 - `vm/` and `lxc/` — generic Proxmox VM and LXC wrappers.
 - `k8s-vm/` — NetBox-driven k8s VM shell (used by `resources/{rumba,tango,salsa,samba}/`).
-- `dns-lxc/` — NetBox-driven Bind9 or lancache-dns LXC of the DNS chain (used by `resources/{rumba,salsa}/dns.tf`).
+- `dns-lxc/` — NetBox-driven LXC of the DNS chain: a Bind9, lancache-dns or Pi-hole instance (used by every per-NUC `dns.tf`).
 
 Resources under `opentofu/resources/`:
 
