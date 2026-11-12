@@ -14,5 +14,15 @@
   {"targets": ["${ROUTER_IP}"],      "labels": {"group": "probe", "module": "dns_lookup", "instance": "hubble"}},
   {"targets": ["${PIHOLE_VIP}"],     "labels": {"group": "probe", "module": "dns_lookup", "instance": "pihole-vip"}},
   {"targets": ["${PIHOLE_01_IP}"],   "labels": {"group": "probe", "module": "dns_lookup", "instance": "pihole-01"}},
-  {"targets": ["${PIHOLE_02_IP}"],   "labels": {"group": "probe", "module": "dns_lookup", "instance": "pihole-02"}}
+  {"targets": ["${PIHOLE_02_IP}"],   "labels": {"group": "probe", "module": "dns_lookup", "instance": "pihole-02"}},
+  {"targets": ["${PIHOLE_VIP}"],     "labels": {"group": "probe", "module": "dns_wildcard", "instance": "pihole-vip"}},
+  {"targets": ["${PIHOLE_01_IP}"],   "labels": {"group": "probe", "module": "dns_wildcard", "instance": "pihole-01"}},
+  {"targets": ["${PIHOLE_02_IP}"],   "labels": {"group": "probe", "module": "dns_wildcard", "instance": "pihole-02"}},
+  {"targets": ["${PIHOLE_VIP}"],     "labels": {"group": "probe", "module": "dns_lancache", "instance": "pihole-vip"}},
+  {"targets": ["${PIHOLE_01_IP}"],   "labels": {"group": "probe", "module": "dns_lancache", "instance": "pihole-01"}},
+  {"targets": ["${PIHOLE_02_IP}"],   "labels": {"group": "probe", "module": "dns_lancache", "instance": "pihole-02"}},
+  {"targets": ["${BIND9_01_IP}:9119"],    "labels": {"group": "bind", "instance": "bind9-01"}},
+  {"targets": ["${BIND9_02_IP}:9119"],    "labels": {"group": "bind", "instance": "bind9-02"}},
+  {"targets": ["${LANCACHE_01_IP}:9119"], "labels": {"group": "bind", "instance": "lancache-01"}},
+  {"targets": ["${LANCACHE_02_IP}:9119"], "labels": {"group": "bind", "instance": "lancache-02"}}
 ]
