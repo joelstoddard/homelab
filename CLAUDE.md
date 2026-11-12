@@ -145,7 +145,10 @@ Current implementation:
   listening; no wildcard or passthrough lines, which Bind9 serves; the web
   password on stdin from `dns_pihole_web_password`) and `keepalived.yaml`
   (unicast VRRP, VRID `dns_pihole_vrid` 53, preempt, a `pi.hole` health
-  check, floating `dns_pihole_vip`). `resolv.yaml` asserts that no link resolves
+  check, floating `dns_pihole_vip`). `metrics.yaml` opens BIND's statistics
+  channel on loopback on both BIND links and runs `prometheus-bind-exporter`
+  beside it; the BIND ACLs must never admit cluster node addresses, which
+  every subnet-routed tailnet client shares. `resolv.yaml` asserts that no link resolves
   through the chain itself. Every container must run Debian 13, and the role
   asserts it: Debian 12's BIND 9.18 rejects `tls` in `forwarders` and its
   `docker-compose` is the Python v1. Addresses are in
@@ -327,7 +330,9 @@ metrics need the talos role's control-plane patch (`bind-address`,
 substituted) is the fleet outside the cluster: `pve-exporter`,
 `pihole-exporter` and `blackbox-exporter` poll and probe Proxmox, Pi-hole and
 the router, `graphite-exporter` receives TrueNAS's collectd stream, and a
-third Alloy (`alloy-gateway`) scrapes all four and runs the syslog receiver;
+third Alloy (`alloy-gateway`) scrapes all four, plus the
+`prometheus-bind-exporter` the `dns` role runs on each Bind9 and
+lancache-dns container (`job="bind"`, `:9119`), and runs the syslog receiver;
 the two receivers share one pinned `${INGEST_LB_IP}` through
 `lbipam.cilium.io/sharing-key`, syslog on 1514 in the pod so it needs neither
 root nor NET_BIND_SERVICE. The Alloys on the Proxmox hosts push

@@ -1,9 +1,9 @@
 # Host monitoring: the fleet outside the cluster
 
 Metrics and logs from everything that is not a Talos node. The four Proxmox
-NUCs run Grafana Alloy and push to the cluster; the Pi-hole pair, TrueNAS
-CORE and the router run no agent, so the cluster polls and receives from them
-instead. Pieces: the write routes in `kubernetes/monitoring/app/ingest/`, the
+NUCs run Grafana Alloy and push to the cluster; the DNS chain's containers,
+TrueNAS CORE and the router run no agent, so the cluster polls and receives
+from them instead. Pieces: the write routes in `kubernetes/monitoring/app/ingest/`, the
 layer `kubernetes/host-monitoring/` (exporters, receivers and a gateway
 Alloy), and the `alloy` role in `ansible/`. The backends and the in-cluster
 collectors are `docs/design/observability.md`.
@@ -20,7 +20,8 @@ the constraints of the stack apply throughout: a public repo (no address or doma
 | Host | What it is | Agent | Data path |
 | --- | --- | --- | --- |
 | rumba, tango, salsa, samba | Debian 13 + Proxmox VE, Ansible group `proxmox` | yes | Alloy pushes node metrics and journald; `pve-exporter` polls the PVE API |
-| pihole-01, pihole-02 | The DNS chain's Pi-hole pair, Debian 13 LXCs (`docs/design/dns-chain.md`) | no — they resolve through Quad9, which cannot answer the ingest hostnames | `pihole-exporter` polls each v6 API; blackbox `dns_lookup` probes each instance and the VIP |
+| pihole-01, pihole-02 | The DNS chain's Pi-hole pair, Debian 13 LXCs (`docs/design/dns-chain.md`) | no — they resolve through Quad9, which cannot answer the ingest hostnames | `pihole-exporter` polls each v6 API; blackbox `dns_lookup`, `dns_wildcard` and `dns_lancache` probe each instance and the VIP |
+| bind9-01, bind9-02, lancache-01, lancache-02 | The DNS chain's BIND links, Debian 13 LXCs (`docs/design/dns-chain.md`) | no — same resolver constraint as the Pi-holes | `prometheus-bind-exporter` on each container, scraped by the gateway |
 | voyager | TrueNAS CORE (FreeBSD) | no — the base system stays stock, there are no Apps | Reporting → remote Graphite; System → Advanced → remote syslog |
 | hubble | ASUS router, stock firmware | no — nothing is installable | blackbox probes from the cluster; its own remote syslog |
 
@@ -29,9 +30,10 @@ the constraints of the stack apply throughout: a public repo (no address or doma
 - **An agent where one fits, receivers and pollers where one does not.**
   Alloy on the four NUCs gives node metrics and journald for the
   price of one config file; the two appliances give what their own UI can be
-  told to send. Nothing is installed where nothing may be installed, and no
-  host listens on a new port: the agents push out, the appliances push out,
-  the cluster reaches in only over APIs that already exist.
+  told to send. Nothing is installed where nothing may be installed. The
+  agents push out and the appliances push out. The cluster reaches in over
+  APIs that already exist, plus one read-only exporter port on each BIND
+  link (see "BIND is scraped from an exporter beside it").
 - **Two write routes, one credential.** `IngressRoute prometheus-write`
   matches ``Host(`prometheus.example.com`) && PathPrefix(`/api/v1/write`)``
   and `loki-push` matches ``Host(`loki.example.com`) &&
@@ -108,9 +110,10 @@ the constraints of the stack apply throughout: a public repo (no address or doma
   arrive SNAT'd; harmless here because `host` comes from the syslog message
   itself, not the connection's source address.
 - **No ICMP.** PodSecurity `baseline` forbids `NET_RAW`, which a ping prober
-  needs. The three modules are `tcp_connect` (the router's and each host's UI
-  port), `http_2xx` (TLS verification off — these are self-signed LAN UIs)
-  and `dns_lookup` (a public name resolved through the router). A TCP connect
+  needs. The modules are `tcp_connect` (the router's and each host's UI
+  port), `http_2xx` (TLS verification off — these are self-signed LAN UIs),
+  `dns_lookup` (a public name, through the router and each Pi-hole), and
+  `dns_wildcard` and `dns_lancache` (the chain's own records, below). A TCP connect
   to a UI port gives the same up/down and round-trip time a ping would.
 - **TrueNAS arrives as Graphite.** CORE's only stock export is System →
   Reporting → remote Graphite: collectd over plain TCP 2003.
@@ -138,6 +141,43 @@ the constraints of the stack apply throughout: a public repo (no address or doma
   `dns_lookup` asks `${PIHOLE_01_IP}`, `${PIHOLE_02_IP}` and `${PIHOLE_VIP}`
   for a public name, which only succeeds when that Pi-hole and a path through
   lancache-dns or Bind9 to the DoT upstreams all answer.
+- **The chain's own records are probed through the Pi-holes.** `dns_wildcard`
+  asks for a name under `${DOMAIN}` and fails unless the answer is
+  `${TRAEFIK_LB_IP}` (Bind9's wildcard); `dns_lancache` asks for a Steam CDN
+  name and fails unless the answer is `${LANCACHE_LB_IP}` (lancache-dns's
+  RPZ). Each runs against `pihole-01`, `pihole-02` and the VIP. When
+  lancache-dns is down on both links, Pi-hole's `strict-order` falls through
+  to Bind9 and `dns_lancache` reads 0 while every other probe stays green.
+  The answer regexes end in `\z`, not `$`: the file is Flux-substituted.
+- **The BIND links are not probed directly.** Their ACLs admit only the next
+  link up. A probe from the cluster arrives masqueraded to a node address,
+  and the Tailscale subnet router masquerades every tailnet client to a node
+  address too, so admitting the nodes would let any tailnet device or pod
+  query Bind9 and lancache-dns and skip Pi-hole's blocklists. The role's
+  "refuses a host outside the chain" check fails on exactly that change. Each
+  link's health comes from its exporter instead, and client latency is
+  measured only through the Pi-holes.
+- **BIND is scraped from an exporter beside it.** Every BIND link — Bind9
+  and lancache-dns — opens `statistics-channels` on `127.0.0.1:8053`, and
+  Debian's `prometheus-bind-exporter` (0.8.0) on the same container reads it
+  and serves `:9119` on the container's address. The statistics never leave
+  loopback; the exporter port is open to the LAN and the tailnet, and serves
+  only counters. lancache-dns runs `named` in Docker with host networking, so
+  its loopback channel is the LXC's. The Ansible `dns` role installs it
+  (`tasks/metrics.yaml`), with a drop-in setting `PrivateUsers=false`: an
+  unprivileged LXC cannot create the nested user namespace the packaged unit
+  asks for, and the unit fails with status 217/USER. The gateway's `bind`
+  job scrapes the four exporters from `targets.json` (`${BIND9_01_IP}` …
+  `${LANCACHE_02_IP}`), `instance` the container name. The default stats
+  groups only (`server`, `view`): BIND 9.20 serves no `tasks` statistics, and
+  the exporter fails the whole scrape on that 404. Exporter 0.8.0 does not
+  export BIND's `CacheHits`/`CacheMisses`, so the dashboard's cache panel is
+  `1 − bind_query_recursions_total / bind_incoming_queries_total`, the share
+  answered without asking upstream. `bind_resolver_query_duration_seconds` is
+  the upstream round trip — Bind9 to its DoT forwarders, lancache-dns to
+  Bind9 — in BIND's own coarse buckets. Process metrics exist for Bind9 only:
+  the exporter cannot read the PID file of lancache-dns's containerised
+  `named`.
 - **`probe_success`, not `pihole_status`, says an instance is down.** While
   pihole-FTL is stopped on one instance, its `pihole_status` reads 1 and the
   `pihole` job is `up`: the exporter keeps reporting the last values it read
@@ -211,9 +251,10 @@ the constraints of the stack apply throughout: a public repo (no address or doma
 Metrics `job`: `node-exporter` (the four agent hosts, `instance` = host
 name), `pve` (`instance` = NUC name; the exporter's own `id` and `node`
 labels carry the guests), `pihole` (`instance` = `pihole`, `hostname` =
-`pihole-01` or `pihole-02`), `truenas` (`instance` = `voyager`),
+`pihole-01` or `pihole-02`), `bind` (`instance` = `bind9-01`, `bind9-02`,
+`lancache-01` or `lancache-02`), `truenas` (`instance` = `voyager`),
 `blackbox` (`instance` = probed host, `pihole-vip` for the VIP, `module` =
-prober). Logs: `job="journal"` with `host`, `unit`, `priority` — the `job`
+blackbox module). Logs: `job="journal"` with `host`, `unit`, `priority` — the `job`
 comes from a `loki.relabel` rule, because `loki.source.journal` stamps its
 own component id over the static `labels` map (without the rule the label is
 `job="loki.source.journal.journal"` and the dashboard shows nothing);
@@ -240,6 +281,11 @@ addresses, in labels.
   backpressure; the graphite connection re-establishes on its own.
 - A host down: its `up` series go stale and `probe_success` drops to 0 — the
   only signal there is for the router and the NAS.
+- A BIND link's `named` stopped: `bind_up` reads 0 while the `bind` target
+  stays `up`, because the exporter still answers. A stopped container or
+  exporter makes the target `up == 0` and `bind_up` absent. Alert on both.
+  A stopped lancache-dns is also the role's fail-open lever
+  (`dns_lancache_enabled: false`), so `bind_up` 0 there can be deliberate.
 - The `hosts` credential leaks: it writes into Prometheus and Loki and reads
   nothing, but rotate the bcrypt hash in `ingest-auth-users` and the password
   in the Ansible SOPS file together, or the four agents stop pushing.
@@ -254,7 +300,8 @@ addresses, in labels.
 No measurements are recorded here. To size this layer, record:
 
 - Active series added, by `job` (`node-exporter`, `pve`, `blackbox`,
-  `pihole`, `truenas`), against the series budget in #189.
+  `pihole`, `bind`, `truenas`), against the series budget in #189. The four
+  BIND exporters served 60 to 116 `bind_` series each when installed.
 - The gateway's and each exporter's working set against their limits; the
   graphite exporter's is the open one, since a passthrough mapping mints a
   series for every collectd path TrueNAS sends.

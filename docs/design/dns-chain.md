@@ -62,7 +62,9 @@ applied to pihole-01 by `make dns`, and `kubernetes/nebula-sync/` copies them
 to pihole-02 (see "Lists and their sync"). `kubernetes/lan-services/` names
 each instance and the VIP in-cluster, and routes `pihole.<domain>` to the VIP,
 so the admin UI is whichever instance holds it. `kubernetes/host-monitoring/`
-polls both instances' APIs and probes each one and the VIP with a DNS lookup
+polls both Pi-hole instances' APIs, probes each one and the VIP for a public
+name, Bind9's wildcard and lancache-dns's rewrite, and scrapes the
+`prometheus-bind-exporter` the role installs beside every BIND link
 (`docs/design/host-monitoring.md`). The NUCs' `/etc/resolv.conf` lists the
 VIP first (`02-preflights/tasks/resolv.yaml`).
 
