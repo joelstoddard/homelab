@@ -9,9 +9,8 @@ the deviations live in the NetBox Labs Console.
 
 NetBox is the homelab's source of truth: Ansible, OpenTofu and the Talos role
 all read from it. Nothing checks it against reality, so drift has never been
-measured. Two changes are in flight that will move the network (the DNS chain
-LXCs, and skylab joining the cluster), and the LAN carries devices that were
-never modelled (TVs, phones).
+measured. Changes such as the DNS chain LXCs move the network, and the LAN
+carries devices that were never modelled (TVs, phones).
 
 The goal is to verify changes as they land, and to make unknown devices
 visible. Every deviation is triaged: an expected device gets modelled in
@@ -79,10 +78,9 @@ expected and accepted; it converges as devices are modelled.
 - **Health signal.** The only lasting signal is the agent's online status in
   the Console. An agent that is offline gets no runs, so Run history stays
   empty, and nothing in the cluster alerts on it.
-- **Home nodes only.** Skylab carries the taint
-  `homelab/public-node=true:NoSchedule` (`skylab-enrolment.md`), so a pod
-  without the toleration cannot land there. A scan from a Hetzner VPS would
-  see nothing of the LAN.
+- **Home cluster only.** Skylab is a separate cluster with its own Flux
+  tree (`skylab-flux.md`), so this layer never reaches it. A scan from
+  Hetzner would see nothing of the LAN.
 - **Flux layer.** `kubernetes/orb-agent/ks.yaml`, with the SOPS decryption
   block, is listed in `kubernetes/kustomization.yaml`. There is no
   `dependsOn`, as with `tailscale`.
@@ -168,5 +166,3 @@ Done on 2026-11-10:
   (`nse_main.lua` is missing). Script-based probes such as mDNS or NetBIOS
   fail inside it. Identify devices with `dig` against port 5353 from a LAN
   host instead.
-- **No node affinity backs up the skylab taint.** If skylab enrols without
-  the taint, the agent can be scheduled there.

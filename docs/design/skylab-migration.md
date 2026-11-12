@@ -1,11 +1,12 @@
 # Skylab app migration
 
-How joelst and metachat move from the Ashburn server to skylab, the cluster's
-first **public node**, as Flux layers, and how they are released afterwards.
-Provisioning (`docs/design/skylab-provisioning.md`), enrolment
-(`docs/design/skylab-enrolment.md`) and ingress
-(`docs/design/skylab-ingress.md`) end at a Ready node behind a tunnel. The
-order of changes and the cutover steps are in `docs/skylab-cutover.md`.
+How joelst and metachat move from the Ashburn server to skylab, the first
+**public cluster**, as Flux layers, and how they are released afterwards.
+Provisioning (`docs/design/skylab-provisioning.md`), bootstrap
+(`docs/design/skylab-bootstrap.md`), Flux (`docs/design/skylab-flux.md`) and
+ingress (`docs/design/skylab-ingress.md`) end at a healthy cluster behind a
+tunnel. The order of changes and the cutover steps are in
+`docs/skylab-cutover.md`.
 
 Hostnames are placeholders: joelst serves `example.com`, metachat serves
 `chat.example.net`, and the real zones stay in SOPS.
@@ -14,10 +15,11 @@ Hostnames are placeholders: joelst serves `example.com`, metachat serves
 
 On Ashburn, each app repo's CI deploys over SSH: joelst through a forced
 command that builds the site on the server, metachat through `docker compose`
-with Caddy, coturn and a per-stack Alloy beside it. On skylab, Flux deploys
-from this repo, the tunnel replaces Caddy, and `alloy-cluster` replaces the
-push path. The move has to keep the sites as easy to maintain as they are
-today, and it has to be reversible until the Ashburn server is off.
+with Caddy, coturn and a per-stack Alloy beside it. On skylab, skylab's own
+Flux deploys from this repo, the tunnel replaces Caddy, and nothing replaces
+the push path (see "Metrics"). The move has to keep the sites as easy to
+maintain as they are today, and it has to be reversible until the Ashburn
+server is off.
 
 ## The constraint
 
@@ -37,17 +39,19 @@ that runs on Ashburn during that time must be safe there as well.
 
 coturn shares the metachat layer because it exists only for metachat and
 shares its `TURN_SECRET`. It has its own namespace so that `privileged` does
-not reach the server. Placement follows `docs/design/skylab-enrolment.md`,
-"Placement". None mounts a volume: metachat keeps rooms in memory and joelst
-is static, so a restart drops live rooms and nothing else.
+not reach the server. Skylab is one node that schedules workloads on its
+control plane, so no layer sets placement. None mounts a volume: metachat
+keeps rooms in memory and joelst is static, so a restart drops live rooms and
+nothing else.
 
 **Resources.** Every container is Burstable with its memory request below its
-limit, so `LimitedSwap` can swap it (`docs/design/skylab-enrolment.md`,
-"Swap"). The request is the container's steady-state memory on Ashburn,
-measured before the layer PR. The limit is twice the request.
+limit, so `LimitedSwap` can swap it (`docs/design/skylab-bootstrap.md`,
+"Skylab-only patches"). The request is the container's steady-state memory on
+Ashburn, measured before the layer PR. The limit is twice the request.
 
-Both layers depend on `cloudflared` and `cluster-secrets` and are substituted.
-The manifests live in this repo. The app repos publish images and nothing else.
+Both layers live under `kubernetes/clusters/skylab/`, depend on
+`cloudflared` and `cluster-secrets` and are substituted. The manifests live
+in this repo. The app repos publish images and nothing else.
 
 ### Images and access
 
@@ -88,8 +92,8 @@ cleanup step.
 `RemoteAddr`, otherwise the named header holds the one client address. Both
 servers set `CF-Connecting-IP`:
 
-1. On skylab, a NetworkPolicy admits only cloudflared and `alloy-cluster`
-   (ingress design), so nothing else can forge the header.
+1. On skylab, a NetworkPolicy admits only cloudflared (ingress design), so
+   nothing else can forge the header.
 2. On Ashburn, Caddy sets `header_up CF-Connecting-IP {client_ip}`. With
    Cloudflare as a trusted proxy, that is the visitor for Cloudflare traffic
    and the true source for a direct client.
@@ -102,9 +106,9 @@ shows "· relayed" when it does.
 
 | Value | Source |
 |---|---|
-| `PUBLIC_ORIGIN`, `ALLOWED_ORIGINS` | built from `${METACHAT_ZONE}` (`cluster-secrets`) |
+| `PUBLIC_ORIGIN`, `ALLOWED_ORIGINS` | built from `${METACHAT_ZONE}` (skylab's `cluster-secrets`) |
 | `TURN_URLS` | `turn.${METACHAT_ZONE}`, the DNS-only record from the ingress design |
-| `METRICS_TOKEN` | `${METACHAT_METRICS_TOKEN}` (`cluster-secrets`), substituted into the server's Secret |
+| `METRICS_TOKEN` | `${METACHAT_METRICS_TOKEN}` (skylab's `cluster-secrets`), substituted into the server's Secret |
 | `TURN_SECRET`, `turnserver.conf` | the layer's `app/secret.sops.yaml`, the conf mounted as a file |
 
 During the parity test `ALLOWED_ORIGINS` also lists the test hostname,
@@ -120,12 +124,16 @@ value: everything else it reads is in the mounted file.
 
 ### Metrics
 
-`alloy-cluster` scrapes metachat's `/metrics` with the bearer token, in a job
-named `metachat`, modelled on the Home Assistant job. Its `instance` is the pod
-name; the push series carry `instance="skylab"`. The `Services/metachat`
-dashboard has no `job` or `instance` selector, so it reads both while both
-exist. The push path (`metachat` in `ingest-auth-users`, the per-stack Alloy)
-goes in the cleanup step, not at cutover, because a rollback needs it.
+Skylab runs no monitoring and has no route to the home cluster's
+Prometheus (`docs/design/skylab-flux.md`), so nothing scrapes metachat on
+skylab. metachat still serves `/metrics` behind its token, ready for a
+collector. The `Services/metachat` dashboard reads the Ashburn push series
+until the DNS switch and has no data after it. Bringing skylab's metrics and
+logs home is
+[Observability of skylab over the WAN](https://github.com/joelstoddard/homelab/issues/312).
+
+The push path (`metachat` in `ingest-auth-users`, the per-stack Alloy) goes
+in the cleanup step, not at cutover, because a rollback needs it.
 
 ### Rollback
 

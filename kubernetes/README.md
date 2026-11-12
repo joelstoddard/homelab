@@ -875,8 +875,8 @@ Consequences:
   the Console, then `sops kubernetes/orb-agent/app/secret.sops.yaml`.
 - **Off switch: `replicas: 0` in git.** One replica: one agent for each Fleet
   client identity.
-- **Never on skylab.** It has no toleration for `homelab/public-node`, and
-  skylab is not on the LAN.
+- **Never on skylab.** Skylab is a separate cluster, and it is not on the
+  LAN.
 
 ```bash
 flux --context homelab get ks orb-agent

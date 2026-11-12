@@ -20,8 +20,8 @@ would render, apply and upgrade it as a member of the home cluster.
 Skylab differs in three ways that shape the design:
 
 1. **No public Talos or Kubernetes API.** 50000/tcp and 6443/tcp stay closed
-   on the Hetzner firewall; opening apid to the home egress address was
-   rejected (`docs/design/skylab-enrolment.md`, alternative 5).
+   on the Hetzner firewall. Opening apid to the home egress address is
+   rejected: it is a public API port, and the home address can change.
 2. **The config is delivered before boot**, as `user_data`, and the address
    comes from DHCP after apply.
 3. **One node** is control plane and workload node at once.
@@ -103,13 +103,16 @@ clients use the endpoint. The tailnet name is not public, so it lives in
 `templates/patches/skylab/`:
 
 1. `cluster.allowSchedulingOnControlPlanes: true`.
-2. The Tailscale `ExtensionServiceConfig` above.
-3. The Forgejo Volume mount (the Forgejo design,
-   https://github.com/joelstoddard/homelab/pull/307).
+2. The Tailscale `ExtensionServiceConfig` above, which also carries the
+   Tailscale Serve config for Forgejo (`docs/design/skylab-forgejo.md`).
+3. The Forgejo Volume mount, a `UserVolumeConfig`
+   (`docs/design/skylab-forgejo.md`).
 4. `VolumeConfig` `EPHEMERAL` with a `maxSize`, a 2 GiB `SwapVolumeConfig`,
    a `ZswapConfig`, and kubelet `memorySwap.swapBehavior: LimitedSwap`.
    Talos has no zram (findings of the zram research, linked from the map).
    Only Burstable pods swap under `LimitedSwap`.
+5. The sysctl `net.ipv4.ip_local_reserved_ports: "49160-49500"`, which keeps
+   host processes off coturn's relay ports (`docs/design/skylab-ingress.md`).
 
 Swap ships in the first config because the `EPHEMERAL` cap only takes effect
 on a fresh disk: adding it later means a wipe and a re-bootstrap. The CX33
