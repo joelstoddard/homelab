@@ -29,6 +29,7 @@ most of their queries return nothing here; see `docs/design/observability.md`.
 | Logs/kubernetes-events.json | Logs | hand-written | — | — |
 | Hosts/proxmox.json | Hosts | grafana.com/grafana/dashboards/10347 | 5 | datasource UIDs pinned |
 | Hosts/pihole.json | Hosts | grafana.com/grafana/dashboards/10176 | 3 | datasource UIDs pinned; cleared a leftover LAN IP default from the `node` template variable; the `hostname` label it lists is rewritten to `pihole` by the gateway's relabel — the exporter would otherwise emit the address |
+| Hosts/bind.json | Hosts | hand-written | — | Bind9 and lancache-dns from `prometheus-bind-exporter` (`job="bind"`), plus the `dns_wildcard` and `dns_lancache` blackbox probes of the Pi-holes. The cache panel is `1 − recursions / queries`, because the exporter does not export BIND's `CacheHits`. Process panels are Bind9-only: lancache-dns's `named` runs in Docker, out of the exporter's PID view |
 | Hosts/blackbox.json | Hosts | grafana.com/grafana/dashboards/7587 | 3 | datasource UIDs pinned |
 | Hosts/host-logs.json | Hosts | hand-written | — | — |
 | Services/services-overview.json | Services | hand-written | — | Every workload ranked worst first, drilling into `service`. One table merging seven Prometheus queries and one Loki query on `exported_namespace` + `workload`; rows come from the owner map plus the Deployment, StatefulSet and DaemonSet spec series, so a workload scaled to zero keeps its row with blank resource cells. Mappings in `docs/design/observability.md` |
