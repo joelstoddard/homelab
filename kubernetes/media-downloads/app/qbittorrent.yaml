@@ -109,8 +109,8 @@ spec:
       port: 8080
       targetPort: http
 ---
-# One route and nothing else: TLSStore/default serves the wildcard and Pi-hole
-# already resolves the name (docs/design/ingress-tls.md). No auth middleware —
+# One route and nothing else: TLSStore/default serves the wildcard and the DNS
+# chain's wildcard resolves the name (docs/design/ingress-tls.md). No auth middleware —
 # the Web UI has its own login (docs/design/media-foundation.md, "Ingress and auth").
 apiVersion: traefik.io/v1alpha1
 kind: IngressRoute

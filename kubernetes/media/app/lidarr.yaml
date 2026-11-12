@@ -100,7 +100,7 @@ spec:
       targetPort: http
 ---
 # No Certificate and no tls.secretName: TLSStore/default serves the wildcard
-# and Pi-hole already resolves the name. No auth middleware — Lidarr
+# and the DNS chain's wildcard resolves the name. No auth middleware — Lidarr
 # authenticates itself (docs/design/media-foundation.md, "Ingress and auth").
 apiVersion: traefik.io/v1alpha1
 kind: IngressRoute

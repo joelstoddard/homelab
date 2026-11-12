@@ -215,8 +215,8 @@ labels carry the guests), `pihole` (`instance` = `pihole`, `hostname` =
 `blackbox` (`instance` = probed host, `pihole-vip` for the VIP, `module` =
 prober). Logs: `job="journal"` with `host`, `unit`, `priority` — the `job`
 comes from a `loki.relabel` rule, because `loki.source.journal` stamps its
-own component id over the static `labels` map (the first rollout shipped
-`job="loki.source.journal.journal"` and the dashboard stayed empty);
+own component id over the static `labels` map (without the rule the label is
+`job="loki.source.journal.journal"` and the dashboard shows nothing);
 `job="syslog"` with `host`, `severity`, `facility`, `app`, where `host` is
 lowercased and the router's self-reported name mapped to `hubble`, so a
 syslog `host` always equals some metric's `instance`. Host names, never
@@ -227,11 +227,10 @@ addresses, in labels.
 - Traefik or the cluster unreachable from a host: Alloy's WAL holds roughly
   two hours of samples, `loki.write` retries for a few minutes and then drops
   lines.
-- A host resolving through anything but Pi-hole gets `no such host` for both
-  routes and looks exactly like the case above from the cluster's side (no
-  `up`, nothing in Loki); the first rollout hit this on all five hosts until
-  `resolv.yaml` ran. Check `getent ahostsv4 prometheus.<domain>` on the host
-  before anything else.
+- A host resolving through anything but the DNS chain gets `no such host` for
+  both routes and looks exactly like the case above from the cluster's side
+  (no `up`, nothing in Loki). Check `getent ahostsv4 prometheus.<domain>` on
+  the host before anything else.
 - `INGEST_LB_IP` missing from `cluster-secrets`: substitution yields an empty
   annotation, so neither Service gets the pinned address while the
   Kustomization still goes Ready — assert on the address the Services carry,
@@ -252,7 +251,7 @@ addresses, in labels.
 
 ## Measurements
 
-Nothing is live yet. After the first day, record:
+No measurements are recorded here. To size this layer, record:
 
 - Active series added, by `job` (`node-exporter`, `pve`, `blackbox`,
   `pihole`, `truenas`), against the series budget in #189.

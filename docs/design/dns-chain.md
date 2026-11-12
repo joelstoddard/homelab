@@ -25,9 +25,9 @@ One resolver that answers every name under the domain from a single wildcard
 line in its own config is a single point of failure for all name resolution,
 and it does the work of a zone without being one.
 
-The cluster's nodes carry explicit `nameservers` (#213), but those resolvers
-are public and know nothing of the LAN domain, so the cluster cannot resolve
-the names it serves. Pointing the cluster at the chain is a later step, not a
+The cluster's VMs carry explicit `nameservers` (#213) and the Pis use Talos's
+defaults. All of them are public and know nothing of the LAN domain, so the
+cluster cannot resolve the names it serves. Pointing the cluster at the chain is a later step, not a
 prerequisite.
 
 **Only the 12 VMs actually carry them.** Rolling a Pi runs the `00-pxe` play
@@ -351,9 +351,9 @@ the features, and the resolvers.
   someone else's generator against a list that churns. Rejected on maintenance
   cost, not on design.
 
-- **Mullvad on plain `:53`.** The first draft listed `194.242.2.2` beside
-  Quad9 as an ordinary forwarder. It answers `REFUSED` over both UDP and TCP,
-  so that entry was dead and the redundancy it implied was imaginary.
+- **Mullvad on plain `:53`.** Mullvad's public resolver answers `REFUSED` on
+  plain `:53` over both UDP and TCP, so as an ordinary forwarder beside Quad9
+  it adds no redundancy. It is reachable only over DoT.
 
 - **Fail-open through BIND's forwarder list.** Listing the public resolvers
   after lancache-dns does not work: **BIND selects forwarders by round-trip

@@ -285,11 +285,11 @@ it sits at Cloudflare, correct. Expect a `Challenge` stuck at
 **`Waiting for DNS-01 challenge propagation`** indefinitely; search that string,
 this is its cause.
 
-**The earlier reasoning here was wrong** about how the cluster would reach that
-NODATA: it said cluster DNS reaches Pi-hole over DHCP-learned resolvers. It does
-not. The nodes carry no `nameservers` and no DHCP, so CoreDNS forwards to
-Talos's built-in `1.1.1.1` and `8.8.8.8` (`talosctl get resolverstatus`), which
-read the record from Cloudflare correctly. The two settings below are therefore
+**Cluster DNS does not reach that NODATA.** CoreDNS forwards to each node's
+resolvers, and all of them are public: Quad9 and Cloudflare on the VMs (#213),
+Talos's built-in `1.1.1.1` and `8.8.8.8` on the Pis
+(`talosctl get resolverstatus`). They read the record from Cloudflare
+correctly. The two settings below are therefore
 insurance today rather than the only thing between here and a hung order — and
 they become load-bearing the day cluster DNS is pointed at the LAN's own
 resolver. Do not remove them on the grounds that challenges currently pass.
@@ -362,8 +362,7 @@ role's `dns_traefik_lb_ip` and `dns_passthrough_names` in
   self-signed certificate; it should pick the real Secret up when cert-manager
   writes it. Documented rather than worked around.
 - **A plaintext `*.sops.yaml` is caught by `make -C kubernetes lint` and by
-  nothing else.** The earlier reasoning here was wrong: a missed `sops` pass
-  does not fail loudly at decryption. kustomize-controller's decryptor skips
+  nothing else.** A missed `sops` pass does not fail loudly at decryption. kustomize-controller's decryptor skips
   any resource carrying no SOPS metadata, so a plaintext Secret applies
   cleanly and the layer goes green — with the domain, the LoadBalancer
   address, a live Cloudflare DNS-edit token and the bcrypt hashes published in

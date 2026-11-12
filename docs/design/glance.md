@@ -93,11 +93,10 @@ Every site carries both, and the split is load-bearing rather than cosmetic.
 Bind9's wildcard record and reaches Traefik. `check-url` is fetched by
 the **pod**, and the cluster cannot resolve that wildcard at all: CoreDNS
 forwards to the nodes' own resolvers, and those know nothing of the domain.
-**The earlier reasoning here was wrong** about which resolvers those are —
-nothing is handed over DHCP. They are set explicitly in the machine config,
-and they are public (`docs/design/dns-chain.md`), so they resolve no name
-under the domain. `talosctl get resolverstatus` is the check, and the
-consequence for this layer is unchanged. This is the
+Those resolvers are public, not handed over DHCP: Quad9 and Cloudflare on
+the VMs, Talos's defaults on the Pis (`docs/design/dns-chain.md`), so they
+resolve no name under the domain. `talosctl get resolverstatus` is the
+check. This is the
 same constraint that kept a blackbox probe of `searx.${DOMAIN}` out of the
 `monitoring` layer.
 
