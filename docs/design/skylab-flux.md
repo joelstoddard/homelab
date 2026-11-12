@@ -59,16 +59,18 @@ directory.
 |---|---|
 | `flux-system` | Controllers and sync objects |
 | `cilium` | Its own copy: no LB-IPAM pool, no L2 announcements, `operator.replicas: 1` |
-| `cluster-secrets` | Skylab's substitution keys only (`METACHAT_ZONE`, `METACHAT_METRICS_TOKEN`, `DOMAIN`, the real hostnames) |
+| `cluster-secrets` | Skylab's substitution keys only (`METACHAT_ZONE`, `METACHAT_METRICS_TOKEN`, `DOMAIN`, `INGEST_TAILNET_IP`, the real hostnames) |
 | `cert-manager` | The chart and its CRDs, for Forgejo's certificate alone |
 | `cert-manager-issuers` | The DNS-01 `ClusterIssuer` and its Cloudflare token for the second zone (`docs/design/skylab-forgejo.md`) |
 | `cloudflared` | `docs/design/skylab-ingress.md` |
 | `joelst`, `metachat` | `docs/design/skylab-migration.md`; `metachat` holds `metachat-turn` |
 | `forgejo` | Forgejo and its mirror reconciler |
+| `alloy` | The push to the home Prometheus and Loki (`docs/design/skylab-monitoring.md`) |
 
 Skylab runs no Traefik (the tunnel terminates TLS and cloudflared reaches
 the Services directly), no Longhorn (Talos mounts the Forgejo Volume), no
-Tailscale layer (a system extension) and no monitoring. cert-manager runs
+Tailscale layer (a system extension) and no Prometheus or Loki: its `alloy`
+layer pushes home (`docs/design/skylab-monitoring.md`). cert-manager runs
 only because Forgejo serves its own HTTPS on the tailnet; it is split from
 its issuers for the home cluster's reason, that a `ClusterIssuer` cannot be
 applied before its CRD is Established.

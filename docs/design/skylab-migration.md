@@ -124,13 +124,11 @@ value: everything else it reads is in the mounted file.
 
 ### Metrics
 
-Skylab runs no monitoring and has no route to the home cluster's
-Prometheus (`docs/design/skylab-flux.md`), so nothing scrapes metachat on
-skylab. metachat still serves `/metrics` behind its token, ready for a
-collector. The `Services/metachat` dashboard reads the Ashburn push series
-until the DNS switch and has no data after it. Bringing skylab's metrics and
-logs home is
-[Observability of skylab over the WAN](https://github.com/joelstoddard/homelab/issues/312).
+Skylab's `alloy` layer scrapes metachat's `/metrics` with its token and
+pushes the series home as `job="metachat"`
+(`docs/design/skylab-monitoring.md`). That layer is not in the cutover gate,
+so the `Services/metachat` dashboard reads the Ashburn push series until the
+DNS switch and has no data from then until the layer lands.
 
 The push path (`metachat` in `ingest-auth-users`, the per-stack Alloy) goes
 in the cleanup step, not at cutover, because a rollback needs it.

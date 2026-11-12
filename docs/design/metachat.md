@@ -3,7 +3,9 @@
 How production metachat, which runs on the VPS skylab and not in this lab,
 gets its metrics into this Prometheus and onto the `Services/metachat`
 dashboard. The VPS side lives in the metachat repo (`deploy/`); this repo owns
-the receiving end.
+the receiving end. On the skylab public cluster,
+`docs/design/skylab-monitoring.md` replaces this path, and the cutover's
+cleanup step deletes this design.
 
 ## Problem
 

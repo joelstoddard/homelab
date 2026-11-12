@@ -76,10 +76,12 @@ only what it must express:
 2. Every tailnet member reaches `tag:skylab` on 443/tcp, Forgejo through
    Serve. Forgejo's login gates each person, and grants narrow the port as
    the tailnet grows.
-3. `tag:skylab` is granted no outbound access to any tailnet destination, the
-   `homelab` router's LAN prefix included. Together with `--accept-routes`
-   off on the node (`skylab-bootstrap.md`), skylab has no tailnet path off
-   itself.
+3. `tag:skylab`'s only outbound grant is `tag:ingest` on 443/tcp: the home
+   cluster's ingest device, which serves only the Prometheus and Loki write
+   routes (`docs/design/skylab-monitoring.md`). No other tailnet
+   destination is granted, the `homelab` router's LAN prefix included.
+   Together with `--accept-routes` off on the node (`skylab-bootstrap.md`),
+   skylab has no other tailnet path off itself.
 
 ### NodePorts
 
@@ -129,6 +131,10 @@ on that app's own ports:
 `169.254.0.0/16` and `127.0.0.0/8`. Destination ports are per app, never any
 port. What joelst and metachat actually call out on is measured at build.
 
+`alloy` carries one too, with no internet at all: kube-dns, the
+`kube-apiserver` and `host` entities, and the ingest device's tailnet
+address on 443/tcp (`docs/design/skylab-monitoring.md`).
+
 Inside the cluster, `forgejo` also allows its own pods (the reconciler calls
 the Forgejo API) and the `kube-apiserver` entity on 6443/tcp (the monthly
 restart `CronJob`).
@@ -153,8 +159,8 @@ and points here for the list.
    `["127.0.0.0/8"]`.
 2. The metadata-deny `CiliumClusterwideNetworkPolicy` exists, and a
    kustomization that Flux applies lists it.
-3. Each of `joelst`, `metachat`, `forgejo` and `cloudflared` carries a
-   default-deny egress policy.
+3. Each of `joelst`, `metachat`, `forgejo`, `cloudflared` and `alloy`
+   carries a default-deny egress policy.
 4. No manifest under `kubernetes/clusters/skylab/` declares `type: NodePort`
    or `type: LoadBalancer`. Chart-created Services, Forgejo's included, are
    invisible offline; check 1 covers them.
@@ -207,8 +213,8 @@ and repeated after any Cilium or coturn version bump:
    barrier.
 4. Drop the node's own address from coturn's deny list, and a TURN client
    reaches apid, 6443 and the kubelet over loopback.
-5. Drop `100.64.0.0/10` from coturn's deny list or grant `tag:skylab`
-   outbound access, and a TURN client reaches tailnet devices.
+5. Drop `100.64.0.0/10` from coturn's deny list or widen `tag:skylab`'s
+   outbound grant, and a TURN client reaches tailnet devices.
 6. Open 50000/tcp or 6443/tcp on the Hetzner firewall, and the only thing in
    front of apid and the API is the Talos CGNAT rule, which matches by source
    address alone.
