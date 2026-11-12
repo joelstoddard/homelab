@@ -12,9 +12,10 @@ the boundary around them.
 ## Problem
 
 Skylab is one Talos node on a public address, with no route to the LAN. HTTP
-leaves through a Cloudflare Tunnel, coturn listens on `hostNetwork`, and the
-operator reaches apid and the Kubernetes API over Tailscale. Four facts shape
-the design:
+leaves through a Cloudflare Tunnel, coturn listens on `hostNetwork`, the
+operator reaches apid and the Kubernetes API over Tailscale, and tailnet
+members reach Forgejo through Tailscale Serve on the node
+(`docs/design/skylab-forgejo.md`). Four facts shape the design:
 
 1. **Cilium answers NodePorts before the Talos firewall sees them.** Its tc
    program on the native device rewrites a NodePort packet before any
@@ -61,13 +62,21 @@ Tailscale traffic arrives on `tailscale0` with a tailnet source address, so a
 CGNAT source rule admits it. The rule does not decide which tailnet device
 gets in; the tailnet ACL does.
 
+Forgejo's 443/tcp needs no rule. In kernel-TUN mode `tailscaled` takes Serve
+ports in its netstack before packets reach `tailscale0`, and Serve's hop to
+`127.0.0.1` is on loopback, which Talos trusts. The tailnet ACL is the only
+gate on that port.
+
 ### The `tag:skylab` interface
 
 The tailnet policy lives in a private repo applied by GitOps; this repo states
 only what it must express:
 
 1. Only the operator reaches `tag:skylab` on 50000/tcp and 6443/tcp.
-2. `tag:skylab` is granted no outbound access to any tailnet destination, the
+2. Every tailnet member reaches `tag:skylab` on 443/tcp, Forgejo through
+   Serve. Forgejo's login gates each person, and grants narrow the port as
+   the tailnet grows.
+3. `tag:skylab` is granted no outbound access to any tailnet destination, the
    `homelab` router's LAN prefix included. Together with `--accept-routes`
    off on the node (`skylab-bootstrap.md`), skylab has no tailnet path off
    itself.
@@ -80,8 +89,12 @@ and unbound `hostPort` frontends only for node addresses inside those CIDRs,
 with no fallback, so the public address gets none. The control sits in the
 datapath, so it also covers any Service a Helm chart creates.
 
-The norm is also no `NodePort` or `LoadBalancer` Service on skylab at all:
-cloudflared connects outbound and coturn is on `hostNetwork`.
+The norm is also no `NodePort` or `LoadBalancer` Service on skylab:
+cloudflared connects outbound and coturn is on `hostNetwork`. The one
+exception is Forgejo's HTTPS Service, a `NodePort` on a fixed port that
+Tailscale Serve forwards to on `127.0.0.1`. The chart creates it from
+`HelmRelease` values, and `nodePort.addresses` keeps it off the public
+address.
 
 Unverified, and checked at build: Cilium accepts a CIDR that matches no node
 address and starts cleanly, and `cilium-dbg service list` shows no frontend
@@ -108,7 +121,7 @@ on that app's own ports:
 | Namespace | Ports to the internet |
 |---|---|
 | `cloudflared` | 443/tcp; 7844/tcp and 7844/udp (Cloudflare edge) |
-| `forgejo` | 443/tcp (GitHub, for mirrors and the reconciler) |
+| `forgejo` | 443/tcp (GitHub, for mirrors and the reconciler; Let's Encrypt is cert-manager's, not Forgejo's) |
 | `joelst`, `metachat` | 443/tcp, narrowed to DNS only if they call out on nothing |
 
 "The internet" is `0.0.0.0/0` except `10.0.0.0/8`, `172.16.0.0/12`,
@@ -116,8 +129,13 @@ on that app's own ports:
 `169.254.0.0/16` and `127.0.0.0/8`. Destination ports are per app, never any
 port. What joelst and metachat actually call out on is measured at build.
 
+Inside the cluster, `forgejo` also allows its own pods (the reconciler calls
+the Forgejo API) and the `kube-apiserver` entity on 6443/tcp (the monthly
+restart `CronJob`).
+
 Ingress stays as `skylab-migration.md` has it: a NetworkPolicy admits only
-cloudflared into joelst and metachat.
+cloudflared into joelst and metachat. The `forgejo` NetworkPolicy admits the
+host, which carries Serve's proxied connection, and the reconciler's pods.
 
 ### coturn's relay boundary
 
@@ -138,8 +156,8 @@ and points here for the list.
 3. Each of `joelst`, `metachat`, `forgejo` and `cloudflared` carries a
    default-deny egress policy.
 4. No manifest under `kubernetes/clusters/skylab/` declares `type: NodePort`
-   or `type: LoadBalancer`. Chart-created Services are invisible offline;
-   check 1 covers them.
+   or `type: LoadBalancer`. Chart-created Services, Forgejo's included, are
+   invisible offline; check 1 covers them.
 
 Each failure message names what the setting protects.
 
