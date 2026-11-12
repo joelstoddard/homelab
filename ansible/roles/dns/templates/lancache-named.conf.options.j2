@@ -9,6 +9,11 @@ acl dns_chain {
 {% endfor %}
 };
 
+// Loopback only: prometheus-bind-exporter on the LXC reads it over host networking.
+statistics-channels {
+  inet 127.0.0.1 port {{ dns_stats_port }} allow { 127.0.0.1; };
+};
+
 options {
   directory "/var/cache/bind";
 

@@ -31,6 +31,11 @@ dns_lancache_probe_domain: "lancache.steamcontent.com"
 # falls through to Bind9 and the CDN domains resolve to the real CDN.
 dns_lancache_enabled: true
 
+# BIND's statistics channel (loopback) and the exporter that serves it to the
+# cluster. docs/design/host-monitoring.md.
+dns_stats_port: 8053
+dns_exporter_port: 9119
+
 # Unpinned: Pi-hole publishes no package. The pair's versions are asserted
 # equal instead, at the end of playbooks/dns.yaml.
 dns_pihole_installer_url: "https://install.pi-hole.net"

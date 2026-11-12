@@ -9,6 +9,11 @@ acl dns_chain {
 {% endfor %}
 };
 
+// Loopback only: prometheus-bind-exporter on this host reads it.
+statistics-channels {
+    inet 127.0.0.1 port {{ dns_stats_port }} allow { 127.0.0.1; };
+};
+
 // Hostname-verified against the system CA bundle, not `tls ephemeral`.
 {% for f in dns_public_forwarders %}
 tls {{ f.tls_name }} {

@@ -1,0 +1,72 @@
+---
+# prometheus-bind-exporter on each BIND link, scraped by the cluster's
+# alloy-gateway. See docs/design/host-monitoring.md.
+#
+# On the host, not in the cluster: the exporter is one process per BIND, and
+# here it reads a statistics channel that never leaves loopback.
+
+- name: Create the exporter's drop-in directory.
+  ansible.builtin.file:
+    path: /etc/systemd/system/prometheus-bind-exporter.service.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Turn off PrivateUsers for the exporter.
+  # An unprivileged LXC cannot create a nested user namespace, so the
+  # packaged unit's PrivateUsers=true fails with status 217/USER. Written
+  # before the package, whose postinst starts the unit.
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/prometheus-bind-exporter.service.d/lxc.conf
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      # Managed by ansible (roles/dns).
+      [Service]
+      PrivateUsers=false
+  notify: Restart prometheus-bind-exporter
+
+- name: Install prometheus-bind-exporter.
+  ansible.builtin.apt:
+    name: prometheus-bind-exporter
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Point the exporter at the statistics channel.
+  ansible.builtin.copy:
+    dest: /etc/default/prometheus-bind-exporter
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      # Managed by ansible (roles/dns). See docs/design/host-monitoring.md.
+      ARGS="--bind.stats-url=http://127.0.0.1:{{ dns_stats_port }}/ --web.listen-address={{ _dns_exporter_address }}:{{ dns_exporter_port }}"
+  notify: Restart prometheus-bind-exporter
+
+- name: Enable and start the exporter.
+  ansible.builtin.systemd:
+    name: prometheus-bind-exporter
+    enabled: true
+    state: started
+    daemon_reload: true
+  # In check mode the package above is not installed, so the unit is missing.
+  ignore_errors: "{{ ansible_check_mode }}"
+
+- name: Restart the exporter now, so the check below sees the new arguments.
+  ansible.builtin.meta: flush_handlers
+
+- name: Confirm the exporter reads BIND.
+  # bind_up is 0 when the statistics channel is closed or refuses loopback;
+  # the exporter itself still answers, so its port alone proves nothing.
+  ansible.builtin.uri:
+    url: "http://{{ _dns_exporter_address }}:{{ dns_exporter_port }}/metrics"
+    return_content: true
+  register: _dns_exporter_check
+  retries: 6
+  delay: 5
+  until: _dns_exporter_check.content is defined and _dns_exporter_check.content is search('^bind_up 1$', multiline=True)
+  # A stopped lancache-dns (the fail-open lever) reads bind_up 0 by design.
+  when: not ansible_check_mode and ('bind9' in group_names or dns_lancache_enabled)
