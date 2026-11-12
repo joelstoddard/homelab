@@ -357,26 +357,32 @@ pinned to 1 because the engine counters live in the worker process. See
 `glance/` (`dependsOn: traefik, traefik-middlewares, cluster-secrets`,
 substituted, and the only app layer with **no `decryption`** — it carries no
 `*.sops.yaml`) is the browser start page on `home.${DOMAIN}`: one stateless
-pod whose entire configuration is `app/config/glance.yml`, behind its own
-`glance-auth` basic-auth Middleware whose Secret lives in `traefik/app/`
-beside the dashboard's and Longhorn's. Tiles are static YAML in git, chosen
+pod configured by `app/config/glance.yml` plus `app/stats/stats.yml`, behind
+its own `glance-auth` basic-auth Middleware whose Secret lives in
+`traefik/app/` beside the dashboard's and Longhorn's. The theme is the
+dotfiles' ash-plus palette in monochrome. Tiles are static YAML in git,
+grouped by what each service does, chosen
 over Kubernetes service discovery, which wants a ClusterRole over several
 namespaces and scatters each tile's metadata into the layer that owns it.
 Every tile carries two URLs: a public `url` the browser follows, and an
 in-cluster `.svc` `check-url` the pod probes — the cluster cannot resolve the
 LAN wildcard, the same constraint that kept a blackbox probe off
 `searx.${DOMAIN}`. The off-cluster probes reuse the `lan-services` headless
-Services, so the layer needs only `${DOMAIN}` plus `${NETBOX_URL}` for the
-bookmark, and those are the only `$` permitted anywhere in `glance.yml`,
-comments included: Glance does its own `${VAR}` expansion with the same
-sigil, Flux runs first, and an unknown variable is silently blanked. Two Glance-specific traps: the Traefik
+Services. `${DOMAIN}`, `${NETBOX_URL}` and `${WEATHER_LOCATION}` (personal,
+so encrypted in `cluster-secrets`) are the only `${}` permitted anywhere in
+`glance.yml`, comments included: Glance does its own `${VAR}` expansion with
+the same sigil, Flux runs first, and an unknown variable is silently blanked.
+The live Prometheus widgets are Go templates, which use `$` too, so they sit
+in `stats.yml`, a separate ConfigMap with substitution disabled, pulled in by
+`$$include` (Flux's escape, reaching Glance as `$include`); its `${DOMAIN}` is
+Glance's own, from a `DOMAIN` env var Flux substitutes into the Deployment.
+Verify with `flux build kustomization glance`, which renders with the live
+secrets. Two Glance-specific traps: the Traefik
 tile needs `alt-status-codes: [404]` because that Service publishes only the
-entrypoints and a Host-less request matches no router; and the clock carries
+entrypoints and a Host-less request matches no router; and a clock must carry
 no `timezones:` list, because Glance resolves named zones at startup while the
-image ships no tzdata. Live metrics are deliberately deferred — they are
-`custom-api` widgets against Prometheus, and they need their own
-substitution-disabled ConfigMap because Go templates use `$` too. See
-`docs/design/glance.md`.
+image ships no tzdata. The TrueNAS capacity bar reads CORE's unmapped collectd
+names and breaks on the move to SCALE. See `docs/design/glance.md`.
 `home-assistant/` (`dependsOn: traefik, traefik-middlewares, longhorn,
 cluster-secrets`, substituted, no `decryption`) is the home automation
 server on `homeassistant.${DOMAIN}`: one replica, `Recreate`, on
