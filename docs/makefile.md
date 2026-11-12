@@ -120,10 +120,14 @@ install directly from the registry against the committed lock files.
 ### `kubernetes/Makefile`
 
 Installs Flux CD from the committed manifests and hands the cluster over
-to it. Default target `apply` = `build` (kubectl, the `homelab`
-context, a non-empty `$SOPS_AGE_KEY_FILE`, `FLUX_VERSION`) → `lint`
-(offline: `gotk-components.yaml` header matches `versions.env`,
-`kubectl kustomize .` builds) → `components` (server-side apply, wait for
+to it. `CLUSTER` (default `homelab`, or `skylab`) picks the tree
+`clusters/$(CLUSTER)`, the kube context of the same name and the age key
+(`$SOPS_AGE_KEY_FILE` or `$SKYLAB_AGE_KEY_FILE`). Default target `apply` =
+`build` (kubectl, the context, a non-empty key file, `FLUX_VERSION`) →
+`lint` (offline, over every `clusters/*` tree whatever `CLUSTER` is:
+`gotk-components.yaml` headers match `versions.env`, each root and every
+`*/app` builds, Flux paths stay in their own tree, no manifest at
+`kubernetes/` itself) → `components` (server-side apply, wait for
 CRDs + controllers) → `secret` (the Age key as `flux-system/sops-age`) →
 `sync` (the `GitRepository` + `Kustomization`, wait for Ready). `check`
 is a server dry run once Flux is installed and client-side validation
