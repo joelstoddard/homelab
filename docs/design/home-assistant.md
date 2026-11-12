@@ -1,7 +1,7 @@
 # Home Assistant in the cluster
 
 Home Assistant runs as a one-replica, host-network Deployment in
-`kubernetes/home-assistant/`, backed by a Longhorn volume and reachable both
+`kubernetes/clusters/homelab/home-assistant/`, backed by a Longhorn volume and reachable both
 at `homeassistant.${DOMAIN}` and at a pinned LAN address from the Cilium
 pool. It lives in the cluster rather than on a dedicated appliance because
 the appliance market no longer has a clean answer, and the cluster already
@@ -274,7 +274,7 @@ otherwise inject — and finally Longhorn detaching the volume from the dead
 node and reattaching it to the replacement pod's node, already forced
 cluster-wide by `nodeDownPodDeletionPolicy:
 delete-both-statefulset-and-deployment-pod` in
-`kubernetes/longhorn/app/values.yaml` so the pod doesn't sit Terminating
+`kubernetes/clusters/homelab/longhorn/app/values.yaml` so the pod doesn't sit Terminating
 waiting for the node to come back. Expect a total in the same neighbourhood
 as the Tailscale router's measured ~93s, plus whatever the volume
 detach/reattach and Home Assistant's own startup probe add on top.

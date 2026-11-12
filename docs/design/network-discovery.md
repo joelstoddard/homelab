@@ -27,7 +27,7 @@ expected and accepted; it converges as devices are modelled.
   they follow it as the source of truth, and a VLAN split needs no commit
   here. (The `/20` itself is already public via `TS_ROUTES` in
   `tailscale/app/deployment.yaml`, so secrecy is not the reason.)
-- **The homelab owns one agent.** `kubernetes/orb-agent/` runs
+- **The homelab owns one agent.** `kubernetes/clusters/homelab/orb-agent/` runs
   `netboxlabs/orb-agent` as a Fleet-managed agent: one replica, `Recreate`,
   `hostNetwork`, in a PodSecurity `privileged` namespace. This is the Home
   Assistant shape (`home-assistant.md`). The agent receives its jobs from the
@@ -69,7 +69,7 @@ expected and accepted; it converges as devices are modelled.
   Console passes an IP-address target with its prefix length
   (`<ip>/20`), so each one sweeps the whole `/20`.
 - **Credentials are SOPS, as everywhere else.**
-  `kubernetes/orb-agent/app/secret.sops.yaml` is Secret `orb-agent-fleet`,
+  `kubernetes/clusters/homelab/orb-agent/app/secret.sops.yaml` is Secret `orb-agent-fleet`,
   which holds `FLEET_AUTH_URL`, `FLEET_CLIENT_ID` and `FLEET_CLIENT_SECRET`
   from the Console's agent wizard. The Deployment loads it with `envFrom`.
   The client secret is shown once by the Console; losing it means minting a
@@ -81,8 +81,8 @@ expected and accepted; it converges as devices are modelled.
 - **Home cluster only.** Skylab is a separate cluster with its own Flux
   tree (`skylab-flux.md`), so this layer never reaches it. A scan from
   Hetzner would see nothing of the LAN.
-- **Flux layer.** `kubernetes/orb-agent/ks.yaml`, with the SOPS decryption
-  block, is listed in `kubernetes/kustomization.yaml`. There is no
+- **Flux layer.** `kubernetes/clusters/homelab/orb-agent/ks.yaml`, with the SOPS decryption
+  block, is listed in `kubernetes/clusters/homelab/kustomization.yaml`. There is no
   `dependsOn`, as with `tailscale`.
 
 ## Dependencies outside this repo

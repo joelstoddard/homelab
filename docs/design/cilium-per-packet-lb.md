@@ -1,7 +1,7 @@
 # Per-packet Service translation for pod traffic
 
 Why `socketLB.hostNamespaceOnly: true` is set in
-`kubernetes/cilium/app/values.yaml`, and the failure it fixes.
+`kubernetes/clusters/homelab/cilium/app/values.yaml`, and the failure it fixes.
 
 ## Problem
 

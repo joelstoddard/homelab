@@ -3,8 +3,8 @@
 Metrics and logs from everything that is not a Talos node. The four Proxmox
 NUCs run Grafana Alloy and push to the cluster; the DNS chain's containers,
 TrueNAS CORE and the router run no agent, so the cluster polls and receives
-from them instead. Pieces: the write routes in `kubernetes/monitoring/app/ingest/`, the
-layer `kubernetes/host-monitoring/` (exporters, receivers and a gateway
+from them instead. Pieces: the write routes in `kubernetes/clusters/homelab/monitoring/app/ingest/`, the
+layer `kubernetes/clusters/homelab/host-monitoring/` (exporters, receivers and a gateway
 Alloy), and the `alloy` role in `ansible/`. The backends and the in-cluster
 collectors are `docs/design/observability.md`.
 

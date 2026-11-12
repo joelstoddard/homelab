@@ -89,7 +89,7 @@ plan time.
 
 ### Tailscale
 
-The subnet router / exit node is a Flux layer, `kubernetes/tailscale/`. The
+The subnet router / exit node is a Flux layer, `kubernetes/clusters/homelab/tailscale/`. The
 tailnet policy (ACL grants, `autoApprovers`, tag owners) is code in a separate
 private repo applied by Tailscale's GitOps action — private because it names
 devices; this repo documents only what the router needs from it. See
@@ -97,11 +97,13 @@ devices; this repo documents only what the router needs from it. See
 
 ### kubernetes/
 
-Flux CD. `make -C kubernetes` installs the committed
-`flux-system/gotk-components.yaml` (the output of `flux install --export`,
-pinned by `FLUX_VERSION` in `versions.env`), lands the operator's Age key
-as the `sops-age` Secret, and applies a `GitRepository` + `Kustomization`
-that reconcile `./kubernetes` from this repo's `main`. The path includes
+Flux CD, one tree per cluster under `kubernetes/clusters/`; the home
+cluster's is `kubernetes/clusters/homelab/`. `make -C kubernetes` installs
+the tree's committed `flux-system/gotk-components.yaml` (the output of
+`flux install --export`, pinned by `FLUX_VERSION` in `versions.env`), lands
+the operator's Age key as the `sops-age` Secret, and applies a
+`GitRepository` + `Kustomization` that reconcile
+`./kubernetes/clusters/homelab` from this repo's `main`. The path includes
 `flux-system/`, so Flux manages its own controllers from then on;
 workloads are added as further Flux `Kustomization` CRs. See
 [`kubernetes/README.md`](../kubernetes/README.md).

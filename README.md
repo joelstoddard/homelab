@@ -10,7 +10,7 @@ This project can be broken down into layers, each owned by a top-level directory
 | ------- | ------------------ | ------------- | --------------------------------------------------------------------------------------------- |
 | Active  | Bare metal         | `ansible/`    | PXE-installs OSs.                                                                             |
 | Active  | LXC & VMs          | `opentofu/`   | Provisions the Talos control-plane + worker VMs, HA Database LXCs, DNS LXCs, etc. |
-| Active  | Remote access      | `kubernetes/tailscale/` | Tailscale subnet router + exit node as a Deployment; the tailnet policy is a private GitOps repo. |
+| Active  | Remote access      | `kubernetes/clusters/homelab/tailscale/` | Tailscale subnet router + exit node as a Deployment; the tailnet policy is a private GitOps repo. |
 | Active  | Workloads          | `kubernetes/` | Bootstraps Flux CD, which then reconciles this directory (Kustomize manifests, Helm releases). |
 
 ## Quick start

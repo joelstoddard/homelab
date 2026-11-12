@@ -5,7 +5,7 @@ user-facing application and its first consumer of NFS, so this document carries
 the storage decision for every media application that follows.
 
 It deploys in the shared `media` namespace, from
-`kubernetes/media/app/jellyfin.yaml`, having started in a layer of its own that
+`kubernetes/clusters/homelab/media/app/jellyfin.yaml`, having started in a layer of its own that
 was folded in on 2026-09-19. Where the move revised a decision below, the
 passage says so and points at `docs/design/media-foundation.md`, which carries
 the shared storage and namespace design for the whole \*arr stack.
@@ -172,7 +172,7 @@ Two details are easy to get wrong:
   what the dashboard's health panel uses.
 
 The exporter needs an API key from Jellyfin's Dashboard → API Keys, held in
-`kubernetes/media/app/secret-jellyfin-exporter.sops.yaml`. It is the only
+`kubernetes/clusters/homelab/media/app/secret-jellyfin-exporter.sops.yaml`. It is the only
 secret in this layer, and the reason the Flux `Kustomization` carries a
 `decryption` block.
 
@@ -234,7 +234,7 @@ there and the index is not.
 
 ## Changing it
 
-**The image version** is pinned in `kubernetes/media/app/jellyfin.yaml` and
+**The image version** is pinned in `kubernetes/clusters/homelab/media/app/jellyfin.yaml` and
 nowhere else. It is not in `versions.env`, which tracks the platform.
 
 **A second consumer of the same export** was answered, not deferred. This

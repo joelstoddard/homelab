@@ -1,7 +1,7 @@
 # Tailscale router on Kubernetes
 
 Why the tailnet node `homelab` — the subnet router for the LAN and its exit
-node — is a one-replica Deployment in `kubernetes/tailscale/` rather than the
+node — is a one-replica Deployment in `kubernetes/clusters/homelab/tailscale/` rather than the
 OpenTofu LXC it replaced, why it keeps one identity, and why the tailnet
 policy lives in a separate private repo.
 

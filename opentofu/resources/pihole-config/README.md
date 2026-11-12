@@ -1,7 +1,7 @@
 # resources/pihole-config/
 
 Declares the DNS chain Pi-hole pair's adlists, groups and clients, through
-the `dklesev/pihole` provider, on **pihole-01 only**. `kubernetes/nebula-sync/`
+the `dklesev/pihole` provider, on **pihole-01 only**. `kubernetes/clusters/homelab/nebula-sync/`
 copies them to pihole-02 every hour. The design is in
 `docs/design/dns-chain.md`, "Lists and their sync".
 

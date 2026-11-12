@@ -124,7 +124,7 @@ else
     chmod +x /usr/local/bin/kubectl
 fi
 
-# flux regenerates kubernetes/flux-system/gotk-components.yaml on version bumps
+# flux regenerates kubernetes/clusters/homelab/flux-system/gotk-components.yaml on version bumps
 # and drives day-2 GitOps operations (kubernetes/Makefile). The release tarball
 # is not v-prefixed and holds a single `flux` binary.
 if have_version "$FLUX_VERSION" flux --version; then

@@ -51,7 +51,7 @@ nothing. In v2 that is not a 401 in a log — the collector fails, the registry
 render fails with it, and the target reads `up == 0` with no other signal. So
 if one of these two goes dark and its application is plainly healthy, suspect
 the key before the exporter. Re-copy it with
-`sops kubernetes/media/app/secret-exporter-apikeys.sops.yaml`; Bazarr's is
+`sops kubernetes/clusters/homelab/media/app/secret-exporter-apikeys.sops.yaml`; Bazarr's is
 Settings > General > Security > API Key, SABnzbd's is Config > General > API
 Key. Bazarr's must also satisfy exportarr's own `^[a-zA-Z0-9]{20,32}$` check,
 which a malformed paste fails at startup — that one does crash-loop, and the

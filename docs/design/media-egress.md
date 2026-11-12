@@ -13,7 +13,7 @@ pod's one long-running application container, holds no capability of its own.
 
 qBittorrent and Prowlarr (`media`) both carry the label
 `egress.homelab/via: media-egress` and reach the internet only through the SOCKS5
-listener: a `CiliumClusterwideNetworkPolicy` in `kubernetes/media-egress/`
+listener: a `CiliumClusterwideNetworkPolicy` in `kubernetes/clusters/homelab/media-egress/`
 denies either pod any other egress. Neither shares the `media-egress` pod's own network
 namespace, so the kernel-enforced kill switch that protects the tunnel does
 not extend to them — they get a different, equally kernel-enforced guarantee
@@ -131,10 +131,10 @@ The `media-egress` Deployment's `gost` container serves SOCKS5 on `:1055`,
 sharing the tailscale container's network namespace, so its default route is
 whatever `tailscale0` gives it — the pinned exit node — fronted by the
 `media-egress-socks5.media-downloads.svc.cluster.local` Service.
-`kubernetes/media-egress/` (`dependsOn: media-downloads`) is a separate,
+`kubernetes/clusters/homelab/media-egress/` (`dependsOn: media-downloads`) is a separate,
 cluster-scoped policy layer that decides who may reach it. Enrolment for any
 pod, in any namespace, is one label — `egress.homelab/via: media-egress` — and nothing
-else. qBittorrent and Prowlarr (`kubernetes/media/app/prowlarr.yaml`) both
+else. qBittorrent and Prowlarr (`kubernetes/clusters/homelab/media/app/prowlarr.yaml`) both
 carry it, and for both it is the only mechanism: neither pod shares the
 tunnel's own network namespace, so this label is not a fallback path for
 workloads the kill switch can't reach — it is how every consumer of this
@@ -177,7 +177,7 @@ destination-scoped accepts and its uid-0-scoped `meta skuid 0` hole have no
 bearing on what qBittorrent or Prowlarr can reach. A pod that reaches the
 SOCKS5 listener does so because `gost` dials out through `tailscale0`; if it
 reaches for anything else, Cilium is what stops it, not
-`kubernetes/media-downloads/app/config/ruleset.nft`.
+`kubernetes/clusters/homelab/media-downloads/app/config/ruleset.nft`.
 
 **`UDP ASSOCIATE` needs an egress rule the SOCKS5 port does not imply.**
 DHT, uTP and UDP trackers are most of what a healthy swarm uses, and SOCKS5
@@ -218,7 +218,7 @@ lookups happen; see the DNS trap below for that.
 
 ## FlareSolverr
 
-FlareSolverr (`kubernetes/media/app/flaresolverr.yaml`) solves Cloudflare
+FlareSolverr (`kubernetes/clusters/homelab/media/app/flaresolverr.yaml`) solves Cloudflare
 challenges on Prowlarr's behalf, and it must egress through the same exit
 node Prowlarr uses. That is not a privacy preference: a Cloudflare clearance
 cookie is bound to the IP address that solved the challenge, so a cookie
@@ -271,7 +271,7 @@ resource can express.
 
 ## Inside the ruleset
 
-`kubernetes/media-downloads/app/config/ruleset.nft` is the whole kill switch,
+`kubernetes/clusters/homelab/media-downloads/app/config/ruleset.nft` is the whole kill switch,
 and the `killswitch` init container applies it with `nft -f` before anything
 that could leak exists. tailscaled works in the `filter` and `nat` tables and
 owns the chains it prefixes with `ts-`, so `inet ts-killswitch` is one thing
@@ -421,7 +421,7 @@ table the Talos kernel does not expose — the reason
 tailscaled's own route-programming into `tailscale0` would fail to install,
 the same failure mode this setting exists to prevent for the subnet router.
 
-There is still **no** sysctl init container, unlike `kubernetes/tailscale/`.
+There is still **no** sysctl init container, unlike `kubernetes/clusters/homelab/tailscale/`.
 The router forwards LAN clients' traffic into the tunnel and needs
 `net.ipv4.ip_forward` for that; this pod originates only its own traffic —
 including `gost`'s proxied dials — and forwards nothing on any other

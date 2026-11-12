@@ -1,5 +1,5 @@
 # pihole-01's own address, never the VIP: the VIP can sit on pihole-02, where
-# nebula-sync overwrites anything written. kubernetes/nebula-sync names the
+# nebula-sync overwrites anything written. kubernetes/clusters/homelab/nebula-sync names the
 # same primary.
 data "netbox_virtual_machines" "primary" {
   name_regex = "^pihole-01$"
