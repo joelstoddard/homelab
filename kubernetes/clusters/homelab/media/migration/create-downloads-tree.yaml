@@ -7,7 +7,7 @@
 #
 # Not referenced by any kustomization: Job specs are immutable and Flux cannot
 # re-apply a changed one. Apply by hand:
-#   kubectl --context homelab apply -f kubernetes/media/migration/create-downloads-tree.yaml
+#   kubectl --context homelab apply -f kubernetes/clusters/homelab/media/migration/create-downloads-tree.yaml
 apiVersion: batch/v1
 kind: Job
 metadata:

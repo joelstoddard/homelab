@@ -10,7 +10,7 @@ metadata:
   namespace: flux-system
 spec:
   interval: 10m0s
-  path: ./kubernetes/longhorn/app
+  path: ./kubernetes/clusters/homelab/longhorn/app
   prune: true
   wait: true
   timeout: 15m0s

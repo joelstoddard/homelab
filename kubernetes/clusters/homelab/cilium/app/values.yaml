@@ -60,11 +60,11 @@ operator:
 
 # LB-IPAM is on by default; L2 announcements make the IPs it hands out
 # reachable: one worker per Service answers ARP for them. Pool and policy
-# live in kubernetes/cilium-lb/.
+# live in kubernetes/clusters/homelab/cilium-lb/.
 l2announcements:
   enabled: true
 
-# Metrics for the observability stack, scraped by kubernetes/alloy via the
+# Metrics for the observability stack, scraped by kubernetes/clusters/homelab/alloy via the
 # prometheus.io annotations these add (no ServiceMonitor: no operator CRDs
 # here); Hubble flow metrics without relay or UI, httpV2 left out because it
 # only fills under L7 visibility, which nothing has, and port-distribution left

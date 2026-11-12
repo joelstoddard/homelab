@@ -1,6 +1,6 @@
 # Lets a route reach a LAN backend serving a self-signed certificate that
 # Traefik would otherwise refuse to connect to — currently Proxmox, TrueNAS
-# and Pi-hole (kubernetes/lan-services/). This is a ServersTransport, not a
+# and Pi-hole (kubernetes/clusters/homelab/lan-services/). This is a ServersTransport, not a
 # Middleware — "custom middleware for the self-signed cert" is the intuition
 # most people arrive with, and it is the wrong CR: a Middleware acts on the
 # request/response passing through a router, while trusting (or not

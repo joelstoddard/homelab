@@ -14,7 +14,7 @@ metadata:
   namespace: flux-system
 spec:
   interval: 10m0s
-  path: ./kubernetes/home-assistant/app
+  path: ./kubernetes/clusters/homelab/home-assistant/app
   prune: true
   dependsOn:
     - name: traefik

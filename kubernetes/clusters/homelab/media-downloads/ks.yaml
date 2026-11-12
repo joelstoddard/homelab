@@ -6,7 +6,7 @@
 # dependsOn media on top of the usual four: the volume here is a subdirectory
 # of the media layer's export, and mounting a subdirectory that does not exist
 # fails the pod. Ordering the layers is necessary but not sufficient — the tree
-# itself is created by the one-shot Job in kubernetes/media/migration/.
+# itself is created by the one-shot Job in kubernetes/clusters/homelab/media/migration/.
 #
 # decryption for the Tailscale auth key, substituteFrom for the ${VOYAGER_IP}
 # the volume needs and the ${DOMAIN} the route needs.
@@ -17,7 +17,7 @@ metadata:
   namespace: flux-system
 spec:
   interval: 10m0s
-  path: ./kubernetes/media-downloads/app
+  path: ./kubernetes/clusters/homelab/media-downloads/app
   prune: true
   dependsOn:
     - name: traefik

@@ -10,7 +10,7 @@ metadata:
   namespace: flux-system
 spec:
   interval: 10m0s
-  path: ./kubernetes/cert-manager/app
+  path: ./kubernetes/clusters/homelab/cert-manager/app
   prune: true
   wait: true
   timeout: 10m0s

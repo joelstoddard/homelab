@@ -9,7 +9,7 @@ metadata:
   namespace: flux-system
 spec:
   interval: 10m0s
-  path: ./kubernetes/media/app
+  path: ./kubernetes/clusters/homelab/media/app
   prune: true
   dependsOn:
     - name: traefik

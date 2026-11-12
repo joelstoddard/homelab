@@ -7,7 +7,7 @@ metadata:
   namespace: flux-system
 spec:
   interval: 10m0s
-  path: ./kubernetes/orb-agent/app
+  path: ./kubernetes/clusters/homelab/orb-agent/app
   prune: true
   sourceRef:
     kind: GitRepository

@@ -1,5 +1,5 @@
 # Third release of the Alloy chart (the others: alloy, alloy-events). Version
-# pinned alongside kubernetes/alloy/app/alloy/helmrelease.yaml — bump all
+# pinned alongside kubernetes/clusters/homelab/alloy/app/alloy/helmrelease.yaml — bump all
 # three together.
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease

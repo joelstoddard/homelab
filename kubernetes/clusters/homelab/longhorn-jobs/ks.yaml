@@ -8,7 +8,7 @@ metadata:
   namespace: flux-system
 spec:
   interval: 10m0s
-  path: ./kubernetes/longhorn-jobs/app
+  path: ./kubernetes/clusters/homelab/longhorn-jobs/app
   prune: true
   dependsOn:
     - name: longhorn

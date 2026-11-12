@@ -11,7 +11,7 @@ Vendoring: `python3 vendor.py <Folder>/<name>.json --id <grafana.com id>`
 pins every datasource reference to the provisioned UIDs (`prometheus`,
 `loki`) and strips `__inputs`. Datasources with other UIDs will show
 "datasource not found". No Cilium dashboards are provisioned: the chart's
-are off (`dashboards.enabled` in `kubernetes/cilium/app/values.yaml`) because
+are off (`dashboards.enabled` in `kubernetes/clusters/homelab/cilium/app/values.yaml`) because
 most of their queries return nothing here; see `docs/design/observability.md`.
 
 | File | Folder | Source | Revision | Local edits |

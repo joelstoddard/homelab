@@ -12,7 +12,7 @@ metadata:
   namespace: flux-system
 spec:
   interval: 10m0s
-  path: ./kubernetes/searxng/app
+  path: ./kubernetes/clusters/homelab/searxng/app
   prune: true
   dependsOn:
     - name: traefik

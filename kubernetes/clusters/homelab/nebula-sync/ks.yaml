@@ -12,7 +12,7 @@ metadata:
   namespace: flux-system
 spec:
   interval: 10m0s
-  path: ./kubernetes/nebula-sync/app
+  path: ./kubernetes/clusters/homelab/nebula-sync/app
   prune: true
   dependsOn:
     - name: cilium

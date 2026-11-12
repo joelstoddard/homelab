@@ -14,7 +14,7 @@ metadata:
   namespace: flux-system
 spec:
   interval: 10m0s
-  path: ./kubernetes/lancache/app
+  path: ./kubernetes/clusters/homelab/lancache/app
   prune: true
   dependsOn:
     - name: cilium

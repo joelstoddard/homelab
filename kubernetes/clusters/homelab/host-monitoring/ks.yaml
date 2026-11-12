@@ -14,7 +14,7 @@ metadata:
   namespace: flux-system
 spec:
   interval: 10m0s
-  path: ./kubernetes/host-monitoring/app
+  path: ./kubernetes/clusters/homelab/host-monitoring/app
   prune: true
   dependsOn:
     - name: monitoring

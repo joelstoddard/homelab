@@ -25,7 +25,7 @@ metadata:
   namespace: flux-system
 spec:
   interval: 10m0s
-  path: ./kubernetes/lan-services/app
+  path: ./kubernetes/clusters/homelab/lan-services/app
   prune: true
   dependsOn:
     - name: traefik

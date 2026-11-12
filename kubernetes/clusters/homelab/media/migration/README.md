@@ -13,7 +13,7 @@ exist before any download client mounts a volume over it — mounting a
 subdirectory that does not exist fails the pod.
 
 ```bash
-kubectl --context homelab apply -f kubernetes/media/migration/create-downloads-tree.yaml
+kubectl --context homelab apply -f kubernetes/clusters/homelab/media/migration/create-downloads-tree.yaml
 kubectl --context homelab -n media wait --for=condition=complete job/create-downloads-tree --timeout=120s
 kubectl --context homelab -n media logs job/create-downloads-tree
 ```

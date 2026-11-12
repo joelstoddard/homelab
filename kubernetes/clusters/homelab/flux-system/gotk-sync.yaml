@@ -1,6 +1,7 @@
 # Hand-written; same shape `flux bootstrap` would generate. The Kustomization
-# reconciles ./kubernetes, which includes this directory — from the first
-# reconcile on, Flux manages itself. Public repo: no secretRef on the source.
+# reconciles ./kubernetes/clusters/homelab, which includes this directory —
+# from the first reconcile on, Flux manages itself. Public repo: no secretRef
+# on the source.
 ---
 apiVersion: source.toolkit.fluxcd.io/v1
 kind: GitRepository
@@ -20,7 +21,7 @@ metadata:
   namespace: flux-system
 spec:
   interval: 1m0s
-  path: ./kubernetes
+  path: ./kubernetes/clusters/homelab
   prune: true
   sourceRef:
     kind: GitRepository

@@ -244,7 +244,7 @@ spec:
             name: media-egress-killswitch
 ---
 # Named for the function, not the host. Workloads outside this pod reach the
-# exit node through here; kubernetes/media-egress/ decides which ones may.
+# exit node through here; kubernetes/clusters/homelab/media-egress/ decides which ones may.
 apiVersion: v1
 kind: Service
 metadata:

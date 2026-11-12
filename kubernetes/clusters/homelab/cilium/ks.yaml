@@ -10,7 +10,7 @@ metadata:
   namespace: flux-system
 spec:
   interval: 10m0s
-  path: ./kubernetes/cilium/app
+  path: ./kubernetes/clusters/homelab/cilium/app
   prune: true
   wait: true
   timeout: 5m0s

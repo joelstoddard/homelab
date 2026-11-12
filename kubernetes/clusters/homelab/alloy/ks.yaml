@@ -12,7 +12,7 @@ metadata:
   namespace: flux-system
 spec:
   interval: 10m0s
-  path: ./kubernetes/alloy/app
+  path: ./kubernetes/clusters/homelab/alloy/app
   prune: true
   dependsOn:
     - name: monitoring

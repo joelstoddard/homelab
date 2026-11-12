@@ -1,5 +1,5 @@
 # The Alloy chart stayed in grafana/helm-charts when Loki and Grafana moved to
-# grafana-community (kubernetes/monitoring/app/helmrepositories.yaml).
+# grafana-community (kubernetes/clusters/homelab/monitoring/app/helmrepositories.yaml).
 apiVersion: source.toolkit.fluxcd.io/v1
 kind: HelmRepository
 metadata:
