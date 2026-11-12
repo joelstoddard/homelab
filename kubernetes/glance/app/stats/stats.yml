@@ -1,0 +1,81 @@
+# Flux does not substitute this file, so DOMAIN here is Glance's own, read from
+# the pod env. See docs/design/glance.md, "Live metrics".
+- type: custom-api
+  title: Cluster
+  title-url: https://grafana.${DOMAIN}/d/k8s_views_global
+  cache: 1m
+  options: &links
+    prometheus: http://prometheus-server.monitoring.svc
+    grafana: https://grafana.${DOMAIN}
+    domain: ${DOMAIN}
+  template: |
+    {{ $q := concat (.Options.StringOr "prometheus" "") "/api/v1/query" }}
+    {{ $g := concat (.Options.StringOr "grafana" "") "/d/" }}
+    {{ $ready := newRequest $q | withParameter "query" `sum(kube_node_status_condition{condition="Ready",status="true"})` | getResponse }}
+    {{ $nodes := newRequest $q | withParameter "query" `count(kube_node_info)` | getResponse }}
+    {{ $pods := newRequest $q | withParameter "query" `sum(kube_pod_status_phase{phase="Running"})` | getResponse }}
+    {{ $down := newRequest $q | withParameter "query" `count(up == 0) or vector(0)` | getResponse }}
+    {{ $cpu := newRequest $q | withParameter "query" `round(100 * (1 - avg(rate(node_cpu_seconds_total{mode="idle"}[5m]))))` | getResponse }}
+    {{ $mem := newRequest $q | withParameter "query" `round(100 * (1 - sum(node_memory_MemAvailable_bytes) / sum(node_memory_MemTotal_bytes)))` | getResponse }}
+    {{ $longhorn := newRequest $q | withParameter "query" `round(100 * sum(longhorn_node_storage_usage_bytes) / sum(longhorn_node_storage_capacity_bytes))` | getResponse }}
+    {{ $truenas := newRequest $q | withParameter "query" `round(100 * sum({__name__=~"servers_Voyager_local_df_mnt_Voyager.*_df_complex_used"}) / (sum({__name__=~"servers_Voyager_local_df_mnt_Voyager.*_df_complex_used"}) + sum(servers_Voyager_local_df_mnt_Voyager_df_complex_free)))` | getResponse }}
+    {{ $d := $down.JSON.Int "data.result.0.value.1" }}
+    {{ $m := $mem.JSON.Int "data.result.0.value.1" }}
+    {{ $lh := $longhorn.JSON.Int "data.result.0.value.1" }}
+    {{ $tn := $truenas.JSON.Int "data.result.0.value.1" }}
+    <div class="flex justify-between text-center margin-bottom-15">
+      <a href="{{ $g }}k8s_views_nodes"><div class="color-highlight size-h3">{{ $ready.JSON.String "data.result.0.value.1" }}<span class="color-subdue size-h5">/{{ $nodes.JSON.String "data.result.0.value.1" }}</span></div><div class="size-h6">NODES</div></a>
+      <a href="{{ $g }}k8s_views_pods"><div class="color-highlight size-h3">{{ $pods.JSON.String "data.result.0.value.1" }}</div><div class="size-h6">PODS</div></a>
+      <a href="{{ .Options.StringOr "grafana" "" }}"><div class="size-h3 {{ if eq $d 0 }}color-positive{{ else }}color-negative{{ end }}">{{ $d }}</div><div class="size-h6">TARGETS DOWN</div></a>
+    </div>
+    <div class="flex flex-column gap-10">
+      <a href="{{ $g }}k8s_views_nodes" class="block"><div class="flex justify-between size-h6"><span>CPU</span><span class="color-highlight">{{ $cpu.JSON.String "data.result.0.value.1" }}%</span></div><div class="progress-bar"><div class="progress-value" style="--percent: {{ $cpu.JSON.String "data.result.0.value.1" }}"></div></div></a>
+      <a href="{{ $g }}k8s_views_nodes" class="block"><div class="flex justify-between size-h6"><span>MEMORY</span><span class="{{ if ge $m 90 }}color-negative{{ else }}color-highlight{{ end }}">{{ $m }}%</span></div><div class="progress-bar"><div class="progress-value" style="--percent: {{ $m }}{{ if ge $m 90 }}; background: var(--color-negative){{ end }}"></div></div></a>
+    </div>
+    <div class="size-h5 color-highlight margin-top-20 margin-bottom-10" style="border-top: 1px solid var(--color-separator); padding-top: 1.5rem">STORAGE</div>
+    <div class="flex flex-column gap-10">
+      <a href="https://longhorn.{{ .Options.StringOr "domain" "" }}" class="block"><div class="flex justify-between size-h6"><span>LONGHORN</span><span class="{{ if ge $lh 90 }}color-negative{{ else }}color-highlight{{ end }}">{{ $lh }}%</span></div><div class="progress-bar"><div class="progress-value" style="--percent: {{ $lh }}{{ if ge $lh 90 }}; background: var(--color-negative){{ end }}"></div></div></a>
+      <a href="https://voyager.{{ .Options.StringOr "domain" "" }}" class="block"><div class="flex justify-between size-h6"><span>TRUENAS</span><span class="{{ if ge $tn 90 }}color-negative{{ else }}color-highlight{{ end }}">{{ $tn }}%</span></div><div class="progress-bar"><div class="progress-value" style="--percent: {{ $tn }}{{ if ge $tn 90 }}; background: var(--color-negative){{ end }}"></div></div></a>
+    </div>
+
+# NUC names come from pve-exporter's id label (node/Rumba); hostnames are
+# case-insensitive, so they link without lowercasing.
+- type: custom-api
+  title: Hypervisors
+  title-url: https://grafana.${DOMAIN}/d/Dp7Cd57Zza
+  cache: 1m
+  options: *links
+  template: |
+    {{ $q := concat (.Options.StringOr "prometheus" "") "/api/v1/query" }}
+    {{ $cpu := newRequest $q | withParameter "query" `round(100 * max by (id) (pve_cpu_usage_ratio{id=~"node/.*"}))` | getResponse }}
+    {{ $mem := newRequest $q | withParameter "query" `round(100 * max by (id) (pve_memory_usage_bytes{id=~"node/.*"}) / max by (id) (pve_memory_size_bytes{id=~"node/.*"}))` | getResponse }}
+    {{ $mems := sortByString "metric.id" "asc" ($mem.JSON.Array "data.result") }}
+    <ul class="list list-gap-10">
+    {{ range $i, $c := sortByString "metric.id" "asc" ($cpu.JSON.Array "data.result") }}
+      {{ $m := (index $mems $i).Int "value.1" }}
+      <li class="flex items-center gap-10">
+        {{ $n := trimPrefix "node/" ($c.String "metric.id") }}
+        <a href="https://{{ $n }}.{{ $.Options.StringOr "domain" "" }}" class="size-h5 color-highlight" style="width: 5rem">{{ $n }}</a>
+        <span class="size-h6">CPU</span>
+        <div class="progress-bar grow"><div class="progress-value" style="--percent: {{ $c.String "value.1" }}"></div></div>
+        <span class="size-h6">MEM</span>
+        <div class="progress-bar grow"><div class="progress-value" style="--percent: {{ $m }}{{ if ge $m 90 }}; background: var(--color-negative){{ else if ge $m 80 }}; background: hsl(32 93% 56%){{ end }}"></div></div>
+      </li>
+    {{ end }}
+    </ul>
+
+- type: custom-api
+  title: DNS
+  title-url: https://pihole.${DOMAIN}/admin
+  cache: 5m
+  options: *links
+  template: |
+    {{ $q := concat (.Options.StringOr "prometheus" "") "/api/v1/query" }}
+    {{ $queries := newRequest $q | withParameter "query" `sum(pihole_dns_queries_today)` | getResponse }}
+    {{ $blocked := newRequest $q | withParameter "query" `round(max(pihole_ads_percentage_today), 0.1)` | getResponse }}
+    {{ $lists := newRequest $q | withParameter "query" `max(pihole_domains_being_blocked)` | getResponse }}
+    <a href="https://pihole.{{ .Options.StringOr "domain" "" }}/admin" class="flex justify-between text-center">
+      <div><div class="color-highlight size-h3">{{ $queries.JSON.Int "data.result.0.value.1" | formatApproxNumber }}</div><div class="size-h6">QUERIES TODAY</div></div>
+      <div><div class="color-highlight size-h3">{{ $blocked.JSON.String "data.result.0.value.1" }}%</div><div class="size-h6">BLOCKED</div></div>
+      <div><div class="color-highlight size-h3">{{ $lists.JSON.Int "data.result.0.value.1" | formatApproxNumber }}</div><div class="size-h6">ON BLOCKLIST</div></div>
+    </a>

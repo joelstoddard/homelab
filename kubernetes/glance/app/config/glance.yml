@@ -1,6 +1,6 @@
-# Flux substitution runs before Glance's and both use the same sigil, so DOMAIN
-# and NETBOX_URL must stay the only variables in this file, comments included.
-# See docs/design/glance.md.
+# Flux substitution runs before Glance's and both use the same sigil, so DOMAIN,
+# NETBOX_URL and WEATHER_LOCATION must stay the only variables in this file,
+# comments included. See docs/design/glance.md.
 #
 # url is followed by the browser; check-url is fetched by this pod, which
 # cannot resolve the wildcard. Status codes below are measured, not assumed —
@@ -10,10 +10,14 @@ server:
   port: 8080
   proxied: true
 
+# The dotfiles' ash-plus palette, monochrome: #121212 base and grey links, with
+# its green and red kept for up and down.
 theme:
-  background-color: 240 8 9
-  primary-color: 200 55 65
-  contrast-multiplier: 1.2
+  background-color: 0 0 7
+  primary-color: 0 0 88
+  positive-color: 79 32 51
+  negative-color: 0 45 47
+  contrast-multiplier: 1.1
 
 branding:
   app-name: homelab
@@ -25,40 +29,32 @@ pages:
     columns:
       - size: small
         widgets:
-          # No timezones list: Glance resolves named zones at startup and the
-          # image ships no tzdata, so one entry crash-loops the pod.
-          - type: clock
-            hour-format: 24h
+          # WEATHER_LOCATION is encrypted in cluster-secrets: this repo is public
+          # and the location is personal. Glance geocodes "town, country" only.
+          - type: group
+            widgets:
+              - type: weather
+                location: ${WEATHER_LOCATION}
+                hide-location: true
+                units: metric
+                hour-format: 24h
+              - type: calendar
+                title: Calendar
+                title-url: https://calendar.google.com/
 
-          - type: search
-            search-engine: https://searx.${DOMAIN}/search?q={QUERY}
-            placeholder: Search
-            autofocus: true
-            target: _self
-            bangs:
-              - title: GitHub
-                shortcut: "!gh"
-                url: https://github.com/search?q={QUERY}
-              - title: Grafana
-                shortcut: "!g"
-                url: https://grafana.${DOMAIN}/?search=open&query={QUERY}
+          - type: group
+            widgets:
+              - { type: repository, title: homelab, repository: joelstoddard/homelab, pull-requests-limit: 3, issues-limit: 3, commits-limit: 3 }
+              - { type: repository, title: dotfiles, repository: joelstoddard/dotfiles, pull-requests-limit: 3, issues-limit: 3, commits-limit: 3 }
+              - { type: repository, title: nvim, repository: joelstoddard/nvim, pull-requests-limit: 3, issues-limit: 3, commits-limit: 3 }
 
           # Off-cluster, so no check-url and no status dot — nothing here is
           # ours to probe. NETBOX_URL is encrypted for the reason the tenant
           # name never appears in this repo: it identifies the account.
           - type: bookmarks
+            title: Dashboards
             groups:
-              - title: Repos
-                links:
-                  - title: homelab
-                    url: https://github.com/joelstoddard/homelab
-                    icon: di:github
-                  - title: dotfiles
-                    url: https://github.com/joelstoddard/dotfiles
-                    icon: di:github
-
-              - title: Cloud
-                links:
+              - links:
                   - title: Cloudflare
                     url: https://dash.cloudflare.com
                     icon: di:cloudflare
@@ -77,46 +73,21 @@ pages:
 
       - size: full
         widgets:
+          - type: search
+            search-engine: https://searx.${DOMAIN}/search?q={QUERY}
+            placeholder: Search
+            autofocus: true
+            target: _self
+            bangs:
+              - title: GitHub
+                shortcut: "!gh"
+                url: https://github.com/search?q={QUERY}
+              - title: Grafana
+                shortcut: "!g"
+                url: https://grafana.${DOMAIN}/?search=open&query={QUERY}
+
           # Icons are slugs the browser loads from a public CDN, so a wrong one
           # is a missing image rather than a startup error.
-          - type: monitor
-            title: Cluster
-            cache: 1m
-            sites:
-              - title: Grafana
-                url: https://grafana.${DOMAIN}
-                # / redirects to the login page; this answers 200 without auth.
-                check-url: http://grafana.monitoring.svc/api/health
-                icon: di:grafana
-
-              - title: Longhorn
-                url: https://longhorn.${DOMAIN}
-                check-url: http://longhorn-frontend.longhorn-system.svc/
-                icon: di:longhorn
-
-              - title: Traefik
-                url: https://traefik.${DOMAIN}/dashboard/
-                # A request with no matching Host rule ends at 404, which still
-                # proves Traefik routes. See docs/design/glance.md.
-                check-url: https://traefik.traefik.svc/
-                allow-insecure: true
-                alt-status-codes: [404]
-                icon: di:traefik
-
-              - title: Search
-                url: https://searx.${DOMAIN}
-                check-url: http://searxng.searxng.svc:8080/healthz
-                icon: di:searxng
-
-              - title: Home Assistant
-                url: https://homeassistant.${DOMAIN}
-                # hostNetwork, but the ClusterIP still reaches it (confirmed
-                # against the identically-topologied Alloy Service).
-                # /manifest.json answers unauthenticated with no redirect,
-                # unlike /.
-                check-url: http://home-assistant.home-assistant.svc:8123/manifest.json
-                icon: di:home-assistant
-
           - type: monitor
             title: Media
             cache: 1m
@@ -176,55 +147,126 @@ pages:
                 check-url: http://sabnzbd.media.svc:8080/robots.txt
                 icon: di:sabnzbd
 
-          - type: monitor
-            title: Hypervisors
-            cache: 1m
-            # Self-signed certificates on every node, the same ones that make
-            # the lan-insecure ServersTransport necessary.
-            sites:
-              - title: rumba
-                url: https://rumba.${DOMAIN}
-                check-url: https://rumba.lan-services.svc:8006/
-                allow-insecure: true
-                icon: di:proxmox
+          - type: split-column
+            widgets:
+              - type: monitor
+                title: Monitoring
+                cache: 1m
+                sites:
+                  - title: Grafana
+                    url: https://grafana.${DOMAIN}
+                    # / redirects to the login page; this answers 200 without auth.
+                    check-url: http://grafana.monitoring.svc/api/health
+                    icon: di:grafana
 
-              - title: tango
-                url: https://tango.${DOMAIN}
-                check-url: https://tango.lan-services.svc:8006/
-                allow-insecure: true
-                icon: di:proxmox
+              - type: monitor
+                title: Home Automation
+                cache: 1m
+                sites:
+                  - title: Home Assistant
+                    url: https://homeassistant.${DOMAIN}
+                    # hostNetwork, but the ClusterIP still reaches it (confirmed
+                    # against the identically-topologied Alloy Service).
+                    # /manifest.json answers unauthenticated with no redirect,
+                    # unlike /.
+                    check-url: http://home-assistant.home-assistant.svc:8123/manifest.json
+                    icon: di:home-assistant
 
-              - title: salsa
-                url: https://salsa.${DOMAIN}
-                check-url: https://salsa.lan-services.svc:8006/
-                allow-insecure: true
-                icon: di:proxmox
+              - type: monitor
+                title: Tools
+                cache: 1m
+                sites:
+                  - title: SearXNG
+                    url: https://searx.${DOMAIN}
+                    check-url: http://searxng.searxng.svc:8080/healthz
+                    icon: di:searxng
 
-              - title: samba
-                url: https://samba.${DOMAIN}
-                check-url: https://samba.lan-services.svc:8006/
-                allow-insecure: true
-                icon: di:proxmox
+          - type: split-column
+            widgets:
+              - type: monitor
+                title: DNS
+                cache: 1m
+                sites:
+                  - title: Pi-hole
+                    url: https://pihole.${DOMAIN}/admin
+                    # / answers 404; /admin/ settles on 200 at /admin/login.
+                    check-url: https://pihole-vip.lan-services.svc/admin/
+                    allow-insecure: true
+                    icon: di:pi-hole
 
-          - type: monitor
-            title: Network and storage
-            cache: 1m
-            sites:
-              - title: TrueNAS
-                url: https://voyager.${DOMAIN}
-                # / redirects to /ui/; probing it directly skips the hop.
-                check-url: https://voyager.lan-services.svc/ui/
-                allow-insecure: true
-                icon: di:truenas
+              - type: monitor
+                title: Network
+                cache: 1m
+                sites:
+                  - title: Router
+                    url: https://hubble.${DOMAIN}
+                    check-url: http://hubble.lan-services.svc/
+                    icon: mdi:router-network
 
-              - title: Pi-hole
-                url: https://pihole.${DOMAIN}/admin
-                # / answers 404; /admin/ settles on 200 at /admin/login.
-                check-url: https://pihole-vip.lan-services.svc/admin/
-                allow-insecure: true
-                icon: di:pi-hole
+                  - title: Traefik
+                    url: https://traefik.${DOMAIN}/dashboard/
+                    # A request with no matching Host rule ends at 404, which still
+                    # proves Traefik routes. See docs/design/glance.md.
+                    check-url: https://traefik.traefik.svc/
+                    allow-insecure: true
+                    alt-status-codes: [404]
+                    icon: di:traefik
 
-              - title: Router
-                url: https://hubble.${DOMAIN}
-                check-url: http://hubble.lan-services.svc/
-                icon: mdi:router-network
+          - type: split-column
+            widgets:
+              - type: monitor
+                title: Hypervisors
+                cache: 1m
+                # Self-signed certificates on every node, the same ones that make
+                # the lan-insecure ServersTransport necessary.
+                sites:
+                  - title: rumba
+                    url: https://rumba.${DOMAIN}
+                    check-url: https://rumba.lan-services.svc:8006/
+                    allow-insecure: true
+                    icon: di:proxmox
+
+                  - title: salsa
+                    url: https://salsa.${DOMAIN}
+                    check-url: https://salsa.lan-services.svc:8006/
+                    allow-insecure: true
+                    icon: di:proxmox
+
+                  - title: samba
+                    url: https://samba.${DOMAIN}
+                    check-url: https://samba.lan-services.svc:8006/
+                    allow-insecure: true
+                    icon: di:proxmox
+
+                  - title: tango
+                    url: https://tango.${DOMAIN}
+                    check-url: https://tango.lan-services.svc:8006/
+                    allow-insecure: true
+                    icon: di:proxmox
+
+              - type: monitor
+                title: Storage
+                cache: 1m
+                sites:
+                  - title: Longhorn
+                    url: https://longhorn.${DOMAIN}
+                    check-url: http://longhorn-frontend.longhorn-system.svc/
+                    icon: di:longhorn
+
+                  - title: TrueNAS
+                    url: https://voyager.${DOMAIN}
+                    # / redirects to /ui/; probing it directly skips the hop.
+                    check-url: https://voyager.lan-services.svc/ui/
+                    allow-insecure: true
+                    icon: di:truenas
+
+      - size: small
+        widgets:
+          # The Prometheus widgets live in their own ConfigMap, unsubstituted.
+          # The doubled sigil is Flux's escape: Glance receives a single one.
+          - $$include: stats.yml
+
+          - type: markets
+            markets:
+              - symbol: SPY
+                name: S&P 500
