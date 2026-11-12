@@ -1,11 +1,13 @@
 # Skylab ingress and DNS
 
-How public hostnames reach the workloads on skylab, the cluster's first
-**public node**: a Cloudflare Tunnel for HTTP, a DNS-only record and open
-ports for TURN, and the DNS records that move at cutover. Provisioning
-(`docs/design/skylab-provisioning.md`) and enrolment
-(`docs/design/skylab-enrolment.md`) end at a Ready node. The app manifests,
-their secrets and the cutover runbook belong to the migration design.
+How public hostnames reach the workloads on skylab, the first **public
+cluster**: a Cloudflare Tunnel for HTTP, a DNS-only record and open ports for
+TURN, and the DNS records that move at cutover. Provisioning
+(`docs/design/skylab-provisioning.md`) and bootstrap
+(`docs/design/skylab-bootstrap.md`) end at a healthy cluster. The app
+manifests, their secrets and the cutover runbook belong to the migration
+design; the firewalls and coturn's deny list belong to the security design
+(`docs/design/skylab-security.md`).
 
 Hostnames here are placeholders. joelst's zone is `example.com`. metachat
 lives at `chat.example.net` in a second zone, `example.net`. The real zones
@@ -30,8 +32,7 @@ because it is the step in the cutover gate that moves real traffic.
 outbound from the node, so skylab opens no inbound port for them. TURN cannot
 use the tunnel: a `tcp://` tunnel route needs `cloudflared access` on every
 client, and the tunnel carries no UDP to public hostnames. coturn therefore
-listens on skylab's public IPv4, and that address is the only public surface
-beyond KubeSpan's 51820/udp.
+listens on skylab's public IPv4, and TURN is skylab's only public surface.
 
 ## Design
 
@@ -64,9 +65,9 @@ In `resources/cloudflare/`:
    `content = "${tunnel.id}.cfargotunnel.com"`, `proxied = true`, `ttl = 1`.
    `name` is the full FQDN.
 
-The routes point at the Services directly, not through Traefik. Traefik runs
-on LAN nodes, so every request would cross KubeSpan to the LAN and back to
-skylab. Each hostname, its record and its route sit in the same file and
+The routes point at the Services directly. Skylab runs no Traefik: the
+tunnel terminates TLS at Cloudflare, and nothing else on skylab needs a
+router. Each hostname, its record and its route sit in the same file and
 change in the same PR. Tofu knows the Service names, which are stable and not
 secret.
 
@@ -103,6 +104,11 @@ The test hostnames are one label deep (`metachat-next.example.net`, not
 `next.chat.example.net`). Cloudflare's Universal SSL certificate covers the
 apex and `*.<zone>` only, so a deeper name gets no edge certificate.
 
+`resources/cloudflare/` also owns Forgejo's certificate delegation: a
+permanent CNAME from `_acme-challenge.forgejo.<LAN domain>` into a second
+zone (`docs/design/skylab-forgejo.md`, "Name and certificate"). It is not a
+proxied record and has no tunnel route.
+
 Every record tofu owns carries `comment = "opentofu"`.
 
 ### TURN
@@ -113,23 +119,24 @@ Every record tofu owns carries `comment = "opentofu"`.
    change. Clients learned the raw address before, so the record exposes
    nothing new.
 2. **Ports.** 3478/tcp, 3478/udp and 49160–49500/udp from anywhere, as rules
-   on the `hcloud_firewall` and on the public node's Talos firewall. 5349 stays
-   closed: there is no TLS listener.
+   on the `hcloud_firewall` and on skylab's Talos firewall
+   (`docs/design/skylab-security.md`). 5349 stays closed: there is no TLS
+   listener.
 3. **Address binding.** coturn sets `--listening-ip` and `--relay-ip` to the
    node address from the downward API (`status.hostIP`), so it never listens
-   on, or relays from, the KubeSpan or Cilium interfaces.
+   on, or relays from, the Cilium or `tailscale0` interfaces.
    `--external-ip` is not set, because the public IPv4 is on the interface.
    Both facts are **unverified** and are checked at build: `talosctl get
    addresses` shows the IPv4 on the link, and the node's `InternalIP` equals
    it.
 4. **Peer deny list.** A relay in the host network namespace can reach
-   whatever the node reaches. coturn adds `--denied-peer-ip` ranges for the
-   LAN prefix, the pod and Service CIDRs and the KubeSpan ULA range (`fd00::/8`
-   as a range) to its existing IPv4 private ranges. The IPv6 range form is
-   **unverified** and is tested with a relay request to a KubeSpan address.
-5. **Relay range reservation.** The public-node patch adds the sysctl
-   `net.ipv4.ip_local_reserved_ports: "49160-49500"`. The default ephemeral
-   range contains the relay range, so a host process could take a relay port.
+   whatever the node reaches, so coturn carries a `--denied-peer-ip` list.
+   The list is in `docs/design/skylab-security.md`, "coturn's relay
+   boundary".
+5. **Relay range reservation.** Skylab's patches set the sysctl
+   `net.ipv4.ip_local_reserved_ports: "49160-49500"`
+   (`docs/design/skylab-bootstrap.md`). The default ephemeral range contains
+   the relay range, so a host process could take a relay port.
 
 A NetworkPolicy does not apply to a `hostNetwork` pod, so the firewalls and the
 deny list are coturn's only boundary.
@@ -143,11 +150,11 @@ deny list are coturn's only boundary.
 | Namespace | `cloudflared`, PodSecurity `restricted` |
 | Image | `cloudflare/cloudflared:2026.10.3` (amd64 and arm64), pinned |
 | Replicas | 2, `maxUnavailable: 0`, `maxSurge: 1` |
-| Placement | the public-node toleration and a required node affinity on `homelab/public-node` |
 | Token | `app/secret.sops.yaml`, mounted as a file, read with `--token-file` |
 | Probes | `GET /ready` on `--metrics 0.0.0.0:2000` |
 
-Two replicas cover a crash and a rollout. They do not cover a node reboot.
+Skylab is one node, so the layer sets no placement. Two replicas cover a
+crash and a rollout. They do not cover a node reboot.
 During a reboot visitors get a Cloudflare 1033 error, and the apps are down at
 the same time anyway. A rollout cuts the open WebSockets on the old pod after
 cloudflared's 30 s grace period. metachat's client reconnects.
@@ -169,7 +176,7 @@ with ingress allowed from:
 | App | Sources |
 |---|---|
 | joelst | pods in `cloudflared` |
-| metachat | pods in `cloudflared`; `alloy-cluster` in `alloy` (the `/metrics` scrape), by namespace and pod label |
+| metachat | pods in `cloudflared` |
 
 Kubelet probes come from the host, and Cilium admits host traffic by default.
 This is checked at build: the pods report Ready with the policy in place.
@@ -177,12 +184,14 @@ This is checked at build: the pods report Ready with the policy in place.
 ### Credentials and encrypted names
 
 1. `resources/cloudflare/secrets.env` (SOPS) holds `CLOUDFLARE_API_TOKEN`,
-   which the provider reads natively, and `TF_VAR_`s for the account ID, the two
+   which the provider reads natively, and `TF_VAR_`s for the account ID, the
    zone IDs, the hostnames and the Ashburn address.
 2. `resources/skylab/secrets.env` gets the same token and `TF_VAR_`s for the
    `example.net` zone ID and the `turn` hostname.
 3. The token is scoped to Account › Cloudflare Tunnel › Edit and
-   Zone › DNS › Edit, on the two zones only.
+   Zone › DNS › Edit, on the two app zones and the LAN domain's zone (for
+   the `_acme-challenge` CNAME) only. It stays on the operator; skylab never
+   holds it.
 
 The 8443 Origin Rule and the Origin CA certificates are removed by hand in
 the cutover runbook. They exist only for an origin on the internet, and tofu
@@ -199,8 +208,8 @@ whoever created it. The two coexist under four rules:
 2. DDNS sets `RECORD_COMMENT` and `MANAGED_RECORDS_COMMENT_REGEX` to its own
    marker, so it ignores the records tofu marks `opentofu`.
 3. DDNS has its own token, Zone › DNS › Edit only.
-4. DDNS never runs on skylab. It writes the address it detects from where it
-   runs, so it carries no public-node toleration.
+4. DDNS runs on the home cluster, never on skylab. It writes the address it
+   detects from where it runs.
 
 ## Rejected alternatives
 
@@ -214,7 +223,8 @@ whoever created it. The two coexist under four rules:
 4. **A locally managed tunnel config** (a `config.yaml` ConfigMap in
    `kubernetes/clusters/skylab/cloudflared/`). The real hostnames need a new substitution key,
    and a route and its record change in two places.
-5. **Routing through Traefik.** See "The tunnel".
+5. **Running Traefik on skylab.** A second TLS terminator behind one that
+   already terminates every hostname.
 6. **TURN on the raw IP in `cluster-secrets`.** A hand-copied address, edited
    on every rebuild that loses the IP.
 7. **TURN through the tunnel.** See "The constraint".
@@ -233,9 +243,8 @@ whoever created it. The two coexist under four rules:
    `CF-Connecting-IP`, which defeats its per-IP limits.
 4. Drop the comment rules from DDNS, or list a tofu name in its config, and
    the two tools overwrite each other on every run.
-5. Give DDNS the public-node toleration and it can write skylab's address
-   into a home record.
-6. Drop the peer deny ranges and a TURN client can relay into the LAN or the
-   cluster.
+5. Run DDNS on skylab and it writes skylab's address into a home record.
+6. Drop the peer deny list and a TURN client can relay into the cluster, the
+   node itself or the tailnet.
 7. Give a test hostname a second label and the edge serves a certificate
    error.
