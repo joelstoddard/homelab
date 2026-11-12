@@ -1,16 +1,18 @@
 # Skylab provisioning on Hetzner Cloud
 
-What `opentofu/resources/skylab/` declares for skylab, the cluster's first
-**public node**, and how NetBox drives it. Enrolment (machine config content,
-KubeSpan, taint), ingress, DNS and Forgejo storage are separate designs; this
-one ends at a running Talos server with a public address and a firewall.
+What `opentofu/resources/skylab/` declares for skylab, the first **public
+cluster**, and how NetBox drives it. Bootstrap
+(`docs/design/skylab-bootstrap.md`), security posture
+(`docs/design/skylab-security.md`), ingress, DNS and Forgejo are separate
+designs; this one ends at a running Talos server with a public address and a
+firewall.
 
 ## Problem
 
 Skylab is a hand-built Hetzner server in Ashburn. It is rebuilt as code in a
-Hetzner EU location as a Talos worker, and the Ashburn server shuts down 7
-days after **cutover** (`docs/design/skylab-migration.md`). Three constraints
-shape the provisioning:
+Hetzner EU location as a standalone single-node Talos cluster, and the Ashburn
+server shuts down 7 days after **cutover**
+(`docs/design/skylab-migration.md`). Three constraints shape the provisioning:
 
 1. Nothing bills before the cluster side reaches parity. A merged
    `resources/skylab/` is applied by every blanket `make -C opentofu apply`,
@@ -42,7 +44,7 @@ rebuilt server. The branch sets:
 | Cluster | `Hetzner` (unchanged) |
 | Role | `vps` (unchanged) |
 | Platform | `talos` |
-| Tags | `k8s`, `k8s-agent`, `public-node` |
+| Tags | `k8s`, `skylab` (the cluster tag), `k8s-controlplane` |
 | vCPUs / memory / disk | 4 / 8000 MB / 80000 MB |
 | Primary IPv4 | entered by hand after apply (see below) |
 
@@ -61,8 +63,10 @@ During the build window the operator exports one variable,
    map-typed default read from the environment fails with
    `error setting default for "headers": map of string required`.
 
-The talos role's `uri` lookups (VIP, control-plane membership) send no header
-and read main. Neither value changes in the branch.
+The talos role's `uri` lookup of the VIP runs only for the home cluster
+(`docs/design/skylab-bootstrap.md`), so it sends no header and reads main.
+Skylab's control-plane membership comes from its tags, through the
+inventory, which reads the branch.
 
 A branch shows main's later changes only after a sync, so sync it before a
 build-window run. A request naming a non-existent branch fails in both
@@ -96,47 +100,49 @@ nothing else uses one.
    `talosctl upgrade`, not a new server.
 2. **`hcloud_primary_ip`** (IPv4, €0.50/month): `assignee_type = "server"`,
    `auto_delete = false`, `delete_protection = true`. It keeps the address
-   through a server rebuild, so the KubeSpan endpoint and coturn's address do
+   through a server rebuild, so the `turn` record and coturn's address do
    not change. `public_net { ipv4 = …, ipv6_enabled = false }`: nothing uses
    IPv6, and leaving it on gives the node an unmanaged address.
 3. **`hcloud_firewall`**, attached through the server's `firewall_ids`:
-   inbound `51820/udp` (KubeSpan) and ICMP from anywhere. Everything else is
-   denied once the firewall is attached. The ingress design adds coturn's
-   TURN rules to this same resource. Talos `ingress: block` is the second
-   layer and belongs to the enrol design.
+   inbound TURN (3478/tcp, 3478/udp, 49160–49500/udp) and ICMP from
+   anywhere. Everything else is denied once the firewall is attached. The
+   Talos firewall is the second layer; both are in
+   `docs/design/skylab-security.md`.
+4. **`hcloud_volume`** and **`hcloud_volume_attachment`** for Forgejo, as
+   `docs/design/skylab-forgejo.md` sets them out.
 
-No `hcloud_volume`: Forgejo's storage is the Forgejo design's decision.
-
-**Cost:** €8.99/month (CX33 €8.49 + IPv4 €0.50) against the €12.49
-ceiling, plus about €0.01/month per stored image snapshot.
+**Cost:** €9.56/month (CX33 €8.49 + IPv4 €0.50 + the 10 GB Volume €0.57)
+against the €12.49 ceiling, plus about €0.01/month per stored image
+snapshot.
 
 ### Machine config arrives as `user_data`
 
 `user_data = file(<the talos role's rendered skylab config>)`. Skylab takes
 its address by DHCP, which Hetzner serves for the primary IPv4, so the config
-needs no address before apply. The role's node patch
-(`templates/patches/node.yaml.j2`) sets a static LAN address, prefix and
-gateway for every node; the enrol design makes it skip that `LinkConfig` for
-a **public node**. tofu fails if the file is missing, so the order is: render
-the config
-(`make -C ansible apply-talos TAGS=config` with the branch header), then
-apply tofu. No Talos API port is ever public. The config holds the cluster
-secrets, so it lands in tofu state; that state is already encrypted
-(`TF_ENCRYPTION`). The role renders with `--with-docs=false
---with-examples=false`, which keeps the file under Hetzner's 32 KiB
-`user_data` cap; the actual size is measured when the config first renders.
+needs no address before apply: the role renders skylab with no `LinkConfig`
+(`docs/design/skylab-bootstrap.md`). tofu fails if the file is missing, so the
+order is: render the config (`make -C ansible apply-talos CLUSTER=skylab
+TAGS=config` with the branch header), then apply tofu. No Talos API port is
+ever public. The config holds the cluster secrets, so it lands in tofu state;
+that state is already encrypted (`TF_ENCRYPTION`). The role renders with
+`--with-docs=false --with-examples=false`, which keeps the file under
+Hetzner's 32 KiB `user_data` cap; the actual size is measured when the config
+first renders.
 
 ### The image is an explicit step
 
 Hetzner has no image-upload API, and `data "hcloud_image"` resolves at plan
 time, so the image must exist before the plan. `make -C opentofu
 skylab-image` runs `hcloud-upload-image upload` with the Image Factory's
-`hcloud-amd64.raw.xz` for `TALOS_SCHEMATIC_ID` and `TALOS_VERSION` from
-`versions.env`, labelled `talos_version` and `talos_schematic`. It skips the
-upload when a snapshot with both labels exists, checked with `curl` against
-the Hetzner API's `images?type=snapshot&label_selector=…`. tofu selects it with
-`with_selector` on the same labels and `most_recent = true`; with the gate
-open and no image, tofu fails with a message naming the target.
+`hcloud-amd64.raw.xz` for skylab's schematic (the third in `versions.env`,
+which adds the `tailscale` extension) and `TALOS_VERSION`, labelled
+`talos_version` and `talos_schematic`. It skips the upload when a snapshot
+with both labels exists, checked with `curl` against the Hetzner API's
+`images?type=snapshot&label_selector=…`. tofu selects it with
+`with_selector` on `talos_schematic` alone and `most_recent = true`, so a
+`versions.env` bump never leaves a plan without an image
+(`docs/design/skylab-upgrades.md`); with the gate open and no image, tofu
+fails with a message naming the target.
 
 The upload boots a temporary server, which is a billing event, so it is
 never part of `apply`: a blanket apply bills nothing. Old snapshots stay.
@@ -170,15 +176,16 @@ whatever the directory; the operator holds them anyway.
 3. **A status gate on the in-place record.** Main's record is already
    `active` (Ashburn), so the gate would provision from Ashburn's data.
 4. **A boolean `enabled` variable, or keeping the PR in draft.** The
-   variable duplicates what NetBox already says; a draft PR blocks the enrol
-   work that builds on it.
-5. **CX23** (2 vCPU, 4 GB, €5.99). Same RAM as the Ashburn server, but
-   about 1.5 GB free after the system pods, before Forgejo. CX33 leaves
-   €3.50 under the ceiling. Arm types (CAX11, CAX21) are out: metachat is amd64-only.
+   variable duplicates what NetBox already says; a draft PR blocks the
+   bootstrap work that builds on it.
+5. **CX23** (2 vCPU, 4 GB, €5.99). Too tight for a control plane and the
+   workloads on one node, whose working set is about 3.3 GiB
+   ([sizing research](https://github.com/joelstoddard/homelab/blob/research/skylab-cluster-sizing/docs/research/skylab-cluster-sizing.md)).
+   Arm types (CAX11, CAX21) are out: metachat is amd64-only.
 6. **`hel1` / `fsn1`.** Helsinki adds latency for UK users; the product
    pages list Falkenstein inconsistently for the cost-optimised types.
-7. **Hetzner's public Talos ISO.** Its schematic lacks the `iscsi-tools`
-   and `util-linux-tools` extensions in `TALOS_SCHEMATIC_ID`, and it boots
+7. **Hetzner's public Talos ISO.** Its schematic lacks the `tailscale`
+   extension that the operator reaches skylab through, and it boots
    into maintenance mode, which needs public `50000/tcp` for
    `apply-config --insecure`.
 8. **Rescue mode plus `write-to-disk` from tofu provisioners, or Packer.**
@@ -206,7 +213,7 @@ whatever the directory; the operator holds them anyway.
 2. Drop `ignore_changes = [image, user_data]` and a `versions.env` bump or a
    config re-render destroys and recreates the node.
 3. Set `auto_delete = true` on the primary IP, or omit the managed IP, and a
-   server rebuild changes the public address, breaking the KubeSpan endpoint
+   server rebuild changes the public address, breaking the `turn` record
    and every TURN client.
 4. Rename the `nuremberg` site to a name that is not a Hetzner EU `city`
    and the gate closes on a running node: the plan wants to destroy it, and only
