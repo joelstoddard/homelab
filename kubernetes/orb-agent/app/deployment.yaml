@@ -25,8 +25,6 @@ spec:
       # CoreDNS answers reverse lookups for lan-services hosts with cluster
       # names, and the scan reports them as dns_name drift from NetBox.
       dnsPolicy: Default
-      # No toleration for homelab/public-node keeps the agent off skylab,
-      # which is not on the LAN.
       tolerations:
         - key: node.kubernetes.io/not-ready
           operator: Exists
