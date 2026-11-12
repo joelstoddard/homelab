@@ -47,6 +47,27 @@ datasources:
         access: proxy
         url: http://loki.monitoring.svc:3100
         editable: false
+# preinstall_disabled also drops the chart's plugins list, so the NetBox
+# plugin installs here, pinned, from the same image. The URL and token make
+# its datasource file a Secret: docs/design/observability.md.
+extraInitContainers:
+  - name: install-netbox-plugin
+    image: docker.io/grafana/grafana:13.2.1-distroless
+    command: [/usr/share/grafana/bin/grafana]
+    args: [cli, --pluginsDir, /var/lib/grafana/plugins, plugins, install, netboxlabs-netbox-datasource, 1.0.3]
+    securityContext:
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop: [ALL]
+    volumeMounts:
+      - name: storage
+        mountPath: /var/lib/grafana
+extraSecretMounts:
+  - name: netbox-datasource
+    secretName: grafana-netbox-datasource
+    mountPath: /etc/grafana/provisioning/datasources/netbox.yaml
+    subPath: netbox.yaml
+    readOnly: true
 sidecar:
   dashboards:
     enabled: true
