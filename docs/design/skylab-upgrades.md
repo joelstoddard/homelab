@@ -126,8 +126,8 @@ so the target makes the repeat one command.
    happens on a rare rebuild.
 6. **A play that refuses skylab until the home cluster reports the target
    versions.** Makes skylab's upgrade depend on reaching the home cluster.
-7. **An `upgrade_allow_public` flag**, as in the public-node design. The
-   cluster parameter already separates the invocation.
+7. **An `upgrade_allow_public` opt-in flag.** The cluster parameter already
+   separates the invocation.
 8. **A snapshot selector including `talos_version`.** A `versions.env` bump
    breaks every plan until the image is uploaded.
 
