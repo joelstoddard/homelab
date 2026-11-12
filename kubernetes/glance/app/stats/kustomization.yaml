@@ -1,0 +1,11 @@
+# stats.yml is Go templates, whose $ envsubst must not touch. The hash suffix
+# stays, so an edit rolls the pod (see ../kustomization.yaml).
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+generatorOptions:
+  annotations:
+    kustomize.toolkit.fluxcd.io/substitute: disabled
+configMapGenerator:
+  - name: glance-stats
+    files:
+      - stats.yml

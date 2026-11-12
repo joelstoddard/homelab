@@ -1,8 +1,10 @@
 # Glance: the start page
 
-`kubernetes/glance/` serves a browser start page at `home.${DOMAIN}`: one tile
-per service, each with a reachability dot, plus a clock and a search box
-pointed at the cluster's own SearXNG. It is stateless — one ConfigMap, one
+`kubernetes/glance/` serves a browser start page at `home.${DOMAIN}`: a search
+box pointed at the cluster's own SearXNG, one tile per service grouped by what
+the service does, each with a reachability dot, and a column of live figures
+from Prometheus. A sidebar holds weather, a calendar link, the three personal
+repositories and the cloud consoles. It is stateless — two ConfigMaps, one
 Deployment, no volume — and every link is in git.
 
 ## Problem
@@ -51,6 +53,16 @@ The cost is a smaller integration catalogue — roughly 30 against Homepage's
 100-plus, and no Kubernetes service discovery. Neither is used here: the tiles
 are static by choice, and the deferred metrics come from Prometheus.
 
+## Theme
+
+The palette is the dotfiles' ash-plus, in its monochrome form: a `#121212`
+base, grey links, and colour kept for signals only — ash-plus green for up,
+red for down. Glance takes HSL, so the hex values are converted once and
+written as `0 0 7` and so on. The one colour outside Glance's theme is the
+hypervisor memory bar's warning orange, `hsl(32 93% 56%)`, which is ash-plus
+orange `#F79625`, written inline because the theme has no slot for a third
+signal.
+
 ## Two variable syntaxes, one sigil
 
 Glance performs its own environment substitution using `${VAR}`. Flux's
@@ -60,8 +72,8 @@ an unknown variable becomes the empty string rather than passing through — the
 same hazard `docs/design/ingress-tls.md` documents for `${DOMIAN}`.
 
 The rule is that **Flux owns every substitution in this layer and Glance's own
-is never used.** `${DOMAIN}` and `${NETBOX_URL}` are the only variables in
-`app/config/glance.yml` and must remain the only uses of that sigil anywhere
+is never used.** `${DOMAIN}`, `${NETBOX_URL}` and `${WEATHER_LOCATION}` are the only variables
+in `app/config/glance.yml` and must remain the only uses of that sigil anywhere
 in the file, *comments included*: a `configMapGenerator` input is embedded verbatim, so its comments
 reach envsubst, unlike ordinary manifests where kustomize strips them first.
 
@@ -76,14 +88,10 @@ Because Flux runs first, no `${}` ever survives to reach Glance — so the loud
 failure never happens and the silent one is the only one you can hit. Assert on
 the rendered value, never on the absence of `${`.
 
-## No timezones on the clock
-
-The clock renders in the viewer's browser, but Glance validates any named zone
-in a `timezones:` list at startup with `time.LoadLocation`. The image is
-Alpine-based and ships no tzdata, and the binary does not import
-`time/tzdata`, so a single entry makes the pod crash-loop. The widget is
-therefore declared bare, which is also the behaviour wanted — the browser's own
-clock is already correct.
+The one other `$` in that file is the doubled `$$include`, Flux's escape for a
+literal sigil, which reaches Glance as its `$include` directive. The file it
+includes, `app/stats/stats.yml`, is the exception to the rule above and is
+described under "Live metrics".
 
 ## `url` and `check-url`
 
@@ -104,16 +112,15 @@ So every `check-url` names an in-cluster Service. For the seven off-cluster
 hosts this costs nothing extra, because `kubernetes/lan-services/` already
 publishes a headless Service per host whose EndpointSlice carries the real LAN
 address. Probing `rumba.lan-services.svc` rather than a `${RUMBA_IP}` keeps
-those addresses in exactly one place and leaves `${DOMAIN}` as the only
-variable this layer needs.
+those addresses in exactly one place and out of this layer.
 
 **A red tile is a wrong `check-url` until proven otherwise.** Confirm from
 inside the cluster before investigating the service itself.
 
 ## Bookmarks carry no status
 
-The `bookmarks` widget holds links that are not ours: two GitHub repos and the
-cloud consoles for DNS, the VPS, IPAM, passwords and the tailnet. They get no
+The `bookmarks` widget holds links that are not ours: the cloud consoles for
+DNS, the VPS, IPAM, passwords and the tailnet. They get no
 `check-url` and no status dot, deliberately — probing a third party from this
 pod tells you nothing you can act on and makes the page's dots mean two
 different things.
@@ -124,6 +131,35 @@ everywhere else, deliberately kept out of YAML; a plaintext bookmark would
 undo that in a public repo's permanent history. The rest are generic console
 addresses that name no account. For the same reason the Hetzner tile is just
 "Hetzner": the repo names the VPS elsewhere, but not which provider hosts it.
+
+## Widgets that call out of the cluster
+
+Four widgets make the **pod** fetch from the internet, unlike the icons, which
+the browser fetches: `weather` (Open-Meteo), `markets` (Yahoo Finance),
+`repository` (the GitHub API, unauthenticated) and the calendar, which is only
+a link. External names resolve because CoreDNS forwards to public resolvers
+(above). No NetworkPolicy covers the `glance` namespace, so nothing else is
+needed.
+
+The `repository` widgets run without a token, inside GitHub's anonymous limit
+of 60 requests an hour per source address. Three repositories on Glance's
+default cache stay well under it. A token would raise the limit but adds a
+credential, and nothing needs the extra headroom.
+
+The weather location is personal, and this repo is public, so it is
+`${WEATHER_LOCATION}` in `cluster-secrets`, SOPS-encrypted like `NETBOX_URL`.
+`hide-location` keeps it off the page too. Glance geocodes `town, country`
+only: a three-part value is read as an area within a country and fails with
+`no place found`. A missing key substitutes empty, and Glance rejects the whole
+config (`weather widget: location is required`): the new pod crash-loops, the
+rollout stalls behind the old one, and the page goes down the next time that
+old pod restarts. Add the key to `cluster-secrets` before any change that
+first references it reaches `main`.
+
+The calendar is Glance's month grid with its title linked to Google Calendar.
+Glance has no calendar source, so it cannot mark days that have events. Doing
+that means a `custom-api` widget against the Google Calendar API, with a
+credential in the cluster; it was not worth that.
 
 ## The status codes are measured, not assumed
 
@@ -234,47 +270,58 @@ the opt-out for names hosted publicly, and an entry there would send `home.` to
 public DNS and produce a valid certificate with a Traefik 404 — trap 2 of
 `docs/design/ingress-tls.md`.
 
-## Deferred: live metrics
+## Live metrics
 
-Metrics were scoped out of the first version deliberately. The groundwork is
-recorded here so adding them is a config change rather than a rediscovery.
+The right-hand column is three `custom-api` widgets that query Prometheus at
+`http://prometheus-server.monitoring.svc/api/v1/query`, which answers
+in-cluster with **no credentials** — the `ingest-auth` basic auth guards only
+the ingress path. This was chosen over Glance's per-service widgets because
+those need an API token each, duplicating credentials that already exist in
+`host-monitoring` into a second place to rotate.
 
-Glance's `custom-api` widget renders arbitrary JSON through a Go template, and
-Prometheus answers at `http://prometheus-server.monitoring.svc/api/v1/query`
-with **no credentials in-cluster** — the `ingest-auth` basic auth guards only
-the ingress path. Everything worth showing is already scraped there: node CPU
-and memory, Longhorn capacity and degraded volume counts, Proxmox load through
-`pve-exporter`, Pi-hole block rates through `pihole-exporter`, and firing alert
-counts.
+| Widget | Shows | Links to |
+| --- | --- | --- |
+| Cluster | nodes Ready, pods Running, scrape targets down; node CPU and memory; Longhorn and TrueNAS capacity under a Storage subheading | the Kubernetes dashboards, Grafana's home, the Longhorn UI and the TrueNAS UI |
+| Hypervisors | CPU and memory per NUC, from `pve-exporter` | the Proxmox dashboard, and each NUC's own UI |
+| DNS | Pi-hole queries today, percentage blocked, blocklist size | the Pi-hole admin UI |
 
-A panel is then one widget:
+Each title, and nearly every figure, links to where you would look next. Bars turn red at 90%.
+Hypervisor memory also turns orange at 80%, because zram overcommit keeps the
+NUCs between 85 and 96% by design (`docs/design/zram-swap.md`), and a bar that
+is always red tells you nothing. Thresholds compare integers: PromQL `round()`
+does the rounding, and `.JSON.Int` parses Prometheus's string values.
 
-```yaml
-- type: custom-api
-  url: http://prometheus-server.monitoring.svc/api/v1/query?query=<promql>
-  cache: 1m
-  template: |
-    <p class="size-h3">{{ .JSON.String "data.result.0.value.1" }}</p>
-```
+### Why a second file
 
-This was chosen over Glance's or Homepage's per-service widgets because those
-need an API token each — duplicating credentials that already exist in the
-`host-monitoring` namespace into a second place to rotate. One credential-free
-source that is already the system of record beats four copies.
+Go templates use `$` for variables (`{{ $q := ... }}`). Flux would treat these
+as its own if it ever substituted them, and `glance.yml` forbids the sigil.
+So the widgets live in `app/stats/stats.yml`, a separate ConfigMap carrying
+`kustomize.toolkit.fluxcd.io/substitute: disabled` — the pattern
+`alloy/app/config/` and `monitoring/app/dashboards/` use. Both ConfigMaps are
+projected into `/app/config`, and `glance.yml` pulls the second in with
+`$$include`. Both keep their hash suffix, so an edit to either rolls the pod.
 
-Note that the cluster runs no metrics-server, so any widget depending on
-`metrics.k8s.io` will not work. Prometheus is the only source.
+The stats need public links, so `stats.yml` uses `${DOMAIN}` — resolved by
+**Glance**, from a `DOMAIN` environment variable that Flux substitutes into
+the Deployment. This is the one place Glance's own substitution is used, and
+its failure is the loud one: a missing variable stops the pod starting rather
+than blanking a link.
 
-**This is its own pull request, because of a second sigil collision.**
-`custom-api` renders Go templates, and Go templates use `$` for variables
-(`{{ $v := .JSON.Array "data.result" }}`). Those collide with envsubst exactly
-as `${VAR}` does, and the same rule cannot save them: the metrics widgets need
-`$` and this file forbids it. The seam is Glance's `$include`, which splits the
-config across files — put the metrics widgets in a second ConfigMap carrying
-`kustomize.toolkit.fluxcd.io/substitute: disabled`, the pattern
-`alloy/app/config/` and `monitoring/app/dashboards/` already use for River and
-dashboard JSON. That file then cannot use `${DOMAIN}`, which is fine because
-every URL in it is an in-cluster Service name.
+### Checking a change
+
+`flux build kustomization glance --path kubernetes/glance/app
+--kustomization-file kubernetes/glance/ks.yaml` renders the layer with the live
+`cluster-secrets`, through the same substitution code as the controller. In
+the output, `glance.yml` must carry `- $include: stats.yml` with a single
+sigil, and `stats.yml` must still read `${DOMAIN}` and `{{ $q :=`. Running
+those two files in the pinned image locally, with the Prometheus URL pointed at
+a `kubectl port-forward`, shows the widgets render; the `check-url` dots fail
+locally because the Service names resolve only in-cluster. The image's
+`config:validate` command, run on the same two files, catches a schema error
+before it reaches the pod.
+
+The cluster runs no metrics-server, so Prometheus is the only source for
+anything resource-shaped.
 
 ## Observing it
 
@@ -314,6 +361,15 @@ not Glance failing.
   `assets-path` and mounting the files, which trades the stateless pod for a
   volume; that trade was not worth making for a dozen icons, and it is the
   first thing to revisit if the CDN dependency starts to grate.
+- **The TrueNAS figure follows CORE's metric names.** `graphite-exporter`
+  passes TrueNAS CORE's collectd stream through unmapped, so every series is
+  named `servers_Voyager_local_...`, with the host and dataset in the name.
+  TrueNAS SCALE reports different names, and the bar will read 0 until its
+  query is rewritten. The figure adds up the `df` usage of every dataset under
+  `/mnt/Voyager`, so it is approximate and leaves out snapshots.
+- **A clock widget cannot list timezones.** Glance resolves named zones at
+  startup with `time.LoadLocation`, and the Alpine image ships no tzdata, so a
+  single `timezones:` entry crash-loops the pod.
 - **Tiles are hand-maintained.** A new service does not appear until it is
   added here. Kubernetes service discovery was rejected because it needs a
   ClusterRole over several namespaces and scatters each tile's metadata into

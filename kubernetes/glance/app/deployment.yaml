@@ -30,6 +30,11 @@ spec:
       containers:
         - name: glance
           image: docker.io/glanceapp/glance:v0.8.6
+          # stats.yml is not Flux-substituted, so Glance resolves DOMAIN there
+          # from this variable, which Flux does substitute.
+          env:
+            - name: DOMAIN
+              value: ${DOMAIN}
           ports:
             - name: http
               containerPort: 8080
@@ -64,5 +69,9 @@ spec:
               memory: 128Mi
       volumes:
         - name: config
-          configMap:
-            name: glance-config
+          projected:
+            sources:
+              - configMap:
+                  name: glance-config
+              - configMap:
+                  name: glance-stats
