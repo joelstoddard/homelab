@@ -78,6 +78,14 @@ defaults that hide the control-plane components.
   folder named by its `grafana_folder` annotation, read-only. Iterating on a
   dashboard: Save As a copy, iterate, Export (sharing-externally off), drop
   the file in git; the copy dies with the pod.
+- **NetBox datasource.** `netboxlabs-netbox-datasource`, pinned, installs
+  from an init container running `grafana cli` from Grafana's own image.
+  The chart's `plugins:` list cannot do it: `preinstall_disabled` drops
+  `preinstall_sync` too. The plugin downloads from grafana.com on every pod
+  start, so a grafana.com outage keeps a restarted Grafana down. Its
+  datasource file (uid `netbox`) names the NetBox Cloud tenant URL and a
+  dedicated read-only token, so it is a whole SOPS Secret mounted into the
+  provisioning directory rather than an entry in `values.yaml`.
 - **Two layers, PodSecurity scoped.** `monitoring` stays on Talos' default
   `baseline`; `alloy` is `privileged` because the DaemonSet needs hostPath
   mounts, hostPID and hostNetwork, and runs as root to read the 0640 log

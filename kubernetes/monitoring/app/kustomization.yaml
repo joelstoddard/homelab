@@ -8,6 +8,7 @@ resources:
   - loki/helmrelease.yaml
   - grafana/helmrelease.yaml
   - secret-grafana-admin.sops.yaml
+  - grafana/secret-netbox-datasource.sops.yaml
   - ingest/middleware.yaml
   - ingest/ingressroutes.yaml
   - ingest/secret-ingest-auth.sops.yaml
