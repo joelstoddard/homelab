@@ -85,9 +85,9 @@ Roll back on the criterion in `docs/design/skylab-migration.md`, "Rollback".
 19. metachat: remove the `deploy` and `verify` jobs, the `DEPLOY_*` secrets
     and variable, `deploy/bootstrap-vps.sh`, Caddy and the per-stack Alloy.
 20. joelst: remove the `deploy` job and the `SSH_*` secrets.
-21. homelab: remove `metachat` from `ingest-auth-users`, and update
-    `docs/design/metachat.md` and `docs/design/host-monitoring.md`: skylab
-    sends no metrics (`docs/design/skylab-migration.md`, "Metrics").
+21. homelab: remove `metachat` from `ingest-auth-users`, delete
+    `docs/design/metachat.md`, and point `docs/design/host-monitoring.md`'s
+    other ingest user at `skylab` (`docs/design/skylab-monitoring.md`).
 22. Remove the 8443 Origin Rule and the Origin CA certificates in the
     Cloudflare dashboard.
 23. Power off Ashburn. Deleting it and its NetBox record is a separate step.
