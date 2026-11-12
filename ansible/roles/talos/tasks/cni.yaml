@@ -2,7 +2,7 @@
 # Seed Cilium once, right after etcd is bootstrapped and the kubeconfig has
 # been merged, and before health.yaml. The machine config ships no CNI, so
 # nothing schedules — Flux included — until this has run; afterwards Flux
-# (kubernetes/cilium/) declares the same release and owns it. Rationale:
+# (kubernetes/clusters/homelab/cilium/) declares the same release and owns it. Rationale:
 # docs/design/cilium-bootstrap.md.
 #
 # Deliberately not `state: present` re-asserted every run: once Flux has

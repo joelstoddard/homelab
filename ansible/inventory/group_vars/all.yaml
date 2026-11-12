@@ -13,7 +13,7 @@ public_dns_servers:
   - "1.1.1.1"
 
 # LAN prefix for every statically-addressed host, from TS_ROUTES in
-# kubernetes/tailscale/app/deployment.yaml. One definition keeps the 00-pxe
+# kubernetes/clusters/homelab/tailscale/app/deployment.yaml. One definition keeps the 00-pxe
 # preseed netmask and the proxmox vmbr0 address equal.
 cidr_subnet: "/20"
 gateway: "{{ ansible_default_ipv4.gateway }}"

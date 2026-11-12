@@ -132,13 +132,13 @@ talos_kubeconfig_dest: "{{ lookup('ansible.builtin.env', 'HOME') }}/.kube/config
 # --- CNI seed -----------------------------------------------------------
 # The machine config ships no CNI (patches/cluster.yaml.j2: cni none, proxy
 # disabled), so tasks/cni.yaml installs Cilium once, right after bootstrap;
-# kubernetes/cilium/ (Flux) declares the same release and owns it from then
+# kubernetes/clusters/homelab/cilium/ (Flux) declares the same release and owns it from then
 # on. The values file is Flux's copy, read in place so the two can never
 # drift. See docs/design/cilium-bootstrap.md.
 cilium_chart: "oci://quay.io/cilium/charts/cilium"
 cilium_release_name: "cilium"
 cilium_release_namespace: "kube-system"
-cilium_values_file: "{{ role_path }}/../../../kubernetes/cilium/app/values.yaml"
+cilium_values_file: "{{ role_path }}/../../../kubernetes/clusters/homelab/cilium/app/values.yaml"
 
 # A guest reports less RAM than Proxmox configures, because firmware and the
 # kernel reserve some (~210 MB on a 4000 MB Talos VM). tasks/resize.yaml

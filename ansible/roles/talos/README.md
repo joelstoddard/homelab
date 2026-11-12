@@ -27,7 +27,7 @@ maintenance-mode IPs (the NetBox primary IP, surfaced as `ansible_host`).
 | `apply`       | per `talos` host     | `talosctl apply-config --insecure` of that node's generated config to a node in maintenance mode. One-shot bootstrap step. |
 | `bootstrap`   | `localhost` (once)   | `talosctl bootstrap` etcd on the first control-plane node. |
 | `kubeconfig`  | `localhost` (once)   | Merge the cluster context into `~/.kube/config`. |
-| `cni`         | `localhost` (once)   | `helm install` Cilium (`kubernetes/cilium/app/values.yaml`, `CILIUM_VERSION`) — only if the release is absent; Flux owns it afterwards. The machine config ships no CNI, so nothing schedules before this. |
+| `cni`         | `localhost` (once)   | `helm install` Cilium (`kubernetes/clusters/homelab/cilium/app/values.yaml`, `CILIUM_VERSION`) — only if the release is absent; Flux owns it afterwards. The machine config ships no CNI, so nothing schedules before this. |
 | `health`      | `localhost` (once)   | `talosctl health` until every node is Ready. Last, because Ready needs the CNI. |
 | `upgrade`     | per targeted host, serial | Authenticated `apply-config` of the node's current config, then `talosctl upgrade` (VM) or reboot into refreshed netboot assets (Pi) when the node is not on `versions.env`'s build; waits for Ready + cluster health. From `playbooks/upgrade.yaml`. |
 

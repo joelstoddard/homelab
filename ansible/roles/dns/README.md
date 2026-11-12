@@ -123,7 +123,7 @@ when `pihole-FTL --config <key>` reports something else:
 
 **Lists, groups and clients are not this role's.**
 `opentofu/resources/pihole-config/` writes them to pihole-01 through the API,
-and `kubernetes/nebula-sync/` copies them to pihole-02 every hour. Edit
+and `kubernetes/clusters/homelab/nebula-sync/` copies them to pihole-02 every hour. Edit
 pihole-01 only: anything written to pihole-02 is overwritten at the next sync.
 
 **Nothing else belongs in instance config.** No `address=` wildcard and no
@@ -189,7 +189,7 @@ the installer's default list, would wipe pihole-02's lists, groups and
 clients within the hour. Stop it first:
 
 1. Commit `spec.suspend: true` on the CronJob in
-   `kubernetes/nebula-sync/app/cronjob.yaml` and merge it. A live
+   `kubernetes/clusters/homelab/nebula-sync/app/cronjob.yaml` and merge it. A live
    `kubectl patch` is reverted by Flux at its next reconcile.
 2. Rebuild the container (taint and re-apply its `dns.tf`), then
    `make -C ansible apply-dns LIMIT=pihole-01`.
@@ -215,7 +215,7 @@ Create it with `sops ansible/inventory/group_vars/dns.sops.yaml`:
 | `dns_pihole_addresses` | map | Same, for the Pi-hole pair; gates the ACL |
 | `dns_lancache_addresses` | map | Same, for the lancache-dns pair; gates the ACL |
 | `dns_pihole_vip` | string | The address keepalived floats between the Pi-hole pair; reserved in NetBox with tag `pihole-vip` |
-| `dns_pihole_web_password` | string | The Pi-hole admin password, the same on both instances, and its only source: `opentofu/Makefile` reads it for `resources/pihole-config`. Flux can decrypt only its own layer, so `kubernetes/nebula-sync/app/secret.sops.yaml` holds a copy, and `make -C kubernetes lint` fails if the two differ |
+| `dns_pihole_web_password` | string | The Pi-hole admin password, the same on both instances, and its only source: `opentofu/Makefile` reads it for `resources/pihole-config`. Flux can decrypt only its own layer, so `kubernetes/clusters/homelab/nebula-sync/app/secret.sops.yaml` holds a copy, and `make -C kubernetes lint` fails if the two differ |
 | `dns_passthrough_names` | list | FQDNs under the domain that public DNS really hosts |
 | `dns_lancache_lb_ip` | string | The LANCache HTTP address in the cluster; what the RPZ points at |
 
@@ -229,7 +229,7 @@ it rather than in a variable. Keep any real address as a variable resolved
 from the SOPS file, since this repo is public.
 
 **An explicit record shadows the wildcard.** Never add one for a host that
-`kubernetes/lan-services/` fronts — that name is reachable *because* the
+`kubernetes/clusters/homelab/lan-services/` fronts — that name is reachable *because* the
 wildcard sends it to Traefik, and a direct record would serve the backend's
 own certificate instead.
 
