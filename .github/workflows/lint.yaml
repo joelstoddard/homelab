@@ -62,6 +62,18 @@ jobs:
           python-version: "3.13"
       - run: make -C ansible build lint
 
+      # The secrets-bundle test encrypts with the real sops and a throwaway age
+      # key; install.sh holds the sops pin.
+      - name: Install age and sops
+        run: |
+          sudo apt-get install -y age
+          v=$(sed -n 's/^SOPS_VERSION="\(.*\)"$/\1/p' install.sh)
+          base="https://github.com/getsops/sops/releases/download/${v}"
+          curl -fsSLO "$base/sops-${v}.linux.amd64"
+          curl -fsSL "$base/sops-${v}.checksums.txt" | grep " sops-${v}.linux.amd64$" | sha256sum --check
+          sudo install -m 0755 "sops-${v}.linux.amd64" /usr/local/bin/sops
+          sops --version
+
       # Every directory holding test_*.py, under the Ansible venv: the role
       # tests run the real task files through its ansible-playbook.
       - name: Python unit tests
