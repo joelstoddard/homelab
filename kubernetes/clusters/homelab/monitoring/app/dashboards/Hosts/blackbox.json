@@ -60,11 +60,11 @@
       "steppedLine": false,
       "targets": [
         {
-          "expr": "probe_duration_seconds{instance=~\"$target\"}",
+          "expr": "probe_duration_seconds{instance=~\"$target\",module=~\"$module\"}",
           "format": "time_series",
           "interval": "$interval",
           "intervalFactor": 1,
-          "legendFormat": "{{ instance }}",
+          "legendFormat": "{{ instance }} {{ module }}",
           "refId": "A"
         }
       ],
@@ -189,7 +189,7 @@
       "tableColumn": "",
       "targets": [
         {
-          "expr": "probe_success{instance=~\"$target\"}",
+          "expr": "min(probe_success{instance=~\"$target\",module=~\"$module\"})",
           "format": "time_series",
           "interval": "$interval",
           "intervalFactor": 1,
@@ -259,11 +259,11 @@
       "steppedLine": false,
       "targets": [
         {
-          "expr": "probe_http_duration_seconds{instance=~\"$target\"}",
+          "expr": "probe_http_duration_seconds{instance=~\"$target\",module=~\"$module\"}",
           "format": "time_series",
           "interval": "$interval",
           "intervalFactor": 1,
-          "legendFormat": "{{ phase }}",
+          "legendFormat": "{{ module }} {{ phase }}",
           "refId": "B"
         }
       ],
@@ -348,11 +348,11 @@
       "steppedLine": false,
       "targets": [
         {
-          "expr": "probe_duration_seconds{instance=~\"$target\"}",
+          "expr": "probe_duration_seconds{instance=~\"$target\",module=~\"$module\"}",
           "format": "time_series",
           "interval": "$interval",
           "intervalFactor": 1,
-          "legendFormat": "seconds",
+          "legendFormat": "{{ module }}",
           "refId": "A"
         }
       ],
@@ -464,7 +464,7 @@
       "tableColumn": "",
       "targets": [
         {
-          "expr": "probe_http_status_code{instance=~\"$target\"}",
+          "expr": "max(probe_http_status_code{instance=~\"$target\",module=~\"$module\"})",
           "format": "time_series",
           "interval": "$interval",
           "intervalFactor": 1,
@@ -559,7 +559,7 @@
       "tableColumn": "",
       "targets": [
         {
-          "expr": "probe_http_version{instance=~\"$target\"}",
+          "expr": "max(probe_http_version{instance=~\"$target\",module=~\"$module\"})",
           "format": "time_series",
           "intervalFactor": 1,
           "refId": "A"
@@ -645,7 +645,7 @@
       "tableColumn": "",
       "targets": [
         {
-          "expr": "probe_http_ssl{instance=~\"$target\"}",
+          "expr": "min(probe_http_ssl{instance=~\"$target\",module=~\"$module\"})",
           "format": "time_series",
           "interval": "$interval",
           "intervalFactor": 1,
@@ -743,7 +743,7 @@
       "tableColumn": "",
       "targets": [
         {
-          "expr": "probe_ssl_earliest_cert_expiry{instance=~\"$target\"} - time()",
+          "expr": "min(probe_ssl_earliest_cert_expiry{instance=~\"$target\",module=~\"$module\"}) - time()",
           "format": "time_series",
           "interval": "$interval",
           "intervalFactor": 1,
@@ -840,7 +840,7 @@
       "tableColumn": "",
       "targets": [
         {
-          "expr": "avg(probe_duration_seconds{instance=~\"$target\"})",
+          "expr": "avg(probe_duration_seconds{instance=~\"$target\",module=~\"$module\"})",
           "format": "time_series",
           "interval": "$interval",
           "intervalFactor": 1,
@@ -926,7 +926,7 @@
       "tableColumn": "",
       "targets": [
         {
-          "expr": "avg(probe_dns_lookup_time_seconds{instance=~\"$target\"})",
+          "expr": "avg(probe_dns_lookup_time_seconds{instance=~\"$target\",module=~\"$module\"})",
           "format": "time_series",
           "interval": "$interval",
           "intervalFactor": 1,
@@ -1057,6 +1057,29 @@
         "name": "target",
         "options": [],
         "query": "label_values(probe_success, instance)",
+        "refresh": 1,
+        "regex": "",
+        "sort": 0,
+        "tagValuesQuery": "",
+        "tags": [],
+        "tagsQuery": "",
+        "type": "query",
+        "useTags": false
+      },
+      {
+        "allValue": null,
+        "current": {},
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "hide": 0,
+        "includeAll": true,
+        "label": null,
+        "multi": true,
+        "name": "module",
+        "options": [],
+        "query": "label_values(probe_success{instance=~\"$target\"}, module)",
         "refresh": 1,
         "regex": "",
         "sort": 0,
