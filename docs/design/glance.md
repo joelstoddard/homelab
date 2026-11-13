@@ -350,8 +350,8 @@ not Glance failing.
 - **A dot means reachable, not correct.** A 200 from `/api/health` proves the
   process answers. Depth belongs in the blackbox probes and dashboards of
   `docs/design/observability.md`.
-- **Resource limits are a first guess** until a week of real use, as in every
-  other layer.
+- **Resources fit 14 days of use** (to 2026-11-13): a 16 MiB peak working set
+  and under 4m CPU sit inside the `10m`/`32Mi` requests and `128Mi` limit.
 - **Tile icons come from a public CDN.** `di:` and `mdi:` slugs resolve to
   `cdn.jsdelivr.net`, fetched by the **browser**, not the pod — so the
   cluster's name resolution is irrelevant and a wrong slug is a missing image
