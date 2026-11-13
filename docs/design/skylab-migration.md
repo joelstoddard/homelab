@@ -94,11 +94,13 @@ cleanup step.
 `RemoteAddr`, otherwise the named header holds the one client address. Both
 servers set `CF-Connecting-IP`:
 
-1. On skylab, a NetworkPolicy admits only cloudflared (ingress design), so
-   nothing else can forge the header.
-2. On Ashburn, Caddy sets `header_up CF-Connecting-IP {client_ip}`. With
-   Cloudflare as a trusted proxy, that is the visitor for Cloudflare traffic
-   and the true source for a direct client.
+1. On skylab, cloudflared passes Cloudflare's own `CF-Connecting-IP`, which
+   is the visitor. A NetworkPolicy admits only cloudflared (ingress design),
+   so nothing else can forge the header.
+2. On Ashburn, Caddy sets `header_up CF-Connecting-IP {client_ip}`. Caddy
+   trusts no proxies, so `{client_ip}` is the connecting address: the
+   Cloudflare edge for Cloudflare traffic, and the true source for a direct
+   client.
 
 **Forced relay.** `?relay=1` sets `iceTransportPolicy: 'relay'`, so one
 participant can prove that a call goes through TURN. The connection badge
