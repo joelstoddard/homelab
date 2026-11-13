@@ -21,6 +21,23 @@
           "type": "dashboard"
         },
         "type": "dashboard"
+      },
+      {
+        "name": "NetBox changes",
+        "enable": true,
+        "iconColor": "purple",
+        "datasource": {
+          "type": "netboxlabs-netbox-datasource",
+          "uid": "netbox"
+        },
+        "target": {
+          "refId": "Anno",
+          "queryType": "annotations",
+          "objectTypes": [
+            "dcim.device",
+            "virtualization.virtualmachine"
+          ]
+        }
       }
     ]
   },

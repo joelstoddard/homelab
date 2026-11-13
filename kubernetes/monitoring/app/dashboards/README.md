@@ -18,7 +18,7 @@ most of their queries return nothing here; see `docs/design/observability.md`.
 | --- | --- | --- | --- | --- |
 | Kubernetes/k8s-views-global.json | Kubernetes | grafana.com/grafana/dashboards/15757 | 43 | datasource UIDs pinned |
 | Kubernetes/k8s-views-namespaces.json | Kubernetes | grafana.com/grafana/dashboards/15758 | 46 | datasource UIDs pinned |
-| Kubernetes/k8s-views-nodes.json | Kubernetes | grafana.com/grafana/dashboards/15759 | 40 | datasource UIDs pinned |
+| Kubernetes/k8s-views-nodes.json | Kubernetes | grafana.com/grafana/dashboards/15759 | 40 | datasource UIDs pinned; a `NetBox changes` annotation shows device and VM edits from the NetBox change log |
 | Kubernetes/k8s-views-pods.json | Kubernetes | grafana.com/grafana/dashboards/15760 | 39 | datasource UIDs pinned |
 | Kubernetes/node-exporter-full.json | Kubernetes | grafana.com/grafana/dashboards/1860 | 45 | datasource UIDs pinned |
 | Storage/longhorn.json | Storage | grafana.com/grafana/dashboards/13032 | 6 | datasource UIDs pinned |
@@ -27,7 +27,7 @@ most of their queries return nothing here; see `docs/design/observability.md`.
 | Flux/control-plane.json | Flux | fluxcd/flux2-monitoring-example monitoring/configs/dashboards/control-plane.json | main @ 2026-09 | datasource UIDs pinned; upstream's `[1m]` windows read empty at a 60 s scrape, so rates use `$__rate_interval` and the ops/min panels are `rate × 60` |
 | Logs/logs-explorer.json | Logs | hand-written | — | — |
 | Logs/kubernetes-events.json | Logs | hand-written | — | — |
-| Hosts/proxmox.json | Hosts | grafana.com/grafana/dashboards/10347 | 5 | datasource UIDs pinned |
+| Hosts/proxmox.json | Hosts | grafana.com/grafana/dashboards/10347 | 5 | datasource UIDs pinned; a `NetBox changes` annotation shows device and VM edits from the NetBox change log |
 | Hosts/pihole.json | Hosts | grafana.com/grafana/dashboards/10176 | 3 | datasource UIDs pinned; cleared a leftover LAN IP default from the `node` template variable; the `hostname` label it lists is rewritten to `pihole` by the gateway's relabel — the exporter would otherwise emit the address |
 | Hosts/blackbox.json | Hosts | grafana.com/grafana/dashboards/7587 | 3 | datasource UIDs pinned |
 | Hosts/host-logs.json | Hosts | hand-written | — | — |
