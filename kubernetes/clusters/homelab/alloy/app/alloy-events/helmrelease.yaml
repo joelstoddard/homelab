@@ -26,3 +26,14 @@ spec:
   valuesFrom:
     - kind: ConfigMap
       name: alloy-events-values
+  # The chart hard-codes a 1 s readiness timeout, which a busy Alloy misses.
+  postRenderers:
+    - kustomize:
+        patches:
+          - target:
+              kind: Deployment
+              name: alloy-events
+            patch: |
+              - op: replace
+                path: /spec/template/spec/containers/0/readinessProbe/timeoutSeconds
+                value: 5
