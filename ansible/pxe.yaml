@@ -1,8 +1,8 @@
 ---
 # Plays are tagged so the PXE server can be (re)configured without waking
-# anything: `make apply-pxe TAGS=pxe-server` runs plays 1-2 only. (A --limit
+# anything: `make apply-pxe TAGS=pxe-server` runs plays 1-3 only. (A --limit
 # on localhost does NOT work for that: it skips play 1, so the per-host
-# root_password never reaches the preseed render in play 2.)
+# root_password never reaches the preseed render in play 3.)
 - name: Load per-host SOPS vars onto each PXE target.
   hosts: pxe
   tags: [pxe-server]

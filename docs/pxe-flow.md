@@ -36,9 +36,22 @@ bridges NetBox's capitalized device names (`Rumba`) to the on-disk
 convention (`rumba.sops.yaml`).
 
 The result: each target's `root_password` is now in `hostvars[<host>]`,
-ready for the preseed renderer in Play 2.
+ready for the preseed renderer in Play 3.
 
-### Play 2: Start the PXE server (localhost)
+### Play 2: Find the NUCs to install (localhost)
+
+Probes every `proxmox` host on SSH port 22 (5 s timeout). An installed NUC
+answers; the rest form `proxmox_install_hosts`, the only NUCs that get an
+iPXE script, a preseed and a dnsmasq reply. The preseed carries the root
+password hash and Caddy serves it to the whole LAN, so a routine run against
+the live fleet publishes none, while a fresh build installs every NUC. To
+reinstall a live NUC, override the set (JSON form, never `--limit`):
+
+```bash
+make -C ansible apply-pxe EXTRA_VARS='{"proxmox_install_hosts": ["Tango"]}'
+```
+
+### Play 3: Start the PXE server (localhost)
 
 Runs the `00-pxe` role. Two task files included by `tasks/main.yaml`:
 
@@ -57,15 +70,18 @@ Runs the `00-pxe` role. Two task files included by `tasks/main.yaml`:
 
 5. Download Debian netinstall `linux` (kernel) and `initrd.gz` into
    `files/http/debian/<version>/`.
-6. For each host in `groups['proxmox']`: render `host.ipxe.j2` into
+6. For each host in `proxmox_install_hosts`: render `host.ipxe.j2` into
    `files/http/boot/<mac-with-dashes>.ipxe`.
-7. For each host in `groups['proxmox']`: render `preseed-debian.cfg.j2`
+7. For each host in `proxmox_install_hosts`: render `preseed-debian.cfg.j2`
    into `files/http/preseed/<mac-with-dashes>.cfg`.
+8. For every other `proxmox` host: delete both files.
 
-After step 7, the PXE server has a complete set of per-host artifacts on
-disk, served by Caddy on `http://<pxe-server-ip>/`.
+After step 8, the PXE server holds artifacts for the NUCs being installed
+and no others, served by Caddy on `http://<pxe-server-ip>/`. dnsmasq
+replies only to those NUCs (tag `install`); any other NUC that netboots
+gets no reply and boots its disk.
 
-### Play 3: WOL and wait
+### Play 4: WOL and wait
 
 Runs `01-wake-on-lan` against `hosts: pxe`. Per host:
 
@@ -79,7 +95,7 @@ Runs `01-wake-on-lan` against `hosts: pxe`. Per host:
    (host already running) and the play would otherwise mark green
    without a fresh boot.
 
-By the time Play 3 finishes, every target has been PXE-booted, has
+By the time Play 4 finishes, every target has been PXE-booted, has
 installed Debian, has rebooted from disk, and is reachable over SSH.
 
 ## What happens on the target
@@ -250,7 +266,7 @@ the OS-named libraries (`proxmox/`, `talos/`, `truenas/`) carry the per-platform
 | --- | --- | --- |
 | WOL fires but `wait_for_connection` times out | Target ignored WOL (BIOS WOL disabled, or NIC in unsupported sleep state) | BIOS settings; check NIC supports WOL from S5 not just S3. |
 | iPXE chainloads but stalls at "Booting Debian installer for X" | Caddy not serving on the PXE server's IP, or firewall on UDP/69 (TFTP done) and TCP/80 (HTTP) | `docker logs files-caddy-1`, `ss -tlnp \| grep :80` on the PXE host. |
-| Installer asks for input (hostname, mirror, partition) | Preseed not loaded — the iPXE `url=` parameter is wrong or the file 404s | Check `files/http/preseed/<mac>.cfg` exists; check Caddy access log. |
+| Installer asks for input (hostname, mirror, partition) | Preseed not loaded — the iPXE `url=` parameter is wrong or the file 404s | Check the host is in the Play 2 `install:` line and `files/http/preseed/<mac>.cfg` exists; check Caddy access log. |
 | Install completes, host reboots into installer again | Persistent UEFI boot order set to PXE-first | One-time UEFI fix; or rely on WOL-only-triggers-PXE behaviour. |
 | Reimage of an old Proxmox host fails at partition step | LVM signatures from previous PVE install confusing partman | `early_command` (`preseed-debian.cfg.j2:50-55`) should handle this — verify it ran in installer logs. |
 | dnsmasq starts but no DHCP-proxy reply visible in `docker logs` | Another DHCP/PXE server on the LAN is responding faster, or the PXE host isn't on the targets' L2 segment | `tcpdump -i any port 67 or port 69` on the PXE host. |
