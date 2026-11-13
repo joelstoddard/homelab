@@ -1,0 +1,36 @@
+---
+# skylab, the public cluster: one Hetzner node, reached over the tailnet.
+# Overrides the home-cluster defaults; docs/design/skylab-bootstrap.md.
+talos_cluster_site: "ashburn"
+talos_cluster_name: "skylab"
+
+# talos_tailscale_authkey and talos_tailnet_domain are secret or not public,
+# so they live in vars/skylab.sops.yaml (see the role README).
+
+# DHCP from Hetzner, and the config arrives as user_data, not by apply-config.
+talos_static_network: false
+talos_maintenance_apply: false
+
+# Fixed, so the MagicDNS name, endpoint and SANs are known before the node joins.
+talos_tailscale_hostname: "skylab"
+talos_api_address: "{{ talos_tailscale_hostname }}.{{ talos_tailnet_domain }}"
+talos_cluster_endpoint: "https://{{ talos_api_address }}:6443"
+
+# Host firewall sources (patches/skylab/firewall.yaml.j2): Tailscale's CGNAT
+# range, and the pod subnet, which single-node.yaml.j2 pins to the same value.
+talos_tailnet_cidr: "100.64.0.0/10"
+talos_pod_subnet: "10.244.0.0/16"
+
+# Forgejo's HTTPS NodePort, which Tailscale Serve forwards 443 to on
+# 127.0.0.1 (docs/design/skylab-forgejo.md, "Access").
+talos_forgejo_nodeport: 30443
+
+talos_schematic_id: >-
+  {{ lookup('file', role_path ~ '/../../../versions.env')
+     | regex_findall('^TALOS_SKYLAB_SCHEMATIC_ID=(.+)$', multiline=True) | first | trim }}
+
+talos_secrets_sops: "{{ role_path }}/files/skylab/secrets.sops.yaml"
+talos_clusterconfig_dir: "{{ talos_build_dir }}/skylab"
+talos_patch_dir: "{{ talos_clusterconfig_dir }}/patches"
+talos_base_dir: "{{ talos_clusterconfig_dir }}/base"
+cilium_values_file: "{{ role_path }}/../../../kubernetes/clusters/skylab/cilium/app/values.yaml"

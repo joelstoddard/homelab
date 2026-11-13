@@ -14,14 +14,14 @@
 
 - name: Resolve the bootstrap node's IP.
   ansible.builtin.set_fact:
-    talos_bootstrap_ip: "{{ hostvars[talos_bootstrap_host].ansible_host }}"
+    talos_bootstrap_ip: "{{ talos_api_address or hostvars[talos_bootstrap_host].ansible_host }}"
 
 - name: Point the talosconfig at the control-plane endpoints + bootstrap node.
   ansible.builtin.command:
     cmd: >-
       {{ talosctl_bin }} --talosconfig {{ talos_talosconfig }}
       config endpoint
-      {{ talos_controlplane_hosts | map('extract', hostvars, 'ansible_host') | join(' ') }}
+      {{ talos_api_address or talos_controlplane_hosts | map('extract', hostvars, 'ansible_host') | join(' ') }}
   changed_when: false
 
 - name: "Bootstrap etcd on {{ talos_bootstrap_host ~ ' at ' ~ talos_bootstrap_ip }}"

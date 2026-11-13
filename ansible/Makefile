@@ -32,8 +32,8 @@ help:
 	@echo "  apply-pi-eeprom	- Flip a Pi's EEPROM to network-first boot."
 	@echo "  check-pi-cutover	- Dry run a Pi → Talos cutover (EXTRA_VARS pi_cutover_hosts)."
 	@echo "  apply-pi-cutover	- Cut Pis over to Talos end to end (EXTRA_VARS pi_cutover_hosts)."
-	@echo "  check-talos	- Dry run the Talos bootstrap."
-	@echo "  apply-talos	- Bootstrap the Talos cluster (talosctl, local conn)."
+	@echo "  check-talos	- Dry run the Talos bootstrap (CLUSTER=homelab|skylab)."
+	@echo "  apply-talos	- Bootstrap a Talos cluster (CLUSTER=homelab|skylab; talosctl, local conn)."
 	@echo "  check-reset	- Dry run a Talos node wipe (EXTRA_VARS reset_hosts)."
 	@echo "  apply-reset	- Wipe Talos nodes back to maintenance mode for a reinstall (EXTRA_VARS reset_hosts)."
 	@echo "  check-upgrade	- Dry run an in-place Talos node upgrade (EXTRA_VARS upgrade_hosts)."
@@ -185,13 +185,15 @@ apply:
 # (connection: local) and talks to nodes via talosctl — Talos has no SSH.
 # Run AFTER the VMs are booted from the Talos ISO (make -C opentofu apply)
 # and the Pis are netbooted (make apply-pxe). See docs/talos-bootstrap.md.
+# CLUSTER picks roles/talos/vars/<cluster>.yaml (docs/design/skylab-bootstrap.md).
+CLUSTER ?= homelab
 .PHONY: check-talos
 check-talos:
-	$(call run_playbook,playbooks/talos.yaml,--check --diff,LIMIT TAGS)
+	$(call run_playbook,playbooks/talos.yaml,--check --diff --extra-vars=talos_cluster=$(CLUSTER),LIMIT TAGS)
 
 .PHONY: apply-talos
 apply-talos:
-	$(call run_playbook,playbooks/talos.yaml,,LIMIT TAGS)
+	$(call run_playbook,playbooks/talos.yaml,--extra-vars=talos_cluster=$(CLUSTER),LIMIT TAGS)
 
 # Pull the cluster's kube context off the operator (where apply-talos merged
 # it) into THIS machine's ~/.kube/config. Non-destructive: existing contexts

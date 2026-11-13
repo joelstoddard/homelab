@@ -1,0 +1,16 @@
+{# skylab's one node is control plane and workload node at once. Clients outside the node reach
+   the API at the MagicDNS name; the coturn relay range is kept from host processes
+   (docs/design/skylab-ingress.md). #}
+cluster:
+  allowSchedulingOnControlPlanes: true
+  network:
+    podSubnets:
+      - {{ talos_pod_subnet }}
+  apiServer:
+    certSANs:
+      - {{ talos_api_address }}
+machine:
+  certSANs:
+    - {{ talos_api_address }}
+  sysctls:
+    net.ipv4.ip_local_reserved_ports: "49160-49500"

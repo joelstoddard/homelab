@@ -1,0 +1,36 @@
+---
+# Load the vars of the cluster named by talos_cluster and check its hosts:
+# the talos platform group at the cluster's NetBox site
+# (docs/design/skylab-bootstrap.md). Imported first by config.yaml, tagged
+# always, so every later localhost play in the run sees the result.
+
+- name: Load the cluster's vars.
+  ansible.builtin.include_vars:
+    file: "{{ talos_cluster }}.yaml"
+
+- name: Load the cluster's SOPS-encrypted vars, where they exist.
+  community.sops.load_vars:
+    file: "{{ talos_cluster_sops_vars }}"
+  vars:
+    talos_cluster_sops_vars: "{{ role_path }}/vars/{{ talos_cluster }}.sops.yaml"
+  when: talos_cluster_sops_vars is file
+  no_log: true
+
+- name: Require at least one host in the cluster.
+  ansible.builtin.assert:
+    that: talos_cluster_hosts | length > 0
+    fail_msg: >-
+      No Talos hosts at NetBox site '{{ talos_cluster_site }}' for cluster
+      '{{ talos_cluster }}'. Check the hosts' NetBox platform (talos) and site,
+      and talos_cluster_site in roles/talos/vars/{{ talos_cluster }}.yaml.
+    quiet: true
+
+# One address reaches every node, so only a one-node cluster can use it.
+- name: Require exactly one node when the cluster is reached by name.
+  ansible.builtin.assert:
+    that: talos_cluster_hosts | length == 1
+    fail_msg: >-
+      talos_api_address is set, so cluster '{{ talos_cluster }}' must have
+      exactly one node; it has {{ talos_cluster_hosts | join(', ') }}.
+    quiet: true
+  when: talos_api_address | length > 0
