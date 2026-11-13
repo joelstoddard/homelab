@@ -64,6 +64,7 @@
       groupName: 'alloy chart',
       prBodyNotes: [
         'Set `alloy_version` in `ansible/roles/alloy/defaults/main.yaml` to this chart\'s appVersion (`apt-cache madison alloy`), then `make -C ansible apply-alloy`.',
+        'Re-vendor the `Alloy/` dashboards at this chart\'s appVersion tag: `docs/design/observability.md`, "Alloy mixin dashboards".',
       ],
     },
     {
