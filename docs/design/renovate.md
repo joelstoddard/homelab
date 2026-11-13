@@ -66,10 +66,8 @@ when something breaks.
 
 - **Galaxy content is pinned exactly.** Renovate skips a collection or role
   with no version. Every entry in `ansible/collections/requirements.yaml`
-  carries the version that runs today; for the collections that is the copy
-  bundled with the pinned `ansible` package, which `ansible-galaxy` treats as
-  installed. A pin above the bundle installs into `~/.ansible/collections`,
-  which takes precedence.
+  carries the version that runs today. The venv holds `ansible-core` only,
+  so `~/.ansible/collections` is the one copy of each collection.
 
 - **A HelmRepository name used in two namespaces needs `metadata.namespace`.**
   Renovate matches a HelmRelease's `sourceRef` by name and namespace, and
@@ -80,9 +78,7 @@ when something breaks.
 - **The Python freeze is one PR.** `ansible/requirements.txt` pins every
   transitive package, so separate PRs would number in the dozens and
   merge into sets that do not install. All its updates share the
-  `ansible python deps` group, with majors in a second PR. `ansible-core`
-  is not updated on its own: `ansible` pins its series, and the note says to
-  move core with it.
+  `ansible python deps` group, with majors in a second PR.
 
 - **Annotated pins.** A pin that no built-in manager reads carries a
   `# renovate: datasource=… depName=…` comment on the line above it:

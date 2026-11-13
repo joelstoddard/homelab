@@ -104,14 +104,8 @@
       matchManagers: ['pip_requirements'],
       groupName: 'ansible python deps',
       prBodyNotes: [
-        'Check the set installs: `make -C ansible build` then `make -C ansible lint`. Set `ansible-core` to the series the new `ansible` pins.',
+        'Check the set installs: `make -C ansible build` then `make -C ansible lint`.',
       ],
-    },
-    {
-      description: 'ansible pins its ansible-core series; core moves by hand with it',
-      matchManagers: ['pip_requirements'],
-      matchPackageNames: ['ansible-core'],
-      enabled: false,
     },
     {
       description: 'CI Python matches the operator venv: 3.14 has no rpds-py wheel (.github/workflows/lint.yaml)',
