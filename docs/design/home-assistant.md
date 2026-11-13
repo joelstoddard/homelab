@@ -150,10 +150,11 @@ that cost a fix round in the Glance layer.
 `hostNetwork`; the audit and warn labels keep that opt-out visible in
 `kubectl` output and API server warnings, not just in effect.
 
-**Resource requests are a first guess; the image is pinned by tag.** The
-`200m`/`768Mi` requests and `2`/`2Gi` limit are placeholders pending a week
-of real use — the same posture the Tailscale router documents for its own
-numbers — and the Deployment's own comment marks where to tighten them.
+**Resources are sized from 14 days of use; the image is pinned by tag.**
+To 2026-11-13 the working set peaked at 477 MiB and CPU stayed under 4m, so
+the requests are `50m`/`600Mi` (the peak plus a quarter) and the memory
+limit `1Gi`, about twice the peak. Memory grows with integrations and
+recorder history, so re-measure after adding either.
 `ghcr.io/home-assistant/home-assistant:2026.9.3` is pinned and bumped
 deliberately in git, the same policy SearXNG uses against an upstream that
 ships several images a day.

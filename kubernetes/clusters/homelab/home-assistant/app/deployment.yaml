@@ -119,12 +119,11 @@ spec:
             # besteffort cgroup first, and that is how a memory spike took out
             # a node's storage transport once already.
             requests:
-              cpu: 200m
-              memory: 768Mi
-            # TODO: measure a week of real use and cap just above the peak.
+              cpu: 50m
+              memory: 600Mi
             limits:
               cpu: "2"
-              memory: 2Gi
+              memory: 1Gi
       volumes:
         - name: config
           persistentVolumeClaim:

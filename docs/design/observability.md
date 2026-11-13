@@ -253,7 +253,10 @@ there `namespace` and `pod` are already the subject.
 
 - Prometheus or Loki pod lost with its node: single replicas; data on
   Longhorn; reschedule after the ~6.5 min toleration window. Alloy's
-  remote-write WAL replays ~2 h of samples; `loki.write` retries ~5 min then
+  remote-write WAL keeps unsent samples for up to 8 h (the v1.19 defaults:
+  `max_keepalive_time` 8h, checked every 2h `truncate_frequency`), so a
+  longer outage loses the oldest. Memory can bind first: the Pi pods were
+  OOM-killed during a Prometheus outage ("Observed behaviour"). `loki.write` retries ~5 min then
   drops, so a longer outage loses log lines.
 - Alloy restart: positions live in the container's writable layer (the chart
   mounts nothing at `/tmp/alloy`), so current log files are re-read (kubelet
@@ -305,7 +308,7 @@ Prometheus outage in between; peaks are `max_over_time[3d]`):
 | Active series | ~370k, 1,270 samples/s appended | Beyla is ~66k of it |
 | TSDB on disk | 1.2 GiB after four days | 18 GB `retentionSize` on a 20Gi PVC |
 | Prometheus working set, peak | 1.59 GiB (WAL replay after a node loss) | 2 GiB limit |
-| Loki working set, peak | 114 MiB; ingesting ~1.6 GiB of log lines a day | 1 GiB limit |
+| Loki working set, peak | 114 MiB | 1 GiB limit |
 | Grafana working set, peak | 480 MiB | 512Mi limit; 768Mi now |
 | kube-state-metrics, peak | 30 MiB | 256Mi limit |
 | Alloy, peak | 512 MiB, i.e. the limit, on the Pis during the outage | 1Gi now |
@@ -385,9 +388,22 @@ and after (2026-10-24):
    inside the VMs and host MemAvailable barely moves; zram usage moves both
    ways.
 5. Memory requests: Prometheus 2048 MiB to 1024 MiB. The Alloy DaemonSet
-   requests are unchanged; resizing them is tracked in #271.
+   keeps its numbers; the fourteen-day figures below show why.
 6. cilium-agent's after values are measured; the cause of the drop is not
    established here.
+
+Fourteen days to 2026-11-13, peaks are `max_over_time[14d]` per pod:
+
+| What | Measured | Budget |
+| --- | --- | --- |
+| Loki ingest | 73 MiB a day on average, 108 MiB on the busiest day (`increase(loki_distributor_bytes_received_total[1d])`) | — |
+| Loki working set, peak | 367 MiB | 512Mi request, 1Gi limit |
+| Alloy DaemonSet on an agent VM | 110-530 MiB, moving between the two over days; peak 533 MiB | 256Mi request, 1Gi limit |
+| Alloy DaemonSet on a Pi or control-plane VM | 95-285 MiB | same |
+
+One request and limit cover all 20 pods. The 256Mi request sits inside the
+agents' range, and the 1Gi limit keeps 1.9 times the peak for a WAL that
+grows while Prometheus is unreachable, so neither moves.
 
 ## Observed behaviour
 
@@ -476,7 +492,9 @@ and after (2026-10-24):
 ## Known limitations
 
 - Talos machine logs (kubelet, containerd, kernel) are not collected: Talos
-  ships them as JSON lines over TCP/UDP and Alloy has no receiver for that.
+  ships them as JSON lines over TCP/UDP, and Alloy's only receiver for that,
+  `otelcol.receiver.tcplog`, is experimental and runs only with
+  `--stability.level=experimental` (#186).
 - No alerting. Grafana unified alerting is available later without new
   components.
 - Prometheus and Alloy UIs are not exposed; `kubectl port-forward`.

@@ -89,7 +89,9 @@ entry pins that.
   partition was wiped) puts the router in CrashLoopBackOff. The descheduler
   evicts it after its fifth restart, 5–10 minutes in, but the replacement
   can land on the same node (`docs/design/descheduler.md`, "Limits").
-- Resource limits are a first guess (`1` CPU / `256Mi`); benchmark and tune.
+- Resources fit 14 days of use (to 2026-11-13): the running pod's working set
+  has a 28 MiB median and a 45 MiB peak, the previous pod's 94 MiB, and CPU
+  stays under 40m. The `50m`/`64Mi` requests and `1`/`256Mi` limits stay.
 - The router forwards packets rather than opening sockets, so reaching a
   LoadBalancer address depends on Cilium translating pod traffic per packet
   (`docs/design/cilium-per-packet-lb.md`). Without that, any address announced

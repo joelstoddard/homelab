@@ -59,7 +59,6 @@ spec:
             - name: config
               mountPath: /app/config
               readOnly: true
-          # TODO: measure a week of real use and cap just above the peak.
           resources:
             requests:
               cpu: 10m
