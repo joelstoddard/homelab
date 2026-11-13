@@ -74,19 +74,27 @@
     line: 'CUSTOM_ARGS="--disable-reporting"'
   notify: Restart alloy
 
+- name: Write the push password.
+  # Its own 0600 file, so config.alloy holds no secret and --check --diff
+  # can show it. No trailing newline: local.file passes the content verbatim.
+  ansible.builtin.copy:
+    content: "{{ alloy_hosts_password }}"
+    dest: /etc/alloy/hosts-password
+    owner: alloy
+    group: alloy
+    mode: "0600"
+  no_log: true
+  diff: false
+  notify: Restart alloy
+
 - name: Render the Alloy config.
-  # The rendered file carries the push credential. 0600 keeps it off disk to
-  # non-owners; diff: false keeps it off the --check --diff console/log,
-  # since the template module's diff otherwise prints the whole file
-  # (task failures and the validate: error still surface).
   ansible.builtin.template:
     src: config.alloy.j2
     dest: /etc/alloy/config.alloy
     owner: alloy
     group: alloy
-    mode: "0600"
+    mode: "0644"
     validate: "alloy fmt %s"
-  diff: false
   notify: Restart alloy
 
 - name: Enable and start Alloy.

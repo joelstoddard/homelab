@@ -10,9 +10,11 @@ Design: `docs/design/host-monitoring.md`.
 - The Grafana apt repository (key dearmored to `/etc/apt/keyrings/grafana.gpg`,
   `signed-by` in the repo line) and the `alloy` package, pinned to
   `alloy_version`.
-- `/etc/alloy/config.alloy` (mode `0600`, owned by `alloy` — it carries the
-  push credential), rendered from `templates/config.alloy.j2` and validated
-  with `alloy fmt` before it replaces the file on disk.
+- `/etc/alloy/hosts-password` (mode `0600`, owned by `alloy`), the push
+  credential, read by a `local.file` component.
+- `/etc/alloy/config.alloy` (mode `0644`, no secret in it), rendered from
+  `templates/config.alloy.j2` and validated with `alloy fmt` before it
+  replaces the file on disk.
 - The `alloy` system user in the `systemd-journal` group, so
   `loki.source.journal` can read the journal without root.
 - `CUSTOM_ARGS="--disable-reporting"` in `/etc/default/alloy`, disabling
@@ -54,10 +56,7 @@ asserts both are defined before doing anything else.
 from `ansible/inventory/group_vars/alloy.sops.yaml`, SOPS-encrypted like
 `proxmox.sops.yaml`. The `community.sops` vars plugin isn't enabled in
 `ansible.cfg`, so `group_vars/*.sops.yaml` never auto-loads; `tasks/main.yaml`
-loads it explicitly with a `community.sops.load_vars` task. `config.alloy.j2`
-interpolates `alloy_hosts_password` into an unescaped River string, so the
-value must not contain a double quote (the password PR 1 generates is
-alphanumeric). The group's connection var, `ansible_user: root`, lives next
+loads it explicitly with a `community.sops.load_vars` task. The group's connection var, `ansible_user: root`, lives next
 to it in plaintext at `ansible/inventory/group_vars/alloy.yaml` — a SOPS
 file can't carry it, since sops vars only load at task stage.
 

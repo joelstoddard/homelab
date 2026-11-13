@@ -2,13 +2,18 @@
 // metrics and journald, pushed to the cluster over HTTPS with basic auth
 // (kubernetes/clusters/homelab/monitoring/app/ingest/). docs/design/host-monitoring.md.
 
+local.file "hosts_password" {
+	filename  = "/etc/alloy/hosts-password"
+	is_secret = true
+}
+
 prometheus.remote_write "cluster" {
 	endpoint {
 		url = "https://prometheus.{{ alloy_domain }}/api/v1/write"
 
 		basic_auth {
 			username = "hosts"
-			password = "{{ alloy_hosts_password }}"
+			password = local.file.hosts_password.content
 		}
 	}
 }
@@ -19,7 +24,7 @@ loki.write "cluster" {
 
 		basic_auth {
 			username = "hosts"
-			password = "{{ alloy_hosts_password }}"
+			password = local.file.hosts_password.content
 		}
 	}
 }
