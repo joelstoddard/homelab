@@ -354,8 +354,10 @@ role's `dns_traefik_lb_ip` and `dns_passthrough_names` in
   address, which 2 replicas across 15 workers cannot guarantee — and Cilium
   documents L2 mode as incompatible with `Local`. Cost: SNAT'd client addresses
   in the access logs.
-- **Resource limits are a first guess** — requests `100m`/`128Mi`, limits
-  `500m`/`256Mi`, sized for a Pi (#177). Metrics are scraped by the
+- **Resources are sized from 14 days of use** (to 2026-11-13): a 55 MiB
+  peak working set and 10m p95 CPU per pod give requests `25m`/`64Mi`. The
+  `500m`/`256Mi` limits stay: every route in the cluster goes through
+  Traefik, so its burst room is cheap insurance. Metrics are scraped by the
   `alloy` layer via pod annotations — `docs/design/observability.md`.
 - **Startup ordering is not enforced.** Traefik may become Ready before
   `wildcard-tls` exists, log a missing-certificate error and serve its internal

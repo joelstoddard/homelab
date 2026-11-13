@@ -54,8 +54,8 @@ ingressRoute:
       - name: dashboard-auth
 resources:
   requests:
-    cpu: 100m
-    memory: 128Mi
+    cpu: 25m
+    memory: 64Mi
   limits:
     cpu: 500m
     memory: 256Mi
