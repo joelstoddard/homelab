@@ -1,0 +1,121 @@
+{
+  "id": null,
+  "uid": "homelab-netbox",
+  "title": "NetBox intent vs reality",
+  "tags": ["hosts", "netbox"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "time": {"from": "now-7d", "to": "now"},
+  "annotations": {
+    "list": [
+      {"name": "NetBox changes", "enable": true, "iconColor": "purple",
+       "datasource": {"type": "netboxlabs-netbox-datasource", "uid": "netbox"},
+       "target": {"refId": "Anno", "queryType": "annotations"}}
+    ]
+  },
+  "panels": [
+    {"id": 1, "type": "table", "title": "VM sizing: NetBox vs Proxmox",
+     "description": "NetBox is the source of truth for guest sizing. A non-zero drift is a change made in one place and not the other, or one still pending in the Proxmox config until apply-resize power-cycles the guest. A blank side means the guest exists in only one of the two.",
+     "gridPos": {"h": 12, "w": 12, "x": 0, "y": 0},
+     "targets": [
+       {"refId": "A", "datasource": {"type": "netboxlabs-netbox-datasource", "uid": "netbox"},
+        "queryType": "objects", "objectType": "virtualization/virtual-machines",
+        "filters": [{"field": "cluster", "operator": "", "value": "pve"}],
+        "fields": ["name", "vcpus", "memory"],
+        "joinKeys": [{"source": "name", "output": "host", "transform": "lower"}], "limit": 200},
+       {"refId": "B", "datasource": {"type": "prometheus", "uid": "prometheus"}, "instant": true, "range": false, "format": "table",
+        "expr": "max by (host) (label_replace(pve_memory_size_bytes{id=~\"(qemu|lxc)/.*\"} * on (id) group_left (name) max by (id, name) (pve_guest_info), \"host\", \"$1\", \"name\", \"(.*)\")) / 1048576"},
+       {"refId": "C", "datasource": {"type": "prometheus", "uid": "prometheus"}, "instant": true, "range": false, "format": "table",
+        "expr": "max by (host) (label_replace(pve_cpu_usage_limit{id=~\"(qemu|lxc)/.*\"} * on (id) group_left (name) max by (id, name) (pve_guest_info), \"host\", \"$1\", \"name\", \"(.*)\"))"}
+     ],
+     "transformations": [
+       {"id": "joinByField", "options": {"byField": "host", "mode": "outerTabular"}},
+       {"id": "calculateField", "options": {"mode": "binary", "alias": "Memory drift MiB", "binary": {"left": {"matcher": {"id": "byName", "options": "Value #B"}}, "operator": "-", "right": {"matcher": {"id": "byName", "options": "memory"}}}}},
+       {"id": "calculateField", "options": {"mode": "binary", "alias": "vCPU drift", "binary": {"left": {"matcher": {"id": "byName", "options": "Value #C"}}, "operator": "-", "right": {"matcher": {"id": "byName", "options": "vcpus"}}}}},
+       {"id": "organize", "options": {
+         "excludeByName": {"name": true, "Time": true, "Time 1": true, "Time 2": true},
+         "indexByName": {"host": 0, "memory": 1, "Value #B": 2, "Memory drift MiB": 3, "vcpus": 4, "Value #C": 5, "vCPU drift": 6},
+         "renameByName": {"host": "Guest", "memory": "NetBox MiB", "Value #B": "Proxmox MiB", "vcpus": "NetBox vCPUs", "Value #C": "Proxmox vCPUs"}}}
+     ],
+     "fieldConfig": {
+       "defaults": {"noValue": "—", "custom": {"align": "auto"}},
+       "overrides": [
+         {"matcher": {"id": "byRegexp", "options": ".*drift.*"},
+          "properties": [
+            {"id": "custom.cellOptions", "value": {"type": "color-background", "mode": "basic"}},
+            {"id": "thresholds", "value": {"mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "green", "value": -0.5}, {"color": "red", "value": 0.5}]}}
+          ]}
+       ]},
+     "options": {"showHeader": true, "sortBy": [{"displayName": "Guest", "desc": false}]}},
+
+    {"id": 2, "type": "table", "title": "Prefix utilization",
+     "description": "NetBox's own utilization figure for each prefix. Orange from 80 %, red from 90 %.",
+     "gridPos": {"h": 12, "w": 12, "x": 12, "y": 0},
+     "datasource": {"type": "netboxlabs-netbox-datasource", "uid": "netbox"},
+     "targets": [
+       {"refId": "A", "datasource": {"type": "netboxlabs-netbox-datasource", "uid": "netbox"},
+        "queryType": "objects", "objectType": "ipam/prefixes",
+        "fields": ["prefix", "vlan", "description", "status", "utilization"], "limit": 100}
+     ],
+     "fieldConfig": {
+       "defaults": {"noValue": "—"},
+       "overrides": [
+         {"matcher": {"id": "byName", "options": "utilization"},
+          "properties": [
+            {"id": "unit", "value": "percent"}, {"id": "min", "value": 0}, {"id": "max", "value": 100},
+            {"id": "custom.cellOptions", "value": {"type": "gauge", "mode": "basic"}},
+            {"id": "thresholds", "value": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "orange", "value": 80}, {"color": "red", "value": 90}]}}
+          ]}
+       ]},
+     "options": {"showHeader": true, "sortBy": [{"displayName": "utilization", "desc": true}]}},
+
+    {"id": 3, "type": "table", "title": "Monitoring coverage",
+     "description": "Every NetBox device and VM with a primary IP, against each signal that names it. A NetBox row with no signal is a host nothing watches; a row with no NetBox role or cluster is a host NetBox does not model. Proxmox, kubelet, scrape and probe show the latest up value; node and logs show presence.",
+     "gridPos": {"h": 16, "w": 24, "x": 0, "y": 12},
+     "targets": [
+       {"refId": "A", "datasource": {"type": "netboxlabs-netbox-datasource", "uid": "netbox"},
+        "queryType": "objects", "objectType": "dcim/devices",
+        "filters": [{"field": "has_primary_ip", "operator": "", "value": "true"}],
+        "fields": ["name", "role"],
+        "joinKeys": [{"source": "name", "output": "host", "transform": "lower"}], "limit": 200},
+       {"refId": "B", "datasource": {"type": "netboxlabs-netbox-datasource", "uid": "netbox"},
+        "queryType": "objects", "objectType": "virtualization/virtual-machines",
+        "filters": [{"field": "has_primary_ip", "operator": "", "value": "true"}],
+        "fields": ["name", "role"],
+        "joinKeys": [{"source": "name", "output": "host", "transform": "lower"}], "limit": 200},
+       {"refId": "C", "datasource": {"type": "prometheus", "uid": "prometheus"}, "instant": true, "range": false, "format": "table",
+        "expr": "max by (host) (label_replace(pve_up{id=~\"node/.*\"}, \"host\", \"$1\", \"id\", \"node/(.*)\")) or max by (host) (label_replace(pve_up{id=~\"(qemu|lxc)/.*\"} * on (id) group_left (name) max by (id, name) (pve_guest_info), \"host\", \"$1\", \"name\", \"(.*)\"))"},
+       {"refId": "D", "datasource": {"type": "prometheus", "uid": "prometheus"}, "instant": true, "range": false, "format": "table",
+        "expr": "max by (host) (label_replace(node_uname_info, \"host\", \"$1\", \"nodename\", \"(.*)\"))"},
+       {"refId": "E", "datasource": {"type": "prometheus", "uid": "prometheus"}, "instant": true, "range": false, "format": "table",
+        "expr": "max by (host) (label_replace(up{job=\"kubelet\"}, \"host\", \"$1\", \"node\", \"(.*)\"))"},
+       {"refId": "F", "datasource": {"type": "prometheus", "uid": "prometheus"}, "instant": true, "range": false, "format": "table",
+        "expr": "max by (host) (label_replace(up{job=~\"pve|truenas|pihole\"}, \"host\", \"$1\", \"instance\", \"(.*)\"))"},
+       {"refId": "G", "datasource": {"type": "prometheus", "uid": "prometheus"}, "instant": true, "range": false, "format": "table",
+        "expr": "min by (host) (label_replace(probe_success, \"host\", \"$1\", \"instance\", \"(.*)\"))"},
+       {"refId": "H", "datasource": {"type": "loki", "uid": "loki"}, "queryType": "instant",
+        "expr": "sum by (host) (count_over_time({host=~\".+\"}[1h]))"}
+     ],
+     "transformations": [
+       {"id": "merge", "filter": {"id": "byRefId", "options": "/^(A|B)$/"}, "options": {}},
+       {"id": "formatString", "options": {"stringField": "host", "outputFormat": "Lower Case"}},
+       {"id": "joinByField", "options": {"byField": "host", "mode": "outerTabular"}},
+       {"id": "organize", "options": {
+         "excludeByName": {"name": true, "Time": true, "Time 1": true, "Time 2": true, "Time 3": true, "Time 4": true, "Time 5": true, "Time 6": true},
+         "indexByName": {"host": 0, "role": 1, "Value #C": 2, "Value #D": 3, "Value #E": 4, "Value #F": 5, "Value #G": 6, "Value #H": 7},
+         "renameByName": {"host": "Host", "role": "NetBox role", "Value #C": "Proxmox", "Value #D": "Node metrics", "Value #E": "Kubelet", "Value #F": "Scrape", "Value #G": "Probe", "Value #H": "Logs 1h"}}}
+     ],
+     "fieldConfig": {
+       "defaults": {"noValue": "—"},
+       "overrides": [
+         {"matcher": {"id": "byRegexp", "options": "^(Proxmox|Node metrics|Kubelet|Scrape|Probe)$"},
+          "properties": [
+            {"id": "mappings", "value": [{"type": "value", "options": {"0": {"text": "down", "color": "red"}, "1": {"text": "up", "color": "green"}}}]},
+            {"id": "custom.cellOptions", "value": {"type": "color-text"}}
+          ]},
+         {"matcher": {"id": "byName", "options": "Logs 1h"},
+          "properties": [{"id": "unit", "value": "short"}, {"id": "color", "value": {"mode": "fixed", "fixedColor": "green"}}, {"id": "custom.cellOptions", "value": {"type": "color-text"}}]}
+       ]},
+     "options": {"showHeader": true, "sortBy": [{"displayName": "Host", "desc": false}]}}
+  ]
+}
