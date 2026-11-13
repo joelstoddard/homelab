@@ -1,5 +1,5 @@
 // Read by the Mend-hosted Renovate app; nothing automerges, because a merge to
-// main is a Flux deploy with no CI in front of it. See docs/design/renovate.md.
+// main is a Flux deploy that CI lint cannot vouch for. See docs/design/renovate.md.
 {
   $schema: 'https://docs.renovatebot.com/renovate-schema.json',
   extends: [

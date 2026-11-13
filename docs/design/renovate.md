@@ -15,13 +15,16 @@ when something breaks.
 
 - **The hosted app, not a self-hosted runner.** The app needs no workflow,
   token or server here. A self-hosted GitHub Actions runner could run
-  commands on a PR branch, but it adds the repo's first workflow, a stored
+  commands on a PR branch, but it adds a scheduled workflow, a stored
   credential and a runner image to keep current. An in-cluster CronJob would
   hold a GitHub token in the cluster and stop with the cluster. The cost of
   the hosted app is that the PR notes below carry the commands it cannot run.
 
-- **Nothing automerges.** A merge to `main` is a Flux deploy, and the repo
-  has no CI to test a PR first. Updates land on weekends, at most five PRs
+- **Nothing automerges.** A merge to `main` is a Flux deploy. The `lint`
+  workflow (`.github/workflows/lint.yaml`) runs on every Renovate PR: the
+  drift guards in `make -C kubernetes lint-offline`, `make -C ansible build
+  lint` and `tofu fmt`. It proves a PR is consistent and installs, not that
+  the new version runs on the cluster. Updates land on weekends, at most five PRs
   open at once. A security update ignores the schedule when GitHub raises
   a vulnerability alert for it, which covers the Python packages but not the
   images, charts or annotated pins. The Dependency
@@ -55,6 +58,9 @@ when something breaks.
   caps are `allowedVersions` rules; lift them with the `versions.env` hold.
   Merging a Talos or Kubernetes PR changes no node: `make -C ansible
   apply-upgrade` rolls it out (`docs/talos-bootstrap.md`).
+
+- **Workflow actions stay SHA-pinned.** `config:recommended` updates each
+  `uses: …@<sha> # vX.Y.Z` pin's digest and version comment together.
 
 - **The Python freeze is one PR.** `ansible/requirements.txt` pins every
   transitive package, so separate PRs would number in the dozens and
