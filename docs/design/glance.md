@@ -232,8 +232,8 @@ set to Basic, which makes every catch-all path 401. Seerr's
 `/api/v1/status/appdata` answers locally, where plain `/api/v1/status` reaches
 the GitHub API and so reports on something other than this cluster.
 
-**Traefik is the one override.** Its Service publishes only the `web` and
-`websecure` entrypoints, so a request carrying no Host that matches a router
+**Traefik is the one override.** Its Service publishes only the `web`,
+`websecure` and `uploads` entrypoints, so a request carrying no Host that matches a router
 ends at 404 — which still proves Traefik is accepting and routing traffic. Its
 `/ping` endpoint is on port 9000, which the Service does not publish, and the
 certificate served on the internal address is Traefik's own default, hence

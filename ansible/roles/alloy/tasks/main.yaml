@@ -1,5 +1,5 @@
 ---
-# Grafana Alloy on a bare Debian host: node metrics and journald pushed to
+# Grafana Alloy on a bare Debian host: node metrics, SMART and journald pushed to
 # the cluster's write routes — docs/design/host-monitoring.md. The four NUCs
 # share one template; only inventory_hostname differs.
 
@@ -96,6 +96,9 @@
     mode: "0644"
     validate: "alloy fmt %s"
   notify: Restart alloy
+
+- name: Install the SMART exporter Alloy scrapes.
+  ansible.builtin.import_tasks: smartctl.yaml
 
 - name: Enable and start Alloy.
   ansible.builtin.systemd:

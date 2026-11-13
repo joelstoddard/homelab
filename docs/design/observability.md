@@ -78,6 +78,30 @@ defaults that hide the control-plane components.
   folder named by its `grafana_folder` annotation, read-only. Iterating on a
   dashboard: Save As a copy, iterate, Export (sharing-externally off), drop
   the file in git; the copy dies with the pod.
+- **Alloy mixin dashboards.** `Alloy/alloy-resources.json`,
+  `alloy-controller.json`, `alloy-prometheus-remote-write.json` and
+  `alloy-loki.json` are the alloy-mixin's own rendered JSON,
+  committed upstream under `operations/alloy-mixin/rendered/dashboards/`,
+  so no jsonnet runs here. The source tag is the Alloy version the pinned
+  chart ships, `v1.19.2` for chart 1.12.1 (`alloy_build_info`). Re-vendor on
+  every Alloy bump, from `monitoring/app/dashboards/`, one command per file:
+
+  ```sh
+  python3 vendor.py Alloy/alloy-resources.json --drop-var cluster \
+    --url https://raw.githubusercontent.com/grafana/alloy/<tag>/operations/alloy-mixin/rendered/dashboards/alloy-resources.json
+  ```
+
+  and the same for the other three. `--drop-var cluster` removes the
+  mixin's `cluster` variable, its matchers, the panel titles and link
+  parameters that name it, and the `kube-diff-logger` annotation that uses
+  it: no series here carries a `cluster` label, and an empty multi-value
+  variable is not a reliable match-all. The mixin's other five dashboards
+  stay out, because they can show nothing here: `alloy-cluster-node` and
+  `alloy-cluster-overview` read Alloy clustering, which no Alloy here runs;
+  `alloy-opentelemetry` and `alloy-otel-engine-overview` read OpenTelemetry
+  pipelines, which none runs; and `alloy-logs` filters Loki on `instance`
+  and `level` labels that the pod-log streams do not carry, with the Logs
+  Explorer covering Alloy's logs.
 - **NetBox datasource.** `netboxlabs-netbox-datasource`, pinned, installs
   from an init container running `grafana cli` from Grafana's own image.
   The chart's `plugins:` list cannot do it: `preinstall_disabled` drops
@@ -131,12 +155,16 @@ defaults that hide the control-plane components.
     kubelet, kube-scheduler and kube-controller-manager (`apiserver_*`,
     `kubelet_*`, `scheduler_*`, client-go workqueue, informer and REST
     client, authn/authz, and kubelet's storage, volume, CSI and DRA
-    operation histograms), Cilium agent and operator, Alloy, Prometheus,
-    Loki, Grafana, Flux's `gotk_reconcile_duration_seconds` and Traefik's
+    operation histograms), Cilium agent and operator, Prometheus and Loki
+    (Alloy's `prometheus_*` and `loki_*` component histograms with them),
+    Grafana, Flux's `gotk_reconcile_duration_seconds` and Traefik's
     per-router latency. `go_*_bucket` Go-runtime histograms go from the
     Kubernetes components and from every annotated pod. The `_sum` and
     `_count` series stay, so rates and means remain queryable; only
-    quantiles are lost.
+    quantiles are lost. Alloy's controller histograms
+    (`alloy_component_evaluation_seconds_bucket`,
+    `alloy_component_dependencies_wait_seconds_bucket`, ~1,200 series
+    across 23 Alloys) are kept: the Alloy / Controller dashboard reads them.
   - `kubernetes_feature_enabled` on every Kubernetes component.
   - apiserver per-resource watch-cache and list bookkeeping
     (`apiserver_watch_cache_*`, `apiserver_cache_list_*`,

@@ -2,7 +2,8 @@
 
 OS-library role (non-numbered, like `proxmox` and `talos`) that installs
 [Grafana Alloy](https://grafana.com/docs/alloy/latest/) on a bare Debian
-host so it pushes node metrics and journald to the cluster's write routes.
+host so it pushes node metrics, SMART data and journald to the cluster's
+write routes.
 Design: `docs/design/host-monitoring.md`.
 
 ## What it installs
@@ -20,9 +21,18 @@ Design: `docs/design/host-monitoring.md`.
 - `CUSTOM_ARGS="--disable-reporting"` in `/etc/default/alloy`, disabling
   Grafana's usage-reporting phone-home.
 - The `alloy` systemd service, enabled and started.
+- `smartctl_exporter` (`tasks/smartctl.yaml`): the `trixie-backports` apt
+  source, Debian's `prometheus-smartctl-exporter` from it (the only suite
+  that packages it), and a drop-in
+  `/etc/systemd/system/smartctl_exporter.service.d/listen.conf` binding it
+  to `alloy_smartctl_listen_address`. The drop-in lands before the package
+  because the postinst starts the unit at once, listening on every address.
+  Backports sit at apt priority 100, so nothing else upgrades from them.
 
 The rendered config runs a built-in `prometheus.exporter.unix` scraped every
-`alloy_scrape_interval` (`job="node-exporter"`, `instance=<hostname>`) and a
+`alloy_scrape_interval` (`job="node-exporter"`, `instance=<hostname>`), a
+scrape of the local `smartctl_exporter` on the same interval
+(`job="smartctl"`, `instance=<hostname>`) and a
 `loki.source.journal` reader (`job="journal"`, labelled `host`/`unit`/
 `priority`), both forwarded over HTTPS with basic auth to the two routes in
 `kubernetes/clusters/homelab/monitoring/app/ingest/`. Every host renders the same template;
@@ -43,6 +53,7 @@ To add a host, tag it `alloy` in NetBox — no inventory file to edit. Run
 | `alloy_apt_repo` | Grafana's stable apt repo line | |
 | `alloy_scrape_interval` | `60s` | Node exporter scrape interval. |
 | `alloy_journal_max_age` | `12h` | How far back `loki.source.journal` reads on start. |
+| `alloy_smartctl_listen_address` | `127.0.0.1:9633` | Where `smartctl_exporter` listens and Alloy scrapes it. Loopback, so no port opens on the LAN. |
 | `alloy_fs_mount_points_exclude` / `alloy_fs_types_exclude` | see `defaults/main.yaml` | Filesystem noise the unix exporter should ignore, on top of its own defaults. |
 | `alloy_domain` | none — required | The domain the two write routes are served under. |
 | `alloy_hosts_password` | none — required | The `hosts` basic-auth password for both routes. |
@@ -82,7 +93,10 @@ already installed. On a fresh host, `/etc/default/alloy` and
 `/etc/alloy/config.alloy` don't exist yet — the `.deb` ships them as
 conffiles, so the role must not pre-create them — and check mode fails both
 the `lineinfile` and the `template` task against a file that isn't there
-yet. The first run on a new host is `apply-alloy`.
+yet. The same holds for `Install smartctl_exporter`: check mode only
+simulates adding the backports source, so apt fails with `trixie-backports`
+"not available in the sources". The first run on a new host is
+`apply-alloy`.
 
 ## Version pin
 
