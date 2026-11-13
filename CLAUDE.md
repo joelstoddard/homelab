@@ -45,7 +45,7 @@ Two stages, two playbook entry points:
 
 - **`pxe.yaml`** — provisions baremetal by network-booting target hosts (iPXE chainload for x86, u-boot for the Pis). Targets `hosts: pxe` (devices tagged `pxe` in NetBox). Per-OS group membership (`proxmox` and `talos` now, planned `truenas`) is derived from NetBox `platform.slug` and drives the boot path: Proxmox hosts get a Debian netinstall + per-host preseed; Talos hosts (the arm64 Pis) get a purpose-built u-boot over TFTP that fetches the Talos kernel/initramfs over HTTP and boots into maintenance mode — offered only to Pis listed in `talos_pi_provision_hosts`; every other Pi is ignored by dnsmasq and falls through to its local disk.
 - **`playbooks/main.yaml`** — runs against PXE-installed hosts via the `02-preflights` orchestrator. Targets `hosts: pxe:!talos` over SSH with `become`; the orchestrator dispatches per-OS work via `'<group>' in group_names` guards (currently `proxmox` and `alloy`; TrueNAS later). The alloy dispatch reaches the NUCs, the only hosts both `pxe` and `alloy`-tagged; `playbooks/alloy.yaml` is the targeted entry point for the same group.
-- **`playbooks/talos.yaml`** — bootstraps the Kubernetes cluster. Targets `hosts: talos` but runs `connection: local`, driving nodes over the Talos API (`talosctl`) because Talos nodes have no SSH or Python. This is why the Talos lifecycle is its own play rather than a branch of `02-preflights`. Dispatches the `talos` library's `config`/`apply`/`bootstrap`/`kubeconfig` tasks.
+- **`playbooks/talos.yaml`** — bootstraps a Kubernetes cluster: the home cluster, or skylab with `make -C ansible apply-talos CLUSTER=skylab`. Runs `connection: local`, driving nodes over the Talos API (`talosctl`) because Talos nodes have no SSH or Python. This is why the Talos lifecycle is its own play rather than a branch of `02-preflights`. A cluster's hosts are the `talos` group at the NetBox site its `roles/talos/vars/<cluster>.yaml` names (`docs/design/skylab-bootstrap.md`). Dispatches the `talos` library's `config`/`apply`/`bootstrap`/`kubeconfig` tasks.
 - **`playbooks/reset.yaml`** — wipes named Talos nodes back to maintenance mode (`talosctl reset --wipe-mode all`, working the Pi netboot gate around it) so `talos.yaml` can reinstall them. The rebuild path for version bumps; deliberately not part of `make homelab`. See `docs/talos-bootstrap.md` "Rebuild / bumping versions".
 - **`playbooks/upgrade.yaml`** — rolls a config change / new installer image onto RUNNING Talos nodes one at a time (authenticated apply-config; talosctl upgrade for VMs, reboot into refreshed netboot assets for Pis; health between nodes). `make -C ansible apply-upgrade EXTRA_VARS='{"upgrade_hosts": [...]|"all"}'`. The day-2 path; `reset.yaml` is for multi-minor jumps.
 - **`playbooks/resize.yaml`** — picks up a Proxmox hardware change (memory, cores) on RUNNING Talos VMs one at a time: halt, stop, start, gated on node Ready + no degraded Longhorn volume + cluster health, then verifies the guest's own reported total. `make -C ansible apply-resize EXTRA_VARS='{"resize_hosts": [...]|"agents"|"all"}'`, after `make -C opentofu`. Renders no machine config (a power cycle pushes none), so unlike the other Talos playbooks it needs only a talosconfig — the rendered one, else `~/.talos/config`. Refuses control-plane targets unless `resize_allow_controlplane=true`: the agents run overcommitted on zram and etcd must stay resident (`docs/design/zram-swap.md`).
@@ -106,7 +106,7 @@ Current implementation:
   `talosctl`: `config.yaml` resolves the VIP and the nodes' prefix length
   (NetBox IP tagged `talos-vip`, via `uri`, not `nb_lookup`, which segfaults
   in the forked worker on macOS) and control-plane membership (NetBox tag
-  `k8s-controlplane`), generates/reuses the SOPS-encrypted secret bundle at
+  `k8s-controlplane`, within the cluster's site), generates/reuses the SOPS-encrypted secret bundle at
   `roles/talos/files/secrets.sops.yaml`, renders `templates/patches/` from
   NetBox/inventory, and runs `talosctl gen config` + `machineconfig patch`
   into the git-ignored `ansible/.talos/clusterconfig/`; the configs
@@ -431,6 +431,14 @@ location and the URLs are therefore set in the UI and survive in
 No auth middleware — Home Assistant has its own login, as do SearXNG,
 Jellyfin, the four \*arr applications and qBittorrent. Two replicas are
 impossible, not merely unwise. See `docs/design/home-assistant.md`.
+`orb-agent/` (`decryption`, no `dependsOn`, not substituted) is the LAN
+discovery agent for NetBox Assurance: one `netboxlabs/orb-agent` replica,
+`Recreate`, Fleet-managed, on `hostNetwork` in a PodSecurity `privileged`
+namespace, so ARP and MAC discovery see the real LAN segment. The NetBox Labs
+Console owns the scan job, its schedule and the deviations; nothing about
+them lives in this repo. `dnsPolicy: Default`, because CoreDNS answers PTR
+queries for the `lan-services` addresses with cluster names. The Fleet
+credentials are `app/secret.sops.yaml`. See `docs/design/network-discovery.md`.
 `media/` (`dependsOn: traefik, traefik-middlewares, longhorn, cluster-secrets`,
 substituted) is the shared namespace for Jellyfin and the future \*arr
 stack: one read-write `PersistentVolume` over the TrueNAS export, mounted at
@@ -551,6 +559,10 @@ fallback schema for environments without NetBox.
   defaults are fallbacks. The control plane is 5 nodes, one per physical host
   (the 4 `k8s-server` VMs + the `kosmos` Pi), so the quorum survives any single
   host failure.
+- Renovate (Mend-hosted app, `renovate.json5`) opens PRs for outdated pins, grouping paired versions;
+  nothing automerges. Paired versions, the Talos cap and the unmanaged pins:
+  `docs/design/renovate.md`. A new pin that no built-in manager reads gets a
+  `# renovate: datasource=… depName=…` comment on the line above it.
 - The Talos/Kubernetes/Flux/Cilium versions have a single source of truth in
   repo-root `versions.env`. Every consumer reads it: the `talos` and `00-pxe`
   role defaults (file lookup via `role_path`), `opentofu/Makefile` (sourced →
@@ -560,4 +572,6 @@ fallback schema for environments without NetBox.
   IDs (`TALOS_SCHEMATIC_ID`, `TALOS_PI_SCHEMATIC_ID`) live there too, read by
   the `talos` and `00-pxe` roles and exported to OpenTofu as
   `TF_VAR_talos_schematic_id`; both schematics carry Longhorn's
-  `iscsi-tools` + `util-linux-tools` extensions.
+  `iscsi-tools` + `util-linux-tools` extensions. Skylab's third,
+  `TALOS_SKYLAB_SCHEMATIC_ID`, adds the `tailscale` extension and is read by
+  the talos role's `vars/skylab.yaml`.

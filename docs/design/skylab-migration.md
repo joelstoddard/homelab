@@ -74,9 +74,11 @@ token expires after 1 year.
 ### Releases
 
 Flux deploys the tag written in the layer. A new version is a PR in this repo
-that changes that tag. Renovate opens those PRs once
-[Onboard the repo to Renovate](https://github.com/joelstoddard/homelab/issues/141)
-lands; until then they are written by hand.
+that changes that tag. Renovate (`docs/design/renovate.md`) opens those PRs
+once the hosted app holds a `read:packages` credential for these private
+images and a versioning rule for joelst's `1.0.<run_number>` tags, both
+tracked in https://github.com/joelstoddard/homelab/issues/359; without them,
+the PRs are written by hand.
 
 ### joelst
 

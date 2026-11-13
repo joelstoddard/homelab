@@ -3,7 +3,10 @@
 # (connection: local) and drives nodes over the Talos API — Talos has no SSH
 # or Python. See docs/talos-bootstrap.md for the flow and prerequisites.
 #
-# Run: make -C ansible apply-talos
+# Run: make -C ansible apply-talos [CLUSTER=skylab]
+#
+# talos_cluster (default homelab) picks the cluster; its hosts are the talos
+# group at the cluster's NetBox site (docs/design/skylab-bootstrap.md).
 
 - name: Generate Talos cluster + per-node machine configs.
   hosts: localhost
@@ -22,8 +25,21 @@
         tasks_from: config
       tags: [config]
 
+    # A cluster whose config arrives another way (skylab's user_data) has
+    # no maintenance-mode apply, so its group stays empty.
+    - name: Queue the cluster's nodes for the maintenance-mode apply.
+      ansible.builtin.add_host:
+        name: "{{ item }}"
+        groups: talos_apply_pending
+        talos_cluster_name: "{{ talos_cluster_name }}"
+        talos_clusterconfig_dir: "{{ talos_clusterconfig_dir }}"
+      loop: "{{ talos_cluster_hosts }}"
+      when: talos_maintenance_apply
+      changed_when: false
+      tags: [always]
+
 - name: Apply machine configs to nodes in maintenance mode.
-  hosts: talos
+  hosts: talos_apply_pending
   connection: local
   gather_facts: false
   # Deterministic, legible ordering in the log. Apply order is not

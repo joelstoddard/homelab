@@ -15,6 +15,10 @@ creation_rules:
   # running nodes.
   - path_regex: ansible/roles/talos/files/.*\.sops\.ya?ml$
     age: age1h5hafnt22aqn7uahcsmv5v8gfgwcxanypw0lantcush7jppt99fskz6vcv
+  # Per-cluster talos role vars that are secret or not public (skylab's
+  # Tailscale auth key and tailnet name), loaded by tasks/cluster.yaml.
+  - path_regex: ansible/roles/talos/vars/.*\.sops\.ya?ml$
+    age: age1h5hafnt22aqn7uahcsmv5v8gfgwcxanypw0lantcush7jppt99fskz6vcv
   - path_regex: opentofu/.*\.sops\.ya?ml$
     age: age1h5hafnt22aqn7uahcsmv5v8gfgwcxanypw0lantcush7jppt99fskz6vcv
   # Per-resource secrets files (dotenv format; the Makefile

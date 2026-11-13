@@ -1,0 +1,4 @@
+---
+# The home cluster. Its other values are the role defaults
+# (defaults/main.yaml), which upgrade.yaml and resize.yaml also read.
+talos_cluster_site: "homelab"

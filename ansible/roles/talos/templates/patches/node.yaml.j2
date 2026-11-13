@@ -14,6 +14,7 @@ apiVersion: v1alpha1
 kind: HostnameConfig
 hostname: {{ node }}
 auto: "off"
+{% if talos_static_network %}
 ---
 apiVersion: v1alpha1
 kind: LinkAliasConfig
@@ -39,3 +40,4 @@ addresses:
   - address: {{ hostvars[node].ansible_host }}/{{ talos_network_prefixlen }}
 routes:
   - gateway: {{ talos_network_gateway }}
+{% endif %}

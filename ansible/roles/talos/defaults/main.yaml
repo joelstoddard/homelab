@@ -32,6 +32,31 @@ cilium_version: >-
   {{ lookup('file', role_path ~ '/../../../versions.env')
      | regex_findall('^CILIUM_VERSION=(.+)$', multiline=True) | first | trim }}
 
+# --- Cluster ------------------------------------------------------------
+# The cluster to render (`make ... CLUSTER=`): tasks/cluster.yaml loads
+# vars/<talos_cluster>.yaml over these defaults, which are the home cluster's
+# (docs/design/skylab-bootstrap.md).
+talos_cluster: "homelab"
+
+# The cluster's hosts: the talos platform group at the cluster's site. The
+# site is read from the vars file here too, because the per-node plays of
+# upgrade.yaml and resize.yaml run tasks/health.yaml without loading it.
+talos_cluster_site: >-
+  {{ (lookup('file', role_path ~ '/vars/' ~ talos_cluster ~ '.yaml') | from_yaml).talos_cluster_site }}
+talos_cluster_hosts: >-
+  {{ groups['talos'] | default([]) | map('extract', hostvars)
+     | selectattr('site', 'defined') | selectattr('site', 'eq', talos_cluster_site)
+     | map(attribute='inventory_hostname') | list }}
+
+# Nodes on the LAN: static addresses and the control-plane VIP from NetBox.
+talos_static_network: true
+# Nodes start in maintenance mode and take their config over
+# `apply-config --insecure` (tasks/apply.yaml).
+talos_maintenance_apply: true
+# One name talosctl reaches the cluster at, instead of each node's NetBox
+# address. Only for a one-node cluster.
+talos_api_address: ""
+
 # --- Cluster identity ---------------------------------------------------
 talos_cluster_name: "homelab"
 

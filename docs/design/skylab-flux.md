@@ -132,10 +132,11 @@ upgrades is the day-2 design's call.
 
 ### Renovate
 
-Renovate's Flux and Helm managers match files by pattern, so skylab's layers
-get PRs with no extra configuration once
-[Onboard the repo to Renovate](https://github.com/joelstoddard/homelab/issues/141)
-lands. Grouping those PRs is that ticket's call.
+Renovate's `flux` and `kubernetes` managers match every
+`kubernetes/clusters/*` tree, so skylab's layers get PRs with no extra
+configuration. A shared bump (`FLUX_VERSION`, `CILIUM_VERSION`) is one PR
+that reaches both clusters on merge; there is no per-cluster grouping
+(`docs/design/renovate.md`).
 
 ### No root above the trees
 
