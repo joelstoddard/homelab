@@ -134,7 +134,9 @@ Current implementation:
   `docs/talos-bootstrap.md`.
 - `alloy` — OS library installing Grafana Alloy on the hosts outside the
   cluster (the four NUCs, NetBox tag `alloy` → group `alloy`): apt repo,
-  one `config.alloy` template, journald access, service.
+  one `config.alloy` template, journald access, service, plus
+  `smartctl_exporter` from `trixie-backports` on loopback, which that Alloy
+  scrapes (`job="smartctl"`, dashboard `Hosts/smart.json`).
   Dispatched from `02-preflights`, with `playbooks/alloy.yaml` /
   `make -C ansible apply-alloy` as the targeted entry point; the read-only
   PVE token the cluster's exporter uses comes from the `proxmox` library's
