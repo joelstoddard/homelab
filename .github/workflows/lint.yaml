@@ -61,3 +61,11 @@ jobs:
         with:
           python-version: "3.13"
       - run: make -C ansible build lint
+
+      # Every directory holding test_*.py, under the Ansible venv: the role
+      # tests run the real task files through its ansible-playbook.
+      - name: Python unit tests
+        run: |
+          for d in $(git ls-files '*test_*.py' | xargs -n1 dirname | sort -u); do
+            ansible/.venv/bin/python -m unittest discover -s "$d" -t "$d"
+          done
