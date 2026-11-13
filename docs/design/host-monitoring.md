@@ -19,7 +19,7 @@ the constraints of the stack apply throughout: a public repo (no address or doma
 
 | Host | What it is | Agent | Data path |
 | --- | --- | --- | --- |
-| rumba, tango, salsa, samba | Debian 13 + Proxmox VE, Ansible group `proxmox` | yes | Alloy pushes node metrics and journald; `pve-exporter` polls the PVE API |
+| rumba, tango, salsa, samba | Debian 13 + Proxmox VE, Ansible group `proxmox` | yes | Alloy pushes node metrics, SMART and journald; `pve-exporter` polls the PVE API |
 | pihole-01, pihole-02 | The DNS chain's Pi-hole pair, Debian 13 LXCs (`docs/design/dns-chain.md`) | no — they resolve through Quad9, which cannot answer the ingest hostnames | `pihole-exporter` polls each v6 API; blackbox `dns_lookup`, `dns_wildcard` and `dns_lancache` probe each instance and the VIP |
 | bind9-01, bind9-02, lancache-01, lancache-02 | The DNS chain's BIND links, Debian 13 LXCs (`docs/design/dns-chain.md`) | no — same resolver constraint as the Pi-holes | `prometheus-bind-exporter` on each container, scraped by the gateway |
 | voyager | TrueNAS CORE (FreeBSD) | no — the base system stays stock, there are no Apps | Reporting → remote Graphite; System → Advanced → remote syslog |
@@ -247,6 +247,25 @@ the constraints of the stack apply throughout: a public repo (no address or doma
   the cluster's `secret-pve-exporter.sops.yaml` keys `PVE_USER`,
   `PVE_TOKEN_NAME` and `PVE_TOKEN_VALUE` (Ansible doesn't write the
   Kubernetes Secret: two systems, one hand-off).
+- **SMART from the NUCs' own disks.** Each NUC runs Debian's
+  `prometheus-smartctl-exporter` on `127.0.0.1:9633`, and that host's Alloy
+  scrapes it on the 60 s interval and pushes it through the existing
+  `prometheus.remote_write`. There is no new network path, no LAN port and
+  no cluster-side target. Debian packages the exporter in
+  `trixie-backports` only (0.14.0), so the role adds that source. Backports
+  sit at apt priority 100, so a host upgrade takes nothing else from them.
+  The packaged unit runs as root, which `smartctl` needs to read the
+  devices. Its postinst starts the unit at once on every address, so the
+  loopback drop-in is written before the package installs. Each NUC has one
+  NVMe drive, so the series are the NVMe set (health, critical warning,
+  percentage used, spare, media errors, error-log entries, temperature,
+  power-on time, bytes read and written): 53 series per host, the Go
+  runtime's included. The `SMART` dashboard (`Hosts/smart.json`) reads
+  them. `smartctl_device` carries `serial_number` as a label, so the serials
+  live in Prometheus; the dashboard never queries that label. The exporter
+  uses 3-8 MiB per host. The NUCs hold no ZFS pool (the root is ext4 on a
+  plain partition), so there is no ZFS detail to collect there; the fleet's
+  ZFS is TrueNAS, which reports through its Graphite stream.
 - **Two settings are clicked, not committed.** TrueNAS CORE: System →
   Reporting → Remote Graphite Server, and System → Advanced → Syslog server
   (UDP), both the ingest address. The router: System Log → Remote log server,
@@ -256,7 +275,8 @@ the constraints of the stack apply throughout: a public repo (no address or doma
 ## Label conventions
 
 Metrics `job`: `node-exporter` (the four agent hosts, `instance` = host
-name), `pve` (`instance` = NUC name; the exporter's own `id` and `node`
+name), `smartctl` (the same four, `instance` = host name, `device` = the
+kernel's name for the drive), `pve` (`instance` = NUC name; the exporter's own `id` and `node`
 labels carry the guests), `pihole` (`instance` = `pihole`, `hostname` =
 `pihole-01` or `pihole-02`), `bind` (`instance` = `bind9-01`, `bind9-02`,
 `lancache-01` or `lancache-02`), `truenas` (`instance` = `voyager`),
@@ -349,11 +369,14 @@ measured: the window holds no outage.
   counters. SNMP or SSH would be the next step and is out of scope.
 - TrueNAS metric names are flattened collectd paths, not a curated schema:
   fine in Explore, no dashboard until the mapping exists.
-- No SMART or ZFS detail from the NUCs; `smartctl_exporter` is a follow-up.
+- A failing drive shows on the `SMART` dashboard only: the stack has no
+  alerting (`docs/design/observability.md`), so nothing pages on it.
 - Alloy on the hosts is memory the NUCs' VM budget does not account for.
 - Anything on the LAN can inject syslog lines and graphite samples at the
   shared LB address: both protocols are plaintext and unauthenticated, and
   the gateway accepts whatever arrives.
-- `check-alloy` only works once Alloy is already installed: on a fresh host
-  `/etc/default/alloy` and `/etc/alloy/config.alloy` don't exist yet, and
-  check mode can't edit or template a file that isn't there.
+- `check-alloy` only works once Alloy and `smartctl_exporter` are already
+  installed: on a fresh host `/etc/default/alloy` and
+  `/etc/alloy/config.alloy` don't exist yet, check mode can't edit or
+  template a file that isn't there, and it only simulates adding the
+  backports source the exporter installs from.

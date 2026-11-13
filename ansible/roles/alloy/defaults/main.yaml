@@ -6,6 +6,7 @@ alloy_apt_key_url: https://apt.grafana.com/gpg.key
 alloy_apt_repo: "deb [signed-by=/etc/apt/keyrings/grafana.gpg] https://apt.grafana.com stable main"
 alloy_scrape_interval: 60s
 alloy_journal_max_age: 12h
+alloy_smartctl_listen_address: "127.0.0.1:9633"
 # Filesystems the unix exporter ignores. These REPLACE node_exporter's own
 # default regexes rather than add to them, so the upstream entries are
 # carried forward here alongside the homelab-specific ones: container roots,
