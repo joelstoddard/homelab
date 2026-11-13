@@ -12,9 +12,10 @@ ANSIBLE_TOKEN_FILE  := ../ansible/inventory/group_vars/proxmox.sops.yaml
 # The Pi-hole web password's only source; pihole-config reads it at run time.
 DNS_VARS_FILE       := ../ansible/inventory/group_vars/dns.sops.yaml
 OPENTOFU_SECRETS    := secrets.sops.yaml
-# Single source of truth for the Talos version and VM schematic (shared with
+# Single source of truth for the Talos version and schematics (shared with
 # ansible + install.sh). Sourced in run_tofu and exported as
-# TF_VAR_talos_version / TF_VAR_talos_schematic_id.
+# TF_VAR_talos_version / TF_VAR_talos_schematic_id /
+# TF_VAR_talos_skylab_schematic_id; skylab-image sources it too.
 VERSIONS_ENV        := $(abspath ../versions.env)
 
 # Resource dirs to iterate. resources/ may not exist yet on scaffold
@@ -74,6 +75,10 @@ check-secrets:
 	@# single resource. Verify each decrypts cleanly. The Makefile
 	@# eval-sources them at apply time (see `define run_tofu`).
 	@for d in $(RESOURCE_DIRS); do \
+		if [ $$d = resources/skylab ] && [ ! -f $$d/secrets.env ]; then \
+			echo "missing $$d/secrets.env (HCLOUD_TOKEN); see $$d/README.md." >&2; \
+			exit 1; \
+		fi; \
 		if [ -f $$d/secrets.env ]; then \
 			sops -d $$d/secrets.env >/dev/null || exit $$?; \
 		fi; \
@@ -114,8 +119,10 @@ define run_tofu
 	export TF_VAR_lan_gateway="$$(sops -d --extract '["lan_gateway"]' $(OPENTOFU_SECRETS))"; \
 	export TF_VAR_netbox_url="$$NETBOX_URL"; \
 	export TF_VAR_netbox_token="$$NETBOX_TOKEN"; \
+	export TF_VAR_netbox_headers="$${NETBOX_HEADERS:-}"; \
 	export TF_VAR_talos_version="$$(. $(VERSIONS_ENV) && echo $$TALOS_VERSION)"; \
 	export TF_VAR_talos_schematic_id="$$(. $(VERSIONS_ENV) && echo $$TALOS_SCHEMATIC_ID)"; \
+	export TF_VAR_talos_skylab_schematic_id="$$(. $(VERSIONS_ENV) && echo $$TALOS_SKYLAB_SCHEMATIC_ID)"; \
 	worst=0; \
 	for d in $(RESOURCE_DIRS); do \
 		echo ">> tofu $(1) in $$d"; \

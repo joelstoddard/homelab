@@ -202,6 +202,16 @@ default loop (it needs Pi-hole installed by `apply-dns` first): it runs only
 with `LIMIT=pihole-config`, which the root `make dns` does. Its
 `secrets.env` holds the web password and the client set. See
 `docs/design/dns-chain.md`, "Lists and their sync".
+`resources/skylab/` is the public cluster's one node on Hetzner Cloud
+(`hetznercloud/hcloud`): a `cx33` server from a Talos snapshot with the talos
+role's rendered config as `user_data`, a primary IPv4, a TURN-only firewall
+and Forgejo's Volume. Every billable resource is gated by `count` on NetBox
+placing skylab at a site whose name is a Hetzner `eu-central` city, which is
+true only on the NetBox branch read through `NETBOX_HEADERS`
+(`TF_VAR_netbox_headers`), so a blanket apply against main bills nothing.
+`make -C opentofu skylab-image` uploads the snapshot and is never part of
+`apply`; `secrets.env` holds `HCLOUD_TOKEN`, and the Makefile refuses to run
+the directory without it. See `docs/design/skylab-provisioning.md`.
 
 ### Kubernetes (kubernetes/)
 

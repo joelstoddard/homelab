@@ -80,10 +80,18 @@ verified when the branch is created.
 `data "hcloud_locations"` lists Hetzner's locations with `city` and
 `network_zone` attributes. tofu selects the location in network zone
 `eu-central` whose `city` equals the record's site name ("Nuremberg" →
-`nbg1`). `local.in_eu` is true when one matches. The server, the primary IP
-and the firewall each carry `count = local.in_eu ? 1 : 0`. Main's record sits
-at `ashburn`, which is in no EU network zone, so the plan is empty. The exact
-`city` strings are checked against the live API when the directory is built.
+`nbg1`). `local.in_eu` is true when one matches. The server, the primary IP,
+the firewall, the Volume, its attachment and the image lookup each carry
+`count = local.in_eu ? 1 : 0`. Main's record sits at `ashburn`, which is in no
+EU network zone, so the plan is empty. tofu finds the record by name,
+case-insensitively, and fails unless exactly one VM matches.
+
+Hetzner's locations page
+(https://docs.hetzner.com/cloud/general/locations/) names the EU cities
+Falkenstein, Nuremberg and Helsinki, all in `eu-central`; the API reference
+shows `"city": "Falkenstein"` for `fsn1`. The API's `city` for `nbg1` is
+confirmed by the first plan with a token: a mismatch leaves the plan empty,
+never wrong.
 
 ### Resources
 
@@ -100,14 +108,16 @@ nothing else uses one.
    requires them to match). `lifecycle { ignore_changes = [image, user_data] }`,
    because both are ForceNew and a Talos version bump goes through
    `talosctl upgrade`, not a new server.
-2. **`hcloud_primary_ip`** (IPv4, €0.50/month): `assignee_type = "server"`,
-   `auto_delete = false`, `delete_protection = true`. It keeps the address
+2. **`hcloud_primary_ip`** (IPv4, €0.50/month): `auto_delete = false`,
+   `delete_protection = true`, and no `assignee_type`: provider 1.70 accepts
+   it only beside `assignee_id`, and the server takes the address through
+   `public_net`. It keeps the address
    through a server rebuild, so the `turn` record and coturn's address do
    not change. `public_net { ipv4 = …, ipv6_enabled = false }`: nothing uses
    IPv6, and leaving it on gives the node an unmanaged address.
 3. **`hcloud_firewall`**, attached through the server's `firewall_ids`:
-   inbound TURN (3478/tcp, 3478/udp, 49160–49500/udp) and ICMP from
-   anywhere. Everything else is denied once the firewall is attached. The
+   inbound TURN (3478/tcp, 3478/udp, 49160–49500/udp) and ICMP from any
+   IPv4 address; skylab has no IPv6. Everything else is denied once the firewall is attached. The
    Talos firewall is the second layer; both are in
    `docs/design/skylab-security.md`.
 4. **`hcloud_volume`** and **`hcloud_volume_attachment`** for Forgejo, as
@@ -119,7 +129,8 @@ snapshot.
 
 ### Machine config arrives as `user_data`
 
-`user_data = file(<the talos role's rendered skylab config>)`. Skylab takes
+`user_data = file(...)` reads the talos role's render,
+`ansible/.talos/skylab/skylab-<NetBox name>.yaml`. Skylab takes
 its address by DHCP, which Hetzner serves for the primary IPv4, so the config
 needs no address before apply: the role renders skylab with no `LinkConfig`
 (`docs/design/skylab-bootstrap.md`). tofu fails if the file is missing, so the
@@ -141,10 +152,13 @@ which adds the `tailscale` extension) and `TALOS_VERSION`, labelled
 `talos_version` and `talos_schematic`. It skips the upload when a snapshot
 with both labels exists, checked with `curl` against the Hetzner API's
 `images?type=snapshot&label_selector=…`. tofu selects it with
-`with_selector` on `talos_schematic` alone and `most_recent = true`, so a
+`data "hcloud_images"`, `with_selector` on `talos_schematic` alone,
+`with_architecture = ["x86"]` and `most_recent = true`, so a
 `versions.env` bump never leaves a plan without an image
-(`docs/design/skylab-upgrades.md`); with the gate open and no image, tofu
-fails with a message naming the target.
+(`docs/design/skylab-upgrades.md`); with the gate open and no image, a
+postcondition fails with a message naming the target. The plural data source
+is used because the singular `hcloud_image` fails with its own error before
+a postcondition can run.
 
 The upload boots a temporary server, which is a billing event, so it is
 never part of `apply`: a blanket apply bills nothing. Old snapshots stay.
@@ -163,9 +177,11 @@ The server lives in a new Hetzner project, "Homelab - Public", so its token
 cannot touch the Ashburn server. The token is `HCLOUD_TOKEN` in
 `resources/skylab/secrets.env` (SOPS), which the Makefile loads per directory
 under `set -a`. The hcloud provider and `hcloud-upload-image` both read
-`HCLOUD_TOKEN` natively, so no tofu variable carries it. The Makefile's
-`check-secrets` requires the Proxmox and NetBox credentials on every run,
-whatever the directory; the operator holds them anyway.
+`HCLOUD_TOKEN` natively, so no tofu variable carries it. The hcloud provider
+fails to configure without a token, even with the gate closed, so
+`check-secrets` refuses any run that iterates `resources/skylab/` without its
+`secrets.env`. It also requires the Proxmox and NetBox credentials on every
+run, whatever the directory; the operator holds them anyway.
 
 ## Rejected alternatives
 
