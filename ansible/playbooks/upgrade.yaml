@@ -146,8 +146,10 @@
   serial: 1
   order: inventory
   tasks:
+    # include_role, not import_role: a static import templates task names
+    # once, so every later host would print the first host's name.
     - name: Upgrade this node.
-      ansible.builtin.import_role:
+      ansible.builtin.include_role:
         name: talos
         tasks_from: upgrade
 
@@ -158,7 +160,9 @@
   serial: 1
   order: inventory
   tasks:
+    # include_role, not import_role: a static import templates task names
+    # once, so every later host would print the first host's name.
     - name: Upgrade this node.
-      ansible.builtin.import_role:
+      ansible.builtin.include_role:
         name: talos
         tasks_from: upgrade
