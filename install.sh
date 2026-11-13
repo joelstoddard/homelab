@@ -64,6 +64,7 @@ have_version() {
 echo ">> Installing age (encrypted host_vars decryption)"
 apt-get install -y age
 
+# renovate: datasource=github-releases depName=getsops/sops
 SOPS_VERSION="v3.12.2"
 SOPS_ARCH="$(dpkg --print-architecture)"
 if have_version "$SOPS_VERSION" sops --version; then
@@ -77,6 +78,7 @@ fi
 
 # tofu isn't in apt for Debian/Ubuntu; pull the upstream .deb release.
 # Bump TOFU_VERSION when operator workstations move.
+# renovate: datasource=github-releases depName=opentofu/opentofu extractVersion=^v(?<version>.+)$
 TOFU_VERSION="1.10.6"
 TOFU_ARCH="$(dpkg --print-architecture)"
 if have_version "$TOFU_VERSION" tofu --version; then
@@ -140,6 +142,7 @@ fi
 # Pinned here like sops/tofu: nothing else consumes the version. Helm 4 needs
 # kubernetes.core >= 6.5.0 (ansible/collections/requirements.yaml). The tarball
 # nests the binary under linux-<arch>/.
+# renovate: datasource=github-releases depName=helm/helm
 HELM_VERSION="v4.2.4"
 if have_version "$HELM_VERSION" helm version; then
     echo ">> helm ${HELM_VERSION} already installed"

@@ -430,6 +430,14 @@ location and the URLs are therefore set in the UI and survive in
 No auth middleware — Home Assistant has its own login, as do SearXNG,
 Jellyfin, the four \*arr applications and qBittorrent. Two replicas are
 impossible, not merely unwise. See `docs/design/home-assistant.md`.
+`orb-agent/` (`decryption`, no `dependsOn`, not substituted) is the LAN
+discovery agent for NetBox Assurance: one `netboxlabs/orb-agent` replica,
+`Recreate`, Fleet-managed, on `hostNetwork` in a PodSecurity `privileged`
+namespace, so ARP and MAC discovery see the real LAN segment. The NetBox Labs
+Console owns the scan job, its schedule and the deviations; nothing about
+them lives in this repo. `dnsPolicy: Default`, because CoreDNS answers PTR
+queries for the `lan-services` addresses with cluster names. The Fleet
+credentials are `app/secret.sops.yaml`. See `docs/design/network-discovery.md`.
 `media/` (`dependsOn: traefik, traefik-middlewares, longhorn, cluster-secrets`,
 substituted) is the shared namespace for Jellyfin and the future \*arr
 stack: one read-write `PersistentVolume` over the TrueNAS export, mounted at
@@ -550,6 +558,10 @@ fallback schema for environments without NetBox.
   defaults are fallbacks. The control plane is 5 nodes, one per physical host
   (the 4 `k8s-server` VMs + the `kosmos` Pi), so the quorum survives any single
   host failure.
+- Renovate (Mend-hosted app, `renovate.json5`) opens PRs for outdated pins, grouping paired versions;
+  nothing automerges. Paired versions, the Talos cap and the unmanaged pins:
+  `docs/design/renovate.md`. A new pin that no built-in manager reads gets a
+  `# renovate: datasource=… depName=…` comment on the line above it.
 - The Talos/Kubernetes/Flux/Cilium versions have a single source of truth in
   repo-root `versions.env`. Every consumer reads it: the `talos` and `00-pxe`
   role defaults (file lookup via `role_path`), `opentofu/Makefile` (sourced →
