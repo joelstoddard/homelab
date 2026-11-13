@@ -53,7 +53,9 @@ Settings live in `ansible/roles/02-preflights/defaults/main.yaml`:
 
 Scope is the `proxmox` group — the four NUCs. The DNS chain's LXCs are excluded: an
 unprivileged container cannot load the module, and its swap belongs to the
-host. Talos does not support swap at all.
+host. The Talos guests are out of scope too: Talos 1.13 cannot create a zram
+device, and its own swap support is zswap in front of a disk swap volume
+(`SwapVolumeConfig` + `ZswapConfig`), which these guests do not configure.
 
 The tasks sit in `02-preflights` rather than in the `proxmox` library because
 this is generic Debian hygiene, alongside `resolv.yaml`. Only the group gate

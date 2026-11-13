@@ -60,14 +60,25 @@ when something breaks.
   apply-upgrade` rolls it out (`docs/talos-bootstrap.md`).
 
 - **Workflow actions stay SHA-pinned.** `config:recommended` updates each
-  `uses: …@<sha> # vX.Y.Z` pin's digest and version comment together.
+  `uses: …@<sha> # vX.Y.Z` pin's digest and version comment together. The
+  `setup-python` version stays below 3.14, the operator venv's interpreter:
+  3.14 has no `rpds-py` wheel.
+
+- **Galaxy content is pinned exactly.** Renovate skips a collection or role
+  with no version. Every entry in `ansible/collections/requirements.yaml`
+  carries the version that runs today. The venv holds `ansible-core` only,
+  so `~/.ansible/collections` is the one copy of each collection.
+
+- **A HelmRepository name used in two namespaces needs `metadata.namespace`.**
+  Renovate matches a HelmRelease's `sourceRef` by name and namespace, and
+  kustomize adds the namespace only at build time. Without it in the file, both
+  `grafana` repositories match each Alloy release. The explicit namespace
+  equals the one kustomize sets, so the rendered objects do not change.
 
 - **The Python freeze is one PR.** `ansible/requirements.txt` pins every
   transitive package, so separate PRs would number in the dozens and
   merge into sets that do not install. All its updates share the
-  `ansible python deps` group, with majors in a second PR. `ansible-core`
-  is not updated on its own: `ansible` pins its series, and the note says to
-  move core with it.
+  `ansible python deps` group, with majors in a second PR.
 
 - **Annotated pins.** A pin that no built-in manager reads carries a
   `# renovate: datasource=… depName=…` comment on the line above it:
@@ -90,8 +101,6 @@ when something breaks.
 | `alloy_version` (apt) | Follows the chart's appVersion; Renovate cannot map one to the other. |
 | Debian LXC template URL + sha512 | The checksum comes from the GPG-signed aplinfo index, which Renovate cannot verify. |
 | `TALOS_SCHEMATIC_ID`, `TALOS_PI_SCHEMATIC_ID` | Image Factory build IDs, not versions (`docs/design/talos-image-schematics.md`). |
-| Unpinned Ansible collections | No version to compare against. |
-
 ## Validating a config change
 
 Run from the repo root (Renovate needs Node 24, so use its image):

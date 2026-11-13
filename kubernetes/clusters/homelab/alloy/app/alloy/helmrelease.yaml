@@ -5,6 +5,7 @@ apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
   name: alloy
+  namespace: alloy
 spec:
   interval: 1h0m0s
   releaseName: alloy
