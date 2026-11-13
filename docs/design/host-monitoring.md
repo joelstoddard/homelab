@@ -124,8 +124,9 @@ the constraints of the stack apply throughout: a public repo (no address or doma
   Reporting → remote Graphite: collectd over plain TCP 2003.
   `graphite-exporter` receives that stream on the shared address and serves
   it as Prometheus metrics. The mapping is empty with `strict-match` off, so
-  every collectd path passes through as an underscored metric name; a curated
-  mapping needs the live names first and is a follow-up in #189.
+  every collectd path passes through as an underscored metric name. The
+  passthrough costs 553 series and 10 MiB ("Measurements"), so it stays until
+  a curated mapping is worth its upkeep.
 - **Proxmox is polled read-only.** `pve-exporter` authenticates with an
   `alloy@pve!alloy` token holding `PVEAuditor` on `/`, minted by the Ansible
   `proxmox` library's `monitoring-token` task on the same pattern as
@@ -303,22 +304,30 @@ addresses, in labels.
 
 ## Measurements
 
-No measurements are recorded here. To size this layer, record:
+Fourteen days to 2026-11-13, from Prometheus and Loki unless a row says
+otherwise.
 
-- Active series added, by `job` (`node-exporter`, `pve`, `blackbox`,
-  `pihole`, `bind`, `truenas`), against the series budget in #189. The four
-  BIND exporters served 60 to 116 `bind_` series each when installed.
-- The gateway's and each exporter's working set against their limits; the
-  graphite exporter's is the open one, since a passthrough mapping mints a
-  series for every collectd path TrueNAS sends.
-- Alloy's resident size on a NUC, against what the host has spare.
-- Loki's ingest rate before and after four journals and two syslog senders.
-- `probe_duration_seconds` per target, to know what normal looks like before
-  anything alerts on it.
-- Whether a 60 s interval with a 30 s timeout is enough for four PVE APIs
-  through one exporter.
-- The gateway's working set during a Prometheus outage, not only steady
-  state: the remote-write WAL grows while it retries.
+| What | Measured | Budget |
+| --- | --- | --- |
+| Active series, `node-exporter` on the four NUCs | 5,592 | — |
+| Active series, `pve` | 2,996 | — |
+| Active series, `bind` | 606: 168 and 169 on the Bind9 pair, 147 and 122 on lancache-dns | — |
+| Active series, `truenas` | 553 | — |
+| Active series, `blackbox` / `pihole` | 286 / 203 | — |
+| `alloy-gateway`, p95 / peak working set | 120 / 137 MiB | 96Mi request, 256Mi limit |
+| `pve-exporter` | 55 / 56 MiB | 64Mi request, 128Mi limit |
+| `blackbox-exporter` / `pihole-exporter` | 17 / 19 MiB and 16 / 16 MiB | 32Mi request, 64Mi limit each |
+| `graphite-exporter` | 9 / 10 MiB: the passthrough mapping has not grown it | 32Mi request, 128Mi limit |
+| Alloy on a NUC (`systemctl show`, `ps`) | 83-93 MiB in its cgroup (106 MiB peak since a restart); 126-232 MiB RSS, which also counts shared file pages charged elsewhere | The hosts had 457 MiB to 1.1 GiB `MemAvailable` |
+| Log ingest from the hosts | 0.5 MiB a day of journal from the four NUCs, 0.4 MiB of syslog | 77 MiB a day for all of Loki |
+| PVE scrape duration | 2.4 s average, 8.3 s worst, never a failed scrape | 30 s timeout, 60 s interval |
+| `probe_duration_seconds`, normal | 2-7 ms for TCP, DNS and the router's HTTP; ~100 ms for TrueNAS's HTTP | — |
+| `probe_duration_seconds`, worst | ~5 s on `hubble` and `pihole-02` DNS and on the VIP's `dns_lookup`: the 5 s probe timeout, so single failed probes, not slow answers | — |
+
+The 60 s interval with a 30 s timeout is enough for the four PVE APIs: the
+worst scrape used under a third of the timeout. The gateway's working set
+during a Prometheus outage, when its remote-write WAL grows, is not
+measured: the window holds no outage.
 
 ## Rejected
 
