@@ -239,8 +239,8 @@ from the Debian 13 standard template: `bind9-01` and `lancache-02` in
 `opentofu/resources/rumba/`, `bind9-02` and `lancache-01` in
 `opentofu/resources/salsa/`, `pihole-01` in `opentofu/resources/tango/` and
 `pihole-02` in `opentofu/resources/samba/`. No NUC carries both instances of
-a link. The folder is the node, as for the k8s VMs, and `modules/dns-lxc`
-warns when NetBox places the VM elsewhere. NetBox supplies each container's
+a link. The folder is the node, as for the k8s VMs, and the plan fails when
+NetBox places the VM elsewhere. NetBox supplies each container's
 vCPUs, memory, disk and address, and the plan fails when a VM has no primary
 IPv4. `modules/dns-lxc` supplies what NetBox does not model: the VM ID
 (`310 + N` for Bind9, `320 + N` for lancache-dns, `330 + N` for Pi-hole),
@@ -270,10 +270,10 @@ the features, and the resolvers.
 
 - **The containers ignore later changes** (`ignore_changes = all` in
   `modules/lxc`). A NetBox edit to size shows
-  nothing in the plan, and one to placement shows only the check warning;
+  nothing in the plan, and one to placement fails it;
   moving a container means moving its module call to the other node's
   folder, and changing a live container means tainting and recreating it
-  (#315).
+  (`opentofu/README.md`, "Changing a DNS container").
 
 ## Failure modes
 

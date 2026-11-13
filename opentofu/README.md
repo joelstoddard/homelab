@@ -29,6 +29,35 @@ platform fail `init` on another.)
 
 See `make help` from inside `opentofu/`. The top-level `make opentofu` chains in.
 
+## Changing a DNS container
+
+`modules/lxc` ignores every change after creation (`ignore_changes = all`), so
+a NetBox edit to a live container's size or address plans nothing. Replace the
+container instead:
+
+1. Taint it, with its module call's name (`bind9_01` in `resources/rumba/`):
+
+   ```sh
+   TF_ENCRYPTION="$(./scripts/build-tf-encryption.sh)" tofu -chdir=resources/<dir> \
+     taint 'module.<call>.module.lxc.proxmox_virtual_environment_container.this'
+   ```
+
+2. `make apply LIMIT=<dir>`, then `make -C ../ansible apply-dns LIMIT=<name>`.
+
+Moving a container to another NUC is a destroy and a create, in that order,
+because the VM ID is unique across the Proxmox cluster:
+
+1. Change the VM's device in NetBox. The plan fails while NetBox and the
+   folder disagree.
+2. Delete the module call from the old NUC's `dns.tf` and `make apply
+   LIMIT=<old dir>`.
+3. Add it to the new NUC's `dns.tf`, `make apply LIMIT=<new dir>`, then
+   `make -C ../ansible apply-dns LIMIT=<name>`.
+
+The two instances of a link never share a NUC. Rebuilding `pihole-01` needs
+nebula-sync suspended first (`ansible/roles/dns/README.md`, "Rebuilding
+pihole-01").
+
 ## Recovery
 
 ### Lost `secrets.sops.yaml`

@@ -189,7 +189,7 @@ The six LXCs of the DNS chain sit beside the VMs, in `dns.tf`: Bind9 and
 lancache-dns in `resources/{rumba,salsa}/`, `pihole-01` in `resources/tango/`
 and `pihole-02` in `resources/samba/`; the folder is the node, as for the
 VMs. Each is a `modules/dns-lxc` call (size and address from NetBox, a
-`check` against NetBox's placement, VM ID `310 + N` / `320 + N` / `330 + N`
+plan that fails on a NetBox placement elsewhere, VM ID `310 + N` / `320 + N` / `330 + N`
 for Bind9 / lancache-dns / Pi-hole) wrapping `modules/lxc`, unprivileged,
 with Quad9 as its own resolver; each `dns.tf` stages the Debian 13 template
 once for every container on its node. See

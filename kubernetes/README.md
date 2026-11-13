@@ -607,8 +607,12 @@ Consequences:
   only log 401s.
 - **One credential, two consumers.** `SEARXNG_OPEN_METRICS` in
   `cluster-secrets` is substituted into the settings file and read at runtime
-  by Alloy through `remote.kubernetes.secret`. Rotating it is one `sops set`
-  and two reconciles.
+  by Alloy through `remote.kubernetes.secret`. Rotating it is one `sops set`,
+  two reconciles and `kubectl -n searxng rollout restart deploy/searxng`.
+  The restart is not optional: the ConfigMap's name hash comes from the
+  unsubstituted `${SEARXNG_OPEN_METRICS}`, so a new value never rolls the
+  pod, and SearXNG reads its settings only at startup. Until it restarts,
+  Alloy's scrape gets 401.
 - **Nothing to add for DNS or TLS.** Bind9's wildcard resolves the name
   and `TLSStore/default` serves the certificate.
 

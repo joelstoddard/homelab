@@ -1,12 +1,3 @@
-# The per-NUC directory decides the node. This warns when NetBox places the VM
-# elsewhere; a check block never blocks the apply (#319).
-check "netbox_consistency" {
-  assert {
-    condition     = local.nb_vm.device_name == var.node_name
-    error_message = "NetBox places '${var.name}' on '${coalesce(local.nb_vm.device_name, "(no device)")}' but this call placed it on '${var.node_name}'. Update NetBox or move the module call to the matching per-NUC dir."
-  }
-}
-
 module "lxc" {
   source = "../lxc"
 

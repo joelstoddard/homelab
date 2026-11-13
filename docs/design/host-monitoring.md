@@ -217,8 +217,9 @@ the constraints of the stack apply throughout: a public repo (no address or doma
   targeted entry point.
   `tasks/main.yaml` asserts `alloy_domain` and `alloy_hosts_password` are
   defined before doing anything else. It adds the Grafana apt repository,
-  installs `alloy`, renders one `/etc/alloy/config.alloy` at mode 0600 owned
-  by `alloy` (it carries the push password) — validated with `alloy fmt`
+  installs `alloy`, writes the push password to `/etc/alloy/hosts-password`
+  at mode 0600 owned by `alloy`, renders one `/etc/alloy/config.alloy` at
+  mode 0644 that reads it through `local.file` — validated with `alloy fmt`
   before it replaces the file on disk — puts the user in `systemd-journal`,
   and enables the service. The template differs between hosts only in the
   host name: the built-in unix exporter, a 60 s scrape with
