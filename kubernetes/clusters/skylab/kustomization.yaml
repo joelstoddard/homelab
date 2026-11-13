@@ -1,0 +1,8 @@
+# Entry point of skylab's flux-system Kustomization
+# (spec.path ./kubernetes/clusters/skylab). Every layer Flux reconciles,
+# listed by its Kustomization CR (docs/design/skylab-flux.md).
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - flux-system
+  - cilium/ks.yaml
