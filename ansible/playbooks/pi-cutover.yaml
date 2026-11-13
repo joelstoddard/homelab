@@ -6,7 +6,7 @@
 # `make homelab`. See docs/netbooting-pis.md for the boot chain and gates.
 #
 # Targets default to every Pi; pass NetBox names to narrow (NOT --limit — the
-# localhost/SOPS plays need every host):
+# localhost plays need localhost in the run):
 #
 #   make apply-pi-cutover
 #   make apply-pi-cutover EXTRA_VARS='{"pi_cutover_hosts": ["Zond", "Mir"]}'
@@ -67,16 +67,6 @@
   tasks:
     - name: Stage BOOT_ORDER on the EEPROM (flashed on the reboot below).
       ansible.builtin.import_tasks: tasks/pi-eeprom-stage.yaml
-
-# Same loader play as pxe.yaml. The 00-pxe role renders no NUC preseed here
-# (proxmox_install_hosts defaults to []), so nothing below reads root_password.
-- name: Load per-host SOPS vars onto each PXE target.
-  hosts: pxe
-  gather_facts: false
-  connection: local
-  tasks:
-    - name: Load this host's SOPS-encrypted vars.
-      ansible.builtin.import_tasks: tasks/load-host-sops-vars.yaml
 
 - name: Open the netboot gate for the targets.
   hosts: localhost

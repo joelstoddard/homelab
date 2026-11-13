@@ -85,9 +85,6 @@
   hosts: pxe:!talos
   tags: [wol]
   gather_facts: false
-  pre_tasks:
-    - name: Load this host's SOPS-encrypted vars.
-      ansible.builtin.import_tasks: playbooks/tasks/load-host-sops-vars.yaml
   roles:
     - 01-wake-on-lan
 
