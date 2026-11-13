@@ -43,6 +43,17 @@ alloy:
     limits:
       cpu: "1"
       memory: 1Gi
+# Replaces the chart's default rules, which read every Secret in the cluster.
+# Discovery of this node and its pods, and the kubelet scrape, need only these.
+rbac:
+  rules:
+    - apiGroups: [""]
+      resources: ["nodes", "pods"]
+      verbs: ["get", "list", "watch"]
+  clusterRules:
+    - apiGroups: [""]
+      resources: ["nodes/metrics"]
+      verbs: ["get"]
 controller:
   type: daemonset
   hostPID: true

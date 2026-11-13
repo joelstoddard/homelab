@@ -100,6 +100,18 @@ defaults that hide the control-plane components.
 - **Events from a separate Alloy.** `loki.source.kubernetes_events` must run
   once, or every instance emits every event, so a one-replica `alloy-events`
   Deployment runs it alone.
+- **Least-privilege RBAC.** The chart's default ClusterRole grants `get`,
+  `list` and `watch` on every Secret. The DaemonSet runs as root with
+  hostPID on all 20 nodes, so with that role one compromised node could read
+  Flux's `sops-age` key, which decrypts every SOPS file in the repo. Each
+  release replaces `rbac.rules` and `rbac.clusterRules` with what its River
+  file uses. The DaemonSet gets nodes, pods and `nodes/metrics`.
+  `alloy-cluster` gets nodes, pods, Services, Endpoints, the `/metrics` URL,
+  and a Role in `flux-system` for `get` on `cluster-secrets` only.
+  `alloy-events` gets events. `alloy-gateway` gets no role. A new
+  `discovery.kubernetes` role or `remote.kubernetes.*` component needs a rule
+  in that release's values. Without one, the component logs `forbidden` and
+  its targets go absent.
 - **Placement and budget.** Prometheus and Loki pin to amd64: Longhorn from a
   VM is ~2,000 write IOPS against ~900 from a Pi. The 60 s scrape interval
   and the series denylist below set the series budget. Limits are first

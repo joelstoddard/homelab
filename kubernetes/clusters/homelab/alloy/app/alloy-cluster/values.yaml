@@ -16,6 +16,41 @@ alloy:
     limits:
       cpu: "2"
       memory: 3Gi
+# Replaces the chart's default rules, which read every Secret in the cluster:
+# discovery, the control plane's /metrics, and one named Secret, which
+# remote.kubernetes.secret only ever GETs.
+rbac:
+  rules:
+    - apiGroups: [""]
+      resources: ["nodes", "pods", "services", "endpoints"]
+      verbs: ["get", "list", "watch"]
+  clusterRules:
+    - nonResourceURLs: ["/metrics"]
+      verbs: ["get"]
+extraObjects:
+  - apiVersion: rbac.authorization.k8s.io/v1
+    kind: Role
+    metadata:
+      name: alloy-cluster
+      namespace: flux-system
+    rules:
+      - apiGroups: [""]
+        resources: ["secrets"]
+        resourceNames: ["cluster-secrets"]
+        verbs: ["get"]
+  - apiVersion: rbac.authorization.k8s.io/v1
+    kind: RoleBinding
+    metadata:
+      name: alloy-cluster
+      namespace: flux-system
+    roleRef:
+      apiGroup: rbac.authorization.k8s.io
+      kind: Role
+      name: alloy-cluster
+    subjects:
+      - kind: ServiceAccount
+        name: alloy-cluster
+        namespace: alloy
 controller:
   type: deployment
   replicas: 1

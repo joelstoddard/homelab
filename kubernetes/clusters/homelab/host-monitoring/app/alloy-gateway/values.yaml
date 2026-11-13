@@ -28,6 +28,10 @@ alloy:
     limits:
       cpu: 200m
       memory: 256Mi
+# Its targets come from a file, not the Kubernetes API, so it gets no role;
+# the chart's default one reads every Secret in the cluster.
+rbac:
+  create: false
 controller:
   type: deployment
   replicas: 1
