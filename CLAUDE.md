@@ -213,6 +213,16 @@ true only on the NetBox branch read through `NETBOX_HEADERS`
 `make -C opentofu skylab-image` uploads the snapshot and is never part of
 `apply`; `secrets.env` holds `HCLOUD_TOKEN`, and the Makefile refuses to run
 the directory without it. See `docs/design/skylab-provisioning.md`.
+`resources/cloudflare/` is ungated: the remotely managed Cloudflare Tunnel
+(routes straight to in-cluster Services, ending in `http_status:404`), the
+token data source as a sensitive output, and one proxied record per hostname
+in `hostnames.tf`, each marked `comment = "opentofu"`. The three live records
+are imported by `ashburn.tf`, which keeps them as A records on Ashburn; the
+cutover PR deletes that file and the two test hostnames, and its revert is
+the rollback. Zones, IDs and the Ashburn address are in `secrets.env`, and
+the Makefile refuses to run the directory without it. Never move a proxied
+record into `resources/skylab/`: a run without the NetBox branch deletes it.
+See `docs/design/skylab-ingress.md`.
 
 ### Kubernetes (kubernetes/)
 
