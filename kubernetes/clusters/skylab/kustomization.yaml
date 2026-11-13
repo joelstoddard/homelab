@@ -10,3 +10,4 @@ resources:
   - cluster-secrets/ks.yaml
   - cert-manager/ks.yaml
   - cloudflared/ks.yaml
+  - joelst/ks.yaml
