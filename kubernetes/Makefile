@@ -46,6 +46,10 @@ ALLOY_RELEASES := $(HOME_TREE)/alloy/app/alloy/helmrelease.yaml \
                   $(HOME_TREE)/alloy/app/alloy-cluster/helmrelease.yaml \
                   $(HOME_TREE)/alloy/app/alloy-events/helmrelease.yaml \
                   $(HOME_TREE)/host-monitoring/app/alloy-gateway/helmrelease.yaml
+# Skylab's security guards (docs/design/skylab-security.md). A
+# listed layer must carry a default-deny egress policy once it exists.
+SKYLAB_TREE          := clusters/skylab
+SKYLAB_EGRESS_LAYERS := joelst metachat forgejo cloudflared alloy
 
 default: apply
 
@@ -58,7 +62,8 @@ help:
 	@echo "              OCIRepository matches CILIUM_VERSION, kubectl kustomize builds each root and"
 	@echo "              every */app, every Flux path stays in its own tree, kubernetes/ holds no"
 	@echo "              manifest, every *.sops.yaml is encrypted, every *.json parses, and every"
-	@echo "              PIHOLE_PASSWORD copy matches its source (needs the age key)."
+	@echo "              PIHOLE_PASSWORD copy matches its source (needs the age key), and skylab's"
+	@echo "              NodePort bind, metadata deny, app egress policies and no NodePort/LB Service."
 	@echo "  lint-offline - lint without the PIHOLE_PASSWORD comparison: no age key. CI runs it."
 	@echo "  check     - Server-side dry run of CLUSTER's flux-system/ (client-side before the first install)."
 	@echo "  apply     - components -> sops-age secret -> sync, on CLUSTER. Idempotent. Default."
@@ -135,6 +140,54 @@ lint-offline:
 		kubectl kustomize $$t >/dev/null && echo ">> kubectl kustomize $$t builds" || exit 1; \
 		for d in $$t/*/app; do kubectl kustomize $$d >/dev/null && echo ">> kubectl kustomize $$d builds" || exit 1; done; \
 	done
+	@f=$(SKYLAB_TREE)/cilium/app/values.yaml; \
+	a=$$(sed -n '/^nodePort:/,/^[^ #]/p' $$f | grep '^  addresses:'); \
+	[ "$$(grep -c '^nodePort:' $$f)" = 1 ] && [ "$$a" = '  addresses: ["127.0.0.0/8"]' ] || { \
+		echo "$$f must set nodePort.addresses to exactly [\"127.0.0.0/8\"]." >&2; \
+		echo "it keeps every NodePort off skylab's public address, where Cilium answers before the Talos firewall." >&2; \
+		exit 1; }
+	@echo ">> skylab's Cilium binds NodePorts to 127.0.0.0/8 only"
+	@grep -qx '  - cilium-policies/ks.yaml' $(SKYLAB_TREE)/kustomization.yaml \
+	&& kubectl kustomize $(SKYLAB_TREE)/cilium-policies/app | awk ' \
+		function flush() { if (kind == "CiliumClusterwideNetworkPolicy" && all && deny) ok = 1; kind = ""; all = 0; deny = 0 } \
+		/^---$$/ { flush(); next } \
+		/^kind: / { kind = $$2 } \
+		/^  [A-Za-z]/ { sec = $$1 } \
+		/^  endpointSelector: \{\}$$/ { all = 1 } \
+		sec == "egressDeny:" && /cidr: 169\.254\.0\.0\/16$$/ { deny = 1 } \
+		END { flush(); exit !ok }' || { \
+		echo "skylab has no Flux-applied CiliumClusterwideNetworkPolicy denying every endpoint egress to 169.254.0.0/16." >&2; \
+		echo "it keeps pods from reading the machine config, cluster CA keys included, off the metadata service." >&2; \
+		exit 1; }
+	@echo ">> skylab's metadata-service deny is applied by Flux"
+	@for l in $(SKYLAB_EGRESS_LAYERS); do \
+		[ -d $(SKYLAB_TREE)/$$l ] || continue; \
+		kubectl kustomize $(SKYLAB_TREE)/$$l/app | awk -v ns=$$l ' \
+			function flush() { if (kind == "CiliumNetworkPolicy" && inns && all && eg && !off) ok = 1; kind = ""; inns = 0; all = 0; eg = 0; off = 0 } \
+			/^---$$/ { flush(); next } \
+			/^kind: / { kind = $$2 } \
+			/^  [A-Za-z]/ { sec = $$1 } \
+			$$0 == "  namespace: " ns { inns = 1 } \
+			/^  endpointSelector: \{\}$$/ { all = 1 } \
+			/^  egress:$$/ { eg = 1 } \
+			sec == "enableDefaultDeny:" && /^    egress: false$$/ { off = 1 } \
+			END { flush(); exit !ok }' || { \
+			echo "$(SKYLAB_TREE)/$$l has no default-deny egress CiliumNetworkPolicy over its whole namespace." >&2; \
+			echo "it keeps the app off the tailnet, the metadata service and every port it does not need." >&2; \
+			exit 1; }; \
+		echo ">> skylab's $$l carries a default-deny egress policy"; \
+	done
+	@for d in $(SKYLAB_TREE) $(SKYLAB_TREE)/*/app; do \
+		kubectl kustomize $$d | awk ' \
+			/^---$$/ { kind = ""; next } \
+			/^kind: / { kind = $$2 } \
+			kind == "Service" && /^  type: "?(NodePort|LoadBalancer)"?$$/ { bad = 1 } \
+			END { exit bad }' || { \
+			echo "$$d declares a NodePort or LoadBalancer Service." >&2; \
+			echo "skylab publishes nothing through a Service: cloudflared dials out and coturn is on hostNetwork." >&2; \
+			exit 1; }; \
+	done
+	@echo ">> no NodePort or LoadBalancer Service under $(SKYLAB_TREE)"
 	@for t in $(TREES); do \
 		bad=$$(grep -HE '^[[:space:]]+path:' $$t/*/ks.yaml $$t/flux-system/gotk-sync.yaml | grep -Ev "path: \./kubernetes/$$t(/|$$)"); \
 		[ -z "$$bad" ] || { \
