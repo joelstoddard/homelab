@@ -152,6 +152,22 @@ else
         | tar -xz -C /usr/local/bin --strip-components=1 "linux-${GOARCH}/helm"
 fi
 
+# hcloud-upload-image uploads skylab's Talos snapshot to Hetzner
+# (`make -C opentofu skylab-image`, docs/design/skylab-provisioning.md).
+# Pinned here like helm: nothing else consumes the version.
+HCLOUD_UPLOAD_IMAGE_VERSION="v1.5.0"
+case "$GOARCH" in
+    amd64) HUI_ARCH="x86_64" ;;
+    arm64) HUI_ARCH="arm64" ;;
+esac
+if have_version "$HCLOUD_UPLOAD_IMAGE_VERSION" hcloud-upload-image --version; then
+    echo ">> hcloud-upload-image ${HCLOUD_UPLOAD_IMAGE_VERSION} already installed"
+else
+    echo ">> Installing hcloud-upload-image ${HCLOUD_UPLOAD_IMAGE_VERSION} from upstream release"
+    curl -fsSL "https://github.com/apricote/hcloud-upload-image/releases/download/${HCLOUD_UPLOAD_IMAGE_VERSION}/hcloud-upload-image_Linux_${HUI_ARCH}.tar.gz" \
+        | tar -xz -C /usr/local/bin hcloud-upload-image
+fi
+
 echo ">> Installing Docker apt key + repo (${DOCKER_REPO_DISTRO}/${CODENAME})"
 install -m 0755 -d /etc/apt/keyrings
 curl -fsSL "https://download.docker.com/linux/${DOCKER_REPO_DISTRO}/gpg" \
@@ -201,6 +217,7 @@ verify talosctl version --client
 verify kubectl version --client
 verify flux --version
 verify helm version
+verify hcloud-upload-image --version
 verify age
 verify python3
 verify git

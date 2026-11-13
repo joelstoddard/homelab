@@ -1,5 +1,5 @@
 # GNU make required.
-.PHONY: default help build dev fmt lint check apply clean check-secrets
+.PHONY: default help build dev fmt lint check apply clean check-secrets skylab-image
 
 # LIMIT=<dirname> filters iteration to one resources/<dirname>/.
 LIMIT ?=
@@ -12,9 +12,10 @@ ANSIBLE_TOKEN_FILE  := ../ansible/inventory/group_vars/proxmox.sops.yaml
 # The Pi-hole web password's only source; pihole-config reads it at run time.
 DNS_VARS_FILE       := ../ansible/inventory/group_vars/dns.sops.yaml
 OPENTOFU_SECRETS    := secrets.sops.yaml
-# Single source of truth for the Talos version and VM schematic (shared with
+# Single source of truth for the Talos version and schematics (shared with
 # ansible + install.sh). Sourced in run_tofu and exported as
-# TF_VAR_talos_version / TF_VAR_talos_schematic_id.
+# TF_VAR_talos_version / TF_VAR_talos_schematic_id /
+# TF_VAR_talos_skylab_schematic_id; skylab-image sources it too.
 VERSIONS_ENV        := $(abspath ../versions.env)
 
 # Resource dirs to iterate. resources/ may not exist yet on scaffold
@@ -42,6 +43,7 @@ help:
 	@echo "  check   - tofu plan -detailed-exitcode."
 	@echo "  apply   - tofu apply -auto-approve. Default."
 	@echo "  clean   - Remove .terraform/ in each dir."
+	@echo "  skylab-image - Upload skylab's Talos snapshot unless one exists. Bills a temporary server."
 	@echo
 	@echo "Filter to one resource dir with LIMIT=<dirname>."
 	@echo "resources/pihole-config runs only with LIMIT=pihole-config, after 'make -C ../ansible apply-dns'."
@@ -73,6 +75,10 @@ check-secrets:
 	@# single resource. Verify each decrypts cleanly. The Makefile
 	@# eval-sources them at apply time (see `define run_tofu`).
 	@for d in $(RESOURCE_DIRS); do \
+		if [ $$d = resources/skylab ] && [ ! -f $$d/secrets.env ]; then \
+			echo "missing $$d/secrets.env (HCLOUD_TOKEN); see $$d/README.md." >&2; \
+			exit 1; \
+		fi; \
 		if [ -f $$d/secrets.env ]; then \
 			sops -d $$d/secrets.env >/dev/null || exit $$?; \
 		fi; \
@@ -113,8 +119,10 @@ define run_tofu
 	export TF_VAR_lan_gateway="$$(sops -d --extract '["lan_gateway"]' $(OPENTOFU_SECRETS))"; \
 	export TF_VAR_netbox_url="$$NETBOX_URL"; \
 	export TF_VAR_netbox_token="$$NETBOX_TOKEN"; \
+	export TF_VAR_netbox_headers="$${NETBOX_HEADERS:-{}}"; \
 	export TF_VAR_talos_version="$$(. $(VERSIONS_ENV) && echo $$TALOS_VERSION)"; \
 	export TF_VAR_talos_schematic_id="$$(. $(VERSIONS_ENV) && echo $$TALOS_SCHEMATIC_ID)"; \
+	export TF_VAR_talos_skylab_schematic_id="$$(. $(VERSIONS_ENV) && echo $$TALOS_SKYLAB_SCHEMATIC_ID)"; \
 	worst=0; \
 	for d in $(RESOURCE_DIRS); do \
 		echo ">> tofu $(1) in $$d"; \
@@ -164,6 +172,31 @@ check: dev
 
 apply: dev
 	$(call run_tofu,apply,-auto-approve)
+
+# Hetzner has no image-upload API: hcloud-upload-image boots a temporary
+# server, a billing event, so this never runs as part of apply
+# (docs/design/skylab-provisioning.md, "The image is an explicit step").
+SKYLAB_SECRETS := resources/skylab/secrets.env
+
+skylab-image:
+	@set -e; \
+	. $(VERSIONS_ENV); \
+	set -a; eval "$$(sops -d $(SKYLAB_SECRETS))"; set +a; \
+	labels="talos_version=$$TALOS_VERSION,talos_schematic=$$TALOS_SKYLAB_SCHEMATIC_ID"; \
+	found=$$(printf 'Authorization: Bearer %s\n' "$$HCLOUD_TOKEN" \
+		| curl -fsSG -H @- https://api.hetzner.cloud/v1/images \
+			--data-urlencode type=snapshot --data-urlencode "label_selector=$$labels" \
+		| python3 -c 'import json, sys; print(len(json.load(sys.stdin)["images"]))'); \
+	if [ "$$found" -gt 0 ]; then \
+		echo ">> snapshot $$labels exists; skipping upload"; \
+		exit 0; \
+	fi; \
+	hcloud-upload-image upload \
+		--image-url "https://factory.talos.dev/image/$$TALOS_SKYLAB_SCHEMATIC_ID/$$TALOS_VERSION/hcloud-amd64.raw.xz" \
+		--compression xz \
+		--architecture x86 \
+		--description "Talos $$TALOS_VERSION skylab" \
+		--labels "$$labels"
 
 clean:
 	@for d in $(RESOURCE_DIRS); do rm -rf $$d/.terraform; done
