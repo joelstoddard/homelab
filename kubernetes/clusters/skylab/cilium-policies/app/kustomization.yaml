@@ -1,0 +1,6 @@
+# NO top-level `namespace:`: kustomize stamps one onto cluster-scoped CRs it
+# does not recognise (the home media-egress layer's trap).
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ccnp-deny-metadata.yaml

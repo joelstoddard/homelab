@@ -105,11 +105,11 @@ reconcile.
 
 ### Security probes
 
-`make -C kubernetes probe CLUSTER=skylab` runs the three probes of
-`docs/design/skylab-security.md` (NodePort, metadata, coturn self-relay). Run
-it after a Cilium or coturn bump reconciles on skylab, and after a rebuild.
-A bump arrives as a merged PR that Flux applies, not through `upgrade.yaml`,
-so the target makes the repeat one command.
+`make -C kubernetes probe CLUSTER=skylab` runs the NodePort and metadata
+probes of `docs/design/skylab-security.md`; the coturn self-relay probe is
+manual. Run them after a Cilium or coturn bump reconciles on skylab, and
+after a rebuild. A bump arrives as a merged PR that Flux applies, not through
+`upgrade.yaml`, so the target makes the repeat one command.
 
 ## Rejected alternatives
 

@@ -1,0 +1,45 @@
+# Default-deny egress: kube-dns, the two apps' Services, and the Cloudflare
+# edge on its own ports only. docs/design/skylab-security.md, "Pod egress".
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: egress
+spec:
+  endpointSelector: {}
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: joelst
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: metachat
+      toPorts:
+        - ports:
+            - port: "8080"
+              protocol: TCP
+    - toCIDRSet:
+        - cidr: 0.0.0.0/0
+          except:
+            - 10.0.0.0/8
+            - 172.16.0.0/12
+            - 192.168.0.0/16
+            - 100.64.0.0/10
+            - 169.254.0.0/16
+            - 127.0.0.0/8
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP
+            - port: "7844"
+              protocol: TCP
+            - port: "7844"
+              protocol: UDP

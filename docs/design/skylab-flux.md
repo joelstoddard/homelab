@@ -44,8 +44,8 @@ kubernetes/
     skylab/
       flux-system/
       kustomization.yaml
-      cilium/ cluster-secrets/ cert-manager/ cert-manager-issuers/
-      cloudflared/ joelst/ metachat/ forgejo/
+      cilium/ cilium-policies/ cluster-secrets/ cert-manager/
+      cert-manager-issuers/ cloudflared/ joelst/ metachat/ forgejo/
 ```
 
 Each cluster's `gotk-sync.yaml` syncs `./kubernetes/clusters/<cluster>`, and
@@ -58,7 +58,8 @@ directory.
 | Layer | Holds |
 |---|---|
 | `flux-system` | Controllers and sync objects |
-| `cilium` | Its own copy: no LB-IPAM pool, no L2 announcements, `operator.replicas: 1` |
+| `cilium` | Its own copy: LB-IPAM and L2 announcements off, `operator.replicas: 1`, `nodePort.addresses` (`docs/design/skylab-security.md`), and `ipam.mode: kubernetes`, so pod addresses come from `talos_pod_subnet`, the source the Talos firewall's 6443 pod rule names |
+| `cilium-policies` | The cluster-wide metadata-service deny (`docs/design/skylab-security.md`); every app layer depends on it |
 | `cluster-secrets` | Skylab's substitution keys only (`METACHAT_ZONE`, `METACHAT_METRICS_TOKEN`, `DOMAIN`, `INGEST_TAILNET_IP`, the real hostnames) |
 | `cert-manager` | The chart and its CRDs, for Forgejo's certificate alone |
 | `cert-manager-issuers` | The DNS-01 `ClusterIssuer` and its Cloudflare token for the second zone (`docs/design/skylab-forgejo.md`) |

@@ -1,0 +1,85 @@
+# Skylab's Cilium Helm values — read by two consumers, keep them in this one file:
+#   - ansible/roles/talos/tasks/cni.yaml   (one-shot seed: helm install -f)
+#   - kustomization.yaml here              (ConfigMap for the HelmRelease)
+# The home values less LB-IPAM, plus the NodePort bind.
+# docs/design/skylab-flux.md, docs/design/skylab-security.md.
+
+# Pod addresses come from the node's podCIDR, which Talos allocates from
+# talos_pod_subnet; the firewall's 6443 pod rule names the same var.
+ipam:
+  mode: kubernetes
+
+# kube-proxy is disabled in the machine config (cluster.proxy.disabled), so
+# Cilium is the service datapath. It reaches the apiserver through KubePrism,
+# Talos' per-node balancer on localhost:7445.
+kubeProxyReplacement: true
+k8sServiceHost: localhost
+k8sServicePort: 7445
+
+socketLB:
+  hostNamespaceOnly: true
+
+# NodePort and hostPort frontends on loopback only: the native device is the
+# public NIC, and Cilium answers there before the Talos firewall sees the
+# packet. `make -C kubernetes lint` requires exactly this list.
+nodePort:
+  addresses: ["127.0.0.0/8"]
+
+# Talos has no SYS_MODULE to give: drop it from the agent's default set.
+securityContext:
+  capabilities:
+    ciliumAgent:
+      - CHOWN
+      - KILL
+      - NET_ADMIN
+      - NET_RAW
+      - IPC_LOCK
+      - SYS_ADMIN
+      - SYS_RESOURCE
+      - DAC_OVERRIDE
+      - FOWNER
+      - SETGID
+      - SETUID
+    cleanCiliumState:
+      - NET_ADMIN
+      - SYS_ADMIN
+      - SYS_RESOURCE
+
+# Talos already mounts cgroupv2 at /sys/fs/cgroup; don't let Cilium remount it.
+cgroup:
+  autoMount:
+    enabled: false
+  hostRoot: /sys/fs/cgroup
+
+# One node, so one operator: a second replica would stay Pending on its
+# anti-affinity.
+rollOutCiliumPods: true
+operator:
+  replicas: 1
+  rollOutPods: true
+  prometheus:
+    enabled: true
+  dashboards:
+    enabled: false
+
+# Skylab has no LoadBalancer Service, so LB-IPAM and its L2 announcements
+# stay off.
+enableLBIPAM: false
+l2announcements:
+  enabled: false
+
+prometheus:
+  enabled: true
+dashboards:
+  enabled: false
+hubble:
+  metrics:
+    enabled:
+      - dns
+      - drop
+      - tcp
+      - flow
+      - icmp
+    enableOpenMetrics: true
+    dashboards:
+      enabled: false

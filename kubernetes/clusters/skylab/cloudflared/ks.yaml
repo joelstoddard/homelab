@@ -1,0 +1,21 @@
+# The tunnel connector (docs/design/skylab-ingress.md). dependsOn
+# cilium-policies so no pod here runs before the metadata deny; the token
+# Secret is SOPS-encrypted, hence the decryption block.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: cloudflared
+  namespace: flux-system
+spec:
+  interval: 10m0s
+  path: ./kubernetes/clusters/skylab/cloudflared/app
+  prune: true
+  dependsOn:
+    - name: cilium-policies
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+  decryption:
+    provider: sops
+    secretRef:
+      name: sops-age

@@ -104,11 +104,11 @@ on the public address.
 
 ### The metadata service
 
-A `CiliumClusterwideNetworkPolicy` selects every endpoint (`endpointSelector:
-{}`), denies egress to `169.254.0.0/16`, and sets `enableDefaultDeny:
-{egress: false}` so it adds the deny without putting any endpoint into
-default-deny. A deny wins over every allow, so no later layer reopens it, and
-it covers the namespaces that carry no egress policy of their own
+A `CiliumClusterwideNetworkPolicy` in the `cilium-policies` layer selects
+every endpoint (`endpointSelector: {}`), denies egress to `169.254.0.0/16`,
+and sets `enableDefaultDeny: {egress: false}` so it adds the deny without
+putting any endpoint into default-deny. A deny wins over every allow, so no
+later layer reopens it, and it covers the namespaces that carry no egress policy of their own
 (`flux-system`, `kube-system`).
 
 It does not cover host processes or `hostNetwork` pods; coturn's deny list
@@ -135,9 +135,10 @@ port. What joelst and metachat actually call out on is measured at build.
 `kube-apiserver` and `host` entities, and the ingest device's tailnet
 address on 443/tcp (`docs/design/skylab-monitoring.md`).
 
-Inside the cluster, `forgejo` also allows its own pods (the reconciler calls
-the Forgejo API) and the `kube-apiserver` entity on 6443/tcp (the monthly
-restart `CronJob`).
+Inside the cluster, `cloudflared` also allows the joelst and metachat pods
+on 8080/tcp, its tunnel origins, and `forgejo` allows its own pods (the
+reconciler calls the Forgejo API) and the `kube-apiserver` entity on
+6443/tcp (the monthly restart `CronJob`).
 
 Ingress stays as `skylab-migration.md` has it: a NetworkPolicy admits only
 cloudflared into joelst and metachat. The `forgejo` NetworkPolicy admits the
@@ -160,7 +161,7 @@ and points here for the list.
 2. The metadata-deny `CiliumClusterwideNetworkPolicy` exists, and a
    kustomization that Flux applies lists it.
 3. Each of `joelst`, `metachat`, `forgejo`, `cloudflared` and `alloy`
-   carries a default-deny egress policy.
+   that exists carries a default-deny egress policy over its namespace.
 4. No manifest under `kubernetes/clusters/skylab/` declares `type: NodePort`
    or `type: LoadBalancer`. Chart-created Services, Forgejo's included, are
    invisible offline; check 1 covers them.
@@ -173,11 +174,18 @@ and repeated after any Cilium or coturn version bump:
 1. **NodePort.** Apply a throwaway `NodePort` Service in front of a test pod.
    From outside (the operator's home connection), `<public IP>:<nodePort>`
    times out; from inside, over Tailscale or in-cluster, the backend answers,
-   so a dead backend cannot fake a pass. Delete the Service.
+   so a dead backend cannot fake a pass. The Hetzner firewall also drops that
+   port, so the timeout alone cannot see a Cilium regression: the probe also
+   requires every address Cilium's node-address table marks `NodePort` to be
+   loopback. Delete the Service.
 2. **Metadata.** `curl -m5 http://169.254.169.254/hetzner/v1/userdata` from a
-   test pod in an app namespace times out.
+   test pod in a namespace with no egress policy of its own times out, while
+   the same pod reaches the internet, so only the cluster-wide deny is tested.
 3. **coturn self-relay.** A TURN allocation asking to relay to the node's own
    address on 50000 is refused with 403 (peer denied).
+
+`make -C kubernetes probe CLUSTER=skylab` runs probes 1 and 2. Probe 3 is
+manual: it needs a TURN client holding coturn's secret.
 
 ## Rejected alternatives
 

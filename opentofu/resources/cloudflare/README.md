@@ -62,16 +62,22 @@ Once, after the first apply, from the repo root on the branch that adds the
 `cloudflared` layer:
 
 ```bash
-TF_ENCRYPTION="$(opentofu/scripts/build-tf-encryption.sh)" \
-  tofu -chdir=opentofu/resources/cloudflare output -raw tunnel_token \
-  | kubectl create secret generic cloudflared-token --namespace cloudflared \
-      --from-file=token=/dev/stdin --dry-run=client --output yaml \
+set -o pipefail
+export TF_ENCRYPTION="$(opentofu/scripts/build-tf-encryption.sh)"
+tofu -chdir=opentofu/resources/cloudflare init -input=false
+tofu -chdir=opentofu/resources/cloudflare output -raw tunnel_token \
+  | python3 -c 'import json, sys; print(json.dumps({"apiVersion": "v1", "kind": "Secret",
+      "metadata": {"name": "cloudflared-token", "namespace": "cloudflared"},
+      "stringData": {"token": sys.stdin.read()}}))' \
   | sops encrypt --filename-override kubernetes/clusters/skylab/cloudflared/app/secret.sops.yaml \
-      --input-type yaml --output-type yaml /dev/stdin \
-  > kubernetes/clusters/skylab/cloudflared/app/secret.sops.yaml
+      --input-type json --output-type yaml /dev/stdin \
+  > secret.sops.yaml.tmp \
+  && mv secret.sops.yaml.tmp kubernetes/clusters/skylab/cloudflared/app/secret.sops.yaml
 ```
 
-The Secret is `cloudflared-token`, key `token`, which cloudflared reads with
+A failed `tofu` still lets the later stages encrypt an empty token, so the
+output lands in a temporary file that `pipefail` and `&&` move into place only
+when every stage succeeded. The Secret is `cloudflared-token`, key `token`, which cloudflared reads with
 `--token-file`. Nothing prints the value. Repeat it only after refreshing the
 token.
 

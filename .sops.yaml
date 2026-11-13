@@ -25,6 +25,13 @@ creation_rules:
   # eval-sources them as `export TF_VAR_*=...` lines).
   - path_regex: opentofu/resources/.*/secrets\.env$
     age: age1h5hafnt22aqn7uahcsmv5v8gfgwcxanypw0lantcush7jppt99fskz6vcv
+  # Skylab's tree: the operator key and the skylab key, the only key in
+  # skylab's sops-age Secret, so a compromised skylab decrypts nothing else.
+  # Must precede the general kubernetes/ rule (first match wins);
+  # docs/design/skylab-flux.md, "Decryption: the skylab key".
+  - path_regex: kubernetes/clusters/skylab/.*\.sops\.ya?ml$
+    encrypted_regex: ^(data|stringData|spec)$
+    age: age1h5hafnt22aqn7uahcsmv5v8gfgwcxanypw0lantcush7jppt99fskz6vcv,age16ua3q4295kd5dgzp8qjdtu5rqguhalyw488dv22ppcsa30jdfqxqhud5vc
   # Kubernetes resources under kubernetes/ — decrypted in-cluster by Flux's
   # kustomize-controller (any Kustomization with a decryption block, secretRef
   # sops-age). Only data/stringData (Secrets) and spec (CRs whose values are

@@ -1,0 +1,6 @@
+# Non-default values only; skylab resolves through public DNS, so the home
+# tree's recursive-nameserver override has no reason here.
+# crds.keep stays at the chart default (true): the CRDs outlive this release.
+crds:
+  # The chart installs no CRDs unless asked (crds.enabled defaults to false).
+  enabled: true

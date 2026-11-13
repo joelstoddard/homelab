@@ -1,0 +1,17 @@
+# Skylab's cluster-wide Cilium policies, a layer of their own because they are
+# cluster-scoped Cilium CRs. Pruning it reopens the metadata service
+# (docs/design/skylab-security.md).
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: cilium-policies
+  namespace: flux-system
+spec:
+  interval: 10m0s
+  path: ./kubernetes/clusters/skylab/cilium-policies/app
+  prune: true
+  dependsOn:
+    - name: cilium
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
