@@ -1,14 +1,22 @@
 ---
+# Exact pins, so Renovate can propose each bump (docs/design/renovate.md).
 roles:
   - name: robertdebock.fail2ban
+    version: "5.0.6"
 collections:
   - name: ansible.utils
+    version: "5.1.2"
   - name: ansible.posix
+    version: "1.6.2"
   - name: community.general
+    version: "10.5.0"
   - name: community.docker
+    version: "4.5.2"
   # The talos role seeds Cilium with the helm modules; 6.5.0 is the first
-  # release that speaks Helm 4 (install.sh's HELM_VERSION).
+  # release that speaks Helm 4 (install.sh's HELM_VERSION), so never go below it.
   - name: kubernetes.core
-    version: ">=6.5.0"
+    version: "6.5.0"
   - name: netbox.netbox
+    version: "3.21.0"
   - name: community.sops
+    version: "2.0.3"

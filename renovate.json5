@@ -114,6 +114,12 @@
       enabled: false,
     },
     {
+      description: 'CI Python matches the operator venv: 3.14 has no rpds-py wheel (.github/workflows/lint.yaml)',
+      matchManagers: ['github-actions'],
+      matchDepNames: ['python'],
+      allowedVersions: '<3.14',
+    },
+    {
       matchManagers: ['terraform'],
       prBodyNotes: ['If `.terraform.lock.hcl` is unchanged, run `tofu init -upgrade` in each changed `opentofu/resources/*` and commit the lock files.'],
     },

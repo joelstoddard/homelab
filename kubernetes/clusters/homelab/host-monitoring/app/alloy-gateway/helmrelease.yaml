@@ -1,10 +1,11 @@
-# Third release of the Alloy chart (the others: alloy, alloy-events). Version
-# pinned alongside kubernetes/clusters/homelab/alloy/app/alloy/helmrelease.yaml — bump all
-# three together.
+# Fourth release of the Alloy chart (the others: alloy, alloy-cluster,
+# alloy-events). Version pinned alongside
+# kubernetes/clusters/homelab/alloy/app/alloy/helmrelease.yaml — bump all four together.
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
   name: alloy-gateway
+  namespace: host-monitoring
 spec:
   interval: 1h0m0s
   releaseName: alloy-gateway
