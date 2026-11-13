@@ -2,15 +2,20 @@
 """Vendor a Grafana dashboard into this directory with datasources pinned.
 
   vendor.py <Folder>/<name>.json --id <grafana.com id> [--revision N]
-  vendor.py <Folder>/<name>.json --url <raw json url>
+  vendor.py <Folder>/<name>.json --url <raw json url> [--drop-var NAME]
 
 Every datasource reference that is a grafana.com import placeholder
 (${DS_...}) or a bare type becomes {"type": T, "uid": "prometheus"|"loki"},
 so a file works the moment the sidecar loads it. Template variables such as
 $datasource are left alone; the dashboard resolves those itself.
+
+--drop-var removes a template variable for a label this cluster never sets
+(a mixin's `cluster`), its `NAME=~"$NAME"` matchers and the annotations that
+use it, and fails if any other reference to it remains.
 """
 import argparse
 import json
+import re
 import sys
 import urllib.request
 
@@ -41,6 +46,36 @@ def pin(node, default_type):
             pin(v, default_type)
 
 
+def drop_var(dash, name):
+    variables = dash["templating"]["list"]
+    if not any(v.get("name") == name for v in variables):
+        raise SystemExit(f"no template variable {name!r} to drop")
+    dash["templating"]["list"] = [v for v in variables if v.get("name") != name]
+
+    ref = re.compile(rf"\$\{{?{name}\b")
+    annotations = dash.get("annotations", {}).get("list", [])
+    dash.get("annotations", {})["list"] = [a for a in annotations if not ref.search(json.dumps(a))]
+
+    matcher = rf'{name}=~"\${name}"'
+    patterns = [(re.compile(rf"\{{{matcher}\}}"), ""), (re.compile(rf"{matcher},\s*"), "")]
+
+    def strip(node):
+        if isinstance(node, dict):
+            return {k: strip(v) for k, v in node.items()}
+        if isinstance(node, list):
+            return [strip(v) for v in node]
+        if isinstance(node, str):
+            for pattern, repl in patterns:
+                node = pattern.sub(repl, node)
+        return node
+
+    dash = strip(dash)
+    left = ref.findall(json.dumps(dash))
+    if left:
+        raise SystemExit(f"{len(left)} reference(s) to ${name} left after dropping it")
+    return dash
+
+
 def main():
     p = argparse.ArgumentParser()
     p.add_argument("dest")
@@ -50,6 +85,7 @@ def main():
     p.add_argument("--revision", type=int)
     p.add_argument("--type", default="prometheus", choices=sorted(UID_BY_TYPE),
                    help="datasource type assumed for ${DS_*} placeholders")
+    p.add_argument("--drop-var", action="append", default=[], metavar="NAME")
     a = p.parse_args()
 
     if a.id:
@@ -67,6 +103,8 @@ def main():
         dash.pop(k, None)
     dash["id"] = None
     pin(dash, a.type)
+    for name in a.drop_var:
+        dash = drop_var(dash, name)
 
     with open(a.dest, "w") as f:
         json.dump(dash, f, indent=2, sort_keys=False)
