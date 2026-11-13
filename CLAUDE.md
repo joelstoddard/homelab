@@ -559,4 +559,6 @@ fallback schema for environments without NetBox.
   IDs (`TALOS_SCHEMATIC_ID`, `TALOS_PI_SCHEMATIC_ID`) live there too, read by
   the `talos` and `00-pxe` roles and exported to OpenTofu as
   `TF_VAR_talos_schematic_id`; both schematics carry Longhorn's
-  `iscsi-tools` + `util-linux-tools` extensions.
+  `iscsi-tools` + `util-linux-tools` extensions. Skylab's third,
+  `TALOS_SKYLAB_SCHEMATIC_ID`, adds the `tailscale` extension and is read by
+  the talos role's `vars/skylab.yaml`.
