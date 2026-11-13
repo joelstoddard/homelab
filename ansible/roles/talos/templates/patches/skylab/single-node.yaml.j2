@@ -3,6 +3,9 @@
    (docs/design/skylab-ingress.md). #}
 cluster:
   allowSchedulingOnControlPlanes: true
+  network:
+    podSubnets:
+      - {{ talos_pod_subnet }}
   apiServer:
     certSANs:
       - {{ talos_api_address }}

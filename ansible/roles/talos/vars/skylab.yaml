@@ -18,6 +18,11 @@ talos_tailscale_hostname: "skylab"
 talos_api_address: "{{ talos_tailscale_hostname }}.{{ talos_tailnet_domain }}"
 talos_cluster_endpoint: "https://{{ talos_api_address }}:6443"
 
+# Host firewall sources (patches/skylab/firewall.yaml.j2): Tailscale's CGNAT
+# range, and the pod subnet, which single-node.yaml.j2 pins to the same value.
+talos_tailnet_cidr: "100.64.0.0/10"
+talos_pod_subnet: "10.244.0.0/16"
+
 # Forgejo's HTTPS NodePort, which Tailscale Serve forwards 443 to on
 # 127.0.0.1 (docs/design/skylab-forgejo.md, "Access").
 talos_forgejo_nodeport: 30443

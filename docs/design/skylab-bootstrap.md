@@ -135,6 +135,15 @@ it and has more than one host.
    Only Burstable pods swap under `LimitedSwap`.
 5. The sysctl `net.ipv4.ip_local_reserved_ports: "49160-49500"`, which keeps
    host processes off coturn's relay ports (`docs/design/skylab-ingress.md`).
+6. The Talos host firewall of `docs/design/skylab-security.md`:
+   `NetworkDefaultActionConfig` `ingress: block`, apid from the tailnet
+   range, 6443 from the tailnet range and the pod subnet, and TURN from
+   anywhere (`firewall.yaml.j2`). The pod subnet is pinned in
+   `cluster.network.podSubnets` from the same var, so the rule cannot drift
+   from it. The shared control-plane patch binds the controller-manager,
+   scheduler and etcd metrics listeners to `0.0.0.0`; no rule opens them, so
+   the default block keeps them off the public address. It ships in the
+   first config because the node is public from its first boot.
 
 Swap ships in the first config because the `EPHEMERAL` cap only takes effect
 on a fresh disk: adding it later means a wipe and a re-bootstrap. The CX33

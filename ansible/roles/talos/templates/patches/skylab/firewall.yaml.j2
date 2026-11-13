@@ -1,0 +1,50 @@
+{# Default-deny host ingress on the public node: apid and 6443 from the tailnet only (6443 also from
+   pods, which reach the API at the host socket), TURN from anywhere. Everything else, the
+   0.0.0.0-bound metrics listeners included, stays closed (docs/design/skylab-security.md). #}
+apiVersion: v1alpha1
+kind: NetworkDefaultActionConfig
+ingress: block
+---
+apiVersion: v1alpha1
+kind: NetworkRuleConfig
+name: apid-tailnet
+portSelector:
+  ports:
+    - 50000
+  protocol: tcp
+ingress:
+  - subnet: {{ talos_tailnet_cidr }}
+---
+apiVersion: v1alpha1
+kind: NetworkRuleConfig
+name: kubernetes-api
+portSelector:
+  ports:
+    - 6443
+  protocol: tcp
+ingress:
+  - subnet: {{ talos_tailnet_cidr }}
+  - subnet: {{ talos_pod_subnet }}
+---
+apiVersion: v1alpha1
+kind: NetworkRuleConfig
+name: turn-tcp
+portSelector:
+  ports:
+    - 3478
+  protocol: tcp
+ingress:
+  - subnet: 0.0.0.0/0
+  - subnet: ::/0
+---
+apiVersion: v1alpha1
+kind: NetworkRuleConfig
+name: turn-udp
+portSelector:
+  ports:
+    - 3478
+    - 49160-49500
+  protocol: udp
+ingress:
+  - subnet: 0.0.0.0/0
+  - subnet: ::/0
