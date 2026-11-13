@@ -174,7 +174,10 @@ and repeated after any Cilium or coturn version bump:
 1. **NodePort.** Apply a throwaway `NodePort` Service in front of a test pod.
    From outside (the operator's home connection), `<public IP>:<nodePort>`
    times out; from inside, over Tailscale or in-cluster, the backend answers,
-   so a dead backend cannot fake a pass. Delete the Service.
+   so a dead backend cannot fake a pass. The Hetzner firewall also drops that
+   port, so the timeout alone cannot see a Cilium regression: the probe also
+   requires every address Cilium's node-address table marks `NodePort` to be
+   loopback. Delete the Service.
 2. **Metadata.** `curl -m5 http://169.254.169.254/hetzner/v1/userdata` from a
    test pod in a namespace with no egress policy of its own times out, while
    the same pod reaches the internet, so only the cluster-wide deny is tested.

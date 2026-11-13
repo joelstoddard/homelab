@@ -156,7 +156,7 @@ deny list are coturn's only boundary.
 | Setting | Value |
 |---|---|
 | Namespace | `cloudflared`, PodSecurity `restricted` |
-| Image | `cloudflare/cloudflared:2026.10.3` (amd64 and arm64), pinned |
+| Image | `cloudflare/cloudflared:2026.11.0` (amd64 and arm64), pinned |
 | Replicas | 2, `maxUnavailable: 0`, `maxSurge: 1` |
 | Token | `app/secret.sops.yaml`, mounted as a file, read with `--token-file` |
 | Probes | `GET /ready` on `--metrics 0.0.0.0:2000` |

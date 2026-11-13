@@ -1,7 +1,7 @@
 # Skylab's Cilium Helm values — read by two consumers, keep them in this one file:
 #   - ansible/roles/talos/tasks/cni.yaml   (one-shot seed: helm install -f)
 #   - kustomization.yaml here              (ConfigMap for the HelmRelease)
-# The home values less LB-IPAM's L2 announcements, plus the NodePort bind.
+# The home values less LB-IPAM, plus the NodePort bind.
 # docs/design/skylab-flux.md, docs/design/skylab-security.md.
 
 # Pod addresses come from the node's podCIDR, which Talos allocates from
@@ -62,7 +62,9 @@ operator:
   dashboards:
     enabled: false
 
-# LB-IPAM's L2 announcements stay off: skylab has no LoadBalancer Service.
+# Skylab has no LoadBalancer Service, so LB-IPAM and its L2 announcements
+# stay off.
+enableLBIPAM: false
 l2announcements:
   enabled: false
 

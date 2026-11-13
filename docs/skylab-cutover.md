@@ -30,8 +30,8 @@ Skylab commands run from the Mac, switched to the personal tailnet
 6. homelab: merge `resources/cloudflare/`. The import plan must show no change
    to the three live records other than their `comment`
    (`opentofu/resources/cloudflare/README.md`). Apply it, then pipe the tunnel token into
-   `kubernetes/clusters/skylab/cloudflared/app/secret.sops.yaml` and merge the
-   `cloudflared` layer (`docs/design/skylab-ingress.md`).
+   `kubernetes/clusters/skylab/cloudflared/app/secret.sops.yaml` and list it in
+   that directory's `kustomization.yaml` (`docs/design/skylab-ingress.md`).
 7. homelab: merge skylab's `cluster-secrets` (`METACHAT_ZONE`,
    `METACHAT_METRICS_TOKEN`) and the `joelst` and `metachat` layers. Nothing
    reconciles them until skylab's Flux exists.

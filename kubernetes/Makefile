@@ -302,6 +302,10 @@ probe:
 	if curl -s -m5 -o /dev/null http://$$ip:$$port/; then \
 		echo "FAIL: NodePort $$port answers on the public address $$ip." >&2; exit 1; fi; \
 	echo ">> NodePort $$port: answers in-cluster, not on the public address"; \
+	$(KUBECTL) -n kube-system exec ds/cilium -c cilium-agent -- cilium-dbg statedb \
+		| python3 -c 'import ipaddress, json, sys; bad = [r["DeviceName"] for r in json.load(sys.stdin)["node-addresses"] if r["NodePort"] and not ipaddress.ip_address(r["Addr"]).is_loopback]; print(*bad); sys.exit(1 if bad else 0)' \
+		|| { echo "FAIL: Cilium serves NodePorts on a non-loopback address (devices above)." >&2; exit 1; }; \
+	echo ">> NodePort addresses: loopback only in Cilium's node-address table"; \
 	$$k exec client -- curl -s -m5 -o /dev/null https://www.cloudflare.com/ \
 		|| { echo "FAIL: the probe pod cannot reach the internet; the metadata probe proves nothing." >&2; exit 1; }; \
 	if $$k exec client -- curl -s -m5 -o /dev/null http://169.254.169.254/hetzner/v1/userdata; then \

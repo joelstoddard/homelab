@@ -34,7 +34,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: cloudflared
-          image: cloudflare/cloudflared:2026.10.3
+          image: cloudflare/cloudflared:2026.11.0
           # The image's entrypoint is `cloudflared --no-autoupdate`.
           # --token-file keeps the token out of the process environment.
           args:
