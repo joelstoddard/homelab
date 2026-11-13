@@ -7,7 +7,12 @@
   "schemaVersion": 39,
   "time": {"from": "now-6h", "to": "now"},
   "templating": {"list": [
-    {"name": "stateless_domains", "type": "constant", "hide": 2, "query": "notify|tts|conversation|event"}]},
+    {"name": "stateless_domains", "type": "constant", "hide": 2, "query": "notify|tts|conversation|event"},
+    {"name": "sensor", "label": "Sensor family", "type": "query",
+     "datasource": {"type": "prometheus", "uid": "prometheus"},
+     "query": {"query": "label_values({__name__=~\"homeassistant_sensor_.+\", __name__!=\"homeassistant_sensor_timestamp_seconds\"}, __name__)", "refId": "sensor"},
+     "definition": "label_values({__name__=~\"homeassistant_sensor_.+\", __name__!=\"homeassistant_sensor_timestamp_seconds\"}, __name__)",
+     "refresh": 1, "sort": 1, "multi": false, "includeAll": false}]},
   "panels": [
     {"id": 1, "type": "stat", "title": "Availability", "gridPos": {"h": 4, "w": 6, "x": 0, "y": 0},
      "description": "kube-state-metrics series carry the collector's namespace, so the real one is exported_namespace.",
@@ -158,7 +163,7 @@
      "targets": [{"refId": "A", "expr": "count(homeassistant_entity_available{domain!~\"$stateless_domains\"} == 0) or vector(0)"}],
      "fieldConfig": {"defaults": {"unit": "none"}, "overrides": []}},
 
-    {"id": 23, "type": "table", "title": "Currently unavailable or unknown", "gridPos": {"h": 8, "w": 24, "x": 0, "y": 47},
+    {"id": 23, "type": "table", "title": "Currently unavailable or unknown", "gridPos": {"h": 8, "w": 16, "x": 0, "y": 47},
      "description": "Which entities are down, by the friendly_name and domain labels; the other Prometheus labels are noise here.",
      "datasource": {"type": "prometheus", "uid": "prometheus"},
      "targets": [{"refId": "A", "expr": "homeassistant_entity_available{domain!~\"$stateless_domains\"} == 0", "instant": true, "format": "table"}],
@@ -166,7 +171,43 @@
        "__name__": true, "instance": true, "job": true, "namespace": true, "node": true, "pod": true},
        "indexByName": {}, "renameByName": {}}}]},
 
-    {"id": 15, "type": "logs", "title": "Logs", "gridPos": {"h": 10, "w": 24, "x": 0, "y": 55},
+    {"id": 24, "type": "bargauge", "title": "Unavailable or unknown by domain", "gridPos": {"h": 8, "w": 8, "x": 16, "y": 47},
+     "description": "Separates a domain that is down as a whole, such as an integration losing its connection, from one stray entity.",
+     "datasource": {"type": "prometheus", "uid": "prometheus"},
+     "targets": [{"refId": "A", "expr": "count by (domain) (homeassistant_entity_available{domain!~\"$stateless_domains\"} == 0)", "instant": true, "legendFormat": "{{domain}}"}],
+     "fieldConfig": {"defaults": {"unit": "none", "min": 0, "noValue": "None", "color": {"mode": "fixed", "fixedColor": "orange"}}, "overrides": []},
+     "options": {"orientation": "horizontal", "displayMode": "basic", "reduceOptions": {"calcs": ["lastNotNull"]}}},
+
+    {"id": 25, "type": "bargauge", "title": "Battery levels", "gridPos": {"h": 8, "w": 8, "x": 0, "y": 55},
+     "description": "Every battery sensor, so the device behind \"Lowest battery\" is named. A battery entity that goes unavailable drops out of this metric rather than reading 0, so check the table above too.",
+     "datasource": {"type": "prometheus", "uid": "prometheus"},
+     "targets": [{"refId": "A", "expr": "sort(homeassistant_sensor_battery_percent)", "instant": true, "legendFormat": "{{friendly_name}}"}],
+     "fieldConfig": {"defaults": {"unit": "percent", "min": 0, "max": 100, "thresholds": {"mode": "absolute", "steps": [
+       {"color": "red", "value": null}, {"color": "orange", "value": 20}, {"color": "green", "value": 40}]}}, "overrides": []},
+     "options": {"orientation": "horizontal", "displayMode": "basic", "reduceOptions": {"calcs": ["lastNotNull"]}}},
+
+    {"id": 26, "type": "state-timeline", "title": "Binary sensors", "gridPos": {"h": 8, "w": 16, "x": 8, "y": 55},
+     "description": "On/off history of every binary sensor. Home Assistant exports no device class label, so they are not split by kind.",
+     "datasource": {"type": "prometheus", "uid": "prometheus"},
+     "targets": [{"refId": "A", "expr": "homeassistant_binary_sensor_state", "legendFormat": "{{friendly_name}}"}],
+     "fieldConfig": {"defaults": {"mappings": [
+       {"type": "value", "options": {"0": {"text": "Off", "color": "text", "index": 0}, "1": {"text": "On", "color": "green", "index": 1}}}]}, "overrides": []},
+     "options": {"showValue": "never", "mergeValues": true, "rowHeight": 0.8}},
+
+    {"id": 27, "type": "timeseries", "title": "Sensor values: $sensor", "gridPos": {"h": 8, "w": 16, "x": 0, "y": 63},
+     "description": "One sensor family at a time, chosen with the variable above. Home Assistant names each family after its device class and unit, so families never share a unit and graphing them together would be meaningless. Timestamp sensors are left out of the variable: their values are epoch times, not readings.",
+     "datasource": {"type": "prometheus", "uid": "prometheus"},
+     "targets": [{"refId": "A", "expr": "{__name__=\"$sensor\"}", "legendFormat": "{{friendly_name}}"}],
+     "fieldConfig": {"defaults": {"unit": "none"}, "overrides": []}},
+
+    {"id": 28, "type": "bargauge", "title": "Busiest entities", "gridPos": {"h": 8, "w": 8, "x": 16, "y": 63},
+     "description": "State changes over the dashboard range. Every change is a recorder write, so these entities are what grows the database on the config volume; excluding one from the recorder is the lever.",
+     "datasource": {"type": "prometheus", "uid": "prometheus"},
+     "targets": [{"refId": "A", "expr": "topk(10, sum by (domain, friendly_name) (increase(homeassistant_state_change_total[$__range])))", "instant": true, "legendFormat": "{{friendly_name}}"}],
+     "fieldConfig": {"defaults": {"unit": "none", "decimals": 0, "min": 0}, "overrides": []},
+     "options": {"orientation": "horizontal", "displayMode": "basic", "reduceOptions": {"calcs": ["lastNotNull"]}}},
+
+    {"id": 15, "type": "logs", "title": "Logs", "gridPos": {"h": 10, "w": 24, "x": 0, "y": 71},
      "datasource": {"type": "loki", "uid": "loki"},
      "options": {"showTime": true, "wrapLogMessage": true, "sortOrder": "Descending", "dedupStrategy": "none", "enableLogDetails": true},
      "targets": [{"refId": "A", "expr": "{namespace=\"home-assistant\"}"}]}
