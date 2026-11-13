@@ -1,0 +1,67 @@
+{
+  "id": null,
+  "uid": "homelab-lancache",
+  "title": "LANCache",
+  "tags": ["lancache"],
+  "description": "The game download cache, from its nginx access log in Loki. docs/design/lancache.md, \"Logs and hit rate\".",
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "time": {"from": "now-7d", "to": "now"},
+  "panels": [
+    {"id": 1, "type": "stat", "title": "Hit ratio, requests", "gridPos": {"h": 6, "w": 6, "x": 0, "y": 0},
+     "description": "HIT over every request nginx answered from or through its cache, over the dashboard range. With slicing, each 1 MiB slice of a download is its own entry, but one client request is one line.",
+     "datasource": {"type": "loki", "uid": "loki"},
+     "targets": [{"refId": "A", "queryType": "instant", "expr": "sum(count_over_time({namespace=\"lancache\", container=\"access-log\"} | json upstream_cache_status | upstream_cache_status=\"HIT\" [$__range])) / sum(count_over_time({namespace=\"lancache\", container=\"access-log\"} | json upstream_cache_status | upstream_cache_status!=\"\" [$__range]))"}],
+     "options": {"reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "graphMode": "none", "colorMode": "value"},
+     "fieldConfig": {"defaults": {"unit": "percentunit", "min": 0, "max": 1, "decimals": 1, "noValue": "No cacheable requests in range"}, "overrides": []}},
+
+    {"id": 2, "type": "stat", "title": "Hit ratio, bytes", "gridPos": {"h": 6, "w": 6, "x": 6, "y": 0},
+     "description": "Bytes served from cache over all bytes served through it, over the dashboard range: the share of game downloads that did not cross the uplink.",
+     "datasource": {"type": "loki", "uid": "loki"},
+     "targets": [{"refId": "A", "queryType": "instant", "expr": "sum(sum_over_time({namespace=\"lancache\", container=\"access-log\"} | json upstream_cache_status, bytes_sent | upstream_cache_status=\"HIT\" | unwrap bytes_sent [$__range])) / sum(sum_over_time({namespace=\"lancache\", container=\"access-log\"} | json upstream_cache_status, bytes_sent | upstream_cache_status!=\"\" | unwrap bytes_sent [$__range]))"}],
+     "options": {"reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "graphMode": "none", "colorMode": "value"},
+     "fieldConfig": {"defaults": {"unit": "percentunit", "min": 0, "max": 1, "decimals": 1, "noValue": "No cacheable requests in range"}, "overrides": []}},
+
+    {"id": 3, "type": "stat", "title": "Bytes served, by cache status", "gridPos": {"h": 6, "w": 12, "x": 12, "y": 0},
+     "description": "Total response bytes over the dashboard range. HIT came from the dataset; MISS crossed the uplink once and was written to it.",
+     "datasource": {"type": "loki", "uid": "loki"},
+     "targets": [{"refId": "A", "queryType": "instant", "expr": "sum by (upstream_cache_status) (sum_over_time({namespace=\"lancache\", container=\"access-log\"} | json upstream_cache_status, bytes_sent | upstream_cache_status!=\"\" | unwrap bytes_sent [$__range]))", "legendFormat": "{{upstream_cache_status}}"}],
+     "options": {"reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "graphMode": "none", "colorMode": "value", "textMode": "value_and_name"},
+     "fieldConfig": {"defaults": {"unit": "bytes", "noValue": "No cacheable requests in range"}, "overrides": []}},
+
+    {"id": 4, "type": "timeseries", "title": "Requests by cache status", "gridPos": {"h": 8, "w": 12, "x": 0, "y": 6},
+     "description": "Access-log lines per interval; the unnamed series is requests answered without the cache. The kube-probe and image heartbeats are dropped before Loki, so an idle cache reads empty.",
+     "datasource": {"type": "loki", "uid": "loki"},
+     "targets": [{"refId": "A", "expr": "sum by (upstream_cache_status) (count_over_time({namespace=\"lancache\", container=\"access-log\"} | json upstream_cache_status [$__auto]))", "legendFormat": "{{upstream_cache_status}}"}],
+     "fieldConfig": {"defaults": {"unit": "short", "custom": {"drawStyle": "bars", "stacking": {"mode": "normal"}, "fillOpacity": 80}}, "overrides": [{"matcher": {"id": "byName", "options": "HIT"}, "properties": [{"id": "color", "value": {"mode": "fixed", "fixedColor": "green"}}]}, {"matcher": {"id": "byName", "options": "MISS"}, "properties": [{"id": "color", "value": {"mode": "fixed", "fixedColor": "orange"}}]}]}},
+
+    {"id": 5, "type": "timeseries", "title": "Throughput by cache status", "gridPos": {"h": 8, "w": 12, "x": 12, "y": 6},
+     "description": "Response bytes per second. nginx logs a request when it completes, so a long download lands as one spike at its end.",
+     "datasource": {"type": "loki", "uid": "loki"},
+     "targets": [{"refId": "A", "expr": "sum by (upstream_cache_status) (rate({namespace=\"lancache\", container=\"access-log\"} | json upstream_cache_status, bytes_sent | upstream_cache_status!=\"\" | unwrap bytes_sent [$__auto]))", "legendFormat": "{{upstream_cache_status}}"}],
+     "fieldConfig": {"defaults": {"unit": "Bps", "custom": {"stacking": {"mode": "normal"}, "fillOpacity": 30}}, "overrides": [{"matcher": {"id": "byName", "options": "HIT"}, "properties": [{"id": "color", "value": {"mode": "fixed", "fixedColor": "green"}}]}, {"matcher": {"id": "byName", "options": "MISS"}, "properties": [{"id": "color", "value": {"mode": "fixed", "fixedColor": "orange"}}]}]}},
+
+    {"id": 6, "type": "bargauge", "title": "Bytes by service", "gridPos": {"h": 8, "w": 12, "x": 0, "y": 14},
+     "description": "The image's cache identifier (steam, epicgames, ...) from uklans/cache-domains, or the Host for a name it does not map.",
+     "datasource": {"type": "loki", "uid": "loki"},
+     "targets": [{"refId": "A", "queryType": "instant", "expr": "topk(10, sum by (cache_identifier, upstream_cache_status) (sum_over_time({namespace=\"lancache\", container=\"access-log\"} | json cache_identifier, upstream_cache_status, bytes_sent | upstream_cache_status!=\"\" | unwrap bytes_sent [$__range])))", "legendFormat": "{{cache_identifier}} {{upstream_cache_status}}"}],
+     "options": {"orientation": "horizontal", "displayMode": "gradient", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}},
+     "fieldConfig": {"defaults": {"unit": "bytes"}, "overrides": []}},
+
+    {"id": 7, "type": "timeseries", "title": "Responses by HTTP status", "gridPos": {"h": 8, "w": 12, "x": 12, "y": 14},
+     "description": "A run of 5xx is the upstream CDN or UPSTREAM_DNS failing; check the error log below.",
+     "datasource": {"type": "loki", "uid": "loki"},
+     "targets": [{"refId": "A", "expr": "sum by (status) (count_over_time({namespace=\"lancache\", container=\"access-log\"} | json status [$__auto]))", "legendFormat": "{{status}}"}],
+     "fieldConfig": {"defaults": {"unit": "short", "custom": {"drawStyle": "bars", "stacking": {"mode": "normal"}, "fillOpacity": 80}}, "overrides": []}},
+
+    {"id": 8, "type": "logs", "title": "Access log", "gridPos": {"h": 10, "w": 12, "x": 0, "y": 22},
+     "datasource": {"type": "loki", "uid": "loki"},
+     "options": {"showTime": true, "wrapLogMessage": true, "sortOrder": "Descending", "dedupStrategy": "none", "enableLogDetails": true},
+     "targets": [{"refId": "A", "expr": "{namespace=\"lancache\", container=\"access-log\"} | json | line_format \"{{.upstream_cache_status}} {{.status}} {{.cache_identifier}} {{.method}} {{.path}} {{.bytes_sent}}\""}]},
+
+    {"id": 9, "type": "logs", "title": "Error logs (cache, upstream, SNI proxy)", "gridPos": {"h": 10, "w": 12, "x": 12, "y": 22},
+     "datasource": {"type": "loki", "uid": "loki"},
+     "options": {"showTime": true, "wrapLogMessage": true, "sortOrder": "Descending", "dedupStrategy": "none", "enableLogDetails": true},
+     "targets": [{"refId": "A", "expr": "{namespace=\"lancache\", container=\"error-log\"}"}]}
+  ]
+}
