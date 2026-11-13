@@ -130,7 +130,11 @@ it and has more than one host.
    20`), and kubelet `memorySwap.swapBehavior: LimitedSwap`. The CX33's
    80 GB disk is about 74.5 GiB; 64 GiB leaves room for the swap partition
    beside the image's own partitions with margin, because the cap cannot be
-   raised later without a wipe.
+   raised later without a wipe. The swap partition is LUKS2-encrypted with
+   a node-ID key, because Talos recommends encrypting swap: memory pages
+   carry secrets. The key derives from the server's UUID, so it needs no
+   secret in the config, and it protects against reading the disk away
+   from this server, not against the server itself.
    Talos has no zram (findings of the zram research, linked from the map).
    Only Burstable pods swap under `LimitedSwap`.
 5. The sysctl `net.ipv4.ip_local_reserved_ports: "49160-49500"`, which keeps
