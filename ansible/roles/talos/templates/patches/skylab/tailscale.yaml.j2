@@ -1,0 +1,15 @@
+{# The node joins the tailnet on first boot, before Kubernetes exists. accept-routes stays off so
+   the home subnet router's LAN route never reaches skylab; Serve passes 443 through to Forgejo
+   (docs/design/skylab-bootstrap.md, docs/design/skylab-forgejo.md). #}
+apiVersion: v1alpha1
+kind: ExtensionServiceConfig
+name: tailscale
+configFiles:
+  - content: '{"TCP": {"443": {"TCPForward": "127.0.0.1:{{ talos_forgejo_nodeport }}"}}}'
+    mountPath: /etc/tailscale-serve.json
+environment:
+  - TS_AUTHKEY={{ talos_tailscale_authkey }}
+  - TS_HOSTNAME={{ talos_tailscale_hostname }}
+  - TS_AUTH_ONCE=true
+  - TS_EXTRA_ARGS=--accept-routes=false --advertise-tags=tag:skylab
+  - TS_SERVE_CONFIG=/etc/tailscale-serve.json

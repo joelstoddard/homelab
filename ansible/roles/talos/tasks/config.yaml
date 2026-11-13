@@ -91,7 +91,7 @@
     talos_network_prefixlen: "{{ _vip_cidr.split('/') | last }}"
   vars:
     _vip_cidr: "{{ _vip_records | map(attribute='address') | list | first | default('') }}"
-  when: _vip_cidr is search('/')
+  when: talos_static_network and _vip_cidr is search('/')
 
 # upgrade.yaml pushes any diff, so a prefix or gateway that cannot be right
 # stops the render here instead of re-addressing every node.

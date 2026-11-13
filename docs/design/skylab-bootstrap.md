@@ -78,9 +78,13 @@ the Longhorn extensions, pinned in `versions.env` beside the other two. The
 skylab patches carry its `ExtensionServiceConfig`:
 
 1. An auth key from a Tailscale OAuth client, tagged `tag:skylab`,
-   pre-approved and not ephemeral, from `skylab.sops.yaml`.
-2. `TS_HOSTNAME` fixed, so the MagicDNS name is known before the node
-   exists.
+   pre-approved and not ephemeral, from `skylab.sops.yaml`
+   (`talos_tailscale_authkey`). `--advertise-tags=tag:skylab` goes with it,
+   because an OAuth client secret used as the key logs in only with tags.
+   `TS_AUTH_ONCE=true` logs in only when the node holds no tailnet state, so
+   a restart after the key expires does not lock the operator out.
+2. `TS_HOSTNAME` fixed (`skylab`), so the MagicDNS name is known before the
+   node exists.
 3. `--accept-routes` **off**. The home cluster's `homelab` subnet router
    advertises the LAN prefix; accepting it would give skylab the LAN route
    this cluster exists to avoid. The ACL side of that boundary belongs to
@@ -102,7 +106,13 @@ address is assigned only when the node joins, after the config is rendered
 into `user_data`; the name is fixed before it. Inside the node, kubelet and
 Cilium reach the API through KubePrism (`localhost:7445`), so only outside
 clients use the endpoint. The tailnet name is not public, so it lives in
-`vars/skylab.sops.yaml`, not in NetBox or in plaintext.
+`vars/skylab.sops.yaml` (`talos_tailnet_domain`, the whole
+`<tailnet>.ts.net` suffix), not in NetBox or in plaintext.
+
+talosctl reaches the node by the same name (`talos_api_address`): the
+talosconfig's endpoint and node, and the bootstrap, kubeconfig and health
+calls. A name reaches one node only, so the role refuses a cluster that sets
+it and has more than one host.
 
 ### Skylab-only patches
 
@@ -110,11 +120,17 @@ clients use the endpoint. The tailnet name is not public, so it lives in
 
 1. `cluster.allowSchedulingOnControlPlanes: true`.
 2. The Tailscale `ExtensionServiceConfig` above, which also carries the
-   Tailscale Serve config for Forgejo (`docs/design/skylab-forgejo.md`).
+   Tailscale Serve config for Forgejo (`docs/design/skylab-forgejo.md`):
+   TCP 443 passed through to `127.0.0.1:30443`, Forgejo's fixed NodePort
+   (`talos_forgejo_nodeport`).
 3. The Forgejo Volume mount, a `UserVolumeConfig`
    (`docs/design/skylab-forgejo.md`).
-4. `VolumeConfig` `EPHEMERAL` with a `maxSize`, a 2 GiB `SwapVolumeConfig`,
-   a `ZswapConfig`, and kubelet `memorySwap.swapBehavior: LimitedSwap`.
+4. `VolumeConfig` `EPHEMERAL` with a `maxSize` of 64 GiB, a 2 GiB
+   `SwapVolumeConfig` on the system disk, a `ZswapConfig` (`maxPoolPercent:
+   20`), and kubelet `memorySwap.swapBehavior: LimitedSwap`. The CX33's
+   80 GB disk is about 74.5 GiB; 64 GiB leaves room for the swap partition
+   beside the image's own partitions with margin, because the cap cannot be
+   raised later without a wipe.
    Talos has no zram (findings of the zram research, linked from the map).
    Only Burstable pods swap under `LimitedSwap`.
 5. The sysctl `net.ipv4.ip_local_reserved_ports: "49160-49500"`, which keeps
@@ -126,8 +142,10 @@ fits without swap (about 4 GiB free); swap is headroom at no cost.
 
 ### Contexts
 
-The talosconfig and kubeconfig contexts are both named `skylab`, merged into
-`~/.talos/config` and `~/.kube/config` beside `homelab`.
+The talosconfig and kubeconfig contexts are both named `skylab`. The
+kubeconfig context is merged into `~/.kube/config` beside `homelab`; the
+talosconfig is `ansible/.talos/skylab/talosconfig`, as the home cluster's is
+`ansible/.talos/clusterconfig/talosconfig`.
 
 ### CNI
 
@@ -149,6 +167,15 @@ L2 announcements. Cilium also gives the security design its network policy.
 5. `make -C kubernetes CLUSTER=skylab` for skylab's Flux (`docs/design/skylab-flux.md`).
 
 `docs/skylab-cutover.md` places these steps in the cutover.
+
+## Verified at first boot
+
+Kubelet's node IP and etcd's advertise address
+(`talosctl get nodeips` / `talosctl etcd members`) must be the public
+address, not the tailnet one; if either is the tailnet address, pin
+`machine.kubelet.nodeIP.validSubnets` and `cluster.etcd.advertisedSubnets`
+to the public interface in the skylab patches
+(https://github.com/joelstoddard/homelab/issues/353).
 
 ## Rejected alternatives
 

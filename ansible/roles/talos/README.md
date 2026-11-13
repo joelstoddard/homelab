@@ -58,6 +58,16 @@ CLUSTER=skylab`) names the cluster. The defaults are the home cluster's
 values, and `vars/<cluster>.yaml` overrides them: `vars/homelab.yaml` only
 names the site. Design: `docs/design/skylab-bootstrap.md`.
 
+`vars/skylab.yaml` sets skylab's name, site, endpoint, paths and schematic,
+and turns off the VIP, static addressing and maintenance-mode apply. Its
+patches are `templates/patches/skylab/`, added to every node. Two values
+come from `vars/skylab.sops.yaml`, which the render refuses to run without:
+
+| Key | Value |
+|---|---|
+| `talos_tailscale_authkey` | Tailscale auth key: an OAuth client secret (or a key it minted) for `tag:skylab`, pre-approved, not ephemeral |
+| `talos_tailnet_domain` | The tailnet's MagicDNS suffix, `<tailnet>.ts.net` |
+
 Cluster identity lives in `defaults/main.yaml` (not in
 `inventory/group_vars/talos.yaml`) because the `localhost` plays that
 generate configs and bootstrap etcd are not members of the `talos`
@@ -66,7 +76,8 @@ inventory group. Key knobs:
 - `talos_version` / `talos_kubernetes_version` — single-sourced from
   repo-root `versions.env`.
 - `talos_schematic_id` / `talos_pi_schematic_id` — read from `versions.env`
-  (`TALOS_SCHEMATIC_ID` / `TALOS_PI_SCHEMATIC_ID`); both carry the Longhorn
+  (`TALOS_SCHEMATIC_ID` / `TALOS_PI_SCHEMATIC_ID`; skylab's
+  `TALOS_SKYLAB_SCHEMATIC_ID` adds `tailscale`); all carry the Longhorn
   extensions.
 - `talos_install_disk` — `/dev/sda` fleet-wide (VM scsi0 and the Pis'
   USB→NVMe SSD both enumerate there).
@@ -74,11 +85,12 @@ inventory group. Key knobs:
 ## Outputs
 
 `ansible/.talos/` (git-ignored): `patches/`, `base/` and `clusterconfig/`
-(per-node configs + `talosconfig`). The kubeconfig is merged into
-`~/.kube/config`. The only committed, encrypted artifact is
-`files/secrets.sops.yaml` (the `talosctl gen secrets` bundle) — generated
-on first run, reused thereafter so the cluster CA never rotates underneath
-you.
+(per-node configs + `talosconfig`); skylab's all sit under `skylab/`. The
+kubeconfig is merged into `~/.kube/config` as a context named after the
+cluster. The committed, encrypted artifacts are the `talosctl gen secrets`
+bundles, `files/secrets.sops.yaml` and `files/skylab/secrets.sops.yaml` —
+each generated on its cluster's first run, reused thereafter so the cluster
+CA never rotates underneath you.
 
 ## Day-2
 

@@ -1,0 +1,10 @@
+{# The Forgejo Hetzner Volume, the one disk that is not the system disk, at /var/mnt/forgejo
+   (docs/design/skylab-forgejo.md, "Storage"). Widening the selector lets it match the system disk. #}
+apiVersion: v1alpha1
+kind: UserVolumeConfig
+name: forgejo
+provisioning:
+  diskSelector:
+    match: "!system_disk"
+  minSize: 1GiB
+  grow: true
