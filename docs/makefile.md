@@ -62,8 +62,11 @@ without rebooting or reinstalling anything.
 | `lint-sops` | Every file a `.sops.yaml` `path_regex` covers, tracked or untracked, carries SOPS metadata and an `ENC[` value outside it. `lint` runs it first. | The repo-wide plaintext guard; needs no key, so CI runs it. |
 
 CI (`.github/workflows/lint.yaml`, every pull request and every push to
-`main`) runs `make lint-sops` and `make -C kubernetes lint-offline`. Both
-need no secret: the repo is public, and CI holds no age key.
+`main`) runs `make lint-sops`, `make -C opentofu fmt`,
+`make -C kubernetes lint-offline` and `make -C ansible build lint`, cheapest
+first. None needs a secret: the repo is public, and CI holds no age key.
+OpenTofu comes from `TOFU_VERSION` in `install.sh`, kubectl from
+`KUBERNETES_VERSION` in `versions.env`, Python is 3.13.
 
 `make help` at the root prints this list — kept in sync with the targets
 themselves.
