@@ -243,7 +243,13 @@ reconciling `./kubernetes/clusters/homelab` with `prune: true` and SOPS
 decryption. The path includes `flux-system/`, so Flux manages itself after
 merge. Declarative install, not `flux bootstrap` (which pushes to `main` and
 needs a write token). `make -C kubernetes lint` checks every
-`clusters/*` tree whatever `CLUSTER` is. New layers are Flux
+`clusters/*` tree whatever `CLUSTER` is. Skylab's tree,
+`kubernetes/clusters/skylab/`, holds `flux-system`, its own `cilium` (no
+LB-IPAM pool or L2, `nodePort.addresses: ["127.0.0.0/8"]`),
+`cilium-policies` (the metadata-service deny), `cluster-secrets`,
+`cert-manager` and `cloudflared`; `lint` runs its security guards and
+`make -C kubernetes probe CLUSTER=skylab` its live probes
+(`docs/design/skylab-security.md`). New layers are Flux
 `Kustomization` CRs listed in the tree's root
 `kubernetes/clusters/homelab/kustomization.yaml`, each pointing at its own
 `./kubernetes/clusters/homelab/<layer>/app`;

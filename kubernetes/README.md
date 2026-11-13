@@ -304,9 +304,14 @@ Other targets: `check` (server dry run once Flux is installed, client-side
 validation before), `lint` (offline, over every `clusters/*` tree whatever
 `CLUSTER` is: version pins, `kubectl kustomize` of each root and every
 `*/app`, every `ks.yaml` and `gotk-sync.yaml` path inside its own tree, no
-manifest at `kubernetes/` outside a tree, and an `ENC[` sweep over every
-`*.sops.yaml` — see "Secrets"), `status` (`flux get all -A` + pods),
-`generate` (see "Upgrading").
+manifest at `kubernetes/` outside a tree, an `ENC[` sweep over every
+`*.sops.yaml` — see "Secrets" — and skylab's security guards:
+`nodePort.addresses`, the metadata deny, each app layer's default-deny
+egress policy, and no `NodePort` or `LoadBalancer` Service),
+`status` (`flux get all -A` + pods), `generate` (see "Upgrading"), and
+`probe` (`CLUSTER=skylab` only: the NodePort and metadata-service probes of
+`docs/design/skylab-security.md` against the live cluster, in a throwaway
+`skylab-probe` namespace).
 
 ## Verify
 
