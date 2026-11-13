@@ -70,7 +70,12 @@ the constraints of the stack apply throughout: a public repo (no address or doma
   a capture group, or a later `postBuild` change, safe. The targets ConfigMap
   mounts at **`/etc/alloy-targets`**, not under `/etc/alloy`: the chart mounts
   its own config ConfigMap read-only at `/etc/alloy`, and a second mount
-  nested inside it fails.
+  nested inside it fails. `blackbox-config` alone keeps kustomize's content
+  hash in its name: blackbox reads its modules only at startup, so without
+  the hash a new module reaches the mounted file and every probe using it
+  fails with `up == 0`. The renamed ConfigMap rolls the pod. A changed
+  `cluster-secrets` value does not alter the hash, so a substituted address
+  in a module still needs a manual rollout.
 - **Multi-target scraping by relabel.** The `pve` group copies each target's
   address into `__param_target`, rewrites `__address__` to
   `pve-exporter:9221` and scrapes `/pve`, so one exporter polls four PVE APIs
