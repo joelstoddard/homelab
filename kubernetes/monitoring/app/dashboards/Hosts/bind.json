@@ -573,7 +573,7 @@
       "id": 17,
       "type": "timeseries",
       "title": "Lookup time seen by a client",
-      "description": "Blackbox probes from the cluster, every 60 s. dns_lookup is a public name through the whole chain; dns_wildcard and dns_lancache are the chain's own records. BIND has no client-side latency counter, so the lower links are measured only through the Pi-holes.",
+      "description": "Blackbox probes from the cluster, every 60 s. dns_lookup is a public name through the whole chain; dns_wildcard and dns_lancache are the chain's own records. BIND has no client-side latency counter, so the lower links are measured only through the Pi-holes. The request phase is the query's round trip; probe_dns_lookup_time_seconds is not, because it times resolving the probe target, which is an address.",
       "gridPos": {
         "h": 8,
         "w": 24,
@@ -587,7 +587,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "probe_dns_lookup_time_seconds{job=\"blackbox\",module=~\"dns_.*\",instance=~\"pihole.*\"}",
+          "expr": "probe_dns_duration_seconds{job=\"blackbox\",phase=\"request\",module=~\"dns_.*\",instance=~\"pihole.*\"}",
           "legendFormat": "{{instance}} {{module}}"
         }
       ],
