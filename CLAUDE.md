@@ -212,7 +212,9 @@ true only on the NetBox branch read through `NETBOX_HEADERS`
 (`TF_VAR_netbox_headers`), so a blanket apply against main bills nothing.
 `make -C opentofu skylab-image` uploads the snapshot and is never part of
 `apply`; `secrets.env` holds `HCLOUD_TOKEN`, and the Makefile refuses to run
-the directory without it. See `docs/design/skylab-provisioning.md`.
+the directory without it. See `docs/design/skylab-provisioning.md`. The same
+gate covers skylab's DNS-only `turn` record (`cloudflare/cloudflare`), which
+points at the primary IP.
 `resources/cloudflare/` is ungated: the remotely managed Cloudflare Tunnel
 (routes straight to in-cluster Services, ending in `http_status:404`), the
 token data source as a sensitive output, and one proxied record per hostname

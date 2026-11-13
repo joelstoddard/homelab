@@ -1,5 +1,8 @@
-# hcloud reads HCLOUD_TOKEN from this directory's secrets.env.
+# hcloud and cloudflare read HCLOUD_TOKEN and CLOUDFLARE_API_TOKEN from this
+# directory's secrets.env.
 provider "hcloud" {}
+
+provider "cloudflare" {}
 
 provider "netbox" {
   server_url = var.netbox_url
