@@ -1,5 +1,5 @@
 # GNU make required.
-.PHONY: default help build dev fmt lint check apply clean check-secrets
+.PHONY: default help build dev fmt lint check apply clean check-secrets skylab-image
 
 # LIMIT=<dirname> filters iteration to one resources/<dirname>/.
 LIMIT ?=
@@ -42,6 +42,7 @@ help:
 	@echo "  check   - tofu plan -detailed-exitcode."
 	@echo "  apply   - tofu apply -auto-approve. Default."
 	@echo "  clean   - Remove .terraform/ in each dir."
+	@echo "  skylab-image - Upload skylab's Talos snapshot unless one exists. Bills a temporary server."
 	@echo
 	@echo "Filter to one resource dir with LIMIT=<dirname>."
 	@echo "resources/pihole-config runs only with LIMIT=pihole-config, after 'make -C ../ansible apply-dns'."
@@ -164,6 +165,31 @@ check: dev
 
 apply: dev
 	$(call run_tofu,apply,-auto-approve)
+
+# Hetzner has no image-upload API: hcloud-upload-image boots a temporary
+# server, a billing event, so this never runs as part of apply
+# (docs/design/skylab-provisioning.md, "The image is an explicit step").
+SKYLAB_SECRETS := resources/skylab/secrets.env
+
+skylab-image:
+	@set -e; \
+	. $(VERSIONS_ENV); \
+	set -a; eval "$$(sops -d $(SKYLAB_SECRETS))"; set +a; \
+	labels="talos_version=$$TALOS_VERSION,talos_schematic=$$TALOS_SKYLAB_SCHEMATIC_ID"; \
+	found=$$(printf 'Authorization: Bearer %s\n' "$$HCLOUD_TOKEN" \
+		| curl -fsSG -H @- https://api.hetzner.cloud/v1/images \
+			--data-urlencode type=snapshot --data-urlencode "label_selector=$$labels" \
+		| python3 -c 'import json, sys; print(len(json.load(sys.stdin)["images"]))'); \
+	if [ "$$found" -gt 0 ]; then \
+		echo ">> snapshot $$labels exists; skipping upload"; \
+		exit 0; \
+	fi; \
+	hcloud-upload-image upload \
+		--image-url "https://factory.talos.dev/image/$$TALOS_SKYLAB_SCHEMATIC_ID/$$TALOS_VERSION/hcloud-amd64.raw.xz" \
+		--compression xz \
+		--architecture x86 \
+		--description "Talos $$TALOS_VERSION skylab" \
+		--labels "$$labels"
 
 clean:
 	@for d in $(RESOURCE_DIRS); do rm -rf $$d/.terraform; done
