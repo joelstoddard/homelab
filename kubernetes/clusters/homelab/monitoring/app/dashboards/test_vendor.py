@@ -34,6 +34,27 @@ class DropVar(unittest.TestCase):
         d = drop_var(mixin_dashboard(), "cluster")
         self.assertEqual(d["templating"]["list"][1]["query"], "instance,cluster,pod")
 
+    def test_removes_a_matcher_in_last_position(self):
+        d = mixin_dashboard()
+        d["panels"][0]["targets"].append({"expr": 'up{job=~"$job", cluster=~"$cluster"}'})
+        d = drop_var(d, "cluster")
+        self.assertEqual(d["panels"][0]["targets"][1]["expr"], 'up{job=~"$job"}')
+
+    def test_drops_the_variable_from_panel_titles(self):
+        d = mixin_dashboard()
+        d["panels"].append({"title": "Lines read in $cluster"})
+        d["panels"].append({"title": "Active files count $cluster"})
+        d = drop_var(d, "cluster")
+        self.assertEqual([p.get("title") for p in d["panels"][1:]], ["Lines read", "Active files count"])
+
+    def test_drops_the_variable_from_link_urls(self):
+        d = mixin_dashboard()
+        d["panels"][0]["links"] = [{"url": "/d/x?var-job=${job}&var-cluster=${cluster}&var-namespace=${namespace}"},
+                                   {"url": "/d/y?var-cluster=${cluster}"}]
+        d = drop_var(d, "cluster")
+        self.assertEqual([l["url"] for l in d["panels"][0]["links"]],
+                         ["/d/x?var-job=${job}&var-namespace=${namespace}", "/d/y"])
+
     def test_fails_on_a_reference_it_cannot_remove(self):
         d = mixin_dashboard()
         d["panels"][0]["targets"].append({"expr": 'm{cluster="$cluster"}'})

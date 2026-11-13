@@ -57,7 +57,16 @@ def drop_var(dash, name):
     dash.get("annotations", {})["list"] = [a for a in annotations if not ref.search(json.dumps(a))]
 
     matcher = rf'{name}=~"\${name}"'
-    patterns = [(re.compile(rf"\{{{matcher}\}}"), ""), (re.compile(rf"{matcher},\s*"), "")]
+    use = rf"\$\{{?{name}\}}?"
+    patterns = [
+        (re.compile(rf"\{{{matcher}\}}"), ""),
+        (re.compile(rf"{matcher},\s*"), ""),
+        (re.compile(rf",\s*{matcher}"), ""),
+        # Panel titles ("Lines read in $cluster") and link query parameters.
+        (re.compile(rf"(\s+in)?\s+{use}$"), ""),
+        (re.compile(rf"&var-{name}={use}"), ""),
+        (re.compile(rf"\?var-{name}={use}(&|$)"), lambda m: "?" if m.group(1) else ""),
+    ]
 
     def strip(node):
         if isinstance(node, dict):
