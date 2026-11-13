@@ -90,7 +90,7 @@
        {"refId": "E", "datasource": {"type": "prometheus", "uid": "prometheus"}, "instant": true, "range": false, "format": "table",
         "expr": "max by (host) (label_replace(up{job=\"kubelet\"}, \"host\", \"$1\", \"node\", \"(.*)\"))"},
        {"refId": "F", "datasource": {"type": "prometheus", "uid": "prometheus"}, "instant": true, "range": false, "format": "table",
-        "expr": "max by (host) (label_replace(up{job=~\"pve|truenas|pihole\"}, \"host\", \"$1\", \"instance\", \"(.*)\"))"},
+        "expr": "max by (host) (label_replace(up{job=~\"pve|truenas|pihole|bind\"}, \"host\", \"$1\", \"instance\", \"(.*)\"))"},
        {"refId": "G", "datasource": {"type": "prometheus", "uid": "prometheus"}, "instant": true, "range": false, "format": "table",
         "expr": "min by (host) (label_replace(probe_success, \"host\", \"$1\", \"instance\", \"(.*)\"))"},
        {"refId": "H", "datasource": {"type": "loki", "uid": "loki"}, "queryType": "instant",
