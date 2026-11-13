@@ -138,12 +138,13 @@ prometheus.scrape "annotated_pods" {
 
 // Unread internals of Cilium, Alloy, Prometheus, Loki, Grafana, Flux and
 // Traefik: histogram buckets (_sum and _count stay) and per-target bookkeeping.
+// Alloy's alloy_component_* buckets stay: the Alloy / Controller dashboard reads them.
 prometheus.relabel "annotated_pods" {
 	forward_to = [prometheus.remote_write.prometheus.receiver]
 
 	rule {
 		source_labels = ["__name__"]
-		regex         = "(cilium|prometheus|loki|grafana|alloy_component|go)_.*_bucket"
+		regex         = "(cilium|prometheus|loki|grafana|go)_.*_bucket"
 		action        = "drop"
 	}
 

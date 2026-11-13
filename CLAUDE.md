@@ -326,7 +326,10 @@ redirecting to `websecure`, `TLSStore/default` serving `wildcard-tls` — the
 cluster's only certificate, so a new service needs one `IngressRoute` (or a
 plain `Ingress` with the `router.entrypoints` / `router.tls` annotations)
 and nothing else: no `Certificate`, no `tls.secretName`, no DNS record.
-The shared `default-headers` middleware and one `<service>-auth` basic-auth
+`websecure` keeps Traefik's 60 s `readTimeout`, which cuts any request body
+still arriving at 60 s; a second TLS entrypoint, `uploads` (Service port 8443,
+`readTimeout: 1h`), carries only the four Proxmox routes, so an ISO upload
+goes to `https://<node>.${DOMAIN}:8443`. The shared `default-headers` middleware and one `<service>-auth` basic-auth
 Middleware per service that has no login of its own (`dashboard-auth`,
 `longhorn-auth`, `glance-auth` — there is no shared `basic-auth`, and a
 shared credential is deliberately rejected) live in the `traefik` namespace
