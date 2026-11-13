@@ -64,10 +64,11 @@ Once, after the first apply, from the repo root on the branch that adds the
 ```bash
 TF_ENCRYPTION="$(opentofu/scripts/build-tf-encryption.sh)" \
   tofu -chdir=opentofu/resources/cloudflare output -raw tunnel_token \
-  | kubectl create secret generic cloudflared-token --namespace cloudflared \
-      --from-file=token=/dev/stdin --dry-run=client --output yaml \
+  | python3 -c 'import json, sys; print(json.dumps({"apiVersion": "v1", "kind": "Secret",
+      "metadata": {"name": "cloudflared-token", "namespace": "cloudflared"},
+      "stringData": {"token": sys.stdin.read()}}))' \
   | sops encrypt --filename-override kubernetes/clusters/skylab/cloudflared/app/secret.sops.yaml \
-      --input-type yaml --output-type yaml /dev/stdin \
+      --input-type json --output-type yaml /dev/stdin \
   > kubernetes/clusters/skylab/cloudflared/app/secret.sops.yaml
 ```
 
