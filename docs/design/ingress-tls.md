@@ -24,6 +24,7 @@ decryption is in scope, out of SOPS's reach.
 client → Pi-hole VIP → lancache-dns → Bind9: * IN A 192.168.1.x  (every name under the domain)
        → 192.168.1.x: Traefik's Service, pinned by lbipam.cilium.io/ips, ARP'd by Cilium L2
        → :80 web, 301 → https → :443 websecure, TLS from TLSStore/default → wildcard-tls
+         (:8443 uploads, the same TLS, for the Proxmox routes only — "Request timeouts")
        → router: an IngressRoute Host rule, or a plain Ingress
        → middlewares: traefik-default-headers@kubernetescrd, traefik-longhorn-auth@kubernetescrd
 ```
@@ -267,23 +268,33 @@ checking before touching a manifest:
 
 ## Request timeouts
 
-`websecure` sets `transport.respondingTimeouts.readTimeout: 1h` in
-`traefik/app/values.yaml`. Traefik's 60 s default bounds the *whole* request,
-body included, so any upload still arriving at 60 s is cut: an ISO or template
-upload to a Proxmox node through its `lan-services` route fails part-way. A
-measured run through the Grafana route (`curl --limit-rate 1k`, a body the
+`websecure` keeps Traefik's default `readTimeout` of 60 s. That bounds the
+*whole* request, body included, so any upload still arriving at 60 s is cut.
+A measured run through the Grafana route (`curl --limit-rate 1k`, a body the
 backend streams and discards) cut at 61 s on both protocols, with 499
 `Client Closed Request` over HTTP/1.1 and 502 over HTTP/2. A 30 s control
-completed on both. The hour covers the slowest realistic path, a 6 GB ISO over a
+completed on both.
+
+Large uploads go through a second TLS entrypoint, `uploads`, defined in
+`traefik/app/values.yaml` with `transport.respondingTimeouts.readTimeout: 1h`.
+It listens on container port 9443 and is published as port 8443 on the same
+LoadBalancer Service and pinned address as `websecure`. It serves the same
+`TLSStore/default` wildcard. Only the four Proxmox node routes in
+`lan-services/` list it, beside `websecure`. To upload an ISO or template,
+open the node's UI at `https://<node>.example.com:8443` instead of the
+default port. The hour covers the slowest realistic path, a 6 GB ISO over a
 remote tailnet link at about 20 Mbit/s (around 40 minutes).
 
-The timeout is per entrypoint, so it applies to every route. Traefik sets no
-separate header timeout, so the same hour also bounds a client that sends its
-headers slowly. That slow-request exposure is accepted, because the entrypoint
-sits on a LAN address from the `cilium-lb` pool, reached from outside only
-through the tailnet. `writeTimeout` (0, no limit)
-and `idleTimeout` (180 s) stay at their defaults. Large downloads and idle
-keep-alives are unaffected.
+Every route names its entrypoints explicitly. A route with none attaches to
+every entrypoint, `uploads` included, so a new route must name `websecure`.
+
+The trade-off is confined to port 8443. Traefik sets no separate header
+timeout, so a client that sends its headers slowly can hold a connection
+there for up to an hour. That is accepted, because the address is on the LAN
+(`cilium-lb` pool), reached from outside only through the tailnet. Every
+other route keeps the 60 s bound. `writeTimeout` (0, no limit) and
+`idleTimeout` (180 s) stay at their defaults on both entrypoints, so large
+downloads and idle keep-alives are unaffected.
 
 ## LAN DNS: the wildcard and its two traps
 
