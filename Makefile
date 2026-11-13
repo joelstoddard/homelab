@@ -1,6 +1,6 @@
 .POSIX:
 .PHONY: default help homelab install bootstrap-secrets ansible opentofu dns talos kubernetes kubeconfig \
-        build dev lint check clean check-env
+        build dev lint lint-sops check clean check-env
 .NOTPARALLEL:
 
 LIMIT ?=
@@ -55,6 +55,7 @@ help:
 	@echo "  build             - Set up dev environments in subdirs."
 	@echo "  dev               - Install / refresh dependencies."
 	@echo "  lint              - Lint everything."
+	@echo "  lint-sops         - Every file a .sops.yaml rule covers is SOPS-encrypted. Offline, no key."
 	@echo "  kubeconfig        - Merge the cluster context into ~/.kube/config (OPERATOR_SSH=user@host)."
 	@echo "  check             - Dry-run everything."
 	@echo "  clean             - Clean caches and retry files."
@@ -149,10 +150,28 @@ dev:
 # opentofu's own `lint` depends on `dev`, which runs `tofu init` and so needs
 # SOPS keys, NetBox credentials and the network. Call its `fmt` instead to
 # keep this target cheap and offline; `make check` covers validate.
-lint:
+lint: lint-sops
 	$(MAKE) -C ansible lint
 	$(MAKE) -C kubernetes lint
 	$(MAKE) -C opentofu fmt
+
+# Files come from .sops.yaml's path_regex rules, untracked ones included.
+# The ENC[ must sit outside the metadata, whose own `mac: ENC[` would pass a
+# file of plaintext values.
+lint-sops:
+	@files=$$(git ls-files --cached --others --exclude-standard \
+		| grep -E "$$(sed -n 's/^ *- path_regex: //p' .sops.yaml | paste -sd'|' -)"); \
+	[ -n "$$files" ] || { echo "no file matches a .sops.yaml path_regex." >&2; exit 1; }; \
+	plaintext=; for f in $$files; do \
+		grep -Eq '^sops:$$|^sops_mac=' $$f \
+			&& grep -v '^sops_' $$f | sed '/^sops:/,$$d' | grep -q 'ENC\[' \
+			|| plaintext="$$plaintext $$f"; \
+	done; \
+	[ -z "$$plaintext" ] || { \
+		echo "not SOPS-encrypted:$$plaintext" >&2; \
+		echo "run 'sops encrypt -i <file>' on each before committing; this repo is public and its history cannot be revoked." >&2; \
+		exit 1; }; \
+	echo ">> $$(echo $$files | wc -w | tr -d ' ') files under a .sops.yaml rule are encrypted"
 
 # Merge the Talos cluster's kube context into this machine's ~/.kube/config.
 kubeconfig:
