@@ -106,6 +106,12 @@ both pods. The dashboard lives in `monitoring/app/dashboards/Services/`.
 
 ## Traps
 
+**Rotating the password needs a pod restart.** kustomize hashes the settings
+ConfigMap's name before Flux substitutes the value, so a new password lands in
+the same-named ConfigMap and never rolls the pod. SearXNG reads its settings
+only at startup, and Alloy's scrape gets 401 until
+`kubectl -n searxng rollout restart deploy/searxng` runs.
+
 **The metrics are averages since process start, not rates.** The three
 response-time families and reliability accumulate from the moment the process
 starts and never decay, so a spike an hour ago still weighs on the number now,
