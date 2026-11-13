@@ -152,9 +152,11 @@ Nothing upstream redacts it:
 - No `talosctl` command calls it. `apply-config --dry-run` diffs the two full
   configs as they are, and `get machineconfig` only restricts who can read.
 
-So `roles/talos/filter_plugins/talos_redact.py` is the only redaction layer.
-It rewrites a secret value as `<REDACTED sha256:xxxxxxxx>`, under two rules.
-Neither rule depends on key names.
+So the redaction happens in this repo, under two rules that live in
+`ansible/plugins/redact_rules.py`. The `talos_redact` filter applies them to
+talosctl output, and the `redact` stdout callback applies them to everything
+Ansible prints (`docs/design/output-redaction.md`). A secret value becomes
+`<REDACTED sha256:xxxxxxxx>`. Neither rule depends on key names.
 
 1. **Any value from the secrets bundle, wherever it appears.** This rests on
    an invariant the repo already keeps: every secret lives in a SOPS file, and
@@ -208,5 +210,9 @@ redacted copy: as a diff when something changes, and as the failure message
 when the dry run itself fails. The short hash lets a changed secret show as two
 different markers rather than two identical `<REDACTED>` lines. Eight hex
 characters of SHA-256 reveal nothing usable about values of this length.
+
+The callback redacts the same output again, with every Ansible SOPS file as
+rule 1's source; the filter keeps this task safe when the callback is not
+loaded.
 
 Unit tests: `python3 -m unittest discover tests` from `roles/talos`.
