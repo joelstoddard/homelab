@@ -28,6 +28,12 @@ ports:
           to: websecure
           scheme: https
           permanent: true
+  websecure:
+    transport:
+      respondingTimeouts:
+        # The 60s default cuts any request body still arriving at 60s, such as an
+        # ISO upload to Proxmox; 1h covers a 6 GB ISO at 20 Mbit/s.
+        readTimeout: 1h
 providers:
   kubernetesCRD:
     # The shared default-headers Middleware, and each service's own

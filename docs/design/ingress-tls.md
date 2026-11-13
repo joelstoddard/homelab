@@ -265,6 +265,26 @@ checking before touching a manifest:
   name against the Pi-hole VIP and expect the Traefik address before
   concluding the route is at fault.
 
+## Request timeouts
+
+`websecure` sets `transport.respondingTimeouts.readTimeout: 1h` in
+`traefik/app/values.yaml`. Traefik's 60 s default bounds the *whole* request,
+body included, so any upload still arriving at 60 s is cut: an ISO or template
+upload to a Proxmox node through its `lan-services` route fails part-way. A
+measured run through the Grafana route (`curl --limit-rate 1k`, a body the
+backend streams and discards) cut at 61 s on both protocols, with 499
+`Client Closed Request` over HTTP/1.1 and 502 over HTTP/2. A 30 s control
+completed on both. The hour covers the slowest realistic path, a 6 GB ISO over a
+remote tailnet link at about 20 Mbit/s (around 40 minutes).
+
+The timeout is per entrypoint, so it applies to every route. Traefik sets no
+separate header timeout, so the same hour also bounds a client that sends its
+headers slowly. That slow-request exposure is accepted, because the entrypoint
+sits on a LAN address from the `cilium-lb` pool, reached from outside only
+through the tailnet. `writeTimeout` (0, no limit)
+and `idleTimeout` (180 s) stay at their defaults. Large downloads and idle
+keep-alives are unaffected.
+
 ## LAN DNS: the wildcard and its two traps
 
 The bare domain plus a wildcard gives the shortest names; the accepted cost is
