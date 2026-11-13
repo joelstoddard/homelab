@@ -19,7 +19,90 @@
   kubernetes: {
     managerFilePatterns: ['/^kubernetes/clusters/.+\\.ya?ml$/'],
   },
+  customManagers: [
+    {
+      description: 'Pins annotated with a "# renovate:" comment on the line above',
+      customType: 'regex',
+      managerFilePatterns: [
+        '/^versions\\.env$/',
+        '/^install\\.sh$/',
+        '/^ansible/roles/00-pxe/defaults/main\\.yaml$/',
+      ],
+      matchStrings: [
+        '# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)( registryUrl=(?<registryUrl>\\S+))?( extractVersion=(?<extractVersion>\\S+))?\\n[A-Za-z_]+[=:] ?"?(?<currentValue>[^"\\s]+)"?',
+      ],
+    },
+    {
+      description: 'lancache-dns image in the dns role, digest-pinned',
+      customType: 'regex',
+      managerFilePatterns: ['/^ansible/roles/dns/defaults/main\\.yaml$/'],
+      matchStrings: [
+        'dns_lancache_image: "(?<depName>[^:"]+):(?<currentValue>[^@"]+)@(?<currentDigest>sha256:[a-f0-9]+)"',
+      ],
+      datasourceTemplate: 'docker',
+    },
+    {
+      description: 'Grafana NetBox plugin, installed by an init container',
+      customType: 'regex',
+      managerFilePatterns: ['/^kubernetes/clusters/[^/]+/monitoring/app/grafana/values\\.yaml$/'],
+      matchStrings: ['plugins, install, netboxlabs-netbox-datasource, (?<currentValue>[0-9.]+)\\]'],
+      depNameTemplate: 'netboxlabs/netboxlabs-grafana-datasource',
+      datasourceTemplate: 'github-releases',
+      extractVersionTemplate: '^v(?<version>.+)$',
+    },
+  ],
   packageRules: [
+    {
+      description: 'versions.env and the Cilium OCIRepository tag must match (make -C kubernetes lint)',
+      matchPackageNames: ['quay.io/cilium/charts/cilium'],
+      groupName: 'cilium',
+    },
+    {
+      description: 'versions.env and the four Alloy HelmReleases must match (make -C kubernetes lint)',
+      matchDatasources: ['helm'],
+      matchPackageNames: ['alloy'],
+      groupName: 'alloy chart',
+      prBodyNotes: [
+        'Set `alloy_version` in `ansible/roles/alloy/defaults/main.yaml` to this chart\'s appVersion (`apt-cache madison alloy`), then `make -C ansible apply-alloy`.',
+      ],
+    },
+    {
+      description: 'versions.env and every gotk-components.yaml must match (make -C kubernetes lint)',
+      matchPackageNames: ['fluxcd/flux2'],
+      groupName: 'flux',
+      prBodyNotes: [
+        'If `gotk-components.yaml` is not in this PR, run `make -C kubernetes generate` on the branch and commit before merging.',
+      ],
+    },
+    {
+      description: 'Talos 1.14 makes usb-storage a module and the Pis stop booting: siderolabs/talos#14260',
+      matchPackageNames: ['siderolabs/talos'],
+      allowedVersions: '<1.14.0',
+    },
+    {
+      description: 'Talos 1.13 supports Kubernetes up to 1.36',
+      matchPackageNames: ['kubernetes/kubernetes'],
+      allowedVersions: '<1.37.0',
+    },
+    {
+      matchPackageNames: ['siderolabs/talos', 'kubernetes/kubernetes'],
+      prBodyNotes: [
+        'Merging changes no node. Roll it out with `make -C ansible apply-upgrade` (docs/talos-bootstrap.md, "Rebuild / bumping versions").',
+      ],
+    },
+    {
+      matchDatasources: ['helm'],
+      matchPackageNames: ['longhorn'],
+      prBodyNotes: ['Re-run the multi-arch image check in `docs/design/longhorn.md` before merging.'],
+    },
+    {
+      matchPackageNames: ['u-boot/u-boot', 'raspberrypi/firmware'],
+      prBodyNotes: ['A bad bump stops the Pis netbooting. Netboot one Pi from the operator VM before merging.'],
+    },
+    {
+      matchManagers: ['terraform'],
+      prBodyNotes: ['If `.terraform.lock.hcl` is unchanged, run `tofu init -upgrade` in each changed `opentofu/resources/*` and commit the lock files.'],
+    },
     {
       description: 'gotk-components.yaml is generated: the flux manager regenerates it whole, so its images never bump alone',
       matchManagers: ['kubernetes'],

@@ -32,6 +32,7 @@ dhcp_proxy: true
 # Kconfig fragment in templates/uboot-fragment.config.j2, and rebuilt whenever
 # the version, the fragment or pxe_server_ip changes. Only when there are
 # talos PXE hosts (the Pis).
+# renovate: datasource=github-tags depName=u-boot/u-boot
 uboot_version: "v2025.01"
 uboot_repo: "https://source.denx.de/u-boot/u-boot.git"
 uboot_defconfig: "rpi_arm64_defconfig"
@@ -42,6 +43,7 @@ uboot_build_dir: "{{ role_path }}/files/build/u-boot"
 # netboot fetches start4.elf first; it reads config.txt, loads fixup4.dat and
 # the board DTB (which u-boot needs — it is where ${fdt_addr} comes from),
 # then the kernel= file. Pinned to a raspberrypi/firmware release tag.
+# renovate: datasource=github-tags depName=raspberrypi/firmware
 rpi_firmware_version: "1.20260521"
 rpi_firmware_base_url: "https://github.com/raspberrypi/firmware/raw/{{ rpi_firmware_version }}/boot"
 rpi_firmware_files:
