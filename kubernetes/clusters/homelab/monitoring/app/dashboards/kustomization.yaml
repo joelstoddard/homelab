@@ -43,6 +43,12 @@ configMapGenerator:
   - name: dashboard-alloy-controller
     files: [Alloy/alloy-controller.json]
     options: {annotations: {grafana_folder: Alloy}}
+  - name: dashboard-alloy-prometheus-remote-write
+    files: [Alloy/alloy-prometheus-remote-write.json]
+    options: {annotations: {grafana_folder: Alloy}}
+  - name: dashboard-alloy-loki
+    files: [Alloy/alloy-loki.json]
+    options: {annotations: {grafana_folder: Alloy}}
   - name: dashboard-logs-explorer
     files: [Logs/logs-explorer.json]
     options: {annotations: {grafana_folder: Logs}}

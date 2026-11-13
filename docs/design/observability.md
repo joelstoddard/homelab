@@ -78,8 +78,9 @@ defaults that hide the control-plane components.
   folder named by its `grafana_folder` annotation, read-only. Iterating on a
   dashboard: Save As a copy, iterate, Export (sharing-externally off), drop
   the file in git; the copy dies with the pod.
-- **Alloy mixin dashboards.** `Alloy/alloy-resources.json` and
-  `Alloy/alloy-controller.json` are the alloy-mixin's own rendered JSON,
+- **Alloy mixin dashboards.** `Alloy/alloy-resources.json`,
+  `alloy-controller.json`, `alloy-prometheus-remote-write.json` and
+  `alloy-loki.json` are the alloy-mixin's own rendered JSON,
   committed upstream under `operations/alloy-mixin/rendered/dashboards/`,
   so no jsonnet runs here. The source tag is the Alloy version the pinned
   chart ships, `v1.19.2` for chart 1.12.1 (`alloy_build_info`). Re-vendor on
@@ -90,10 +91,17 @@ defaults that hide the control-plane components.
     --url https://raw.githubusercontent.com/grafana/alloy/<tag>/operations/alloy-mixin/rendered/dashboards/alloy-resources.json
   ```
 
-  and the same for `alloy-controller`. `--drop-var cluster` removes the
-  mixin's `cluster` variable, its matchers and the `kube-diff-logger`
-  annotation that uses it: no series here carries a `cluster` label, and an
-  empty multi-value variable is not a reliable match-all.
+  and the same for the other three. `--drop-var cluster` removes the
+  mixin's `cluster` variable, its matchers, the panel titles and link
+  parameters that name it, and the `kube-diff-logger` annotation that uses
+  it: no series here carries a `cluster` label, and an empty multi-value
+  variable is not a reliable match-all. The mixin's other five dashboards
+  stay out, because they can show nothing here: `alloy-cluster-node` and
+  `alloy-cluster-overview` read Alloy clustering, which no Alloy here runs;
+  `alloy-opentelemetry` and `alloy-otel-engine-overview` read OpenTelemetry
+  pipelines, which none runs; and `alloy-logs` filters Loki on `instance`
+  and `level` labels that the pod-log streams do not carry, with the Logs
+  Explorer covering Alloy's logs.
 - **NetBox datasource.** `netboxlabs-netbox-datasource`, pinned, installs
   from an init container running `grafana cli` from Grafana's own image.
   The chart's `plugins:` list cannot do it: `preinstall_disabled` drops
