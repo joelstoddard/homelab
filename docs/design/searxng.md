@@ -21,7 +21,10 @@ Three constraints:
   infrastructure, so this layer is also the pattern the next application
   copies.
 - The NUCs run with almost no free memory (`docs/design/zram-swap.md`), so
-  replica counts and memory limits are not free.
+  replica counts and memory limits are not free. Over 14 days (to
+  2026-11-13) SearXNG's working set peaked at 316 MiB and sat there, so its
+  memory request is `400Mi` and its limit `512Mi`. Valkey peaked at 4 MiB,
+  well inside its `32Mi` request and `128Mi` limit.
 - The repo is public.
 
 ## Design

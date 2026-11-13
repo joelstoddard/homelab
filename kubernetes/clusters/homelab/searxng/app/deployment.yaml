@@ -80,8 +80,7 @@ spec:
           resources:
             requests:
               cpu: 100m
-              memory: 192Mi
-            # TODO: measure a week of real use and cap just above the peak.
+              memory: 400Mi
             limits:
               cpu: "1"
               memory: 512Mi
