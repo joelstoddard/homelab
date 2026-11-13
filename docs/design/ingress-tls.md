@@ -24,6 +24,7 @@ decryption is in scope, out of SOPS's reach.
 client → Pi-hole VIP → lancache-dns → Bind9: * IN A 192.168.1.x  (every name under the domain)
        → 192.168.1.x: Traefik's Service, pinned by lbipam.cilium.io/ips, ARP'd by Cilium L2
        → :80 web, 301 → https → :443 websecure, TLS from TLSStore/default → wildcard-tls
+         (:8443 uploads, the same TLS, for the Proxmox routes only — "Request timeouts")
        → router: an IngressRoute Host rule, or a plain Ingress
        → middlewares: traefik-default-headers@kubernetescrd, traefik-longhorn-auth@kubernetescrd
 ```
@@ -216,8 +217,8 @@ in `traefik-middlewares/app/serverstransport.yaml` (`insecureSkipVerify:
 true`, negotiated only on the Traefik→backend leg — the browser leg still
 terminates on the wildcard). The seventh, the router, speaks plain HTTP with
 no TLS at all; its route sets neither `scheme` nor `serversTransport`, and
-Traefik forwards that leg in cleartext — still an improvement on the browser
-leg being unencrypted, as it is today.
+Traefik forwards that leg in cleartext. The browser leg is still encrypted,
+which a direct connection to the router is not.
 
 That `serversTransport` reference and a `Middleware` cross-namespace
 reference are two different shapes, easy to cross: `serversTransport` is one
@@ -264,6 +265,68 @@ checking before touching a manifest:
   for a `lan-services` host, so it can only come from a manual edit: `dig` the
   name against the Pi-hole VIP and expect the Traefik address before
   concluding the route is at fault.
+
+## Request timeouts
+
+`websecure` keeps Traefik's default `readTimeout` of 60 s. That bounds the
+*whole* request, body included, so any upload still arriving at 60 s is cut.
+A measured run through the Grafana route (`curl --limit-rate 1k`, a body the
+backend streams and discards) cut at 61 s on both protocols, with 499
+`Client Closed Request` over HTTP/1.1 and 502 over HTTP/2. A 30 s control
+completed on both.
+
+Large uploads go through a second TLS entrypoint, `uploads`, defined in
+`traefik/app/values.yaml` with `transport.respondingTimeouts.readTimeout: 1h`.
+It listens on container port 9443 and is published as port 8443 on the same
+LoadBalancer Service and pinned address as `websecure`. It serves the same
+`TLSStore/default` wildcard. Only the four Proxmox node routes in
+`lan-services/` list it, beside `websecure`. To upload an ISO or template,
+open the node's UI at `https://<node>.example.com:8443` instead of the
+default port. The hour covers the slowest realistic path, a 6 GB ISO over a
+remote tailnet link at about 20 Mbit/s (around 40 minutes).
+
+Every route names its entrypoints explicitly. A route with none attaches to
+every entrypoint, `uploads` included, so a new route must name `websecure`.
+
+The trade-off is confined to port 8443. Traefik sets no separate header
+timeout, so a client that sends its headers slowly can hold a connection
+there for up to an hour. That is accepted, because the address is on the LAN
+(`cilium-lb` pool), reached from outside only through the tailnet. Every
+other route keeps the 60 s bound. `writeTimeout` (0, no limit) and
+`idleTimeout` (180 s) stay at their defaults on both entrypoints, so large
+downloads and idle keep-alives are unaffected.
+
+## Access logs
+
+Traefik writes one JSON access line per request to stdout
+(`accessLog` in `traefik/app/values.yaml`). The node-local Alloy tails it
+from `/var/log/pods` like any pod log, so in Loki the lines carry
+`namespace="traefik"`. Query them with `| json` on `RequestHost`,
+`DownstreamStatus` or `RouterName`. This is where a request cut by a timeout,
+or refused by a basic-auth Middleware, becomes visible after the fact.
+
+Three fields settings keep secrets out:
+
+- **Headers** stay at the chart's `drop`, so no `Authorization` or `Cookie`
+  value is logged.
+- **Query strings** are dropped from `RequestPath`. Some clients put an API
+  key there, such as Jellyfin's `api_key` and SignalR's `access_token`.
+- **The basic-auth user name** is kept in `ClientUsername`. The password
+  never is.
+
+Kubelet probes hit `/ping` on the internal `traefik` entrypoint. Internal
+resources are not logged (`addInternals` is false), so probes add no lines.
+
+Volume is sized from the request rate,
+`sum(rate(traefik_entrypoint_requests_total[...]))`, measured on 2026-11-13:
+0.21 req/s averaged over 24 h and 0.41 req/s over one hour. A line is about
+1 KB, so that comes to roughly 17 to 33 MiB a day. Against Loki's other
+ingest of 73 MiB a day (`docs/design/observability.md`), the lines add a
+quarter to a half. On the 20Gi
+Loki volume under 30-day retention (0.6 GiB used), that fits. Most of the
+lines come from the NUC Alloys' `prometheus-write` and `loki-push` routes,
+about 80 % of all requests. A Traefik router's per-route `observability`
+setting can stop those two from logging if the volume ever matters.
 
 ## LAN DNS: the wildcard and its two traps
 
