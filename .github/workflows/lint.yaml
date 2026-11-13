@@ -19,6 +19,19 @@ jobs:
 
       - run: make lint-sops
 
+      # install.sh holds the operator's pin; reading it keeps one source.
+      - name: Install OpenTofu
+        run: |
+          v=$(sed -n 's/^TOFU_VERSION="\(.*\)"$/\1/p' install.sh)
+          base="https://github.com/opentofu/opentofu/releases/download/v${v}"
+          curl -fsSLO "$base/tofu_${v}_linux_amd64.tar.gz"
+          curl -fsSL "$base/tofu_${v}_SHA256SUMS" | grep " tofu_${v}_linux_amd64.tar.gz$" | sha256sum --check
+          tar -xzf "tofu_${v}_linux_amd64.tar.gz" tofu
+          sudo install -m 0755 tofu /usr/local/bin/tofu
+          tofu version
+
+      - run: make -C opentofu fmt
+
       # The same kubectl the operator runs, so its bundled kustomize matches.
       - name: Install kubectl
         run: |
@@ -30,3 +43,9 @@ jobs:
           kubectl version --client
 
       - run: make -C kubernetes lint-offline
+
+      # 3.13: the operator's interpreter; 3.14 has no rpds-py wheel.
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.13"
+      - run: make -C ansible build lint
