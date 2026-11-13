@@ -87,7 +87,7 @@ never reach a public cluster.
 
 ### Decryption: the skylab key
 
-A second age key, the skylab key, sits at `~/.sops/skylab.txt` beside the
+A second age key, the skylab key, sits at `~/.config/sops/age/skylab.txt` beside the
 operator key and is backed up the same way. One `.sops.yaml` rule, placed
 before the general `kubernetes/` rule, encrypts
 `kubernetes/clusters/skylab/.*\.sops\.ya?ml` to both the operator key and the

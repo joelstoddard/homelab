@@ -251,7 +251,7 @@ ordering) rather than by growing the root tree — see "Adding workloads".
 | --- | --- | --- |
 | `CLUSTER` | `make` variable, default `homelab` | Picks the tree (`clusters/$CLUSTER`), the kube context and the age key; `skylab` is the only other value accepted. |
 | kube context named `$CLUSTER` | `~/.kube/config` (merged by `make -C ansible kubeconfig`) | Every `kubectl` call pins `--context`; the operator's kubeconfig may hold unrelated clusters. |
-| Age private key | `$SOPS_AGE_KEY_FILE` (default `~/.config/sops/age/keys.txt`) for `homelab`, `$SKYLAB_AGE_KEY_FILE` (default `~/.sops/skylab.txt`) for `skylab` | Lands in-cluster as the `sops-age` Secret so kustomize-controller can decrypt `*.sops.yaml`. Each cluster gets only its own key. |
+| Age private key | `$SOPS_AGE_KEY_FILE` (default `~/.config/sops/age/keys.txt`) for `homelab`, `$SKYLAB_AGE_KEY_FILE` (default `~/.config/sops/age/skylab.txt`) for `skylab` | Lands in-cluster as the `sops-age` Secret so kustomize-controller can decrypt `*.sops.yaml`. Each cluster gets only its own key. |
 | `FLUX_VERSION` | repo-root `versions.env` | Pins `gotk-components.yaml`; `make lint` refuses a mismatch. |
 | `CILIUM_VERSION` | repo-root `versions.env` | The chart the `talos` role seeds; `make lint` refuses a `cilium/app/ocirepository.yaml` tag that differs. |
 | `DOMAIN` | `cluster-secrets/app/secrets.sops.yaml` | The root domain every route hangs off. Reaches manifests through Flux `postBuild` substitution, so this public repo never carries it. |

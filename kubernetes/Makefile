@@ -18,7 +18,7 @@ KUBECTL      := kubectl --context $(KUBE_CONTEXT)
 # finds the same key `make homelab` would. Skylab's sops-age Secret holds its
 # own key only, so a compromised skylab decrypts nothing of the home tree's.
 SOPS_AGE_KEY_FILE   ?= $(HOME)/.config/sops/age/keys.txt
-SKYLAB_AGE_KEY_FILE ?= $(HOME)/.sops/skylab.txt
+SKYLAB_AGE_KEY_FILE ?= $(HOME)/.config/sops/age/skylab.txt
 ifeq ($(CLUSTER),homelab)
 AGE_KEY_FILE := $(SOPS_AGE_KEY_FILE)
 else ifeq ($(CLUSTER),skylab)
