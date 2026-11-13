@@ -7,3 +7,4 @@ resources:
   - flux-system
   - cilium/ks.yaml
   - cilium-policies/ks.yaml
+  - cluster-secrets/ks.yaml
