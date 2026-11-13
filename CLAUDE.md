@@ -143,10 +143,11 @@ Current implementation:
   `named-checkzone`) and `lancache.yaml` (the upstream `lancache-dns` image,
   digest-pinned, whose `named.conf.options` must never name a `dnstool`
   placeholder, even in a comment), `pihole.yaml` (the unattended upstream
-  installer, unpinned, then a compare-and-set of six `pihole.toml` keys:
+  installer, unpinned, then a compare-and-set of seven `pihole.toml` keys:
   upstreams lancache pair then Bind9 under `strict-order`, `LOCAL`
-  listening; no wildcard or passthrough lines, which Bind9 serves; the web
-  password on stdin from `dns_pihole_web_password`) and `keepalived.yaml`
+  listening, port 80 redirecting to 443; no wildcard or passthrough lines,
+  which Bind9 serves; the web password on stdin from
+  `dns_pihole_web_password`) and `keepalived.yaml`
   (unicast VRRP, VRID `dns_pihole_vrid` 53, preempt, a `pi.hole` health
   check, floating `dns_pihole_vip`). `metrics.yaml` opens BIND's statistics
   channel on loopback on both BIND links and runs `prometheus-bind-exporter`

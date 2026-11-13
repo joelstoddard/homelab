@@ -85,9 +85,12 @@
 
 - name: Log in with the web password.
   # Retried because FTL takes a moment to serve the API after a start. A 200
-  # with no session ID means no password is set.
+  # with no session ID means no password is set. Port 80 only redirects, and
+  # the certificate is Pi-hole's self-signed one, so these calls skip the
+  # check over loopback.
   ansible.builtin.uri:
-    url: http://127.0.0.1/api/auth
+    url: https://127.0.0.1/api/auth
+    validate_certs: false
     method: POST
     body_format: json
     body:
@@ -105,7 +108,8 @@
   # A fresh install has no password, so the API is open and the password goes
   # in a request body, never on any process's command line.
   ansible.builtin.uri:
-    url: http://127.0.0.1/api/config
+    url: https://127.0.0.1/api/config
+    validate_certs: false
     method: PATCH
     body_format: json
     body:
@@ -133,7 +137,8 @@
   # Retried because setting the password makes FTL reload, and a login in
   # that window fails although the password is set.
   ansible.builtin.uri:
-    url: http://127.0.0.1/api/auth
+    url: https://127.0.0.1/api/auth
+    validate_certs: false
     method: POST
     body_format: json
     body:
@@ -149,7 +154,8 @@
 
 - name: Log out, so the check uses no API session seat.
   ansible.builtin.uri:
-    url: http://127.0.0.1/api/auth
+    url: https://127.0.0.1/api/auth
+    validate_certs: false
     method: DELETE
     headers:
       sid: "{{ item.json.session.sid }}"
@@ -194,6 +200,9 @@
     # The OpenTofu provider opens several sessions per plan.
     - key: webserver.api.max_sessions
       show: "50"
+    # Redirects plain HTTP, so no browser login sends the password in clear.
+    - key: webserver.port
+      show: "80or,443os,[::]:80or,[::]:443os"
   loop_control:
     label: "{{ item.key }}"
   register: _dns_pihole_config
