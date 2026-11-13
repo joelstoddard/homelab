@@ -59,6 +59,11 @@ without rebooting or reinstalling anything.
 | `kubernetes` | `$(MAKE) -C kubernetes` (if present) | Flux CD bootstrap. |
 | `check-env` | Validate `NETBOX_API`, `NETBOX_TOKEN`, `SOPS_AGE_KEY_FILE`. | Fails fast at the top, before any subdir burns time. |
 | `build` / `dev` / `lint` / `check` / `clean` | Forward to `ansible`; `lint` and `check` also to `kubernetes`, `check` also to `opentofu`. | Dev-loop maintenance. |
+| `lint-sops` | Every file a `.sops.yaml` `path_regex` covers, tracked or untracked, carries SOPS metadata and an `ENC[` value outside it. `lint` runs it first. | The repo-wide plaintext guard; needs no key, so CI runs it. |
+
+CI (`.github/workflows/lint.yaml`, every pull request and every push to
+`main`) runs `make lint-sops` and `make -C kubernetes lint-offline`. Both
+need no secret: the repo is public, and CI holds no age key.
 
 `make help` at the root prints this list — kept in sync with the targets
 themselves.
@@ -124,10 +129,12 @@ to it. `CLUSTER` (default `homelab`, or `skylab`) picks the tree
 `clusters/$(CLUSTER)`, the kube context of the same name and the age key
 (`$SOPS_AGE_KEY_FILE` or `$SKYLAB_AGE_KEY_FILE`). Default target `apply` =
 `build` (kubectl, the context, a non-empty key file, `FLUX_VERSION`) →
-`lint` (offline, over every `clusters/*` tree whatever `CLUSTER` is:
+`lint` (over every `clusters/*` tree whatever `CLUSTER` is:
 `gotk-components.yaml` headers match `versions.env`, each root and every
 `*/app` builds, Flux paths stay in their own tree, no manifest at
-`kubernetes/` itself) → `components` (server-side apply, wait for
+`kubernetes/` itself, every `*.json` parses; then the one check that
+decrypts, the `PIHOLE_PASSWORD` copies against their source — everything
+before it is `lint-offline`, which CI runs) → `components` (server-side apply, wait for
 CRDs + controllers) → `secret` (the Age key as `flux-system/sops-age`) →
 `sync` (the `GitRepository` + `Kustomization`, wait for Ready). `check`
 is a server dry run once Flux is installed and client-side validation

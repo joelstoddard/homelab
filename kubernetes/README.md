@@ -1203,11 +1203,15 @@ default, so a hand-edited plaintext field would still deploy — but local
 `sops -d` and `sops updatekeys` break on it.
 
 **`make -C kubernetes lint` fails if any `*.sops.yaml` lacks an `ENC[`
-marker**, naming each one. Nothing else catches a missed `sops` pass: the
-decryptor skips a resource with no SOPS metadata, so a wholly plaintext
-Secret applies cleanly and its layer reports Ready, having published the
-values. This repo's history cannot be revoked, so that offline check is the
-last line of defence rather than a style rule.
+marker**, naming each one, and the repo-root `make lint-sops` fails on any
+file a `.sops.yaml` rule covers that has no SOPS metadata or no encrypted
+value. CI runs the second on every pull request. Nothing in the cluster
+catches a missed `sops` pass: the decryptor skips a resource with no SOPS
+metadata, so a wholly plaintext Secret applies cleanly and its layer reports
+Ready, having published the values. This repo's history cannot be revoked,
+so these offline checks are the last line of defence rather than a style
+rule. CI runs on the pull request, after the push: a plaintext file on a
+pushed branch is already public, so run `make lint-sops` before `git push`.
 
 ## Upgrading
 

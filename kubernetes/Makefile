@@ -1,5 +1,5 @@
 # GNU make required.
-.PHONY: default help build lint check apply components secret sync generate status
+.PHONY: default help build lint lint-offline check apply components secret sync generate status
 .NOTPARALLEL:
 
 # One Flux installation per cluster, each reconciling its own clusters/<name>
@@ -57,7 +57,9 @@ help:
 	@echo "  lint      - Every clusters/* tree: gotk-components.yaml matches FLUX_VERSION, the Cilium"
 	@echo "              OCIRepository matches CILIUM_VERSION, kubectl kustomize builds each root and"
 	@echo "              every */app, every Flux path stays in its own tree, kubernetes/ holds no"
-	@echo "              manifest, and every *.sops.yaml is encrypted. Offline."
+	@echo "              manifest, every *.sops.yaml is encrypted, every *.json parses, and every"
+	@echo "              PIHOLE_PASSWORD copy matches its source (needs the age key)."
+	@echo "  lint-offline - lint without the PIHOLE_PASSWORD comparison: no age key. CI runs it."
 	@echo "  check     - Server-side dry run of CLUSTER's flux-system/ (client-side before the first install)."
 	@echo "  apply     - components -> sops-age secret -> sync, on CLUSTER. Idempotent. Default."
 	@echo "  generate  - Regenerate every tree's gotk-components.yaml from FLUX_VERSION (needs the flux CLI)."
@@ -97,7 +99,9 @@ build:
 # decryptor skips any resource carrying no SOPS metadata, so a plaintext
 # Secret applies cleanly and the layer goes green — while its real values sit
 # in this public repo's history, which no later commit can revoke.
-lint:
+#
+# lint-offline is every check that needs no age key, so CI can run it.
+lint-offline:
 	@[ -n "$(TREES)" ] || { echo "no clusters/* tree found." >&2; exit 1; }
 	@for t in $(TREES); do \
 		grep -q '^# Flux Version: $(FLUX_VERSION)$$' $$t/$(COMPONENTS) || { \
@@ -153,6 +157,12 @@ lint:
 		echo "use stringData:, which takes raw values; a raw value under data: fails the Flux apply." >&2; \
 		exit 1; }
 	@echo ">> every *.sops.yaml Secret uses stringData"
+	@for f in $$(find clusters -name '*.json'); do \
+		python3 -m json.tool $$f >/dev/null || { echo "$$f is not valid JSON." >&2; exit 1; }; \
+	done
+	@echo ">> every *.json parses"
+
+lint: lint-offline
 	@b=$$(sops -d --extract '["dns_pihole_web_password"]' $(DNS_VARS_FILE)) || exit 1; \
 	[ -n "$$b" ] || { echo "dns_pihole_web_password is empty in $(DNS_VARS_FILE)." >&2; exit 1; }; \
 	for f in $(PIHOLE_PASSWORD_COPIES); do \
