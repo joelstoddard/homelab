@@ -88,7 +88,9 @@ Roll back on the criterion in `docs/design/skylab-migration.md`, "Rollback".
 
 19. metachat: remove the `deploy` and `verify` jobs, the `DEPLOY_*` secrets
     and variable, `deploy/bootstrap-vps.sh`, Caddy and the per-stack Alloy.
-20. joelst: remove the `deploy` job and the `SSH_*` secrets.
+20. joelst: remove the `deploy` job, the `SSH_*` secrets,
+    `nginx/conf/ashburn-tls.conf` and `nginx/docker-entrypoint.d/40-ashburn-tls.sh`,
+    with their `COPY` lines in the `Dockerfile`.
 21. homelab: remove `metachat` from `ingest-auth-users`, delete
     `docs/design/metachat.md`, and point `docs/design/host-monitoring.md`'s
     other ingest user at `skylab` (`docs/design/skylab-monitoring.md`).
