@@ -23,6 +23,7 @@ maintenance-mode IPs (the NetBox primary IP, surfaced as `ansible_host`).
 
 | Task          | Where it runs        | What it does |
 |---------------|----------------------|--------------|
+| `cluster`     | `localhost` (once)   | Load `vars/<talos_cluster>.yaml` (and `vars/<talos_cluster>.sops.yaml` where it exists), and fail unless the cluster has hosts and its required values. Imported by `config`. |
 | `config`      | `localhost` (once)   | Resolve NetBox facts (VIP and its prefix length, control-plane membership), generate/reuse the SOPS-encrypted secret bundle, render the patches, run `talosctl gen config` + `machineconfig patch` → `ansible/.talos/clusterconfig/`. |
 | `apply`       | per `talos` host     | `talosctl apply-config --insecure` of that node's generated config to a node in maintenance mode. One-shot bootstrap step. |
 | `bootstrap`   | `localhost` (once)   | `talosctl bootstrap` etcd on the first control-plane node. |
@@ -39,7 +40,9 @@ The order of the last four is load-bearing; see
 `config.yaml` resolves two things from NetBox at runtime (falling back to
 the literals in `defaults/main.yaml` only if NetBox isn't populated yet):
 
-- **Control-plane membership** — any host in `groups['talos']` tagged
+- **Cluster membership** — the `talos` platform group at the cluster's
+  NetBox site (`talos_cluster_site`, from `vars/<cluster>.yaml`).
+- **Control-plane membership** — any host of the cluster tagged
   `talos_controlplane_netbox_tag` (default `k8s-controlplane`). Everything
   else is a worker.
 - **Control-plane VIP** — the NetBox IP tagged `talos_vip_netbox_tag`
@@ -49,6 +52,11 @@ Node IPs and arch come from the inventory too (`ansible_host`, and `pis`
 group membership for the arm64 Image Factory schematic).
 
 ## Inputs
+
+`talos_cluster` (default `homelab`; `make -C ansible apply-talos
+CLUSTER=skylab`) names the cluster. The defaults are the home cluster's
+values, and `vars/<cluster>.yaml` overrides them: `vars/homelab.yaml` only
+names the site. Design: `docs/design/skylab-bootstrap.md`.
 
 Cluster identity lives in `defaults/main.yaml` (not in
 `inventory/group_vars/talos.yaml`) because the `localhost` plays that

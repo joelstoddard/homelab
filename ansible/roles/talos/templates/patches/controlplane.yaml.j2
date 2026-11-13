@@ -1,8 +1,10 @@
 {# Control-plane nodes only: why the VIP SAN sits in machine.certSANs alone and why the label is
    deleted is in docs/design/talos-machine-config.md. The metrics listeners: docs/design/observability.md. #}
 machine:
+{% if talos_static_network %}
   certSANs:
     - {{ talos_vip }}
+{% endif %}
   nodeLabels:
     node.kubernetes.io/exclude-from-external-load-balancers:
       $patch: delete

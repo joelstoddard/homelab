@@ -28,20 +28,26 @@ Skylab differs in three ways that shape the design:
 
 ## Design
 
-### Cluster membership from a NetBox tag
+### Cluster membership from the NetBox site
 
-Every Talos host carries one tag naming its cluster: `homelab` or `skylab`.
-The inventory keys a group on it, as it does for `pxe` and `alloy`. A tag can
-reach any host, so plays target the intersection with the platform group:
-`talos:&homelab`, `talos:&skylab`.
+A cluster's hosts are the `talos` platform group at the cluster's NetBox
+site. Each `vars/<cluster>.yaml` names its site in `talos_cluster_site`
+(`homelab` for the home cluster), and the role's `talos_cluster_hosts` is
+every `talos` host whose `site` matches. The cluster name is independent of
+the site, so moving skylab to another Hetzner location is a one-line edit of
+`talos_cluster_site`. The role fails before rendering when no host matches,
+naming the site.
 
-The tag names the cluster, not the kind of cluster. The group is what the
-role renders, bootstraps and upgrades as one unit, and a second public
-cluster would otherwise merge into skylab's group, secrets and endpoint.
-Whether a cluster is public is a fact in its vars file.
+The cluster group is what the role renders, bootstraps and upgrades as one
+unit. Whether a cluster is public is a fact in its vars file.
 
 Control-plane membership (`k8s-controlplane` tag) is derived within the
-cluster group, not across `groups['talos']`.
+cluster group, not across `groups['talos']`, and the render fails if the
+control plane names a host outside it.
+
+The maintenance-mode apply play targets `talos_apply_pending`, which the
+render play fills with the cluster's hosts only for a cluster that takes
+its config that way, so skylab's group is empty.
 
 ### One role, a cluster parameter
 
@@ -146,33 +152,37 @@ L2 announcements. Cilium also gives the security design its network policy.
 
 ## Rejected alternatives
 
-1. **A `public` tag instead of `skylab`.** Names a kind of cluster; a second
-   public cluster would be rendered as one cluster with skylab.
-2. **Excluding skylab with `talos:!public_cluster`.** Leaves "the home
+1. **A per-cluster NetBox tag (`homelab`, `skylab`).** A host missing the
+   tag silently drops out of its cluster, while site is mandatory on every
+   NetBox object. The site has one limit: two clusters at one site would need
+   a tag to tell them apart.
+2. **A `public` tag.** Names a kind of cluster; a second public cluster
+   would be rendered as one cluster with skylab.
+3. **Excluding skylab with `talos:!public_cluster`.** Leaves "the home
    cluster" implied by an exclusion and needs another one per cluster.
-3. **A separate platform slug (`talos-public`).** Splits everything keyed on
+4. **A separate platform slug (`talos-public`).** Splits everything keyed on
    the platform to keep two clusters apart.
-4. **A separate skylab play.** Copies most of the role, and the copies drift
+5. **A separate skylab play.** Copies most of the role, and the copies drift
    at the first upgrade.
-5. **An in-cluster Tailscale router.** Cannot reach apid before Kubernetes
+6. **An in-cluster Tailscale router.** Cannot reach apid before Kubernetes
    exists, so cannot bootstrap.
-6. **The operator VM on the tailnet.** Works, but moves skylab work off the
+7. **The operator VM on the tailnet.** Works, but moves skylab work off the
    Mac for no gain once fast user switching is available.
-7. **Reaching the tailnet from the LAN through the `homelab` subnet router.**
+8. **Reaching the tailnet from the LAN through the `homelab` subnet router.**
    Needs a return route and SNAT, and makes the router a two-way bridge
    between the LAN and the tailnet.
-8. **The public IP as endpoint and SAN.** Misleading with 6443 closed, and
+9. **The public IP as endpoint and SAN.** Misleading with 6443 closed, and
    it needs a NetBox edit and a re-render after every rebuild (provisioning
    alternative 13).
-9. **Adding the tailnet IP to the SANs after first boot.** A second apply
+10. **Adding the tailnet IP to the SANs after first boot.** A second apply
    cycle on every rebuild.
-10. **Moving the home cluster under per-cluster paths.** Touches the live
+11. **Moving the home cluster under per-cluster paths.** Touches the live
     cluster's PKI file and every path `upgrade.yaml` and `resize.yaml` know,
     for symmetry only.
-11. **No swap.** Adding it later needs a wipe.
-12. **Flannel and kube-proxy on skylab.** Two CNIs to know, and no Cilium
+12. **No swap.** Adding it later needs a wipe.
+13. **Flannel and kube-proxy on skylab.** Two CNIs to know, and no Cilium
     network policy for the security design.
-13. **Maintenance mode and `apply-config --insecure`.** Needs public
+14. **Maintenance mode and `apply-config --insecure`.** Needs public
     50000/tcp (provisioning alternative 7).
 
 ## Failure mode if you change this

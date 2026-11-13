@@ -10,11 +10,11 @@
 # back. If the release exists — seeded or Flux-managed — nothing happens.
 
 # Right after bootstrap the kube-apiserver takes a minute or two to come up
-# behind the VIP (the kubeconfig's server). A port wait keeps a permanent
+# behind the cluster endpoint (the kubeconfig's server). A port wait keeps a permanent
 # helm failure below from hiding behind a long retry loop.
-- name: Wait for the kube-apiserver to listen on the VIP.
+- name: Wait for the kube-apiserver to listen on the cluster endpoint.
   ansible.builtin.wait_for:
-    host: "{{ talos_vip }}"
+    host: "{{ talos_cluster_endpoint | urlsplit('hostname') }}"
     port: 6443
     timeout: 600
 
