@@ -71,7 +71,7 @@ resource "hcloud_server" "skylab" {
   name        = "skylab"
   server_type = data.hcloud_server_type.skylab.name
   location    = local.location
-  image       = tostring(data.hcloud_images.talos[0].images[0].id)
+  image       = data.hcloud_images.talos[0].images[0].id
   # The talos role's render: make -C ansible apply-talos CLUSTER=skylab TAGS=config.
   user_data    = file("${path.module}/../../../ansible/.talos/skylab/skylab-${local.nb_vm.name}.yaml")
   firewall_ids = [hcloud_firewall.skylab[0].id]
@@ -80,7 +80,6 @@ resource "hcloud_server" "skylab" {
   rebuild_protection = true
 
   public_net {
-    ipv4_enabled = true
     ipv4         = hcloud_primary_ip.ipv4[0].id
     ipv6_enabled = false
   }

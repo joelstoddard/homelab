@@ -10,9 +10,9 @@ variable "netbox_token" {
 }
 
 variable "netbox_headers" {
-  description = "JSON object of extra NetBox request headers, e.g. the X-NetBox-Branch header. Injected via TF_VAR_netbox_headers from NETBOX_HEADERS; empty reads main."
-  type        = string
-  default     = ""
+  description = "Extra NetBox request headers, e.g. the X-NetBox-Branch header. Injected via TF_VAR_netbox_headers from NETBOX_HEADERS as a JSON object; {} reads main."
+  type        = map(string)
+  default     = {}
 }
 
 variable "talos_skylab_schematic_id" {

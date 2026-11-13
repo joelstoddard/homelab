@@ -17,7 +17,7 @@ locals {
 }
 
 data "netbox_site" "skylab" {
-  id = tostring(local.nb_vm.site_id)
+  id = local.nb_vm.site_id
 }
 
 data "hcloud_locations" "all" {}

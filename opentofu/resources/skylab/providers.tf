@@ -5,5 +5,5 @@ provider "netbox" {
   server_url = var.netbox_url
   api_token  = var.netbox_token
   # The provider's own NETBOX_HEADERS default fails on a map-typed value.
-  headers = var.netbox_headers == "" ? {} : jsondecode(var.netbox_headers)
+  headers = var.netbox_headers
 }

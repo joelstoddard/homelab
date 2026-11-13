@@ -119,7 +119,7 @@ define run_tofu
 	export TF_VAR_lan_gateway="$$(sops -d --extract '["lan_gateway"]' $(OPENTOFU_SECRETS))"; \
 	export TF_VAR_netbox_url="$$NETBOX_URL"; \
 	export TF_VAR_netbox_token="$$NETBOX_TOKEN"; \
-	export TF_VAR_netbox_headers="$${NETBOX_HEADERS:-}"; \
+	export TF_VAR_netbox_headers="$${NETBOX_HEADERS:-{}}"; \
 	export TF_VAR_talos_version="$$(. $(VERSIONS_ENV) && echo $$TALOS_VERSION)"; \
 	export TF_VAR_talos_schematic_id="$$(. $(VERSIONS_ENV) && echo $$TALOS_SCHEMATIC_ID)"; \
 	export TF_VAR_talos_skylab_schematic_id="$$(. $(VERSIONS_ENV) && echo $$TALOS_SKYLAB_SCHEMATIC_ID)"; \

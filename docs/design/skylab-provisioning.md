@@ -56,9 +56,10 @@ During the build window the operator exports one variable,
 
 1. **Ansible**: `nb_inventory` reads `NETBOX_HEADERS` as JSON from the
    environment.
-2. **tofu**: `run_tofu` mirrors it into `TF_VAR_netbox_headers`, as it
-   already mirrors `NETBOX_URL` and `NETBOX_TOKEN`, and the provider sets
-   `headers = var.netbox_headers == "" ? {} : jsondecode(var.netbox_headers)`.
+2. **tofu**: `run_tofu` mirrors it into `TF_VAR_netbox_headers` (default
+   `{}`), as it already mirrors `NETBOX_URL` and `NETBOX_TOKEN`; tofu parses
+   the JSON object into the `map(string)` variable the provider's `headers`
+   takes.
    The provider's own `NETBOX_HEADERS` environment default does not work: a
    map-typed default read from the environment fails with
    `error setting default for "headers": map of string required`.
