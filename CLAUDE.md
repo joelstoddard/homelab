@@ -37,6 +37,8 @@ The root `Makefile` delegates to subdirectory Makefiles; `ansible/`, `opentofu/`
 
 CI is `.github/workflows/lint.yaml`: `make lint-sops` (every file a `.sops.yaml` rule covers is encrypted), `make -C opentofu fmt`, `make -C kubernetes lint-offline` (`lint` minus the one check that decrypts) and `make -C ansible build lint`, on every pull request. It holds no age key, so a check that needs one stays out of `lint-offline`.
 
+Testing is dry runs against the live fleet, then a live check of the behaviour. There is no unit-test harness. Lint proves syntax only, so a change is verified by its dry run (`make -C ansible check*`, `make -C opentofu check` — exit 0 is no changes, 2 is changes — or `flux build kustomization <layer>`), then by exercising what it does after apply. Templated decision logic in a role (a Jinja comparison that picks a branch) is tested by dry-running it against a host on each side of the decision; lint never evaluates it (#304).
+
 ## Architecture
 
 ### Ansible (ansible/)
