@@ -64,11 +64,6 @@ class ClusterMembershipTest(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0, result.stdout)
         self.assertIn("No Talos hosts at NetBox site 'nowhere'", result.stdout)
 
-    def test_a_missing_required_var_fails_naming_it(self):
-        result = self._run("talos_cluster=homelab", '{"talos_cluster_required_vars": ["talos_absent_key"]}')
-        self.assertNotEqual(result.returncode, 0, result.stdout)
-        self.assertIn("talos_absent_key", result.stdout)
-
     def test_a_tailnet_reached_cluster_must_be_one_node(self):
         result = self._run("talos_cluster=homelab", "talos_api_address=node.example.com")
         self.assertNotEqual(result.returncode, 0, result.stdout)

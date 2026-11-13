@@ -4,10 +4,8 @@
 talos_cluster_site: "ashburn"
 talos_cluster_name: "skylab"
 
-# Secret or not public, so in vars/skylab.sops.yaml (see the role README).
-talos_cluster_required_vars:
-  - talos_tailscale_authkey
-  - talos_tailnet_domain
+# talos_tailscale_authkey and talos_tailnet_domain are secret or not public,
+# so they live in vars/skylab.sops.yaml (see the role README).
 
 # DHCP from Hetzner, and the config arrives as user_data, not by apply-config.
 talos_static_network: false

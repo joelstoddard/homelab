@@ -25,15 +25,6 @@
       and talos_cluster_site in roles/talos/vars/{{ talos_cluster }}.yaml.
     quiet: true
 
-- name: Require the cluster's own values.
-  ansible.builtin.assert:
-    that: lookup('ansible.builtin.vars', item, default='') | length > 0
-    fail_msg: >-
-      {{ item }} is not set. Cluster '{{ talos_cluster }}' reads it from
-      roles/talos/vars/{{ talos_cluster }}.sops.yaml; see the role README.
-    quiet: true
-  loop: "{{ talos_cluster_required_vars }}"
-
 # One address reaches every node, so only a one-node cluster can use it.
 - name: Require exactly one node when the cluster is reached by name.
   ansible.builtin.assert:

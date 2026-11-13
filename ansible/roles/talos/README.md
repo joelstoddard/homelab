@@ -23,7 +23,7 @@ maintenance-mode IPs (the NetBox primary IP, surfaced as `ansible_host`).
 
 | Task          | Where it runs        | What it does |
 |---------------|----------------------|--------------|
-| `cluster`     | `localhost` (once)   | Load `vars/<talos_cluster>.yaml` (and `vars/<talos_cluster>.sops.yaml` where it exists), and fail unless the cluster has hosts and its required values. Imported by `config`. |
+| `cluster`     | `localhost` (once)   | Load `vars/<talos_cluster>.yaml` (and `vars/<talos_cluster>.sops.yaml` where it exists), and fail unless the cluster has hosts. Imported by `config`. |
 | `config`      | `localhost` (once)   | Resolve NetBox facts (VIP and its prefix length, control-plane membership), generate/reuse the SOPS-encrypted secret bundle, render the patches, run `talosctl gen config` + `machineconfig patch` → `ansible/.talos/clusterconfig/`. |
 | `apply`       | per `talos` host     | `talosctl apply-config --insecure` of that node's generated config to a node in maintenance mode. One-shot bootstrap step. |
 | `bootstrap`   | `localhost` (once)   | `talosctl bootstrap` etcd on the first control-plane node. |

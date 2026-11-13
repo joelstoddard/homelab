@@ -48,9 +48,6 @@ talos_cluster_hosts: >-
      | selectattr('site', 'defined') | selectattr('site', 'eq', talos_cluster_site)
      | map(attribute='inventory_hostname') | list }}
 
-# Values the cluster's vars must supply; tasks/cluster.yaml fails without them.
-talos_cluster_required_vars: []
-
 # Nodes on the LAN: static addresses and the control-plane VIP from NetBox.
 talos_static_network: true
 # Nodes start in maintenance mode and take their config over

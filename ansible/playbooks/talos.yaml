@@ -33,7 +33,8 @@
         groups: talos_apply_pending
         talos_cluster_name: "{{ talos_cluster_name }}"
         talos_clusterconfig_dir: "{{ talos_clusterconfig_dir }}"
-      loop: "{{ talos_cluster_hosts if talos_maintenance_apply else [] }}"
+      loop: "{{ talos_cluster_hosts }}"
+      when: talos_maintenance_apply
       changed_when: false
       tags: [always]
 
