@@ -21,8 +21,8 @@ Skylab commands run from the Mac, switched to the personal tailnet
    (`docker stats --no-stream`). These are the layers' memory requests.
 4. homelab: check that the home tree lives under `kubernetes/clusters/homelab/`
    and that the home Flux reconciles from there. No `kubernetes/clusters/skylab/`
-   file may merge before this (`docs/design/skylab-flux.md`, "Moving the home
-   tree").
+   file may merge before this (`docs/design/skylab-flux.md`, "No root above
+   the trees").
 5. Create the classic token (`read:packages`, 1-year expiry) and encrypt it
    into `kubernetes/clusters/skylab/joelst/app/pull-secret.sops.yaml` and
    `kubernetes/clusters/skylab/metachat/app/pull-secret.sops.yaml`, to the

@@ -8,8 +8,8 @@ target reconciles. Security posture and day-2 upgrades are separate designs.
 
 ## Problem
 
-The home Flux syncs `./kubernetes` with `prune: true`, and the root
-`kustomization.yaml` lists every home layer. Skylab needs its own Flux from
+The home Flux syncs `./kubernetes/clusters/homelab` with `prune: true`, and
+that tree's `kustomization.yaml` lists every home layer. Skylab needs its own Flux from
 the same public repo, its own Cilium values, its own substitution keys and a
 decryption key, without either cluster ever reconciling the other's tree.
 
@@ -137,24 +137,14 @@ get PRs with no extra configuration once
 [Onboard the repo to Renovate](https://github.com/joelstoddard/homelab/issues/141)
 lands. Grouping those PRs is that ticket's call.
 
-### Moving the home tree
+### No root above the trees
 
-The home layers move from `kubernetes/<layer>/` to
-`kubernetes/clusters/homelab/<layer>/` in one PR, before any skylab file
-exists. That PR moves the files, rewrites every `ks.yaml` `path:` and the
-sync path to `./kubernetes/clusters/homelab`, deletes the root
-`kustomization.yaml`, and updates every reference to a home layer path (the
-`talos` role's Cilium values path, the `alloy` and `dns` roles, `install.sh`,
-the Makefile, `CLAUDE.md`, the design docs).
-
-On its first reconcile the home sync still points at `./kubernetes`, which no
-longer has a root, so Flux generates one. With `clusters/homelab/` the only
-directory, that root is `clusters/homelab` alone, and it applies the new
-`gotk-sync.yaml`, which repoints the sync. Every layer CR keeps its name, so
-nothing is pruned; each layer reconciles once from its new path.
-
-The ordering is load-bearing: with `clusters/skylab/` present, the generated
-root would also apply skylab's `flux-system/` onto the home cluster.
+`kubernetes/` and `kubernetes/clusters/` hold no `kustomization.yaml` and no
+manifest. A sync pointed at either would make Flux generate a root (fact 2
+above) that includes every `clusters/<cluster>/`, so it would apply each
+cluster's `flux-system/` onto one cluster and repoint its sync (fact 1).
+`make -C kubernetes lint` fails on any manifest outside a cluster tree and on
+any Flux path that leaves its own tree.
 
 ## Rejected alternatives
 
@@ -175,22 +165,17 @@ root would also apply skylab's `flux-system/` onto the home cluster.
    canary; the day-2 design can split them.
 7. **A `make skylab` chain.** It would block on the tailnet join, and the
    runbook already orders the steps.
-8. **Moving the home tree with a stub root.** A second PR to delete the stub,
-   for a step the generated root does safely while `clusters/` holds one
-   cluster.
 
 ## Failure mode if you change this
 
 1. Add a `kustomization.yaml` or a manifest at `kubernetes/`, or point a sync
    at it, and one cluster applies both trees: the other cluster's
    `flux-system/` repoints its sync and the next reconcile prunes everything.
-2. Land any `clusters/skylab/` file before the home move has reconciled and
-   the same happens on the first reconcile.
-3. Point a `ks.yaml` `path:` into the other cluster's tree and that layer is
+2. Point a `ks.yaml` `path:` into the other cluster's tree and that layer is
    applied to the wrong cluster.
-4. Put the operator key in skylab's `sops-age` Secret and a compromised
+3. Put the operator key in skylab's `sops-age` Secret and a compromised
    skylab decrypts every secret in the repo's history.
-5. Encrypt a skylab file to the operator key alone and skylab's Flux fails to
+4. Encrypt a skylab file to the operator key alone and skylab's Flux fails to
    decrypt it; the layer stays not Ready.
-6. Bump `FLUX_VERSION` and regenerate one `gotk-components.yaml` and lint
+5. Bump `FLUX_VERSION` and regenerate one `gotk-components.yaml` and lint
    fails; regenerate neither and both clusters stay where they are.
