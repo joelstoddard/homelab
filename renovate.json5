@@ -1,0 +1,30 @@
+// Read by the Mend-hosted Renovate app; nothing automerges, because a merge to
+// main is a Flux deploy with no CI in front of it. See docs/design/renovate.md.
+{
+  $schema: 'https://docs.renovatebot.com/renovate-schema.json',
+  extends: [
+    'config:recommended',
+    ':dependencyDashboard',
+    ':semanticCommitTypeAll(chore)',
+    'schedule:weekends',
+  ],
+  labels: ['dependencies'],
+  prConcurrentLimit: 5,
+  vulnerabilityAlerts: {
+    schedule: ['at any time'],
+  },
+  flux: {
+    managerFilePatterns: ['/^kubernetes/clusters/.+\\.ya?ml$/'],
+  },
+  kubernetes: {
+    managerFilePatterns: ['/^kubernetes/clusters/.+\\.ya?ml$/'],
+  },
+  packageRules: [
+    {
+      description: 'gotk-components.yaml is generated: the flux manager regenerates it whole, so its images never bump alone',
+      matchManagers: ['kubernetes'],
+      matchFileNames: ['**/gotk-components.yaml'],
+      enabled: false,
+    },
+  ],
+}
