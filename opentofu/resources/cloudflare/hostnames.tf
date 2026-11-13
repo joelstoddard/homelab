@@ -8,7 +8,7 @@ locals {
   hostnames = {
     joelst     = { zone_id = var.joelst_zone_id, name = var.joelst_zone, service = local.joelst_origin }
     joelst-www = { zone_id = var.joelst_zone_id, name = "www.${var.joelst_zone}", service = local.joelst_origin }
-    metachat   = { zone_id = var.metachat_zone_id, name = "chat.${var.metachat_zone}", service = local.metachat_origin }
+    metachat   = { zone_id = var.metachat_zone_id, name = "metachat.${var.metachat_zone}", service = local.metachat_origin }
 
     # The cutover gate's test names, one label deep so the edge certificate covers them.
     joelst-next   = { zone_id = var.joelst_zone_id, name = "next.${var.joelst_zone}", service = local.joelst_origin }

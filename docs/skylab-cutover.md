@@ -13,7 +13,7 @@ Skylab commands run from the Mac, switched to the personal tailnet
 1. metachat: merge `CLIENT_IP_HEADER`, `?relay=1` and the Caddy
    `header_up CF-Connecting-IP {client_ip}` line, and set
    `CLIENT_IP_HEADER=CF-Connecting-IP` in Ashburn's `.env`. Check that
-   Ashburn still serves `chat.example.net` and that a call connects.
+   Ashburn still serves `metachat.example.net` and that a call connects.
 2. joelst: merge the `nginx-unprivileged` image, the `default_server` change
    and the publish job. Check that Ashburn still serves `example.com` and that
    `ghcr.io/joelstoddard/joelst:1.0.<n>` exists.
@@ -69,7 +69,7 @@ If any check fails, fix it before step 14. Ashburn still serves everything.
 17. Merge the NetBox branch, so main describes the new Skylab
     (`docs/design/skylab-provisioning.md`).
 18. Repeat steps 12 and 13 against `example.com`, `www.example.com` and
-    `chat.example.net`. `www` must redirect to the apex.
+    `metachat.example.net`. `www` must redirect to the apex.
 
 ## The 7-day window
 
@@ -79,7 +79,7 @@ Roll back on the criterion in `docs/design/skylab-migration.md`, "Rollback".
 
 1. Revert the cutover PR and apply `resources/cloudflare/`.
 2. On Ashburn: `docker compose start server coturn` in `/opt/metachat`.
-3. Check `example.com` and `chat.example.net` on Ashburn.
+3. Check `example.com` and `metachat.example.net` on Ashburn.
 
 ## Cleanup (after 7 days)
 

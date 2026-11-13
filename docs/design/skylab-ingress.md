@@ -10,7 +10,7 @@ design; the firewalls and coturn's deny list belong to the security design
 (`docs/design/skylab-security.md`).
 
 Hostnames here are placeholders. joelst's zone is `example.com`. metachat
-lives at `chat.example.net` in a second zone, `example.net`. The real zones
+lives at `metachat.example.net` in a second zone, `example.net`. The real zones
 stay in SOPS.
 
 ## Problem
@@ -85,7 +85,7 @@ Tofu owns only the records this effort touches:
 |---|---|---|---|
 | apex | `example.com` | imported proxied A, Ashburn | proxied CNAME, tunnel |
 | `www` | `example.com` | imported proxied A, Ashburn | proxied CNAME, tunnel |
-| `chat` | `example.net` | imported proxied A, Ashburn | proxied CNAME, tunnel |
+| `metachat` | `example.net` | imported proxied A, Ashburn | proxied CNAME, tunnel |
 | `next` | `example.com` | proxied CNAME, tunnel | deleted |
 | `metachat-next` | `example.net` | proxied CNAME, tunnel | deleted |
 | `turn` | `example.net` | DNS-only A, primary IP (gated) | unchanged |
@@ -109,7 +109,7 @@ Ashburn still runs. The restored `import` blocks are then no-ops, because
 their addresses are already in state.
 
 The test hostnames are one label deep (`metachat-next.example.net`, not
-`next.chat.example.net`). Cloudflare's Universal SSL certificate covers the
+`next.metachat.example.net`). Cloudflare's Universal SSL certificate covers the
 apex and `*.<zone>` only, so a deeper name gets no edge certificate.
 
 `resources/cloudflare/` also owns Forgejo's certificate delegation: a
@@ -194,7 +194,7 @@ This is checked at build: the pods report Ready with the policy in place.
 1. `resources/cloudflare/secrets.env` (SOPS) holds `CLOUDFLARE_API_TOKEN`,
    which the provider reads natively, and `TF_VAR_`s for the account ID, the
    two zones and their IDs, the Ashburn address and the live record IDs. The
-   labels (`www`, `chat`, `next`, `metachat-next`) are in git; only the zones
+   labels (`www`, `metachat`, `next`, `metachat-next`) are in git; only the zones
    are secret.
 2. `resources/skylab/secrets.env` gets the same token and `TF_VAR_`s for the
    `example.net` zone and its ID. The `turn` label is in git.

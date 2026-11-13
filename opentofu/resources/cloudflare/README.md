@@ -13,7 +13,7 @@ exists only while skylab does.
 ## Hostnames
 
 `hostnames.tf` lists every name: a route to its in-cluster Service and a
-proxied record each. The apex, `www` and `chat` are imported from the live
+proxied record each. The apex, `www` and `metachat` are imported from the live
 zones while they still point at Ashburn (`ashburn.tf`), so they stay A
 records with the Ashburn address. `next` and `metachat-next` are the cutover
 gate's test names and are tunnel CNAMEs from the start.

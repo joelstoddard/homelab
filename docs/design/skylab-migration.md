@@ -9,7 +9,7 @@ tunnel. The order of changes and the cutover steps are in
 `docs/skylab-cutover.md`.
 
 Hostnames are placeholders: joelst serves `example.com`, metachat serves
-`chat.example.net`, and the real zones stay in SOPS.
+`metachat.example.net`, and the real zones stay in SOPS.
 
 ## Problem
 
