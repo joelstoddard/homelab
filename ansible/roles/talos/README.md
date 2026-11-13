@@ -23,6 +23,7 @@ maintenance-mode IPs (the NetBox primary IP, surfaced as `ansible_host`).
 
 | Task          | Where it runs        | What it does |
 |---------------|----------------------|--------------|
+| `cluster`     | `localhost` (once)   | Load `vars/<talos_cluster>.yaml` (and `vars/<talos_cluster>.sops.yaml` where it exists), and fail unless the cluster has hosts. Imported by `config`. |
 | `config`      | `localhost` (once)   | Resolve NetBox facts (VIP and its prefix length, control-plane membership), generate/reuse the SOPS-encrypted secret bundle, render the patches, run `talosctl gen config` + `machineconfig patch` → `ansible/.talos/clusterconfig/`. |
 | `apply`       | per `talos` host     | `talosctl apply-config --insecure` of that node's generated config to a node in maintenance mode. One-shot bootstrap step. |
 | `bootstrap`   | `localhost` (once)   | `talosctl bootstrap` etcd on the first control-plane node. |
@@ -39,7 +40,9 @@ The order of the last four is load-bearing; see
 `config.yaml` resolves two things from NetBox at runtime (falling back to
 the literals in `defaults/main.yaml` only if NetBox isn't populated yet):
 
-- **Control-plane membership** — any host in `groups['talos']` tagged
+- **Cluster membership** — the `talos` platform group at the cluster's
+  NetBox site (`talos_cluster_site`, from `vars/<cluster>.yaml`).
+- **Control-plane membership** — any host of the cluster tagged
   `talos_controlplane_netbox_tag` (default `k8s-controlplane`). Everything
   else is a worker.
 - **Control-plane VIP** — the NetBox IP tagged `talos_vip_netbox_tag`
@@ -50,6 +53,21 @@ group membership for the arm64 Image Factory schematic).
 
 ## Inputs
 
+`talos_cluster` (default `homelab`; `make -C ansible apply-talos
+CLUSTER=skylab`) names the cluster. The defaults are the home cluster's
+values, and `vars/<cluster>.yaml` overrides them: `vars/homelab.yaml` only
+names the site. Design: `docs/design/skylab-bootstrap.md`.
+
+`vars/skylab.yaml` sets skylab's name, site, endpoint, paths and schematic,
+and turns off the VIP, static addressing and maintenance-mode apply. Its
+patches are `templates/patches/skylab/`, added to every node. Two values
+come from `vars/skylab.sops.yaml`, which the render refuses to run without:
+
+| Key | Value |
+|---|---|
+| `talos_tailscale_authkey` | Tailscale auth key: an OAuth client secret (or a key it minted) for `tag:skylab`, pre-approved, not ephemeral |
+| `talos_tailnet_domain` | The tailnet's MagicDNS suffix, `<tailnet>.ts.net` |
+
 Cluster identity lives in `defaults/main.yaml` (not in
 `inventory/group_vars/talos.yaml`) because the `localhost` plays that
 generate configs and bootstrap etcd are not members of the `talos`
@@ -58,7 +76,8 @@ inventory group. Key knobs:
 - `talos_version` / `talos_kubernetes_version` — single-sourced from
   repo-root `versions.env`.
 - `talos_schematic_id` / `talos_pi_schematic_id` — read from `versions.env`
-  (`TALOS_SCHEMATIC_ID` / `TALOS_PI_SCHEMATIC_ID`); both carry the Longhorn
+  (`TALOS_SCHEMATIC_ID` / `TALOS_PI_SCHEMATIC_ID`; skylab's
+  `TALOS_SKYLAB_SCHEMATIC_ID` adds `tailscale`); all carry the Longhorn
   extensions.
 - `talos_install_disk` — `/dev/sda` fleet-wide (VM scsi0 and the Pis'
   USB→NVMe SSD both enumerate there).
@@ -66,11 +85,12 @@ inventory group. Key knobs:
 ## Outputs
 
 `ansible/.talos/` (git-ignored): `patches/`, `base/` and `clusterconfig/`
-(per-node configs + `talosconfig`). The kubeconfig is merged into
-`~/.kube/config`. The only committed, encrypted artifact is
-`files/secrets.sops.yaml` (the `talosctl gen secrets` bundle) — generated
-on first run, reused thereafter so the cluster CA never rotates underneath
-you.
+(per-node configs + `talosconfig`); skylab's all sit under `skylab/`. The
+kubeconfig is merged into `~/.kube/config` as a context named after the
+cluster. The committed, encrypted artifacts are the `talosctl gen secrets`
+bundles, `files/secrets.sops.yaml` and `files/skylab/secrets.sops.yaml` —
+each generated on its cluster's first run, reused thereafter so the cluster
+CA never rotates underneath you.
 
 ## Day-2
 

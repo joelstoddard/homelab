@@ -6,6 +6,10 @@
 # play). Talos nodes have no SSH/Python, so nothing here touches a node —
 # apply.yaml ships the generated configs over the Talos API.
 
+- name: Load the cluster's vars and check its hosts.
+  ansible.builtin.import_tasks: cluster.yaml
+  tags: [always]
+
 - name: Ensure the build + role-files directories exist.
   # check_mode: false because the render below writes into these under
   # --check; without it the decrypt targets a directory that does not exist.
@@ -20,23 +24,36 @@
     - "{{ talos_secrets_sops | dirname }}"
 
 # --- NetBox-sourced facts (the source of truth) ------------------------
-# Control-plane membership: any talos host carrying the controlplane tag.
-# The inventory plugin exposes NetBox tags as a flat hostvar list.
+# Control-plane membership: any host of this cluster carrying the
+# controlplane tag. The inventory plugin exposes NetBox tags as a flat list.
 - name: Derive control-plane membership from the NetBox tag.
   ansible.builtin.set_fact:
     talos_controlplane_hosts: "{{ _derived }}"
   vars:
     _derived: >-
-      {{ groups['talos'] | default([]) | map('extract', hostvars)
+      {{ talos_cluster_hosts | map('extract', hostvars)
          | selectattr('tags', 'defined')
          | selectattr('tags', 'contains', talos_controlplane_netbox_tag)
          | map(attribute='inventory_hostname') | list }}
   when: _derived | length > 0
 
+# The fallback list names home-cluster hosts, so another cluster must tag its own.
+- name: Require a control plane drawn from this cluster.
+  ansible.builtin.assert:
+    that:
+      - talos_controlplane_hosts | length > 0
+      - talos_controlplane_hosts | difference(talos_cluster_hosts) | length == 0
+    fail_msg: >-
+      Control plane {{ talos_controlplane_hosts }} is not within cluster
+      '{{ talos_cluster }}' ({{ talos_cluster_hosts | join(', ') }}). Tag its
+      control-plane hosts {{ talos_controlplane_netbox_tag }} in NetBox.
+    quiet: true
+
 # A failed lookup is fatal once the inventory holds Talos hosts; the default
 # VIP literal is only for an empty one. A module, not nb_lookup: macOS
 # getaddrinfo segfaults in the forked worker that runs lookup plugins.
 - name: Look up the control-plane VIP from NetBox.
+  when: talos_static_network
   block:
     - name: Query NetBox for the VIP-tagged IP.
       ansible.builtin.uri:
@@ -74,7 +91,7 @@
     talos_network_prefixlen: "{{ _vip_cidr.split('/') | last }}"
   vars:
     _vip_cidr: "{{ _vip_records | map(attribute='address') | list | first | default('') }}"
-  when: _vip_cidr is search('/')
+  when: talos_static_network and _vip_cidr is search('/')
 
 # upgrade.yaml pushes any diff, so a prefix or gateway that cannot be right
 # stops the render here instead of re-addressing every node.
@@ -90,18 +107,21 @@
       {{ node }}: prefix /{{ talos_network_prefixlen }} or the gateway does not fit its
       address. Check the NetBox talos-vip record's prefix and the renderer's default route.
     quiet: true
-  loop: "{{ groups['talos'] | default([]) }}"
+  loop: "{{ talos_cluster_hosts }}"
   loop_control:
     loop_var: node
+  when: talos_static_network
 
 - name: Report the resolved cluster facts.
   ansible.builtin.debug:
     msg:
-      - "VIP / endpoint: {{ talos_vip }} ({{ talos_cluster_endpoint }}), node prefix /{{ talos_network_prefixlen }}"
+      - >-
+        Cluster {{ talos_cluster_name }}, endpoint {{ talos_cluster_endpoint }}{{
+        (', VIP ' ~ talos_vip ~ ', node prefix /' ~ talos_network_prefixlen) if talos_static_network else '' }}
       - "Control plane ({{ talos_controlplane_hosts | length }}): {{ talos_controlplane_hosts | join(', ') }}"
       - >-
-        Workers ({{ (groups['talos'] | default([]) | difference(talos_controlplane_hosts)) | length }}):
-        {{ groups['talos'] | default([]) | difference(talos_controlplane_hosts) | join(', ') }}
+        Workers ({{ (talos_cluster_hosts | difference(talos_controlplane_hosts)) | length }}):
+        {{ talos_cluster_hosts | difference(talos_controlplane_hosts) | join(', ') }}
 
 # --- Secret bundle: reuse if committed, else generate + persist --------
 - name: Reuse or generate the secret bundle.
@@ -114,6 +134,11 @@
 # diffs against a rendered file that check mode would otherwise never write.
 # Rendering touches only the gitignored .talos/ tree and no node.
 - name: Render machine configs from the decrypted bundle.
+  vars:
+    # This cluster's own patches, templates/patches/<cluster>/, for every node.
+    talos_cluster_patches: >-
+      {{ lookup('ansible.builtin.fileglob', role_path ~ '/templates/patches/' ~ talos_cluster ~ '/*.yaml.j2', wantlist=True)
+         | map('basename') | map('regex_replace', '\.yaml\.j2$', '') | sort | list }}
   block:
     - name: Decrypt the secret bundle for talosctl.
       ansible.builtin.command:
@@ -142,6 +167,14 @@
         - cluster
         - controlplane
 
+    - name: Render this cluster's own patches.
+      ansible.builtin.template:
+        src: "patches/{{ talos_cluster }}/{{ item }}.yaml.j2"
+        dest: "{{ talos_patch_dir }}/{{ talos_cluster }}-{{ item }}.yaml"
+        mode: "0600"
+      check_mode: false
+      loop: "{{ talos_cluster_patches }}"
+
     - name: Generate the base controlplane/worker configs and talosconfig.
       ansible.builtin.command:
         cmd: >-
@@ -152,6 +185,7 @@
           --install-disk {{ talos_install_disk }}
           --with-docs=false --with-examples=false
           --config-patch @{{ talos_patch_dir }}/cluster.yaml
+          {% for patch in talos_cluster_patches %}--config-patch @{{ talos_patch_dir }}/{{ talos_cluster }}-{{ patch }}.yaml {% endfor %}
           --config-patch-control-plane @{{ talos_patch_dir }}/controlplane.yaml
           --output-types controlplane,worker,talosconfig
           --output {{ talos_base_dir }} --force
@@ -164,7 +198,7 @@
         dest: "{{ talos_patch_dir }}/node-{{ node }}.yaml"
         mode: "0600"
       check_mode: false
-      loop: "{{ groups['talos'] | default([]) }}"
+      loop: "{{ talos_cluster_hosts }}"
       loop_control:
         loop_var: node
 
@@ -177,7 +211,7 @@
           --output {{ talos_clusterconfig_dir }}/{{ talos_cluster_name }}-{{ node }}.yaml
       changed_when: true
       check_mode: false
-      loop: "{{ groups['talos'] | default([]) }}"
+      loop: "{{ talos_cluster_hosts }}"
       loop_control:
         loop_var: node
 
@@ -186,7 +220,7 @@
         path: "{{ talos_clusterconfig_dir }}/{{ talos_cluster_name }}-{{ node }}.yaml"
         mode: "0600"
       check_mode: false
-      loop: "{{ groups['talos'] | default([]) }}"
+      loop: "{{ talos_cluster_hosts }}"
       loop_control:
         loop_var: node
 
@@ -205,10 +239,12 @@
       loop:
         - verb: endpoint
           ips: >-
-            {{ talos_controlplane_hosts | select('in', groups['talos'] | default([]))
-               | map('extract', hostvars, 'ansible_host') | list }}
+            {{ [talos_api_address] if talos_api_address else
+               talos_controlplane_hosts | map('extract', hostvars, 'ansible_host') | list }}
         - verb: node
-          ips: "{{ groups['talos'] | default([]) | map('extract', hostvars, 'ansible_host') | list }}"
+          ips: >-
+            {{ [talos_api_address] if talos_api_address else
+               talos_cluster_hosts | map('extract', hostvars, 'ansible_host') | list }}
   always:
     - name: Remove the decrypted bundle.
       # Load-bearing, not symmetry: the decrypt above now runs under --check,

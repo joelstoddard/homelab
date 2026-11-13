@@ -28,20 +28,26 @@ Skylab differs in three ways that shape the design:
 
 ## Design
 
-### Cluster membership from a NetBox tag
+### Cluster membership from the NetBox site
 
-Every Talos host carries one tag naming its cluster: `homelab` or `skylab`.
-The inventory keys a group on it, as it does for `pxe` and `alloy`. A tag can
-reach any host, so plays target the intersection with the platform group:
-`talos:&homelab`, `talos:&skylab`.
+A cluster's hosts are the `talos` platform group at the cluster's NetBox
+site. Each `vars/<cluster>.yaml` names its site in `talos_cluster_site`
+(`homelab` for the home cluster), and the role's `talos_cluster_hosts` is
+every `talos` host whose `site` matches. The cluster name is independent of
+the site, so moving skylab to another Hetzner location is a one-line edit of
+`talos_cluster_site`. The role fails before rendering when no host matches,
+naming the site.
 
-The tag names the cluster, not the kind of cluster. The group is what the
-role renders, bootstraps and upgrades as one unit, and a second public
-cluster would otherwise merge into skylab's group, secrets and endpoint.
-Whether a cluster is public is a fact in its vars file.
+The cluster group is what the role renders, bootstraps and upgrades as one
+unit. Whether a cluster is public is a fact in its vars file.
 
 Control-plane membership (`k8s-controlplane` tag) is derived within the
-cluster group, not across `groups['talos']`.
+cluster group, not across `groups['talos']`, and the render fails if the
+control plane names a host outside it.
+
+The maintenance-mode apply play targets `talos_apply_pending`, which the
+render play fills with the cluster's hosts only for a cluster that takes
+its config that way, so skylab's group is empty.
 
 ### One role, a cluster parameter
 
@@ -72,9 +78,13 @@ the Longhorn extensions, pinned in `versions.env` beside the other two. The
 skylab patches carry its `ExtensionServiceConfig`:
 
 1. An auth key from a Tailscale OAuth client, tagged `tag:skylab`,
-   pre-approved and not ephemeral, from `skylab.sops.yaml`.
-2. `TS_HOSTNAME` fixed, so the MagicDNS name is known before the node
-   exists.
+   pre-approved and not ephemeral, from `skylab.sops.yaml`
+   (`talos_tailscale_authkey`). `--advertise-tags=tag:skylab` goes with it,
+   because an OAuth client secret used as the key logs in only with tags.
+   `TS_AUTH_ONCE=true` logs in only when the node holds no tailnet state, so
+   a restart after the key expires does not lock the operator out.
+2. `TS_HOSTNAME` fixed (`skylab`), so the MagicDNS name is known before the
+   node exists.
 3. `--accept-routes` **off**. The home cluster's `homelab` subnet router
    advertises the LAN prefix; accepting it would give skylab the LAN route
    this cluster exists to avoid. The ACL side of that boundary belongs to
@@ -96,7 +106,13 @@ address is assigned only when the node joins, after the config is rendered
 into `user_data`; the name is fixed before it. Inside the node, kubelet and
 Cilium reach the API through KubePrism (`localhost:7445`), so only outside
 clients use the endpoint. The tailnet name is not public, so it lives in
-`vars/skylab.sops.yaml`, not in NetBox or in plaintext.
+`vars/skylab.sops.yaml` (`talos_tailnet_domain`, the whole
+`<tailnet>.ts.net` suffix), not in NetBox or in plaintext.
+
+talosctl reaches the node by the same name (`talos_api_address`): the
+talosconfig's endpoint and node, and the bootstrap, kubeconfig and health
+calls. A name reaches one node only, so the role refuses a cluster that sets
+it and has more than one host.
 
 ### Skylab-only patches
 
@@ -104,15 +120,34 @@ clients use the endpoint. The tailnet name is not public, so it lives in
 
 1. `cluster.allowSchedulingOnControlPlanes: true`.
 2. The Tailscale `ExtensionServiceConfig` above, which also carries the
-   Tailscale Serve config for Forgejo (`docs/design/skylab-forgejo.md`).
+   Tailscale Serve config for Forgejo (`docs/design/skylab-forgejo.md`):
+   TCP 443 passed through to `127.0.0.1:30443`, Forgejo's fixed NodePort
+   (`talos_forgejo_nodeport`).
 3. The Forgejo Volume mount, a `UserVolumeConfig`
    (`docs/design/skylab-forgejo.md`).
-4. `VolumeConfig` `EPHEMERAL` with a `maxSize`, a 2 GiB `SwapVolumeConfig`,
-   a `ZswapConfig`, and kubelet `memorySwap.swapBehavior: LimitedSwap`.
+4. `VolumeConfig` `EPHEMERAL` with a `maxSize` of 64 GiB, a 2 GiB
+   `SwapVolumeConfig` on the system disk, a `ZswapConfig` (`maxPoolPercent:
+   20`), and kubelet `memorySwap.swapBehavior: LimitedSwap`. The CX33's
+   80 GB disk is about 74.5 GiB; 64 GiB leaves room for the swap partition
+   beside the image's own partitions with margin, because the cap cannot be
+   raised later without a wipe. The swap partition is LUKS2-encrypted with
+   a node-ID key, because Talos recommends encrypting swap: memory pages
+   carry secrets. The key derives from the server's UUID, so it needs no
+   secret in the config, and it protects against reading the disk away
+   from this server, not against the server itself.
    Talos has no zram (findings of the zram research, linked from the map).
    Only Burstable pods swap under `LimitedSwap`.
 5. The sysctl `net.ipv4.ip_local_reserved_ports: "49160-49500"`, which keeps
    host processes off coturn's relay ports (`docs/design/skylab-ingress.md`).
+6. The Talos host firewall of `docs/design/skylab-security.md`:
+   `NetworkDefaultActionConfig` `ingress: block`, apid from the tailnet
+   range, 6443 from the tailnet range and the pod subnet, and TURN from
+   any IPv4 address; skylab has no IPv6 (`firewall.yaml.j2`). The pod subnet is pinned in
+   `cluster.network.podSubnets` from the same var, so the rule cannot drift
+   from it. The shared control-plane patch binds the controller-manager,
+   scheduler and etcd metrics listeners to `0.0.0.0`; no rule opens them, so
+   the default block keeps them off the public address. It ships in the
+   first config because the node is public from its first boot.
 
 Swap ships in the first config because the `EPHEMERAL` cap only takes effect
 on a fresh disk: adding it later means a wipe and a re-bootstrap. The CX33
@@ -120,8 +155,10 @@ fits without swap (about 4 GiB free); swap is headroom at no cost.
 
 ### Contexts
 
-The talosconfig and kubeconfig contexts are both named `skylab`, merged into
-`~/.talos/config` and `~/.kube/config` beside `homelab`.
+The talosconfig and kubeconfig contexts are both named `skylab`. The
+kubeconfig context is merged into `~/.kube/config` beside `homelab`; the
+talosconfig is `ansible/.talos/skylab/talosconfig`, as the home cluster's is
+`ansible/.talos/clusterconfig/talosconfig`.
 
 ### CNI
 
@@ -144,35 +181,48 @@ L2 announcements. Cilium also gives the security design its network policy.
 
 `docs/skylab-cutover.md` places these steps in the cutover.
 
+## Verified at first boot
+
+Kubelet's node IP and etcd's advertise address
+(`talosctl get nodeips` / `talosctl etcd members`) must be the public
+address, not the tailnet one; if either is the tailnet address, pin
+`machine.kubelet.nodeIP.validSubnets` and `cluster.etcd.advertisedSubnets`
+to the public interface in the skylab patches
+(https://github.com/joelstoddard/homelab/issues/353).
+
 ## Rejected alternatives
 
-1. **A `public` tag instead of `skylab`.** Names a kind of cluster; a second
-   public cluster would be rendered as one cluster with skylab.
-2. **Excluding skylab with `talos:!public_cluster`.** Leaves "the home
+1. **A per-cluster NetBox tag (`homelab`, `skylab`).** A host missing the
+   tag silently drops out of its cluster, while site is mandatory on every
+   NetBox object. The site has one limit: two clusters at one site would need
+   a tag to tell them apart.
+2. **A `public` tag.** Names a kind of cluster; a second public cluster
+   would be rendered as one cluster with skylab.
+3. **Excluding skylab with `talos:!public_cluster`.** Leaves "the home
    cluster" implied by an exclusion and needs another one per cluster.
-3. **A separate platform slug (`talos-public`).** Splits everything keyed on
+4. **A separate platform slug (`talos-public`).** Splits everything keyed on
    the platform to keep two clusters apart.
-4. **A separate skylab play.** Copies most of the role, and the copies drift
+5. **A separate skylab play.** Copies most of the role, and the copies drift
    at the first upgrade.
-5. **An in-cluster Tailscale router.** Cannot reach apid before Kubernetes
+6. **An in-cluster Tailscale router.** Cannot reach apid before Kubernetes
    exists, so cannot bootstrap.
-6. **The operator VM on the tailnet.** Works, but moves skylab work off the
+7. **The operator VM on the tailnet.** Works, but moves skylab work off the
    Mac for no gain once fast user switching is available.
-7. **Reaching the tailnet from the LAN through the `homelab` subnet router.**
+8. **Reaching the tailnet from the LAN through the `homelab` subnet router.**
    Needs a return route and SNAT, and makes the router a two-way bridge
    between the LAN and the tailnet.
-8. **The public IP as endpoint and SAN.** Misleading with 6443 closed, and
+9. **The public IP as endpoint and SAN.** Misleading with 6443 closed, and
    it needs a NetBox edit and a re-render after every rebuild (provisioning
    alternative 13).
-9. **Adding the tailnet IP to the SANs after first boot.** A second apply
+10. **Adding the tailnet IP to the SANs after first boot.** A second apply
    cycle on every rebuild.
-10. **Moving the home cluster under per-cluster paths.** Touches the live
+11. **Moving the home cluster under per-cluster paths.** Touches the live
     cluster's PKI file and every path `upgrade.yaml` and `resize.yaml` know,
     for symmetry only.
-11. **No swap.** Adding it later needs a wipe.
-12. **Flannel and kube-proxy on skylab.** Two CNIs to know, and no Cilium
+12. **No swap.** Adding it later needs a wipe.
+13. **Flannel and kube-proxy on skylab.** Two CNIs to know, and no Cilium
     network policy for the security design.
-13. **Maintenance mode and `apply-config --insecure`.** Needs public
+14. **Maintenance mode and `apply-config --insecure`.** Needs public
     50000/tcp (provisioning alternative 7).
 
 ## Failure mode if you change this

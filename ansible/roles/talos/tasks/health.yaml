@@ -7,7 +7,7 @@
 
 - name: Resolve the bootstrap node's IP.
   ansible.builtin.set_fact:
-    talos_bootstrap_ip: "{{ hostvars[talos_bootstrap_host].ansible_host }}"
+    talos_bootstrap_ip: "{{ talos_api_address or hostvars[talos_bootstrap_host].ansible_host }}"
 
 - name: Wait for the cluster to converge (etcd, kube-apiserver, every node Ready).
   ansible.builtin.command:
@@ -16,6 +16,8 @@
       health --wait-timeout 10m
       --nodes {{ talos_bootstrap_ip }} --endpoints {{ talos_bootstrap_ip }}
       --control-plane-nodes {{ talos_controlplane_hosts | map('extract', hostvars, 'ansible_host') | join(',') }}
-      --worker-nodes {{ (groups['talos'] | difference(talos_controlplane_hosts)) | map('extract', hostvars, 'ansible_host') | join(',') }}
+      {% if talos_health_workers %}--worker-nodes {{ talos_health_workers | map('extract', hostvars, 'ansible_host') | join(',') }}{% endif %}
+  vars:
+    talos_health_workers: "{{ talos_cluster_hosts | difference(talos_controlplane_hosts) }}"
   register: talos_health
   changed_when: false

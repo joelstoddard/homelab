@@ -7,8 +7,9 @@ cannot render the Talos 1.14+ config format, so it blocked #140.
 
 ## The render
 
-1. **NetBox facts.** Control-plane membership from the `k8s-controlplane`
-   tag. The VIP, and the nodes' prefix length, from the IP tagged
+1. **NetBox facts.** The cluster's hosts are the `talos` group at its NetBox
+   site (`docs/design/skylab-bootstrap.md`). Control-plane membership from
+   the `k8s-controlplane` tag, within the cluster. The VIP, and the nodes' prefix length, from the IP tagged
    `talos-vip`.
 2. **Secret bundle.** `files/secrets.sops.yaml` uses the
    `talosctl gen secrets` schema. It is decrypted into the git-ignored

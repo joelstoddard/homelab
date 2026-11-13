@@ -1,0 +1,31 @@
+{# Swap must be in the first config: the EPHEMERAL cap that leaves it room only applies to a fresh
+   disk. Sizes and why: docs/design/skylab-bootstrap.md, "Skylab-only patches". #}
+machine:
+  kubelet:
+    extraConfig:
+      memorySwap:
+        swapBehavior: LimitedSwap
+---
+apiVersion: v1alpha1
+kind: VolumeConfig
+name: EPHEMERAL
+provisioning:
+  maxSize: 64GiB
+---
+apiVersion: v1alpha1
+kind: SwapVolumeConfig
+name: swap
+provisioning:
+  diskSelector:
+    match: system_disk
+  minSize: 2GiB
+  maxSize: 2GiB
+encryption:
+  provider: luks2
+  keys:
+    - slot: 0
+      nodeID: {}
+---
+apiVersion: v1alpha1
+kind: ZswapConfig
+maxPoolPercent: 20

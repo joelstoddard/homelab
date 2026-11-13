@@ -213,7 +213,7 @@ If the owner's GitHub account (`joelstoddard`) is banned or lost for good,
 Forgejo becomes the Flux origin. Skylab's Flux repoints its `GitRepository`
 to the in-cluster Forgejo Service. The home cluster's Flux cannot reach
 Forgejo: `forgejo.${DOMAIN}` resolves to a tailnet address, and the LAN has
-no path into the tailnet (`docs/design/skylab-bootstrap.md`, alternative 7).
+no path into the tailnet (`docs/design/skylab-bootstrap.md`, alternative 8).
 That path is a known gap, designed as part of the rebuild that follows the
 loss.
 

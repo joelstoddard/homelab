@@ -25,17 +25,20 @@ the installed system ([1.10 release notes](https://github.com/siderolabs/talos/r
 
 Every node's `machine.install.image` is
 `factory.talos.dev/installer/<schematic-id>:<talos_version>`, set in
-`templates/patches/node.yaml.j2`. Two schematics:
+`templates/patches/node.yaml.j2`. Three schematics:
 
 | Nodes | Schematic | ID |
 | --- | --- | --- |
 | x86 VMs | `iscsi-tools` + `util-linux-tools` | `613e1592b2da41ae5e265e8789429f22e121aab91cb4deb6bc3c0b6262961245` |
 | arm64 Pis | rpi overlay + USB quirk + the same two extensions | `8f18bdacd55516fa39c6ef589c771d529e0cfdf3bc5e2c708509a61640633805` |
+| skylab (Hetzner x86) | the same two extensions + `tailscale` | `708747e350d604ae9e57227d8dcf274091453ddb1097b765d4ea8884f1992c1f` |
 
 The IDs live in repo-root `versions.env` (`TALOS_SCHEMATIC_ID`,
-`TALOS_PI_SCHEMATIC_ID`); the `talos` role, the `00-pxe` role and the
-OpenTofu Makefile all read them from there. The two extensions are
-Longhorn's Talos prerequisites — `docs/design/longhorn.md`.
+`TALOS_PI_SCHEMATIC_ID`, `TALOS_SKYLAB_SCHEMATIC_ID`); the `talos` role, the
+`00-pxe` role and the OpenTofu Makefile all read them from there. The two
+extensions are Longhorn's Talos prerequisites — `docs/design/longhorn.md`.
+The `tailscale` extension puts skylab on the tailnet before Kubernetes
+exists (`docs/design/skylab-bootstrap.md`).
 
 ```yaml
 # x86 VMs
@@ -43,6 +46,16 @@ customization:
   systemExtensions:
     officialExtensions:
       - siderolabs/iscsi-tools
+      - siderolabs/util-linux-tools
+```
+
+```yaml
+# skylab
+customization:
+  systemExtensions:
+    officialExtensions:
+      - siderolabs/iscsi-tools
+      - siderolabs/tailscale
       - siderolabs/util-linux-tools
 ```
 
