@@ -100,6 +100,20 @@
       prBodyNotes: ['A bad bump stops the Pis netbooting. Netboot one Pi from the operator VM before merging.'],
     },
     {
+      description: 'ansible/requirements.txt is a full freeze: one PR, majors apart, checked as a set',
+      matchManagers: ['pip_requirements'],
+      groupName: 'ansible python deps',
+      prBodyNotes: [
+        'Check the set installs: `make -C ansible build` then `make -C ansible lint`. Set `ansible-core` to the series the new `ansible` pins.',
+      ],
+    },
+    {
+      description: 'ansible pins its ansible-core series; core moves by hand with it',
+      matchManagers: ['pip_requirements'],
+      matchPackageNames: ['ansible-core'],
+      enabled: false,
+    },
+    {
       matchManagers: ['terraform'],
       prBodyNotes: ['If `.terraform.lock.hcl` is unchanged, run `tofu init -upgrade` in each changed `opentofu/resources/*` and commit the lock files.'],
     },

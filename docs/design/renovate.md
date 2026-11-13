@@ -56,6 +56,13 @@ when something breaks.
   Merging a Talos or Kubernetes PR changes no node: `make -C ansible
   apply-upgrade` rolls it out (`docs/talos-bootstrap.md`).
 
+- **The Python freeze is one PR.** `ansible/requirements.txt` pins every
+  transitive package, so separate PRs would number in the dozens and
+  merge into sets that do not install. All its updates share the
+  `ansible python deps` group, with majors in a second PR. `ansible-core`
+  is not updated on its own: `ansible` pins its series, and the note says to
+  move core with it.
+
 - **Annotated pins.** A pin that no built-in manager reads carries a
   `# renovate: datasource=… depName=…` comment on the line above it:
   `versions.env`, the `install.sh` tool versions, and the Pi netboot
