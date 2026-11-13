@@ -114,9 +114,9 @@ defaults that hide the control-plane components.
   its targets go absent.
 - **Placement and budget.** Prometheus and Loki pin to amd64: Longhorn from a
   VM is ~2,000 write IOPS against ~900 from a Pi. The 60 s scrape interval
-  and the series denylist below set the series budget. Limits are first
-  guesses: Prometheus 3Gi, Loki 1Gi, Grafana 768Mi, each node Alloy 1Gi, the
-  cluster Alloy 3Gi, events Alloy 256Mi.
+  and the series denylist below set the series budget. Limits: Prometheus
+  3Gi, Loki 1Gi, Grafana 1280Mi, each node Alloy 1Gi, the cluster Alloy 3Gi,
+  events Alloy 256Mi. Requests follow the fourteen-day measurements.
 - **Series denylist, by name.** Alloy drops the heaviest metric families no
   dashboard reads, in the `prometheus.relabel` stage of the scrape that
   emits them, so they cost neither Alloy's remote-write WAL nor Prometheus'
@@ -184,8 +184,8 @@ defaults that hide the control-plane components.
   512Mi the chart's default factor of 0.9 puts the GC's target at 460 MiB
   + 72 MiB, above the limit, so the GC never works hard before the OOM
   kill, and a 10 s dashboard auto-refresh repeats the burst on every
-  restart into a crash loop. 768Mi with a factor of 0.8 gives ~614 MiB +
-  72 MiB, about 80 MiB under the limit. Keep
+  restart into a crash loop. 1280Mi with a factor of 0.8 gives ~1024 MiB +
+  72 MiB, about 180 MiB under the limit; the fourteen-day peak is 704 MiB. Keep
   `factor × limit + ~100 MiB` at or below the limit when changing either
   number.
 - **Talos control plane.** Scheduler and controller-manager bind to
@@ -400,6 +400,13 @@ Fourteen days to 2026-11-13, peaks are `max_over_time[14d]` per pod:
 | Loki working set, peak | 367 MiB | 512Mi request, 1Gi limit |
 | Alloy DaemonSet on an agent VM | 110-530 MiB, moving between the two over days; peak 533 MiB | 256Mi request, 1Gi limit |
 | Alloy DaemonSet on a Pi or control-plane VM | 95-285 MiB | same |
+| Prometheus working set, peak | 1,773 MiB, CPU p95 28m | 1Gi request (sized on RSS, above), 3Gi limit |
+| Grafana working set, p95 / peak | 490 / 704 MiB | 640Mi request, 1280Mi limit |
+| Grafana dashboard sidecar, p95 / peak | 106 / 109 MiB; CPU throttled in 38% of periods at a 200m limit | 128Mi request, 192Mi and 500m limits |
+| Loki, p95 / peak | 321 / 367 MiB, CPU p95 4m | 50m / 400Mi requests |
+| kube-state-metrics, peak | 46 MiB | 64Mi request, 256Mi limit |
+| `alloy-cluster`, p95 / peak | 778 / 832 MiB | 1Gi request; 3Gi limit for the WAL during an outage |
+| `alloy-events`, p95 / peak | 82 / 84 MiB | 112Mi request, 256Mi limit |
 
 One request and limit cover all 20 pods. The 256Mi request sits inside the
 agents' range, and the 1Gi limit keeps 1.9 times the peak for a WAL that
