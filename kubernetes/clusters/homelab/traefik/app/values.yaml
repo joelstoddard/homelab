@@ -66,6 +66,14 @@ ingressRoute:
     middlewares:
       - name: default-headers
       - name: dashboard-auth
+# JSON to stdout, tailed into Loki by the node Alloy. Headers stay at the chart's
+# drop; query strings are dropped too, since some clients carry API keys there.
+accessLog:
+  enabled: true
+  format: json
+  fields:
+    queryParameters:
+      defaultMode: drop
 resources:
   requests:
     cpu: 25m

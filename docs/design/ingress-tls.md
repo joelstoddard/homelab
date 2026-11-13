@@ -296,6 +296,38 @@ other route keeps the 60 s bound. `writeTimeout` (0, no limit) and
 `idleTimeout` (180 s) stay at their defaults on both entrypoints, so large
 downloads and idle keep-alives are unaffected.
 
+## Access logs
+
+Traefik writes one JSON access line per request to stdout
+(`accessLog` in `traefik/app/values.yaml`). The node-local Alloy tails it
+from `/var/log/pods` like any pod log, so in Loki the lines carry
+`namespace="traefik"`. Query them with `| json` on `RequestHost`,
+`DownstreamStatus` or `RouterName`. This is where a request cut by a timeout,
+or refused by a basic-auth Middleware, becomes visible after the fact.
+
+Three fields settings keep secrets out:
+
+- **Headers** stay at the chart's `drop`, so no `Authorization` or `Cookie`
+  value is logged.
+- **Query strings** are dropped from `RequestPath`. Some clients put an API
+  key there, such as Jellyfin's `api_key` and SignalR's `access_token`.
+- **The basic-auth user name** is kept in `ClientUsername`. The password
+  never is.
+
+Kubelet probes hit `/ping` on the internal `traefik` entrypoint. Internal
+resources are not logged (`addInternals` is false), so probes add no lines.
+
+Volume is sized from the request rate,
+`sum(rate(traefik_entrypoint_requests_total[...]))`, measured on 2026-11-13:
+0.21 req/s averaged over 24 h and 0.41 req/s over one hour. A line is about
+1 KB, so that comes to roughly 17 to 33 MiB a day. Against Loki's other
+ingest of 73 MiB a day (`docs/design/observability.md`), the lines add a
+quarter to a half. On the 20Gi
+Loki volume under 30-day retention (0.6 GiB used), that fits. Most of the
+lines come from the NUC Alloys' `prometheus-write` and `loki-push` routes,
+about 80 % of all requests. A Traefik router's per-route `observability`
+setting can stop those two from logging if the volume ever matters.
+
 ## LAN DNS: the wildcard and its two traps
 
 The bare domain plus a wildcard gives the shortest names; the accepted cost is
