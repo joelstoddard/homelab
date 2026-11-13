@@ -3,7 +3,7 @@
 How a LAN or tailnet client reaches a cluster service at
 `https://<name>.example.com` with a publicly-trusted certificate and no
 per-service TLS configuration. Layers:
-`kubernetes/{cluster-secrets,cert-manager,cert-manager-issuers,traefik,traefik-middlewares}/`,
+`kubernetes/clusters/homelab/{cluster-secrets,cert-manager,cert-manager-issuers,traefik,traefik-middlewares}/`,
 plus `lan-services/` for hosts outside the cluster; LAN DNS
 `ansible/roles/dns/` (`docs/design/dns-chain.md`); first in-cluster consumer
 `kubernetes/clusters/homelab/longhorn/`.
