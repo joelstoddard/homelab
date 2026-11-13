@@ -5,6 +5,9 @@ kind: Kustomization
 resources:
   - namespace.yaml
   - networkpolicy.yaml
+  - pull-secret.sops.yaml
+  - secret.sops.yaml
+  - turn-secret.sops.yaml
   - deployment.yaml
   - service.yaml
   - coturn.yaml

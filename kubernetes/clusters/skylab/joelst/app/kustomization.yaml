@@ -4,5 +4,6 @@ namespace: joelst
 resources:
   - namespace.yaml
   - networkpolicy.yaml
+  - pull-secret.sops.yaml
   - deployment.yaml
   - service.yaml
