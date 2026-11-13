@@ -558,6 +558,10 @@ fallback schema for environments without NetBox.
   defaults are fallbacks. The control plane is 5 nodes, one per physical host
   (the 4 `k8s-server` VMs + the `kosmos` Pi), so the quorum survives any single
   host failure.
+- Renovate (Mend-hosted app, `renovate.json5`) opens PRs for outdated pins, grouping paired versions;
+  nothing automerges. Paired versions, the Talos cap and the unmanaged pins:
+  `docs/design/renovate.md`. A new pin that no built-in manager reads gets a
+  `# renovate: datasource=… depName=…` comment on the line above it.
 - The Talos/Kubernetes/Flux/Cilium versions have a single source of truth in
   repo-root `versions.env`. Every consumer reads it: the `talos` and `00-pxe`
   role defaults (file lookup via `role_path`), `opentofu/Makefile` (sourced →
