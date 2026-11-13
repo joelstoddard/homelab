@@ -143,8 +143,12 @@ needed.
 
 The `repository` widgets run without a token, inside GitHub's anonymous limit
 of 60 requests an hour per source address. Three repositories on Glance's
-default cache stay well under it. A token would raise the limit but adds a
-credential, and nothing needs the extra headroom.
+default cache stay well under it. The `releases` widget adds six upstreams
+(Talos, Kubernetes, Flux, Cilium, Longhorn, Traefik) on a 6 h cache, about
+one request an hour. It shows what upstream has released; Renovate's
+dependency dashboard shows which of those bumps are waiting here. A token
+would raise the limit but adds a credential, and nothing needs the extra
+headroom.
 
 The weather location is personal, and this repo is public, so it is
 `${WEATHER_LOCATION}` in `cluster-secrets`, SOPS-encrypted like `NETBOX_URL`.

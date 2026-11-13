@@ -266,6 +266,21 @@ pages:
           # The doubled sigil is Flux's escape: Glance receives a single one.
           - $$include: stats.yml
 
+          # Upstream of the versions.env pins and the Longhorn and Traefik
+          # charts. A long cache keeps the anonymous GitHub API under 60/h.
+          - type: releases
+            title: Upstream releases
+            cache: 6h
+            show-source-icon: true
+            collapse-after: -1
+            repositories:
+              - siderolabs/talos
+              - kubernetes/kubernetes
+              - fluxcd/flux2
+              - cilium/cilium
+              - longhorn/longhorn
+              - traefik/traefik
+
           - type: markets
             markets:
               - symbol: SPY
