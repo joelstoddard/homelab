@@ -32,6 +32,18 @@ jobs:
 
       - run: make -C opentofu fmt
 
+      # Committed state is encrypted and CI holds no passphrase; validate needs
+      # only providers, so the runner's checkout drops the state first. The NUC
+      # directories read ~/.ssh/id_rsa{,.pub}; a throwaway pair satisfies file().
+      - name: Validate OpenTofu
+        run: |
+          find opentofu -name '*.tfstate*' -delete
+          ssh-keygen -q -t rsa -N '' -f ~/.ssh/id_rsa
+          for d in opentofu/resources/*/; do
+            tofu -chdir="$d" init -backend=false -input=false >/dev/null
+            tofu -chdir="$d" validate -no-color
+          done
+
       # The same kubectl the operator runs, so its bundled kustomize matches.
       - name: Install kubectl
         run: |
