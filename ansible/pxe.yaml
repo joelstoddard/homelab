@@ -15,10 +15,49 @@
     - name: Load this host's SOPS-encrypted vars.
       ansible.builtin.import_tasks: playbooks/tasks/load-host-sops-vars.yaml
 
+# An installed NUC answers SSH; the rest are the install set, so a fresh build
+# installs every NUC and a routine run publishes no preseed. To reinstall a
+# live NUC, pass proxmox_install_hosts in EXTRA_VARS, which overrides this.
+- name: Find the NUCs that still need installing.
+  hosts: localhost
+  tags: [pxe-server]
+  connection: local
+  gather_facts: false
+  tasks:
+    # check_mode: false — the probe is read-only, and a skipped probe would
+    # mark every NUC pending in a dry run.
+    - name: Probe each Proxmox host for SSH.
+      ansible.builtin.wait_for:
+        host: "{{ hostvars[item].ansible_host }}"
+        port: 22
+        timeout: 5
+      loop: "{{ groups['proxmox'] | default([]) }}"
+      register: install_ssh_probe
+      ignore_errors: true
+      check_mode: false
+
+    - name: Register the NUCs that answer no SSH as the install set.
+      ansible.builtin.add_host:
+        name: "{{ item.item }}"
+        groups: proxmox_install_pending
+      loop: "{{ install_ssh_probe.results }}"
+      loop_control:
+        label: "{{ item.item }}"
+      when: item is failed
+      changed_when: false
+
+    - name: Install plan.
+      ansible.builtin.debug:
+        msg: >-
+          install: {{ proxmox_install_hosts | default(groups['proxmox_install_pending'] | default([])) | join(', ') or 'none' }};
+          answer no SSH: {{ groups['proxmox_install_pending'] | default([]) | join(', ') or 'none' }}
+
 - name: Start PXE server.
   hosts: localhost
   tags: [pxe-server]
   connection: local
+  vars:
+    proxmox_install_hosts: "{{ groups['proxmox_install_pending'] | default([]) }}"
   # dnsmasq reads its config through a single-file Docker bind mount, which
   # keeps pointing at the OLD inode after Ansible's atomic template write until
   # the container restarts. If a later task fails, a notified restart would be
