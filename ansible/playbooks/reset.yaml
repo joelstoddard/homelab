@@ -48,8 +48,8 @@
       ansible.builtin.debug:
         msg: "wiping to maintenance mode: {{ groups['reset_pending'] | join(', ') }}"
 
-# The PXE server re-renders the Debian preseeds it owns, which need each
-# NUC's SOPS root_password — same loader play as pxe.yaml.
+# Same loader play as pxe.yaml. The 00-pxe role renders no NUC preseed here
+# (proxmox_install_hosts defaults to []), so nothing below reads root_password.
 - name: Load per-host SOPS vars onto each PXE target.
   hosts: pxe
   gather_facts: false
