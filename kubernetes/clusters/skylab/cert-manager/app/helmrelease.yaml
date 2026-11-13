@@ -1,0 +1,26 @@
+# The chart version is pinned here only — nothing outside Flux consumes it.
+# jetstack chart versions carry the v prefix; keep it.
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: cert-manager
+spec:
+  interval: 1h0m0s
+  releaseName: cert-manager
+  timeout: 10m0s
+  chart:
+    spec:
+      chart: cert-manager
+      version: "v1.21.1"
+      sourceRef:
+        kind: HelmRepository
+        name: jetstack
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    remediation:
+      retries: 3
+  valuesFrom:
+    - kind: ConfigMap
+      name: cert-manager-values

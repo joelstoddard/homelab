@@ -1,0 +1,9 @@
+# jetstack publishes a classic Helm repo, not an OCI chart (like Longhorn,
+# unlike Cilium) — hence HelmRepository + chart.spec.
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmRepository
+metadata:
+  name: jetstack
+spec:
+  interval: 1h0m0s
+  url: https://charts.jetstack.io

@@ -8,3 +8,4 @@ resources:
   - cilium/ks.yaml
   - cilium-policies/ks.yaml
   - cluster-secrets/ks.yaml
+  - cert-manager/ks.yaml
