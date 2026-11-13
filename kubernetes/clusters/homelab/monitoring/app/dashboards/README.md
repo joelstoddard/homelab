@@ -25,6 +25,8 @@ most of their queries return nothing here; see `docs/design/observability.md`.
 | Ingress/traefik.json | Ingress | grafana.com/grafana/dashboards/17346 | 9 | datasource UIDs pinned |
 | Ingress/cert-manager.json | Ingress | grafana.com/grafana/dashboards/20842 | 3 | datasource UIDs pinned |
 | Flux/control-plane.json | Flux | fluxcd/flux2-monitoring-example monitoring/configs/dashboards/control-plane.json | main @ 2026-09 | datasource UIDs pinned; upstream's `[1m]` windows read empty at a 60 s scrape, so rates use `$__rate_interval` and the ops/min panels are `rate × 60` |
+| Alloy/alloy-resources.json | Alloy | grafana/alloy `operations/alloy-mixin/rendered/dashboards/alloy-resources.json` | v1.19.2 | `--drop-var cluster`: no series here carries a `cluster` label (`docs/design/observability.md`, "Alloy mixin dashboards") |
+| Alloy/alloy-controller.json | Alloy | grafana/alloy `operations/alloy-mixin/rendered/dashboards/alloy-controller.json` | v1.19.2 | `--drop-var cluster`, as above. The quantile and heatmap panels read `alloy_component_*_bucket`, which `cluster.alloy` keeps for them. `Slow components evaluation times` is empty until a component evaluates slowly |
 | Logs/logs-explorer.json | Logs | hand-written | — | — |
 | Logs/kubernetes-events.json | Logs | hand-written | — | — |
 | Hosts/proxmox.json | Hosts | grafana.com/grafana/dashboards/10347 | 5 | datasource UIDs pinned; a `NetBox changes` annotation shows device and VM edits from the NetBox change log |

@@ -37,6 +37,12 @@ configMapGenerator:
   - name: dashboard-flux-control-plane
     files: [Flux/control-plane.json]
     options: {annotations: {grafana_folder: Flux}}
+  - name: dashboard-alloy-resources
+    files: [Alloy/alloy-resources.json]
+    options: {annotations: {grafana_folder: Alloy}}
+  - name: dashboard-alloy-controller
+    files: [Alloy/alloy-controller.json]
+    options: {annotations: {grafana_folder: Alloy}}
   - name: dashboard-logs-explorer
     files: [Logs/logs-explorer.json]
     options: {annotations: {grafana_folder: Logs}}

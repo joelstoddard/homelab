@@ -78,6 +78,22 @@ defaults that hide the control-plane components.
   folder named by its `grafana_folder` annotation, read-only. Iterating on a
   dashboard: Save As a copy, iterate, Export (sharing-externally off), drop
   the file in git; the copy dies with the pod.
+- **Alloy mixin dashboards.** `Alloy/alloy-resources.json` and
+  `Alloy/alloy-controller.json` are the alloy-mixin's own rendered JSON,
+  committed upstream under `operations/alloy-mixin/rendered/dashboards/`,
+  so no jsonnet runs here. The source tag is the Alloy version the pinned
+  chart ships, `v1.19.2` for chart 1.12.1 (`alloy_build_info`). Re-vendor on
+  every Alloy bump, from `monitoring/app/dashboards/`, one command per file:
+
+  ```sh
+  python3 vendor.py Alloy/alloy-resources.json --drop-var cluster \
+    --url https://raw.githubusercontent.com/grafana/alloy/<tag>/operations/alloy-mixin/rendered/dashboards/alloy-resources.json
+  ```
+
+  and the same for `alloy-controller`. `--drop-var cluster` removes the
+  mixin's `cluster` variable, its matchers and the `kube-diff-logger`
+  annotation that uses it: no series here carries a `cluster` label, and an
+  empty multi-value variable is not a reliable match-all.
 - **NetBox datasource.** `netboxlabs-netbox-datasource`, pinned, installs
   from an init container running `grafana cli` from Grafana's own image.
   The chart's `plugins:` list cannot do it: `preinstall_disabled` drops
