@@ -51,6 +51,10 @@ spec:
             # arithmetic in docs/design/lancache.md.
             - name: CACHE_INDEX_SIZE
               value: 128m
+            # The image's own JSON variant of its access log, so Loki parses
+            # it with `| json` (docs/design/lancache.md, "Logs and hit rate").
+            - name: NGINX_LOG_FORMAT
+              value: cachelog-json
           ports:
             - name: http
               containerPort: 80
@@ -105,6 +109,63 @@ spec:
             limits:
               cpu: "2"
               memory: 1Gi
+        # nginx writes its logs only to files on the dataset; these follow them
+        # to stdout for Alloy. The trap: a shell as PID 1 ignores SIGTERM and
+        # would stall every Recreate rollout (docs/design/lancache.md, "Logs
+        # and hit rate").
+        - name: access-log
+          image: lancachenet/monolithic@sha256:155817065b13cc427aa0014acc34bbb389591400d7639c95abcfcfb2230ad7f0
+          command:
+            - sh
+            - -c
+            # Drops the probe and heartbeat requests, nearly every line.
+            - trap 'exit 0' TERM; tail -n 0 -F /data/logs/access.log | grep --line-buffered -v -F /lancache-heartbeat & wait
+          securityContext:
+            runAsUser: 33
+            runAsGroup: 33
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: cache
+              mountPath: /data/logs
+              subPath: logs
+              readOnly: true
+          resources:
+            requests:
+              cpu: 5m
+              memory: 16Mi
+            limits:
+              cpu: 100m
+              memory: 64Mi
+        - name: error-log
+          image: lancachenet/monolithic@sha256:155817065b13cc427aa0014acc34bbb389591400d7639c95abcfcfb2230ad7f0
+          command:
+            - sh
+            - -c
+            - trap 'exit 0' TERM; tail -q -n 0 -F /data/logs/error.log /data/logs/upstream-error.log /data/logs/stream-error.log & wait
+          securityContext:
+            runAsUser: 33
+            runAsGroup: 33
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: cache
+              mountPath: /data/logs
+              subPath: logs
+              readOnly: true
+          resources:
+            requests:
+              cpu: 5m
+              memory: 16Mi
+            limits:
+              cpu: 100m
+              memory: 64Mi
       volumes:
         - name: cache
           persistentVolumeClaim:
