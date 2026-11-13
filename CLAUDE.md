@@ -577,7 +577,7 @@ fallback schema for environments without NetBox.
   role defaults (file lookup via `role_path`), `opentofu/Makefile` (sourced →
   `TF_VAR_talos_version`), `kubernetes/Makefile` (sourced → lint drift guards
   against `gotk-components.yaml` and the Cilium `OCIRepository` tag), and
-  `install.sh` (sourced). Bump it there only. The two Image Factory schematic
+  `install.sh` (sourced). Bump it there only. The home cluster's two Image Factory schematic
   IDs (`TALOS_SCHEMATIC_ID`, `TALOS_PI_SCHEMATIC_ID`) live there too, read by
   the `talos` and `00-pxe` roles and exported to OpenTofu as
   `TF_VAR_talos_schematic_id`; both schematics carry Longhorn's
