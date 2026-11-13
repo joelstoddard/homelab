@@ -6,3 +6,4 @@ kind: Kustomization
 resources:
   - flux-system
   - cilium/ks.yaml
+  - cilium-policies/ks.yaml

@@ -1,0 +1,14 @@
+# Hetzner serves the machine config, cluster CA keys included, unauthenticated
+# at 169.254.169.254; `enableDefaultDeny` keeps this deny from putting any
+# endpoint into default-deny (docs/design/skylab-security.md, "The metadata service").
+apiVersion: cilium.io/v2
+kind: CiliumClusterwideNetworkPolicy
+metadata:
+  name: deny-metadata
+spec:
+  endpointSelector: {}
+  enableDefaultDeny:
+    egress: false
+  egressDeny:
+    - toCIDRSet:
+        - cidr: 169.254.0.0/16
