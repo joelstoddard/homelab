@@ -1,5 +1,5 @@
 # GNU make required.
-.PHONY: default help build lint lint-offline check apply components secret sync generate status
+.PHONY: default help build lint lint-offline check apply components secret sync generate probe status
 .NOTPARALLEL:
 
 # One Flux installation per cluster, each reconciling its own clusters/<name>
@@ -46,10 +46,13 @@ ALLOY_RELEASES := $(HOME_TREE)/alloy/app/alloy/helmrelease.yaml \
                   $(HOME_TREE)/alloy/app/alloy-cluster/helmrelease.yaml \
                   $(HOME_TREE)/alloy/app/alloy-events/helmrelease.yaml \
                   $(HOME_TREE)/host-monitoring/app/alloy-gateway/helmrelease.yaml
-# Skylab's security guards (docs/design/skylab-security.md). A
+# Skylab's security guards and probes (docs/design/skylab-security.md). A
 # listed layer must carry a default-deny egress policy once it exists.
 SKYLAB_TREE          := clusters/skylab
 SKYLAB_EGRESS_LAYERS := joelst metachat forgejo cloudflared alloy
+PROBE_NS             := skylab-probe
+PROBE_CURL_IMAGE     := curlimages/curl:8.23.0
+PROBE_HTTPD_IMAGE    := busybox:1.37.0
 
 default: apply
 
@@ -68,6 +71,7 @@ help:
 	@echo "  check     - Server-side dry run of CLUSTER's flux-system/ (client-side before the first install)."
 	@echo "  apply     - components -> sops-age secret -> sync, on CLUSTER. Idempotent. Default."
 	@echo "  generate  - Regenerate every tree's gotk-components.yaml from FLUX_VERSION (needs the flux CLI)."
+	@echo "  probe     - CLUSTER=skylab: NodePort and metadata-service probes against the live cluster."
 	@echo "  status    - flux get all -A + pods, on CLUSTER."
 	@echo
 	@echo "CLUSTER=$(CLUSTER)  KUBE_CONTEXT=$(KUBE_CONTEXT)  AGE_KEY_FILE=$(AGE_KEY_FILE)  FLUX_VERSION=$(FLUX_VERSION)  CILIUM_VERSION=$(CILIUM_VERSION)"
@@ -273,6 +277,36 @@ generate:
 		flux install --export --version=$(FLUX_VERSION) > $$t/$(COMPONENTS) || exit 1; \
 		echo ">> $$t/$(COMPONENTS) at $(FLUX_VERSION)"; \
 	done
+
+# The runbook probes of docs/design/skylab-security.md, each with a positive
+# control so a dead backend or a pod with no network cannot fake a pass. The
+# throwaway namespace has no egress policy, so the metadata probe tests the
+# cluster-wide deny alone.
+probe:
+	@[ "$(CLUSTER)" = skylab ] || { echo "probe is for a public cluster: CLUSTER=skylab." >&2; exit 1; }
+	@kubectl config get-contexts $(KUBE_CONTEXT) >/dev/null 2>&1 || { \
+		echo "kube context '$(KUBE_CONTEXT)' not found; run 'make -C ../ansible kubeconfig'." >&2; exit 1; }
+	@set -e; \
+	k="$(KUBECTL) -n $(PROBE_NS)"; \
+	$(KUBECTL) create namespace $(PROBE_NS) >/dev/null; \
+	trap '$(KUBECTL) delete namespace $(PROBE_NS) --wait=false >/dev/null' EXIT; \
+	$$k run backend --image=$(PROBE_HTTPD_IMAGE) --port=8080 --command -- \
+		sh -c 'echo ok > /tmp/index.html && exec httpd -f -p 8080 -h /tmp' >/dev/null; \
+	$$k run client --image=$(PROBE_CURL_IMAGE) --command -- sleep 600 >/dev/null; \
+	$$k wait --for=condition=Ready --timeout=2m pod/backend pod/client >/dev/null; \
+	$$k expose pod backend --type=NodePort --port=80 --target-port=8080 >/dev/null; \
+	port=$$($$k get service backend -o jsonpath='{.spec.ports[0].nodePort}'); \
+	ip=$$($(KUBECTL) get nodes -o jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}'); \
+	$$k exec client -- curl -sf -m5 -o /dev/null http://backend.$(PROBE_NS).svc.cluster.local/ \
+		|| { echo "FAIL: the NodePort's backend does not answer in-cluster; the probe proves nothing." >&2; exit 1; }; \
+	if curl -s -m5 -o /dev/null http://$$ip:$$port/; then \
+		echo "FAIL: NodePort $$port answers on the public address $$ip." >&2; exit 1; fi; \
+	echo ">> NodePort $$port: answers in-cluster, not on the public address"; \
+	$$k exec client -- curl -s -m5 -o /dev/null https://www.cloudflare.com/ \
+		|| { echo "FAIL: the probe pod cannot reach the internet; the metadata probe proves nothing." >&2; exit 1; }; \
+	if $$k exec client -- curl -s -m5 -o /dev/null http://169.254.169.254/hetzner/v1/userdata; then \
+		echo "FAIL: a pod reaches the metadata service, which serves the machine config." >&2; exit 1; fi; \
+	echo ">> metadata service: unreachable from a pod with internet access"
 
 status:
 	flux --context $(KUBE_CONTEXT) get all -A
