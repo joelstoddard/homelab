@@ -430,6 +430,14 @@ location and the URLs are therefore set in the UI and survive in
 No auth middleware — Home Assistant has its own login, as do SearXNG,
 Jellyfin, the four \*arr applications and qBittorrent. Two replicas are
 impossible, not merely unwise. See `docs/design/home-assistant.md`.
+`orb-agent/` (`decryption`, no `dependsOn`, not substituted) is the LAN
+discovery agent for NetBox Assurance: one `netboxlabs/orb-agent` replica,
+`Recreate`, Fleet-managed, on `hostNetwork` in a PodSecurity `privileged`
+namespace, so ARP and MAC discovery see the real LAN segment. The NetBox Labs
+Console owns the scan job, its schedule and the deviations; nothing about
+them lives in this repo. `dnsPolicy: Default`, because CoreDNS answers PTR
+queries for the `lan-services` addresses with cluster names. The Fleet
+credentials are `app/secret.sops.yaml`. See `docs/design/network-discovery.md`.
 `media/` (`dependsOn: traefik, traefik-middlewares, longhorn, cluster-secrets`,
 substituted) is the shared namespace for Jellyfin and the future \*arr
 stack: one read-write `PersistentVolume` over the TrueNAS export, mounted at
