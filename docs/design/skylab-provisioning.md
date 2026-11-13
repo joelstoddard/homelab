@@ -44,7 +44,7 @@ rebuilt server. The branch sets:
 | Cluster | `Hetzner` (unchanged) |
 | Role | `vps` (unchanged) |
 | Platform | `talos` |
-| Tags | `k8s`, `skylab` (the cluster tag), `k8s-controlplane` |
+| Tags | `k8s`, `k8s-controlplane` |
 | vCPUs / memory / disk | 4 / 8000 MB / 80000 MB |
 | Primary IPv4 | entered by hand after apply (see below) |
 
@@ -65,8 +65,10 @@ During the build window the operator exports one variable,
 
 The talos role's `uri` lookup of the VIP runs only for the home cluster
 (`docs/design/skylab-bootstrap.md`), so it sends no header and reads main.
-Skylab's control-plane membership comes from its tags, through the
-inventory, which reads the branch.
+Skylab's cluster membership comes from its site (`talos_cluster_site:
+nuremberg` in the role's `vars/skylab.yaml`) and its control-plane membership
+from the `k8s-controlplane` tag, both through the inventory, which reads the
+branch.
 
 A branch shows main's later changes only after a sync, so sync it before a
 build-window run. A request naming a non-existent branch fails in both

@@ -1,7 +1,7 @@
 ---
 # skylab, the public cluster: one Hetzner node, reached over the tailnet.
 # Overrides the home-cluster defaults; docs/design/skylab-bootstrap.md.
-talos_cluster_site: "ashburn"
+talos_cluster_site: "nuremberg"
 talos_cluster_name: "skylab"
 
 # talos_tailscale_authkey and talos_tailnet_domain are secret or not public,
