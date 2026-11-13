@@ -132,10 +132,10 @@ lint:
 		for d in $$t/*/app; do kubectl kustomize $$d >/dev/null && echo ">> kubectl kustomize $$d builds" || exit 1; done; \
 	done
 	@for t in $(TREES); do \
-		bad=$$(grep -H '^  path: ' $$t/*/ks.yaml $$t/flux-system/gotk-sync.yaml | grep -Ev "path: \./kubernetes/$$t(/|$$)"); \
+		bad=$$(grep -HE '^[[:space:]]+path:' $$t/*/ks.yaml $$t/flux-system/gotk-sync.yaml | grep -Ev "path: \./kubernetes/$$t(/|$$)"); \
 		[ -z "$$bad" ] || { \
 			echo "Flux path outside ./kubernetes/$$t:" >&2; echo "$$bad" >&2; exit 1; }; \
-		grep -Eq "^  path: \./kubernetes/$$t$$" $$t/flux-system/gotk-sync.yaml || { \
+		grep -Eq "^[[:space:]]+path: \./kubernetes/$$t$$" $$t/flux-system/gotk-sync.yaml || { \
 			echo "$$t/flux-system/gotk-sync.yaml does not sync ./kubernetes/$$t." >&2; exit 1; }; \
 		echo ">> every Flux path in $$t stays inside ./kubernetes/$$t"; \
 	done
