@@ -120,6 +120,7 @@ when `pihole-FTL --config <key>` reports something else:
 | `dns.listeningMode` | `LOCAL` | Binds the wildcard, so FTL answers on the VIP |
 | `dns.dnssec` | `false` | Bind9 validates |
 | `webserver.api.max_sessions` | `50` | The OpenTofu provider opens several sessions per plan |
+| `webserver.port` | `80or,443os,[::]:80or,[::]:443os` | Port 80 redirects to 443, so no login sends the password in clear |
 
 **Lists, groups and clients are not this role's.**
 `opentofu/resources/pihole-config/` writes them to pihole-01 through the API,
