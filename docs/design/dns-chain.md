@@ -273,7 +273,7 @@ the features, and the resolvers.
   nothing in the plan, and one to placement fails it;
   moving a container means moving its module call to the other node's
   folder, and changing a live container means tainting and recreating it
-  (#315).
+  (`opentofu/README.md`, "Changing a DNS container").
 
 ## Failure modes
 
