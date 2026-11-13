@@ -18,7 +18,7 @@ most of their queries return nothing here; see `docs/design/observability.md`.
 | --- | --- | --- | --- | --- |
 | Kubernetes/k8s-views-global.json | Kubernetes | grafana.com/grafana/dashboards/15757 | 43 | datasource UIDs pinned |
 | Kubernetes/k8s-views-namespaces.json | Kubernetes | grafana.com/grafana/dashboards/15758 | 46 | datasource UIDs pinned |
-| Kubernetes/k8s-views-nodes.json | Kubernetes | grafana.com/grafana/dashboards/15759 | 40 | datasource UIDs pinned |
+| Kubernetes/k8s-views-nodes.json | Kubernetes | grafana.com/grafana/dashboards/15759 | 40 | datasource UIDs pinned; a `NetBox changes` annotation shows device and VM edits from the NetBox change log |
 | Kubernetes/k8s-views-pods.json | Kubernetes | grafana.com/grafana/dashboards/15760 | 39 | datasource UIDs pinned |
 | Kubernetes/node-exporter-full.json | Kubernetes | grafana.com/grafana/dashboards/1860 | 45 | datasource UIDs pinned |
 | Storage/longhorn.json | Storage | grafana.com/grafana/dashboards/13032 | 6 | datasource UIDs pinned |
@@ -27,11 +27,12 @@ most of their queries return nothing here; see `docs/design/observability.md`.
 | Flux/control-plane.json | Flux | fluxcd/flux2-monitoring-example monitoring/configs/dashboards/control-plane.json | main @ 2026-09 | datasource UIDs pinned; upstream's `[1m]` windows read empty at a 60 s scrape, so rates use `$__rate_interval` and the ops/min panels are `rate × 60` |
 | Logs/logs-explorer.json | Logs | hand-written | — | — |
 | Logs/kubernetes-events.json | Logs | hand-written | — | — |
-| Hosts/proxmox.json | Hosts | grafana.com/grafana/dashboards/10347 | 5 | datasource UIDs pinned |
+| Hosts/proxmox.json | Hosts | grafana.com/grafana/dashboards/10347 | 5 | datasource UIDs pinned; a `NetBox changes` annotation shows device and VM edits from the NetBox change log |
 | Hosts/pihole.json | Hosts | grafana.com/grafana/dashboards/10176 | 3 | datasource UIDs pinned; cleared a leftover LAN IP default from the `node` template variable; the `hostname` label it lists is rewritten to `pihole` by the gateway's relabel — the exporter would otherwise emit the address |
 | Hosts/bind.json | Hosts | hand-written | — | Bind9 and lancache-dns from `prometheus-bind-exporter` (`job="bind"`), plus the `dns_wildcard` and `dns_lancache` blackbox probes of the Pi-holes. The cache panel is `1 − recursions / queries`, because the exporter does not export BIND's `CacheHits`. Process panels are Bind9-only: lancache-dns's `named` runs in Docker, out of the exporter's PID view |
 | Hosts/blackbox.json | Hosts | grafana.com/grafana/dashboards/7587 | 3 | datasource UIDs pinned |
 | Hosts/host-logs.json | Hosts | hand-written | — | — |
+| Hosts/netbox.json | Hosts | hand-written | — | NetBox, the source of truth, against what the fleet reports. Every table joins on a lowercase `host` column: the NetBox side lowercases through the datasource's join key, and the Prometheus side through a `formatString` transformation, because device names are capitalised in NetBox and labels mix both cases. Sizing compares NetBox `memory`/`vcpus` with `pve_memory_size_bytes`/`pve_cpu_usage_limit`; a guest resized in Proxmox but not yet power-cycled by `apply-resize` shows as drift. Coverage lists devices and VMs with a primary IP against each signal that names them. Prefix utilization is NetBox's own figure, computed with one extra NetBox request per prefix, so the panel is slow on purpose |
 | Services/services-overview.json | Services | hand-written | — | Every workload ranked worst first, drilling into `service`. One table merging seven Prometheus queries and one Loki query on `exported_namespace` + `workload`; rows come from the owner map plus the Deployment, StatefulSet and DaemonSet spec series, so a workload scaled to zero keeps its row with blank resource cells. Mappings in `docs/design/observability.md` |
 | Services/service.json | Services | hand-written | — | One workload's health, resources, Traefik traffic, logs and App link, templated on `namespace` + `workload`. Pods are matched by name shape, not prefix, so `jellyfin` excludes `jellyfin-exporter` |
 | Services/searxng.json | Services | hand-written | — | Request panel reads Traefik's `traefik_service_*` series, matched on the `searxng-searxng-` prefix of the `service` label |
