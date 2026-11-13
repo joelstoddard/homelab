@@ -35,7 +35,6 @@ portSelector:
   protocol: tcp
 ingress:
   - subnet: 0.0.0.0/0
-  - subnet: ::/0
 ---
 apiVersion: v1alpha1
 kind: NetworkRuleConfig
@@ -47,4 +46,3 @@ portSelector:
   protocol: udp
 ingress:
   - subnet: 0.0.0.0/0
-  - subnet: ::/0

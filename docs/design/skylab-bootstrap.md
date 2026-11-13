@@ -142,7 +142,7 @@ it and has more than one host.
 6. The Talos host firewall of `docs/design/skylab-security.md`:
    `NetworkDefaultActionConfig` `ingress: block`, apid from the tailnet
    range, 6443 from the tailnet range and the pod subnet, and TURN from
-   anywhere (`firewall.yaml.j2`). The pod subnet is pinned in
+   any IPv4 address; skylab has no IPv6 (`firewall.yaml.j2`). The pod subnet is pinned in
    `cluster.network.podSubnets` from the same var, so the rule cannot drift
    from it. The shared control-plane patch binds the controller-manager,
    scheduler and etcd metrics listeners to `0.0.0.0`; no rule opens them, so
