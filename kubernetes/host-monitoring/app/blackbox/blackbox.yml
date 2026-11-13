@@ -22,3 +22,27 @@ modules:
       transport_protocol: udp
       query_name: grafana.com
       query_type: A
+  # The records the chain itself serves: Bind9's wildcard and lancache-dns's
+  # CDN rewrite. A wrong answer fails the probe, not only a missing one.
+  dns_wildcard:
+    prober: dns
+    timeout: 5s
+    dns:
+      preferred_ip_protocol: ip4
+      transport_protocol: udp
+      query_name: blackbox-probe.${DOMAIN}
+      query_type: A
+      validate_answer_rrs:
+        fail_if_none_matches_regexp:
+          - '\sA\s+${TRAEFIK_LB_IP}\z'
+  dns_lancache:
+    prober: dns
+    timeout: 5s
+    dns:
+      preferred_ip_protocol: ip4
+      transport_protocol: udp
+      query_name: lancache.steamcontent.com
+      query_type: A
+      validate_answer_rrs:
+        fail_if_none_matches_regexp:
+          - '\sA\s+${LANCACHE_LB_IP}\z'

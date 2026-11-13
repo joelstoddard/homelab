@@ -21,13 +21,17 @@ above Bind9 rather than below it, why there is no zone transfer — is in
 2. On a `bind9` host: installs Bind9 and renders the authoritative zone.
 3. On a `lancache` host: runs the upstream lancache-dns image under Docker
    with a hardened bind config.
-4. On a `pihole` host: installs Pi-hole, sets its web password and pins its
+4. On a `bind9` or `lancache` host: opens BIND's statistics channel on
+   loopback and runs `prometheus-bind-exporter` on `:9119` of the
+   container's address, for the cluster to scrape
+   (`docs/design/host-monitoring.md`).
+5. On a `pihole` host: installs Pi-hole, sets its web password and pins its
    upstreams and listening mode (see "Pi-hole" below).
-5. Confirms each link answers what it should, and that a host outside the
+6. Confirms each link answers what it should, and that a host outside the
    chain gets nothing from Bind9 or lancache-dns.
-6. On a `pihole` host: runs keepalived, which floats `dns_pihole_vip`
+7. On a `pihole` host: runs keepalived, which floats `dns_pihole_vip`
    between the pair (see "The Pi-hole VIP" below).
-7. Once every host is done, confirms both Pi-hole instances run the same FTL
+8. Once every host is done, confirms both Pi-hole instances run the same FTL
    version, exactly one of them holds the VIP, and the VIP answers.
 
 ## Requirements
@@ -69,7 +73,10 @@ instances at once.
 Its own LAN address on `:53`, plus loopback. Only the lancache-dns pair and
 the Pi-hole pair may query it — the `dns_chain` ACL gates `allow-query`,
 `allow-recursion` and `allow-query-cache`, so a query from anywhere else is
-refused. To check it by hand, from one of those hosts:
+refused. Never add the cluster's node addresses: the Tailscale subnet router
+masquerades every tailnet client to one, so they would all bypass Pi-hole
+(`docs/design/host-monitoring.md`, "The BIND links are not probed directly").
+To check it by hand, from one of those hosts:
 
 ```bash
 dig @<bind9-01> anything.<domain> A     # the Traefik LB address

@@ -165,6 +165,33 @@ prometheus.scrape "blackbox" {
 	scrape_timeout  = "15s"
 }
 
+// ----------------------------------------------------------------- bind --
+
+// prometheus-bind-exporter runs beside each BIND, Bind9 and lancache-dns
+// alike, so these targets are the exporters themselves.
+discovery.relabel "bind" {
+	targets = discovery.file.hosts.targets
+
+	rule {
+		source_labels = ["group"]
+		regex         = "bind"
+		action        = "keep"
+	}
+
+	rule {
+		regex  = "group"
+		action = "labeldrop"
+	}
+}
+
+prometheus.scrape "bind" {
+	targets         = discovery.relabel.bind.output
+	forward_to      = [prometheus.remote_write.prometheus.receiver]
+	job_name        = "bind"
+	scrape_interval = "60s"
+	scrape_timeout  = "15s"
+}
+
 // ------------------------------------------------- pihole, truenas (graphite) --
 
 prometheus.scrape "pihole" {

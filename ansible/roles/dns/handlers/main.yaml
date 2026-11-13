@@ -13,6 +13,13 @@
     project_src: "{{ dns_lancache_dir }}"
     state: restarted
 
+- name: Restart prometheus-bind-exporter
+  ansible.builtin.systemd:
+    name: prometheus-bind-exporter
+    state: restarted
+  # In check mode the package is not installed, so the unit is missing.
+  ignore_errors: "{{ ansible_check_mode }}"
+
 # Every key the role sets carries FLAG_RESTART_FTL: FTL regenerates its
 # dnsmasq config only at start.
 - name: Restart pihole-FTL

@@ -51,6 +51,14 @@
   when: "'lancache' in group_names"
   tags: [lancache]
 
+- name: Export BIND's statistics to the cluster.
+  # After both BIND links, whose templates open the statistics channel.
+  ansible.builtin.import_tasks: metrics.yaml
+  when: "'bind9' in group_names or 'lancache' in group_names"
+  vars:
+    _dns_exporter_address: "{{ (dns_bind9_addresses | combine(dns_lancache_addresses))[inventory_hostname] }}"
+  tags: [bind9, lancache, metrics]
+
 - name: Filter and answer the LAN with Pi-hole.
   ansible.builtin.import_tasks: pihole.yaml
   when: "'pihole' in group_names"
