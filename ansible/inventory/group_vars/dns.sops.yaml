@@ -14,7 +14,7 @@ dns_lancache_lb_ip: ENC[AES256_GCM,data:eM5nT49NE8CXYQ==,iv:SOSB6Ssi3V/+3B16Iru7
 dns_passthrough_names:
     - ENC[AES256_GCM,data:Utx1b1Y70cWCJ/sPhwOZ7TmkTMM=,iv:VssIhdYR+gD/d6isIY0qHD8PbvabHDpxMgJ8WeSfCS0=,tag:9ka3mPk+FGipQzekBjUIdw==,type:str]
     - ENC[AES256_GCM,data:BGmRHgbYmlUrt1g7ea9kjkdf,iv:cbtzS3H1IDwH++qPKnyRBXrR8rF1mDZxepZ8Ed0oUzk=,tag:iAWqxkWUZ0YebyyQExvFMA==,type:str]
-dns_pihole_web_password: ENC[AES256_GCM,data:YcJ4oYK9AdyutnELQ+ilQkxxygzxrBzENotP76cczW4=,iv:1SKrHaMvcMn7VPzJ0qLShNlhmT765UZ5ys/xclRbh9s=,tag:bPDkD50Ttic/tqNyhGHQCQ==,type:str]
+dns_pihole_web_password: ENC[AES256_GCM,data:+JdUpf2wMFqygytCbupUCf5iKvlrgM1iKO1nOtjwf3k=,iv:32+5bAAe7xA7cf3XvHCs0ldkeFPtaaSfZP8J8hJ09rE=,tag:fEPNT8erXuvUtmw+0d1GQQ==,type:str]
 sops:
     age:
         - recipient: age1h5hafnt22aqn7uahcsmv5v8gfgwcxanypw0lantcush7jppt99fskz6vcv
@@ -26,7 +26,7 @@ sops:
             YmJFVndoeVVuMVFId1kyZWR6alcySDQKUHcRYApSupBrFb9SG2xaOY/5Hma27HUi
             Ez/KhutxhcT9ibOnpjZoARJ2+t7jc50MqNpmqssgEKIOE4yRHBH75A==
             -----END AGE ENCRYPTED FILE-----
-    lastmodified: "2026-11-09T14:44:20Z"
-    mac: ENC[AES256_GCM,data:ug93Aa90qoEt6IuVal4oczvfwODIHgwpEw+wxYAfeNTZIe0jsLE99GBVpQEEpSoajZM6nsLJGH1O3Fl5Yt3pUdPHYF4ebjFrfm+5M1ZKCVyAEctFFa59u87ECwhWLeBMg7jU+v82h9ooWnkUwT3Z7rm17qyJHvVl+zOgZtbJfh8=,iv:ygiJdhK32cxZpl1n+eOieyp/S9sa3FGNoW+BxTkGX88=,tag:QlRTl4K4MPACR9i5VHd0cw==,type:str]
+    lastmodified: "2026-11-13T12:24:06Z"
+    mac: ENC[AES256_GCM,data:OqU3D/Iw1KW9H+L8w//EDKus7U8TkedsNhmPs4RWqJJuU/BF46bfA2RREYSBzF9cA6C8eEXykIc7a2zTGVs509VbCZmH5Yu7GQ9nZShQwvVviLAIXUaBtB9J6FoPjI41S2DtBgHmtJy5vH4gShdOujKKdQtUqxBO1Yl6R3RjoTE=,iv:G1evBIPk2YpzK01jczoKytOscg1RK5ZvlksVK3Njz0A=,tag:W42HRMVy9+gF5pguzy1qiQ==,type:str]
     unencrypted_suffix: _unencrypted
     version: 3.12.2
