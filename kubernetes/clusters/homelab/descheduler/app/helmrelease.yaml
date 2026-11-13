@@ -1,0 +1,25 @@
+# Pin the chart here only. A bump can change the policy schema: re-render it
+# and check the evictor arguments (docs/design/descheduler.md, "Verifying").
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: descheduler
+spec:
+  interval: 1h0m0s
+  releaseName: descheduler
+  chart:
+    spec:
+      chart: descheduler
+      version: "0.37.0"
+      sourceRef:
+        kind: HelmRepository
+        name: descheduler
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    remediation:
+      retries: 3
+  valuesFrom:
+    - kind: ConfigMap
+      name: descheduler-values

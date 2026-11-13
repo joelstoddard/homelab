@@ -1,0 +1,8 @@
+# PodSecurity "restricted": the image runs as a non-root uid with a read-only
+# root filesystem and needs no capability.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: descheduler
+  labels:
+    pod-security.kubernetes.io/enforce: restricted

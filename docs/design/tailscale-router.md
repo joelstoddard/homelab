@@ -86,9 +86,9 @@ entry pins that.
 - Kubernetes only reschedules on node failure. A node that stays `Ready` but
   cannot run containers (seen once: a power-cut VM whose runtime returned
   `exec format error` for every freshly unpacked image until its EPHEMERAL
-  partition was wiped) leaves the router in CrashLoopBackOff indefinitely.
-  Closing that gap needs the descheduler's `RemovePodsHavingTooManyRestarts`
-  or similar — tracked in #146.
+  partition was wiped) puts the router in CrashLoopBackOff. The descheduler
+  evicts it after its fifth restart, 5–10 minutes in, but the replacement
+  can land on the same node (`docs/design/descheduler.md`, "Limits").
 - Resource limits are a first guess (`1` CPU / `256Mi`); benchmark and tune.
 - The router forwards packets rather than opening sockets, so reaching a
   LoadBalancer address depends on Cilium translating pod traffic per packet

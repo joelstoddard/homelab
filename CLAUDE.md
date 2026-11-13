@@ -233,7 +233,13 @@ git only; the seed never re-runs on an existing release. `cilium-lb/`
 (`dependsOn: cilium`) is the LB-IPAM pool + L2 announcement policy; the
 pool's bounds are LAN addresses, so `app/pool.sops.yaml` has its `spec`
 SOPS-encrypted (Flux decrypts any resource with a `sops.mac` field), never
-plaintext. `tailscale/` is the subnet router / exit node `homelab` as a
+plaintext. `descheduler/` (`dependsOn: cilium`) is the upstream chart as a
+one-replica Deployment, deschedule-only, never rebalancing: it evicts a pod
+in `CrashLoopBackOff` with 5+ restarts and removes Failed pods older than an
+hour, except Job pods. The `states: [CrashLoopBackOff]` filter is
+load-bearing — restart counts never reset, so without it every healthy pod
+with an old crash history is evicted. A replacement can land on the same
+broken node. See `docs/design/descheduler.md`. `tailscale/` is the subnet router / exit node `homelab` as a
 one-replica `Recreate` Deployment (node key in the `tailscale-state` Secret,
 so a rescheduled pod is the same node; namespace labelled PodSecurity
 `privileged` for the sysctl init container + `NET_ADMIN`; auth = OAuth
@@ -256,11 +262,11 @@ apply pass.
 Ingress and TLS are five more layers. Root order is
 `cluster-secrets` → `cert-manager` → `cert-manager-issuers` → `traefik` →
 `traefik-middlewares` (the
-full list is `flux-system`, `cilium`, `cilium-lb`, `cluster-secrets`, `cert-manager`,
+full list is `flux-system`, `cilium`, `cilium-lb`, `descheduler`, `cluster-secrets`, `cert-manager`,
 `cert-manager-issuers`, `traefik`, `traefik-middlewares`, `lan-services`,
 `tailscale`, `longhorn`, `longhorn-jobs`, `monitoring`, `alloy`,
 `host-monitoring`, `searxng`, `media`, `media-downloads`, `media-egress`, `glance`,
-`home-assistant`, `lancache`, `nebula-sync`).
+`home-assistant`, `orb-agent`, `lancache`, `nebula-sync`).
 `cluster-secrets/` is one SOPS Secret in `flux-system` holding `DOMAIN`,
 `TRAEFIK_LB_IP` and `ACME_EMAIL`; consumers (`cert-manager-issuers`,
 `traefik`, `longhorn`) add `dependsOn: cluster-secrets` +
@@ -327,7 +333,7 @@ kubelet/cAdvisor, exporting node metrics in-process and tailing
 `/var/log/pods` (`alloy/app/config/config.alloy`); one `alloy-cluster`
 replica scraping every cluster-wide target — pods and Services annotated
 `prometheus.io/scrape` + `prometheus.io/port`, the control plane, Longhorn,
-SearXNG, Home Assistant — on a Pi by preferred (not required) arm64
+SearXNG, Home Assistant, the descheduler — on a Pi by preferred (not required) arm64
 affinity (`cluster.alloy`); and a one-replica `alloy-events`. No Prometheus
 Operator, no CRDs: those two River files are the only place scrape config
 lives. `alloy-cluster` is an ordinary pod, so a NetworkPolicy-protected

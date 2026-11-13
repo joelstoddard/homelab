@@ -1,6 +1,6 @@
 # One unprivileged Alloy scraping every target that is not tied to a node:
-# annotated pods and Services, the control plane, Longhorn, SearXNG and Home
-# Assistant. Config is config/cluster.alloy, mounted from the
+# annotated pods and Services, the control plane, Longhorn, SearXNG, Home
+# Assistant and the descheduler. Config is config/cluster.alloy, mounted from the
 # alloy-cluster-config ConfigMap. docs/design/observability.md.
 alloy:
   configMap:
