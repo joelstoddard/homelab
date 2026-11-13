@@ -46,7 +46,19 @@ d-i partman-md/device_remove_md boolean true
 # vgremove succeeds but partman re-queries and fails on the now-missing
 # LV). Wipe LVM/PV/filesystem signatures in early_command so partman
 # starts from a known-clean disk and never sees the prior LVM at all.
+{% if target_hostname not in proxmox_reinstall_hosts %}
+#
+# A powered-off NUC cannot say whether it is installed, so the disk decides:
+# one that holds a partition table is left untouched and the host rebooted,
+# which boots that disk. Only proxmox_reinstall_hosts renders without this.
+{% endif %}
 d-i partman/early_command string \
+{% if target_hostname not in proxmox_reinstall_hosts %}
+    if ls -d /sys/block/{{ disk_device | basename }}/{{ disk_device | basename }}* >/dev/null 2>&1; then \
+        logger -t preseed "{{ disk_device }} holds partitions: not installing, rebooting"; \
+        reboot -f; sleep 3600; \
+    fi; \
+{% endif %}
     umount /target/* 2>/dev/null || true; \
     swapoff -a 2>/dev/null || true; \
     for vg in $(vgs --noheadings -o vg_name 2>/dev/null); do vgremove -f "$vg" 2>/dev/null || true; done; \

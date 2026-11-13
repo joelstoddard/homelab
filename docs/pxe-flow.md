@@ -40,13 +40,24 @@ ready for the preseed renderer in Play 3.
 
 ### Play 2: Find the NUCs to install (localhost)
 
-Probes every `proxmox` host on SSH port 22 (5 s timeout). An installed NUC
-answers; the rest, plus any NUC named in `proxmox_reinstall_hosts`, form
+Probes every `proxmox` host on SSH port 22 (5 s timeout). A NUC that answers
+is left alone; the rest, plus any NUC named in `proxmox_reinstall_hosts`, form
 `proxmox_install_hosts`: the only NUCs that get an iPXE script, a preseed and
 a dnsmasq reply. The preseed carries the root password hash and Caddy serves
-it to the whole LAN, so a routine run against the live fleet publishes none,
-while a fresh build installs every NUC. To reinstall a live NUC (JSON form,
-never `--limit`, which skips the localhost plays):
+it to the whole LAN, so a routine run against the live fleet publishes none.
+
+No SSH does not mean "not installed": a powered-off host cannot report its
+state. The installer decides, with the disk in front of it. The preseed's
+`partman/early_command` looks for partitions on `disk_device` before anything
+writes: a blank disk is installed, and a disk that holds a partition table is
+left untouched and the host rebooted, which boots that disk. A fresh build
+therefore installs every NUC, and a run that finds an installed NUC powered
+off wakes it and changes nothing.
+
+Only a NUC named in `proxmox_reinstall_hosts` gets a preseed without that
+check, which wipes the disk. Power the NUC off first, because Play 4 wakes
+only hosts that answer no SSH (JSON form, never `--limit`, which skips the
+localhost plays):
 
 ```bash
 make -C ansible apply-pxe EXTRA_VARS='{"proxmox_reinstall_hosts": ["Tango"]}'
@@ -89,18 +100,14 @@ gets no reply and boots its disk.
 
 Runs `01-wake-on-lan` against `hosts: pxe`. Per host:
 
-1. Snapshot `/proc/sys/kernel/random/boot_id` (best-effort; the host may
-   be powered off — that's expected).
-2. Send a WOL magic packet via `community.general.wakeonlan`,
+1. Probe SSH port 22. A host that answers is left alone.
+2. Otherwise send a WOL magic packet via `community.general.wakeonlan`,
    `delegate_to: localhost`.
 3. `wait_for_connection` (timeout 600s) — block until SSH comes up.
-4. If we got a pre-WOL boot_id, re-read it post-WOL and require it to
-   differ. This catches the silent-success case where WOL was a no-op
-   (host already running) and the play would otherwise mark green
-   without a fresh boot.
 
-By the time Play 4 finishes, every target has been PXE-booted, has
-installed Debian, has rebooted from disk, and is reachable over SSH.
+By the time Play 4 finishes, every target is reachable over SSH: a NUC with a
+blank disk has installed Debian and rebooted from disk, and an installed NUC
+that was powered off has booted the disk it had.
 
 ### Play 5: Close the install gate (localhost)
 
@@ -279,6 +286,7 @@ the OS-named libraries (`proxmox/`, `talos/`, `truenas/`) carry the per-platform
 | WOL fires but `wait_for_connection` times out | Target ignored WOL (BIOS WOL disabled, or NIC in unsupported sleep state) | BIOS settings; check NIC supports WOL from S5 not just S3. |
 | iPXE chainloads but stalls at "Booting Debian installer for X" | Caddy not serving on the PXE server's IP, or firewall on UDP/69 (TFTP done) and TCP/80 (HTTP) | `docker logs files-caddy-1`, `ss -tlnp \| grep :80` on the PXE host. |
 | Installer asks for input (hostname, mirror, partition) | Preseed not loaded — the iPXE `url=` parameter is wrong or the file 404s | Check the host is in the Play 2 `install:` line and `files/http/preseed/<mac>.cfg` exists; check Caddy access log. |
+| Woken NUC never answers SSH; installer log says `holds partitions: not installing` | The disk holds a partition table but no bootable install (factory OS, or an install that died part-way) | Power it off and name it in `proxmox_reinstall_hosts`. |
 | Install completes, host reboots into installer again | Persistent UEFI boot order set to PXE-first | One-time UEFI fix; or rely on WOL-only-triggers-PXE behaviour. |
 | Reimage of an old Proxmox host fails at partition step | LVM signatures from previous PVE install confusing partman | `early_command` (`preseed-debian.cfg.j2:50-55`) should handle this — verify it ran in installer logs. |
 | dnsmasq starts but no DHCP-proxy reply visible in `docker logs` | Another DHCP/PXE server on the LAN is responding faster, or the PXE host isn't on the targets' L2 segment | `tcpdump -i any port 67 or port 69` on the PXE host. |

@@ -145,6 +145,11 @@ talos_pi_provision_hosts: "{{ talos_pi_netboot_steady_state }}"
 # pxe.yaml sets it to the NUCs that answer no SSH plus proxmox_reinstall_hosts,
 # and back to [] once they are installed.
 proxmox_install_hosts: []
+# NUCs whose preseed wipes a disk that already holds a partition table. Every
+# other preseed reboots without writing when it finds one, so a NUC that was
+# only powered off comes back as it was.
+#   make apply-pxe EXTRA_VARS='{"proxmox_reinstall_hosts": ["Rumba"]}'
+proxmox_reinstall_hosts: []
 
 # Debian netinstall artifacts.
 # These pin the version we PXE-boot. Bump together when upgrading.

@@ -15,12 +15,11 @@
     - name: Load this host's SOPS-encrypted vars.
       ansible.builtin.import_tasks: playbooks/tasks/load-host-sops-vars.yaml
 
-# An installed NUC answers SSH; the rest are the install set, so a fresh build
-# installs every NUC and a routine run publishes no preseed. To reinstall a
-# live NUC, name it (JSON form; never --limit, which skips the localhost plays):
+# NUCs that answer no SSH are netbooted; the installer, not this probe, decides
+# whether to install (docs/pxe-flow.md, Play 2). To wipe one, power it off and:
 #   make apply-pxe EXTRA_VARS='{"proxmox_reinstall_hosts": ["Rumba"]}'
 # Not proxmox_install_hosts itself: an extra var outranks the closing play's [].
-- name: Find the NUCs that still need installing.
+- name: Find the NUCs to netboot.
   hosts: localhost
   tags: [pxe-server]
   connection: local
@@ -60,7 +59,10 @@
 
     - name: Install plan.
       ansible.builtin.debug:
-        msg: "install: {{ groups['proxmox_install_pending'] | default([]) | join(', ') or 'none' }}"
+        msg: >-
+          netboot (a blank disk is installed, any other is booted as it is):
+          {{ groups['proxmox_install_pending'] | default([]) | difference(proxmox_reinstall_hosts | default([])) | join(', ') or 'none' }};
+          reinstall (disk wiped): {{ proxmox_reinstall_hosts | default([]) | join(', ') or 'none' }}
 
 - name: Start PXE server.
   hosts: localhost
@@ -88,8 +90,8 @@
   roles:
     - 01-wake-on-lan
 
-# Every woken NUC is back on its installed disk, so take its preseed (the root
-# password hash) off the LAN again.
+# Every woken NUC is back on its disk, so take its preseed (the root password
+# hash) off the LAN again.
 - name: Close the install gate.
   hosts: localhost
   tags: [wol]
