@@ -170,16 +170,16 @@ kubernetes/
         │       ├── config/               # gateway.alloy, substitute disabled
         │       └── targets/targets.json  # the substituted probe/poll target list, mounted at /etc/alloy-targets
         ├── searxng/
-            ├── ks.yaml                   # Flux Kustomization, dependsOn traefik + traefik-middlewares + cluster-secrets, postBuild, sops
-            └── app/
-                ├── kustomization.yaml    # namespace searxng
-                ├── namespace.yaml        # searxng; no PodSecurity label (both pods satisfy "restricted")
-                ├── config/               # settings.yml + limiter.toml, generated WITH a name hash so an edit rolls the pod
-                ├── secret.sops.yaml      # SEARXNG_SECRET, the cookie-signing key
-                ├── deployment.yaml       # one replica; base URL, limiter and Valkey URL as SEARXNG_* env
-                ├── service.yaml          # searxng:8080, no scrape annotation (the metrics job is in alloy/)
-                ├── valkey.yaml           # Deployment + Service; no persistence, 64 MB, allkeys-lru
-                └── ingressroute.yaml     # Host(searx.<domain>), default-headers only — no auth middleware
+        │   ├── ks.yaml                   # Flux Kustomization, dependsOn traefik + traefik-middlewares + cluster-secrets, postBuild, sops
+        │   └── app/
+        │       ├── kustomization.yaml    # namespace searxng
+        │       ├── namespace.yaml        # searxng; no PodSecurity label (both pods satisfy "restricted")
+        │       ├── config/               # settings.yml + limiter.toml, generated WITH a name hash so an edit rolls the pod
+        │       ├── secret.sops.yaml      # SEARXNG_SECRET, the cookie-signing key
+        │       ├── deployment.yaml       # one replica; base URL, limiter and Valkey URL as SEARXNG_* env
+        │       ├── service.yaml          # searxng:8080, no scrape annotation (the metrics job is in alloy/)
+        │       ├── valkey.yaml           # Deployment + Service; no persistence, 64 MB, allkeys-lru
+        │       └── ingressroute.yaml     # Host(searx.<domain>), default-headers only — no auth middleware
         ├── glance/
         │   ├── ks.yaml                   # Flux Kustomization, dependsOn traefik + traefik-middlewares + cluster-secrets, postBuild, NO sops
         │   └── app/
