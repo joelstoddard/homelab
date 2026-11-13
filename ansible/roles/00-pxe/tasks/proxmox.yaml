@@ -25,7 +25,7 @@
     src: host.ipxe.j2
     dest: "{{ role_path }}/files/http/boot/{{ hostvars[item]['mac_address'] | lower | replace(':', '-') }}.ipxe"
     mode: "0644"
-  loop: "{{ groups['proxmox'] }}"
+  loop: "{{ proxmox_install_hosts }}"
   vars:
     target_hostname: "{{ item }}"
     mac_address: "{{ hostvars[item]['mac_address'] }}"
@@ -36,7 +36,7 @@
     src: preseed-debian.cfg.j2
     dest: "{{ role_path }}/files/http/preseed/{{ hostvars[item]['mac_address'] | lower | replace(':', '-') }}.cfg"
     mode: "0644"
-  loop: "{{ groups['proxmox'] }}"
+  loop: "{{ proxmox_install_hosts }}"
   vars:
     target_hostname: "{{ item }}"
     mac_address: "{{ hostvars[item]['mac_address'] }}"
@@ -44,5 +44,14 @@
     target_ip: "{{ hostvars[item]['ansible_host'] }}"
     disk_device: "{{ hostvars[item]['disk_device'] }}"
     # Caddy serves this file to the whole LAN, so it carries a hash, never
-    # the password. A salt derived from the host keeps the render idempotent.
-    root_password_hash: "{{ hostvars[item]['root_password'] | password_hash('sha512', (item | hash('sha256'))[:16]) }}"
+    # the password. A salt derived from the host keeps the render idempotent;
+    # rounds is pinned because the crypt backend would default to 5000.
+    root_password_hash: "{{ hostvars[item]['root_password'] | password_hash('sha512', (item | hash('sha256'))[:16], rounds=656000) }}"
+
+- name: Remove the iPXE script and preseed of every NUC not being installed.
+  ansible.builtin.file:
+    path: >-
+      {{ role_path }}/files/http/{{ item[1] }}/{{ hostvars[item[0]]['mac_address'] | lower | replace(':', '-') }}.{{
+      'ipxe' if item[1] == 'boot' else 'cfg' }}
+    state: absent
+  loop: "{{ groups['proxmox'] | difference(proxmox_install_hosts) | product(['boot', 'preseed']) | list }}"

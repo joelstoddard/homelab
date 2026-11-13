@@ -27,9 +27,9 @@ dhcp-match=set:rpi-fw,option:client-arch,0
 dhcp-userclass=set:ipxe,iPXE
 
 {% if dhcp_proxy %}
-# Stage 1: non-iPXE x86_64 PXE clients (the NUCs' firmware ROM) — send the
-# iPXE chainloader.
-pxe-service=tag:efi-x86_64,tag:!ipxe,X86-64_EFI,"Boot iPXE",ipxe.efi
+# Stage 1: non-iPXE x86_64 PXE clients (the NUCs' firmware ROM) being installed
+# (proxmox_install_hosts, tag:install) — send the iPXE chainloader.
+pxe-service=tag:efi-x86_64,tag:install,tag:!ipxe,X86-64_EFI,"Boot iPXE",ipxe.efi
 # Raspberry Pi firmware — offered network boot ONLY while the Pi is in
 # talos_pi_provision_hosts (tag:provision, set below). The menu text is a
 # literal the firmware looks for; in proxy mode dnsmasq advertises its own
@@ -38,12 +38,12 @@ pxe-service=tag:efi-x86_64,tag:!ipxe,X86-64_EFI,"Boot iPXE",ipxe.efi
 pxe-service=tag:provision,0,"Raspberry Pi Boot"
 # Stage 2: iPXE-already-running clients — send them the per-host HTTP script
 # (iPXE expands ${mac:hexhyp} to its booting NIC's MAC at fetch time).
-dhcp-boot=tag:ipxe,http://{{ pxe_server_ip }}/boot/${mac:hexhyp}.ipxe
+dhcp-boot=tag:ipxe,tag:install,http://{{ pxe_server_ip }}/boot/${mac:hexhyp}.ipxe
 {% else %}
 # In authoritative mode, set boot file directly per stage. (The Raspberry Pi
 # path is only wired for proxy mode.)
-dhcp-boot=tag:efi-x86_64,tag:!ipxe,ipxe.efi
-dhcp-boot=tag:ipxe,http://{{ pxe_server_ip }}/boot/${mac:hexhyp}.ipxe
+dhcp-boot=tag:efi-x86_64,tag:install,tag:!ipxe,ipxe.efi
+dhcp-boot=tag:ipxe,tag:install,http://{{ pxe_server_ip }}/boot/${mac:hexhyp}.ipxe
 {% endif %}
 
 # Restrict DHCP responses to known PXE-managed hosts (rumba, tango, …).
@@ -62,6 +62,14 @@ dhcp-mac=set:provision,{{ hostvars[host]['mac_address'] }}
 # That fall-through is how a provisioned Pi boots its installed OS; u-boot
 # never runs on it, and the PXE server is not a boot dependency.
 dhcp-ignore=tag:rpi-fw,tag:!provision
+
+# NUCs being installed (proxmox_install_hosts). Every other x86 client gets no
+# reply and boots its disk; its preseed, which carries the root password hash,
+# is not on the HTTP tree at all.
+{% for host in proxmox_install_hosts %}
+dhcp-mac=set:install,{{ hostvars[host]['mac_address'] }}
+{% endfor %}
+dhcp-ignore=tag:efi-x86_64,tag:!install
 
 # TFTP root: ipxe.efi (x86); start4.elf, fixup4.dat, the Pi 4 DTB, config.txt and u-boot.bin (Raspberry Pi).
 enable-tftp

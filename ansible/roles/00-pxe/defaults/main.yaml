@@ -139,6 +139,13 @@ talos_pi_netboot_steady_state: >-
 # strings, so key=["Buran"] would arrive as text and trip the assert.)
 talos_pi_provision_hosts: "{{ talos_pi_netboot_steady_state }}"
 
+# NUCs (NetBox inventory names) given an iPXE script, a preseed and a dnsmasq
+# reply. The preseed carries the root password hash and Caddy serves it to the
+# whole LAN, so every other NUC's files are deleted and its netboot ignored.
+# pxe.yaml sets this to the NUCs that answer no SSH; to reinstall a live one:
+#   make apply-pxe EXTRA_VARS='{"proxmox_install_hosts": ["Rumba"]}'
+proxmox_install_hosts: []
+
 # Debian netinstall artifacts.
 # These pin the version we PXE-boot. Bump together when upgrading.
 debian_version: "trixie"

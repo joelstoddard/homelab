@@ -16,6 +16,14 @@
                 | difference((groups['pxe'] | default([])) | intersect(groups['talos'] | default([]))) }}.
       Use NetBox inventory names exactly (e.g. "Buran").
 
+- name: Refuse unknown names in proxmox_install_hosts.
+  ansible.builtin.assert:
+    that: proxmox_install_hosts | difference(groups['proxmox'] | default([])) | length == 0
+    fail_msg: >-
+      proxmox_install_hosts contains names that are not Proxmox hosts:
+      {{ proxmox_install_hosts | difference(groups['proxmox'] | default([])) }}.
+      Use NetBox inventory names exactly (e.g. "Rumba").
+
 - name: Common PXE infrastructure (dnsmasq + Caddy + iPXE).
   ansible.builtin.import_tasks: common.yaml
 
