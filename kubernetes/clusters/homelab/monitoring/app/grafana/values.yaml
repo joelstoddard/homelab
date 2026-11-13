@@ -82,10 +82,10 @@ sidecar:
   resources:
     requests:
       cpu: 20m
-      memory: 64Mi
-    limits:
-      cpu: 200m
       memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 192Mi
 ingress:
   enabled: true
   ingressClassName: traefik
@@ -104,10 +104,10 @@ podAnnotations:
 resources:
   requests:
     cpu: 100m
-    memory: 320Mi
+    memory: 640Mi
   limits:
     cpu: 500m
-    memory: 768Mi
+    memory: 1280Mi
 # ~72 MiB of the working set sits outside GOMEMLIMIT, so the chart's 0.9 puts
 # the GC's target above the container limit. docs/design/observability.md.
 goMemLimit:
