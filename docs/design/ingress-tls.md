@@ -361,11 +361,12 @@ role's `dns_traefik_lb_ip` and `dns_passthrough_names` in
   `wildcard-tls` exists, log a missing-certificate error and serve its internal
   self-signed certificate; it should pick the real Secret up when cert-manager
   writes it. Documented rather than worked around.
-- **A plaintext `*.sops.yaml` is caught by `make -C kubernetes lint` and by
-  nothing else.** A missed `sops` pass does not fail loudly at decryption. kustomize-controller's decryptor skips
+- **A plaintext `*.sops.yaml` is caught by `make -C kubernetes lint` and
+  `make lint-sops`, which CI runs on every pull request, and by nothing in
+  the cluster.** A missed `sops` pass does not fail loudly at decryption. kustomize-controller's decryptor skips
   any resource carrying no SOPS metadata, so a plaintext Secret applies
   cleanly and the layer goes green — with the domain, the LoadBalancer
   address, a live Cloudflare DNS-edit token and the bcrypt hashes published in
   a public repo's permanent history, which no later commit can revoke. Hence
-  the `ENC[` sweep in `lint`, offline, naming every file that fails it. A
-  layer's secrets are therefore only as safe as that one check.
+  the `ENC[` sweeps, offline, naming every file that fails them. A layer's
+  secrets are therefore only as safe as those checks.

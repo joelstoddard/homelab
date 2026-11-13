@@ -35,6 +35,8 @@ All make targets accept: `LIMIT=<host>`, `TAGS=<tag>`, `VERBOSITY=-vvv`, `EXTRA_
 
 The root `Makefile` delegates to subdirectory Makefiles; `ansible/`, `opentofu/` and `kubernetes/` exist. `make homelab` runs `install ansible opentofu dns talos kubernetes`; `dns` is `make -C ansible apply-dns` then `make -C opentofu apply LIMIT=pihole-config`. The tailnet policy is not in the chain (applied by CI from a private repo — see the Kubernetes section).
 
+CI is `.github/workflows/lint.yaml`: `make lint-sops` (every file a `.sops.yaml` rule covers is encrypted) and `make -C kubernetes lint-offline` (`lint` minus the one check that decrypts), on every pull request. It holds no age key, so a check that needs one stays out of `lint-offline`.
+
 ## Architecture
 
 ### Ansible (ansible/)
