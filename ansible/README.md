@@ -116,7 +116,7 @@ normal power-on boots from disk — no UEFI fiddling between phases.
 # 1. Set up the PXE server and pre-stage tango's iPXE+preseed; the role
 #    fires a WOL packet at the end which boots tango into PXE. NUCs that
 #    answer SSH get no preseed, so a live tango is named explicitly:
-make apply-pxe EXTRA_VARS='{"proxmox_install_hosts": ["Tango"]}'
+make apply-pxe EXTRA_VARS='{"proxmox_reinstall_hosts": ["Tango"]}'
 #    (drop EXTRA_VARS on a fresh build: every NUC without SSH is installed)
 
 # 2. tango will:

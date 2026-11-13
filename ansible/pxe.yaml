@@ -17,7 +17,9 @@
 
 # An installed NUC answers SSH; the rest are the install set, so a fresh build
 # installs every NUC and a routine run publishes no preseed. To reinstall a
-# live NUC, pass proxmox_install_hosts in EXTRA_VARS, which overrides this.
+# live NUC, name it (JSON form; never --limit, which skips the localhost plays):
+#   make apply-pxe EXTRA_VARS='{"proxmox_reinstall_hosts": ["Rumba"]}'
+# Not proxmox_install_hosts itself: an extra var outranks the closing play's [].
 - name: Find the NUCs that still need installing.
   hosts: localhost
   tags: [pxe-server]
@@ -43,14 +45,22 @@
       loop: "{{ install_ssh_probe.results }}"
       loop_control:
         label: "{{ item.item }}"
-      when: item is failed
+      when: item is failed or item.item in proxmox_reinstall_hosts | default([])
       changed_when: false
+
+    # A misspelt name never matches a probe result, so check it here; the
+    # role's own check sees only the names that reached the install set.
+    - name: Refuse unknown names in proxmox_reinstall_hosts.
+      ansible.builtin.assert:
+        that: proxmox_reinstall_hosts | default([]) | difference(groups['proxmox'] | default([])) | length == 0
+        fail_msg: >-
+          proxmox_reinstall_hosts contains names that are not Proxmox hosts:
+          {{ proxmox_reinstall_hosts | default([]) | difference(groups['proxmox'] | default([])) }}.
+          Use NetBox inventory names exactly (e.g. "Rumba").
 
     - name: Install plan.
       ansible.builtin.debug:
-        msg: >-
-          install: {{ proxmox_install_hosts | default(groups['proxmox_install_pending'] | default([])) | join(', ') or 'none' }};
-          answer no SSH: {{ groups['proxmox_install_pending'] | default([]) | join(', ') or 'none' }}
+        msg: "install: {{ groups['proxmox_install_pending'] | default([]) | join(', ') or 'none' }}"
 
 - name: Start PXE server.
   hosts: localhost
@@ -80,3 +90,19 @@
       ansible.builtin.import_tasks: playbooks/tasks/load-host-sops-vars.yaml
   roles:
     - 01-wake-on-lan
+
+# Every woken NUC is back on its installed disk, so take its preseed (the root
+# password hash) off the LAN again.
+- name: Close the install gate.
+  hosts: localhost
+  tags: [wol]
+  connection: local
+  force_handlers: true
+  gather_facts: true
+  tasks:
+    - name: Re-render the PXE server with no NUC being installed.
+      ansible.builtin.include_role:
+        name: 00-pxe
+      vars:
+        proxmox_install_hosts: []
+      when: groups['proxmox_install_pending'] | default([]) | length > 0

@@ -41,15 +41,19 @@ ready for the preseed renderer in Play 3.
 ### Play 2: Find the NUCs to install (localhost)
 
 Probes every `proxmox` host on SSH port 22 (5 s timeout). An installed NUC
-answers; the rest form `proxmox_install_hosts`, the only NUCs that get an
-iPXE script, a preseed and a dnsmasq reply. The preseed carries the root
-password hash and Caddy serves it to the whole LAN, so a routine run against
-the live fleet publishes none, while a fresh build installs every NUC. To
-reinstall a live NUC, override the set (JSON form, never `--limit`):
+answers; the rest, plus any NUC named in `proxmox_reinstall_hosts`, form
+`proxmox_install_hosts`: the only NUCs that get an iPXE script, a preseed and
+a dnsmasq reply. The preseed carries the root password hash and Caddy serves
+it to the whole LAN, so a routine run against the live fleet publishes none,
+while a fresh build installs every NUC. To reinstall a live NUC (JSON form,
+never `--limit`, which skips the localhost plays):
 
 ```bash
-make -C ansible apply-pxe EXTRA_VARS='{"proxmox_install_hosts": ["Tango"]}'
+make -C ansible apply-pxe EXTRA_VARS='{"proxmox_reinstall_hosts": ["Tango"]}'
 ```
+
+The input is not `proxmox_install_hosts` itself: an extra var outranks every
+play variable, so Play 5 could not set it back to `[]`.
 
 ### Play 3: Start the PXE server (localhost)
 
@@ -97,6 +101,14 @@ Runs `01-wake-on-lan` against `hosts: pxe`. Per host:
 
 By the time Play 4 finishes, every target has been PXE-booted, has
 installed Debian, has rebooted from disk, and is reachable over SSH.
+
+### Play 5: Close the install gate (localhost)
+
+Runs `00-pxe` again with `proxmox_install_hosts: []`, when Play 2 found any
+NUC to install: the preseeds are deleted and dnsmasq stops replying to the
+NUCs. If every woken host fails Play 4, Ansible ends the run before Play 5
+and the gate stays open; a later `apply-pxe TAGS=pxe-server` closes it,
+because the installed NUCs then answer SSH.
 
 ## What happens on the target
 
