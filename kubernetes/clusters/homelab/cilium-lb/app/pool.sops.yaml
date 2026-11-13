@@ -1,7 +1,7 @@
 # One pool, every Service of type LoadBalancer draws from it (no
 # serviceSelector). The bounds are the NetBox IP range reserved for it — LAN
 # addresses, so the spec is SOPS-encrypted and Flux decrypts it in-cluster.
-# Always edit with `sops kubernetes/cilium-lb/app/pool.sops.yaml`.
+# Always edit with `sops kubernetes/clusters/homelab/cilium-lb/app/pool.sops.yaml`.
 apiVersion: cilium.io/v2
 kind: CiliumLoadBalancerIPPool
 metadata:
