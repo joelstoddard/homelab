@@ -216,8 +216,8 @@ in `traefik-middlewares/app/serverstransport.yaml` (`insecureSkipVerify:
 true`, negotiated only on the Traefik→backend leg — the browser leg still
 terminates on the wildcard). The seventh, the router, speaks plain HTTP with
 no TLS at all; its route sets neither `scheme` nor `serversTransport`, and
-Traefik forwards that leg in cleartext — still an improvement on the browser
-leg being unencrypted, as it is today.
+Traefik forwards that leg in cleartext. The browser leg is still encrypted,
+which a direct connection to the router is not.
 
 That `serversTransport` reference and a `Middleware` cross-namespace
 reference are two different shapes, easy to cross: `serversTransport` is one
