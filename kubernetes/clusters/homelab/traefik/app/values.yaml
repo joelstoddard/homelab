@@ -28,11 +28,19 @@ ports:
           to: websecure
           scheme: https
           permanent: true
-  websecure:
+  # websecure's 60s readTimeout cuts any body still arriving at 60s; only the
+  # Proxmox routes join this port, where 1h covers a 6 GB ISO at 20 Mbit/s.
+  uploads:
+    port: 9443
+    expose:
+      default: true
+    exposedPort: 8443
+    protocol: TCP
+    http:
+      tls:
+        enabled: true
     transport:
       respondingTimeouts:
-        # The 60s default cuts any request body still arriving at 60s, such as an
-        # ISO upload to Proxmox; 1h covers a 6 GB ISO at 20 Mbit/s.
         readTimeout: 1h
 providers:
   kubernetesCRD:
