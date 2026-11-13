@@ -3,9 +3,23 @@
 # `limit` param applies BEFORE the filter. Setting it to 1 means
 # "fetch 1 row, then try to match" which fails when the matching row
 # isn't first. Pull plenty and let the anchored regex select one.
+#
+# The postconditions fail the plan when NetBox places the VM on another NUC
+# than the per-NUC dir that declares it. A check block would only warn.
 data "netbox_virtual_machines" "match" {
   name_regex = "^${var.vm_name}$"
   limit      = 100
+
+  lifecycle {
+    postcondition {
+      condition     = length(self.vms) > 0
+      error_message = "NetBox has no VM named '${var.vm_name}'. Model it in NetBox first: platform=talos, assigned to the matching NUC, tags k8s + k8s-server/k8s-agent, vm_id/MAC per the convention above."
+    }
+    postcondition {
+      condition     = try(self.vms[0].device_name, null) == var.node_name
+      error_message = "NetBox places '${var.vm_name}' on '${try(coalesce(self.vms[0].device_name, "(no device)"), "(missing)")}' but this call placed it on '${var.node_name}'. Update NetBox or move the module call to the matching per-NUC dir."
+    }
+  }
 }
 
 locals {
@@ -21,22 +35,6 @@ locals {
   vm_id    = local.is_server ? (100 + local.idx) : (200 + local.idx)
   mac      = format("52:54:00:00:%s:%02d", local.is_server ? "01" : "02", local.idx)
   role_tag = local.is_server ? "k8s-server" : "k8s-agent"
-}
-
-# Catch drift between NetBox device assignment and the per-NUC dir
-# layout. If NetBox says k8s-server-01 lives on Tango but it's declared
-# in resources/rumba/, fail loudly so the operator picks one source of
-# truth instead of silently creating on the wrong node.
-check "netbox_consistency" {
-  assert {
-    condition     = local.nb_vm != null
-    error_message = "NetBox has no VM named '${var.vm_name}'. Model it in NetBox first: platform=talos, assigned to the matching NUC, tags k8s + k8s-server/k8s-agent, vm_id/MAC per the convention above."
-  }
-
-  assert {
-    condition     = local.nb_vm == null || local.nb_vm.device_name == var.node_name
-    error_message = "NetBox places '${var.vm_name}' on '${try(local.nb_vm.device_name, "(missing)")}' but this call placed it on '${var.node_name}'. Update NetBox or move the module call to the matching per-NUC dir."
-  }
 }
 
 module "vm" {
