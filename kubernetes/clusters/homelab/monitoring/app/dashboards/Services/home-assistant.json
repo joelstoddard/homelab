@@ -6,6 +6,8 @@
   "timezone": "browser",
   "schemaVersion": 39,
   "time": {"from": "now-6h", "to": "now"},
+  "templating": {"list": [
+    {"name": "stateless_domains", "type": "constant", "hide": 2, "query": "notify|tts|conversation|event"}]},
   "panels": [
     {"id": 1, "type": "stat", "title": "Availability", "gridPos": {"h": 4, "w": 6, "x": 0, "y": 0},
      "description": "kube-state-metrics series carry the collector's namespace, so the real one is exported_namespace.",
@@ -117,10 +119,10 @@
      "fieldConfig": {"defaults": {"unit": "none"}, "overrides": []},
      "options": {"colorMode": "none", "graphMode": "none", "reduceOptions": {"calcs": ["lastNotNull"]}}},
 
-    {"id": 17, "type": "stat", "title": "Entities unavailable", "gridPos": {"h": 4, "w": 6, "x": 6, "y": 35},
-     "description": "or vector(0) is load-bearing: without it, a fully-healthy instance shows \"No data\" instead of 0.",
+    {"id": 17, "type": "stat", "title": "Entities unavailable or unknown", "gridPos": {"h": 4, "w": 6, "x": 6, "y": 35},
+     "description": "entity_available is 0 for unknown as well as unavailable. Domains whose state is a last-used timestamp ($stateless_domains) sit at unknown until first used, so they are excluded. or vector(0) is load-bearing: without it, a fully-healthy instance shows \"No data\" instead of 0.",
      "datasource": {"type": "prometheus", "uid": "prometheus"},
-     "targets": [{"refId": "A", "expr": "count(homeassistant_entity_available == 0) or vector(0)"}],
+     "targets": [{"refId": "A", "expr": "count(homeassistant_entity_available{domain!~\"$stateless_domains\"} == 0) or vector(0)"}],
      "fieldConfig": {"defaults": {"unit": "none", "thresholds": {"mode": "absolute", "steps": [
        {"color": "green", "value": null}, {"color": "red", "value": 1}]}}, "overrides": []},
      "options": {"colorMode": "background", "graphMode": "none", "reduceOptions": {"calcs": ["lastNotNull"]}}},
@@ -132,11 +134,13 @@
        {"color": "red", "value": null}, {"color": "orange", "value": 20}, {"color": "green", "value": 40}]}}, "overrides": []},
      "options": {"colorMode": "background", "graphMode": "none", "reduceOptions": {"calcs": ["lastNotNull"]}}},
 
-    {"id": 19, "type": "stat", "title": "Stale over 1h", "gridPos": {"h": 4, "w": 6, "x": 18, "y": 35},
+    {"id": 19, "type": "stat", "title": "Metrics scrape", "gridPos": {"h": 4, "w": 6, "x": 18, "y": 35},
+     "description": "Whether Alloy can read /api/prometheus. Every entity panel depends on it; a revoked or deleted token is the usual failure (docs/design/home-assistant.md, \"Rotating or replacing the metrics token\").",
      "datasource": {"type": "prometheus", "uid": "prometheus"},
-     "targets": [{"refId": "A", "expr": "count(time() - homeassistant_last_updated_time_seconds > 3600) or vector(0)"}],
-     "fieldConfig": {"defaults": {"unit": "none", "thresholds": {"mode": "absolute", "steps": [
-       {"color": "green", "value": null}, {"color": "orange", "value": 1}]}}, "overrides": []},
+     "targets": [{"refId": "A", "expr": "max(up{job=\"home-assistant\"})"}],
+     "fieldConfig": {"defaults": {"mappings": [
+       {"type": "value", "options": {"0": {"text": "Failing", "color": "red", "index": 0}, "1": {"text": "OK", "color": "green", "index": 1}}}],
+       "noValue": "No data"}, "overrides": []},
      "options": {"colorMode": "background", "graphMode": "none", "reduceOptions": {"calcs": ["lastNotNull"]}}},
 
     {"id": 20, "type": "timeseries", "title": "Entities by domain", "gridPos": {"h": 8, "w": 8, "x": 0, "y": 39},
@@ -149,15 +153,15 @@
      "targets": [{"refId": "A", "expr": "topk(10, sum by (domain) (rate(homeassistant_state_change_total[$__rate_interval])))", "legendFormat": "{{domain}}"}],
      "fieldConfig": {"defaults": {"unit": "none"}, "overrides": []}},
 
-    {"id": 22, "type": "timeseries", "title": "Unavailable over time", "gridPos": {"h": 8, "w": 8, "x": 16, "y": 39},
+    {"id": 22, "type": "timeseries", "title": "Unavailable or unknown over time", "gridPos": {"h": 8, "w": 8, "x": 16, "y": 39},
      "datasource": {"type": "prometheus", "uid": "prometheus"},
-     "targets": [{"refId": "A", "expr": "count(homeassistant_entity_available == 0) or vector(0)"}],
+     "targets": [{"refId": "A", "expr": "count(homeassistant_entity_available{domain!~\"$stateless_domains\"} == 0) or vector(0)"}],
      "fieldConfig": {"defaults": {"unit": "none"}, "overrides": []}},
 
-    {"id": 23, "type": "table", "title": "Currently unavailable", "gridPos": {"h": 8, "w": 24, "x": 0, "y": 47},
+    {"id": 23, "type": "table", "title": "Currently unavailable or unknown", "gridPos": {"h": 8, "w": 24, "x": 0, "y": 47},
      "description": "Which entities are down, by the friendly_name and domain labels; the other Prometheus labels are noise here.",
      "datasource": {"type": "prometheus", "uid": "prometheus"},
-     "targets": [{"refId": "A", "expr": "homeassistant_entity_available == 0", "instant": true, "format": "table"}],
+     "targets": [{"refId": "A", "expr": "homeassistant_entity_available{domain!~\"$stateless_domains\"} == 0", "instant": true, "format": "table"}],
      "transformations": [{"id": "organize", "options": {"excludeByName": {
        "__name__": true, "instance": true, "job": true, "namespace": true, "node": true, "pod": true},
        "indexByName": {}, "renameByName": {}}}]},
