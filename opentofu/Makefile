@@ -75,10 +75,11 @@ check-secrets:
 	@# single resource. Verify each decrypts cleanly. The Makefile
 	@# eval-sources them at apply time (see `define run_tofu`).
 	@for d in $(RESOURCE_DIRS); do \
-		if [ $$d = resources/skylab ] && [ ! -f $$d/secrets.env ]; then \
-			echo "missing $$d/secrets.env (HCLOUD_TOKEN); see $$d/README.md." >&2; \
-			exit 1; \
-		fi; \
+		case $$d in resources/skylab|resources/cloudflare) \
+			[ -f $$d/secrets.env ] || { \
+				echo "missing $$d/secrets.env (provider token); see $$d/README.md." >&2; \
+				exit 1; } ;; \
+		esac; \
 		if [ -f $$d/secrets.env ]; then \
 			sops -d $$d/secrets.env >/dev/null || exit $$?; \
 		fi; \

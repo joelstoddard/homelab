@@ -30,6 +30,18 @@ resource "hcloud_primary_ip" "ipv4" {
   delete_protection = true
 }
 
+# DNS-only: Cloudflare's proxy carries no TURN (docs/design/skylab-ingress.md, "TURN").
+resource "cloudflare_dns_record" "turn" {
+  count   = local.in_eu ? 1 : 0
+  zone_id = var.metachat_zone_id
+  name    = "turn.${var.metachat_zone}"
+  type    = "A"
+  content = hcloud_primary_ip.ipv4[0].ip_address
+  proxied = false
+  ttl     = 1
+  comment = "opentofu"
+}
+
 resource "hcloud_firewall" "skylab" {
   count = local.in_eu ? 1 : 0
   name  = "skylab"

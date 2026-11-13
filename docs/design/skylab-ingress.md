@@ -10,7 +10,7 @@ design; the firewalls and coturn's deny list belong to the security design
 (`docs/design/skylab-security.md`).
 
 Hostnames here are placeholders. joelst's zone is `example.com`. metachat
-lives at `chat.example.net` in a second zone, `example.net`. The real zones
+lives at `metachat.example.net` in a second zone, `example.net`. The real zones
 stay in SOPS.
 
 ## Problem
@@ -46,7 +46,7 @@ listens on skylab's public IPv4, and TURN is skylab's only public surface.
 The tunnel costs nothing, so it needs no billing gate. It can exist and stay
 idle before skylab does. The `turn` record points at `hcloud_primary_ip`, so it
 exists exactly when the server does. Both directories use the provider
-`cloudflare/cloudflare ~> 5.28.0`. v5 renamed the resources, so v4-era
+`cloudflare/cloudflare ~> 5.29.0`. v5 renamed the resources, so v4-era
 examples do not apply.
 
 ### The tunnel
@@ -85,23 +85,31 @@ Tofu owns only the records this effort touches:
 |---|---|---|---|
 | apex | `example.com` | imported proxied A, Ashburn | proxied CNAME, tunnel |
 | `www` | `example.com` | imported proxied A, Ashburn | proxied CNAME, tunnel |
-| `chat` | `example.net` | imported proxied A, Ashburn | proxied CNAME, tunnel |
+| `metachat` | `example.net` | imported proxied A, Ashburn | proxied CNAME, tunnel |
 | `next` | `example.com` | proxied CNAME, tunnel | deleted |
 | `metachat-next` | `example.net` | proxied CNAME, tunnel | deleted |
 | `turn` | `example.net` | DNS-only A, primary IP (gated) | unchanged |
 
 The three live records come in through `import` blocks while they still
-point at Ashburn, so the import PR plans no change. The Ashburn address is a
-`TF_VAR_` in the directory's SOPS `secrets.env` until cutover.
+point at Ashburn, so the import PR plans no change to what they resolve to.
+The one in-place change it may plan is the `comment` below, which has no
+effect on DNS. The Ashburn address and the three record IDs are `TF_VAR_`s in
+the directory's SOPS `secrets.env` until cutover. They and the `import` blocks
+sit in one file, `ashburn.tf`. Each name has one resource address
+(`cloudflare_dns_record.hostname["<key>"]`), and its type follows from
+whether `ashburn.tf` imports it. Two records of one name never coexist, so
+the replacement can delete before it creates.
 
-**The cutover PR** changes the three records to tunnel CNAMEs, removes the two
-test hostnames from the records and the tunnel config, and removes the Ashburn
-variable. A record cannot change type in place, so tofu plans a replacement.
-Each name resolves to nothing for the seconds between the delete and the
-create. **Rollback** is a revert of that PR while Ashburn still runs.
+**The cutover PR** deletes `ashburn.tf`, sets every record to the tunnel
+CNAME, removes the two test hostnames from the records and the tunnel config,
+and removes the Ashburn variables. A record cannot change type in place, so
+tofu plans a replacement. Each name resolves to nothing for the seconds
+between the delete and the create. **Rollback** is a revert of that PR while
+Ashburn still runs. The restored `import` blocks are then no-ops, because
+their addresses are already in state.
 
 The test hostnames are one label deep (`metachat-next.example.net`, not
-`next.chat.example.net`). Cloudflare's Universal SSL certificate covers the
+`next.metachat.example.net`). Cloudflare's Universal SSL certificate covers the
 apex and `*.<zone>` only, so a deeper name gets no edge certificate.
 
 `resources/cloudflare/` also owns Forgejo's certificate delegation: a
@@ -185,9 +193,11 @@ This is checked at build: the pods report Ready with the policy in place.
 
 1. `resources/cloudflare/secrets.env` (SOPS) holds `CLOUDFLARE_API_TOKEN`,
    which the provider reads natively, and `TF_VAR_`s for the account ID, the
-   zone IDs, the hostnames and the Ashburn address.
+   two zones and their IDs, the Ashburn address and the live record IDs. The
+   labels (`www`, `metachat`, `next`, `metachat-next`) are in git; only the zones
+   are secret.
 2. `resources/skylab/secrets.env` gets the same token and `TF_VAR_`s for the
-   `example.net` zone ID and the `turn` hostname.
+   `example.net` zone and its ID. The `turn` label is in git.
 3. The token is scoped to Account › Cloudflare Tunnel › Edit and
    Zone › DNS › Edit, on the two app zones and the LAN domain's zone (for
    the `_acme-challenge` CNAME) only. It stays on the operator; skylab never
