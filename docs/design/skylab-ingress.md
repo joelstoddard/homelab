@@ -143,7 +143,7 @@ deny list are coturn's only boundary.
 
 ### The cloudflared layer
 
-`kubernetes/clusters/skylab/cloudflared/`, in the shape of `kubernetes/tailscale/`:
+`kubernetes/clusters/skylab/cloudflared/`, in the shape of `kubernetes/clusters/homelab/tailscale/`:
 
 | Setting | Value |
 |---|---|

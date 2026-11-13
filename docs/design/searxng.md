@@ -86,7 +86,7 @@ It is gated on `general.open_metrics` being a non-empty string, checked as an
 HTTP basic-auth password (the username is ignored). This cluster scrapes
 everything else through `prometheus.io/scrape` annotations, and that path
 cannot carry credentials — an annotated pod here would log 401s forever. So
-the job is explicit, in `kubernetes/alloy/app/config/cluster.alloy`, and the
+the job is explicit, in `kubernetes/clusters/homelab/alloy/app/config/cluster.alloy`, and the
 pod deliberately carries no annotation.
 
 **One value, two consumers.** The password is a single `cluster-secrets` key,

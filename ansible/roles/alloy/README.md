@@ -23,7 +23,7 @@ The rendered config runs a built-in `prometheus.exporter.unix` scraped every
 `alloy_scrape_interval` (`job="node-exporter"`, `instance=<hostname>`) and a
 `loki.source.journal` reader (`job="journal"`, labelled `host`/`unit`/
 `priority`), both forwarded over HTTPS with basic auth to the two routes in
-`kubernetes/monitoring/app/ingest/`. Every host renders the same template;
+`kubernetes/clusters/homelab/monitoring/app/ingest/`. Every host renders the same template;
 only `inventory_hostname` differs.
 
 ## NetBox tag / how to add a host
@@ -67,7 +67,7 @@ encrypt it in place (the repo-root `.sops.yaml` rule for
 
 ```yaml
 # Pushed-to domain and the `hosts` credential for the two write routes; the
-# password's bcrypt hash is kubernetes/monitoring/app/ingest/secret-ingest-auth.sops.yaml.
+# password's bcrypt hash is kubernetes/clusters/homelab/monitoring/app/ingest/secret-ingest-auth.sops.yaml.
 alloy_domain: example.com
 alloy_hosts_password: <hosts push password from PR 1>
 ```
@@ -88,6 +88,6 @@ yet. The first run on a new host is `apply-alloy`.
 ## Version pin
 
 `alloy_version` must match the chart the cluster runs
-(`kubernetes/alloy/app/alloy/helmrelease.yaml`'s chart version maps to an
+(`kubernetes/clusters/homelab/alloy/app/alloy/helmrelease.yaml`'s chart version maps to an
 Alloy app version — see the comment in `defaults/main.yaml`). Check what the
 apt repo offers with `apt-cache madison alloy` and bump both together.

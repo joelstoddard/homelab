@@ -49,187 +49,197 @@ install that gets Flux running in the first place.
 
 ```
 kubernetes/
-├── Makefile                      # bootstrap: components -> sops-age -> sync
-├── kustomization.yaml            # root of the flux-system Kustomization (spec.path ./kubernetes)
-├── flux-system/
-│   ├── kustomization.yaml
-│   ├── gotk-components.yaml      # `flux install --export`; generated, DO NOT EDIT
-│   └── gotk-sync.yaml            # GitRepository + Kustomization pointing at this repo
-├── cilium/
-│   ├── ks.yaml                   # Flux Kustomization "cilium" -> ./kubernetes/cilium/app
-│   └── app/
-│       ├── kustomization.yaml    # namespace kube-system; values.yaml -> ConfigMap
-│       ├── ocirepository.yaml    # oci://quay.io/cilium/charts/cilium, tag = CILIUM_VERSION
-│       ├── helmrelease.yaml      # release "cilium", chartRef -> the OCIRepository
-│       └── values.yaml           # shared with ansible/roles/talos/tasks/cni.yaml
-├── cilium-lb/
-│   ├── ks.yaml                   # Flux Kustomization "cilium-lb", dependsOn cilium, sops decryption
-│   └── app/
-│       ├── pool.sops.yaml        # CiliumLoadBalancerIPPool "lan"; spec (the LAN bounds) encrypted
-│       └── l2-policy.yaml        # CiliumL2AnnouncementPolicy "lan", workers only
-├── cluster-secrets/
-│   ├── ks.yaml                   # Flux Kustomization "cluster-secrets", sops decryption, wait
-│   └── app/
-│       └── secrets.sops.yaml     # Secret "cluster-secrets" in flux-system: DOMAIN, TRAEFIK_LB_IP, ACME_EMAIL
-├── cert-manager/
-│   ├── ks.yaml                   # Flux Kustomization "cert-manager", dependsOn cilium, wait
-│   └── app/
-│       ├── namespace.yaml        # cert-manager, no PodSecurity label
-│       ├── helmrepository.yaml   # https://charts.jetstack.io
-│       ├── helmrelease.yaml      # chart cert-manager v1.21.1, values from the ConfigMap
-│       └── values.yaml           # crds.enabled; DNS-01 self-checks pinned to public resolvers
-├── cert-manager-issuers/
-│   ├── ks.yaml                   # Flux Kustomization, dependsOn cert-manager + cluster-secrets, postBuild
-│   └── app/
-│       ├── kustomization.yaml    # NO top-level namespace — it would be stamped onto the ClusterIssuers
-│       ├── secret.sops.yaml      # cloudflare-api-token (key api-token) in cert-manager
-│       ├── letsencrypt-staging.yaml     # ClusterIssuer, ACME staging directory
-│       └── letsencrypt-production.yaml  # ClusterIssuer, separate account key
-├── traefik/
-│   ├── ks.yaml                   # Flux Kustomization, dependsOn cert-manager-issuers + cilium-lb + cluster-secrets, postBuild, wait
-│   └── app/
-│       ├── namespace.yaml        # traefik; unprivileged, so no PodSecurity label
-│       ├── helmrepository.yaml   # https://traefik.github.io/charts
-│       ├── helmrelease.yaml      # chart traefik 41.5.0, values from the ConfigMap
-│       ├── values.yaml           # 2 replicas, pinned LB IP, TLSStore/default, dashboard route
-│       ├── certificate.yaml      # wildcard-tls: ${DOMAIN} + *.${DOMAIN}, production issuer
-│       ├── secret-dashboard-auth.sops.yaml  # dashboard-auth-users: htpasswd, bcrypt only
-│       └── secret-longhorn-auth.sops.yaml   # longhorn-auth-users: a DIFFERENT credential
-├── traefik-middlewares/
-│   ├── ks.yaml                   # Flux Kustomization, dependsOn traefik — the Middleware CRD ships in the chart
-│   └── app/
-│       ├── kustomization.yaml    # namespace traefik (both CRs are namespaced, unlike the ClusterIssuers)
-│       └── middlewares.yaml      # default-headers (HSTS) + one basic-auth Middleware per service
-├── lan-services/
-│   ├── ks.yaml                   # Flux Kustomization "lan-services", dependsOn traefik + traefik-middlewares + cluster-secrets, postBuild
-│   └── app/
-│       ├── kustomization.yaml    # namespace lan-services
-│       ├── namespace.yaml        # lan-services; no PodSecurity label, this layer runs no pods
-│       ├── rumba.yaml            # Proxmox node: headless Service + EndpointSlice + IngressRoute
-│       ├── tango.yaml            # ditto
-│       ├── salsa.yaml            # ditto
-│       ├── samba.yaml            # ditto
-│       ├── voyager.yaml          # TrueNAS CORE
-│       ├── pihole-pair.yaml      # pihole-01, pihole-02, pihole-vip; the admin UI route on the VIP
-│       └── hubble.yaml       # the router; plain HTTP, no serversTransport
-├── tailscale/
-│   ├── ks.yaml                   # Flux Kustomization "tailscale", sops decryption
-│   └── app/
-│       ├── namespace.yaml        # PodSecurity "privileged" — NET_ADMIN + a privileged sysctl init
-│       ├── rbac.yaml             # SA + Role on the tailscale-state Secret
-│       ├── secret.sops.yaml      # tailscale-auth: TS_AUTHKEY (OAuth client secret)
-│       └── deployment.yaml       # one replica, Recreate, hostname homelab
-├── longhorn/
-│   ├── ks.yaml                   # Flux Kustomization "longhorn", dependsOn cilium, wait
-│   └── app/
-│       ├── namespace.yaml        # longhorn-system, PodSecurity "privileged"
-│       ├── helmrepository.yaml   # https://charts.longhorn.io
-│       ├── helmrelease.yaml      # chart longhorn 1.12.1, values from the ConfigMap
-│       └── values.yaml           # 3 replicas, hard zone anti-affinity, default class
-├── longhorn-jobs/
-│   ├── ks.yaml                   # Flux Kustomization "longhorn-jobs", dependsOn longhorn
-│   └── app/
-│       ├── kustomization.yaml    # namespace longhorn-system
-│       └── recurringjob-trim.yaml # RecurringJob; the CRD ships in the chart, so it cannot share longhorn's pass
-├── monitoring/
-│   ├── ks.yaml                   # Flux Kustomization "monitoring", dependsOn cilium + longhorn + cluster-secrets + traefik-middlewares, wait
-│   └── app/
-│       ├── kustomization.yaml    # namespace monitoring; wires the three values.yaml generators + dashboards
-│       ├── namespace.yaml        # monitoring; no PodSecurity label (baseline default)
-│       ├── helmrepositories.yaml # prometheus-community + grafana-community
-│       ├── prometheus/           # HelmRelease + values: remote-write receiver, empty scrape config
-│       ├── loki/                 # HelmRelease + values: Monolithic mode, filesystem on a Longhorn PVC
-│       ├── grafana/              # HelmRelease + values: stateless, fixed prometheus/loki datasource UIDs
-│       ├── ingest/               # the off-cluster write paths: ingest-auth Middleware + Secret, two IngressRoutes
-│       ├── secret-grafana-admin.sops.yaml  # admin password
-│       └── dashboards/           # JSON dashboards as ConfigMaps, substitute disabled (see its README)
-├── alloy/
-│   ├── ks.yaml                   # Flux Kustomization "alloy", dependsOn monitoring
-│   └── app/
-│       ├── kustomization.yaml    # namespace alloy; wires namespace, HelmRepository and the four sub-directories
-│       ├── namespace.yaml        # PodSecurity "privileged" — hostPath/hostPID/hostNetwork + root
-│       ├── helmrepository.yaml   # https://grafana.github.io/helm-charts
-│       ├── alloy/                # HelmRelease + values: the node-local DaemonSet, all 20 nodes
-│       ├── alloy-cluster/        # HelmRelease + values: one-replica Deployment for cluster-wide scrapes, prefers a Pi
-│       ├── alloy-events/         # HelmRelease + values: one-replica Deployment for Kubernetes events
-│       └── config/               # River configs, substitute disabled: config.alloy + cluster.alloy + events.alloy
-├── host-monitoring/
-│   ├── ks.yaml                   # Flux Kustomization, dependsOn monitoring + cilium-lb + cluster-secrets, postBuild, sops
-│   └── app/
-│       ├── kustomization.yaml    # namespace host-monitoring; the blackbox/graphite/values/targets generators
-│       ├── namespace.yaml        # host-monitoring; no PodSecurity label (baseline default)
-│       ├── helmrepository.yaml   # https://grafana.github.io/helm-charts
-│       ├── pve-exporter.yaml     # Deployment + Service, multi-target /pve; secret-pve-exporter.sops.yaml holds the token
-│       ├── pihole-exporter.yaml  # Deployment + Service, Pi-hole v6 API; secret-pihole-exporter.sops.yaml holds the password
-│       ├── blackbox-exporter.yaml # Deployment + Service; blackbox/blackbox.yml: tcp_connect, http_2xx, dns_lookup
-│       ├── graphite-exporter.yaml # Deployment + Service + the LoadBalancer "graphite" (TCP 2003)
-│       ├── alloy-gateway/        # HelmRelease + values + the hand-written LoadBalancer "syslog" (UDP/TCP 514)
-│       ├── config/               # gateway.alloy, substitute disabled
-│       └── targets/targets.json  # the substituted probe/poll target list, mounted at /etc/alloy-targets
-├── searxng/
-    ├── ks.yaml                   # Flux Kustomization, dependsOn traefik + traefik-middlewares + cluster-secrets, postBuild, sops
-    └── app/
-        ├── kustomization.yaml    # namespace searxng
-        ├── namespace.yaml        # searxng; no PodSecurity label (both pods satisfy "restricted")
-        ├── config/               # settings.yml + limiter.toml, generated WITH a name hash so an edit rolls the pod
-        ├── secret.sops.yaml      # SEARXNG_SECRET, the cookie-signing key
-        ├── deployment.yaml       # one replica; base URL, limiter and Valkey URL as SEARXNG_* env
-        ├── service.yaml          # searxng:8080, no scrape annotation (the metrics job is in alloy/)
-        ├── valkey.yaml           # Deployment + Service; no persistence, 64 MB, allkeys-lru
-        └── ingressroute.yaml     # Host(searx.<domain>), default-headers only — no auth middleware
-├── glance/
-│   ├── ks.yaml                   # Flux Kustomization, dependsOn traefik + traefik-middlewares + cluster-secrets, postBuild, NO sops
-│   └── app/
-│       ├── kustomization.yaml    # namespace glance
-│       ├── namespace.yaml        # glance; no PodSecurity label (the pod satisfies "restricted")
-│       ├── config/               # glance.yml, generated WITH a name hash so an edit rolls the pod
-│       ├── deployment.yaml       # one replica; no command or env — the image entrypoint reads /app/config/glance.yml
-│       ├── service.yaml          # glance:8080, no scrape annotation (Glance exposes no metrics)
-│       └── ingressroute.yaml     # Host(home.<domain>), default-headers + glance-auth
-├── home-assistant/
-│   ├── ks.yaml                   # Flux Kustomization, dependsOn traefik + traefik-middlewares + longhorn + cluster-secrets, postBuild, NO sops
-│   └── app/
-│       ├── kustomization.yaml    # namespace home-assistant; configuration.yaml generated WITH a name hash
-│       ├── namespace.yaml        # home-assistant, PodSecurity "privileged" — hostNetwork for mDNS/SSDP
-│       ├── pvc.yaml              # home-assistant-config, 10Gi, no storageClassName (Longhorn default)
-│       ├── config/               # configuration.yaml, mounted read-only over the claim via subPath
-│       ├── deployment.yaml       # one replica, Recreate, hostNetwork; init container seeds automations/scripts/scenes
-│       ├── service.yaml          # LoadBalancer on ${HOME_ASSISTANT_LB_IP}, externalTrafficPolicy Cluster
-│       └── ingressroute.yaml     # Host(homeassistant.<domain>), default-headers only — no auth middleware
-├── orb-agent/
-│   ├── ks.yaml                   # Flux Kustomization, no dependsOn, sops decryption
-│   └── app/
-│       ├── kustomization.yaml    # namespace orb-agent
-│       ├── namespace.yaml        # orb-agent, PodSecurity "privileged" — hostNetwork for the LAN scan
-│       ├── secret.sops.yaml      # orb-agent-fleet: FLEET_AUTH_URL, FLEET_CLIENT_ID, FLEET_CLIENT_SECRET
-│       └── deployment.yaml       # one replica, Recreate, hostNetwork; Fleet-managed, args [run]
-├── lancache/
-│   ├── ks.yaml                   # Flux Kustomization, dependsOn cilium + cilium-lb + cluster-secrets, postBuild, NO sops
-│   └── app/
-│       ├── kustomization.yaml    # namespace lancache
-│       ├── namespace.yaml        # lancache, PodSecurity "baseline" — the image starts as root
-│       ├── pv-cache.yaml         # NFS /mnt/Voyager/lancache, 500Gi, Retain, pre-bound, media-library's mount options
-│       ├── pvc-cache.yaml        # lancache-cache, bound by volumeName
-│       ├── deployment.yaml       # one replica, Recreate, amd64 only, digest-pinned; cache and logs on the NFS volume
-│       ├── service.yaml          # LoadBalancer on ${LANCACHE_LB_IP}, ports 80 + 443, externalTrafficPolicy Cluster
-│       └── cnp-egress.yaml       # egress default-deny: DNS + public addresses on 80/443 — the image is an open proxy
-└── nebula-sync/
-    ├── ks.yaml                   # Flux Kustomization, dependsOn cilium + lan-services, sops decryption, NO postBuild
-    └── app/
-        ├── kustomization.yaml    # namespace nebula-sync
-        ├── namespace.yaml        # nebula-sync, PodSecurity "restricted"
-        ├── secret.sops.yaml      # nebula-sync: PIHOLE_PASSWORD, a copy of dns_pihole_web_password that `make lint` holds equal
-        ├── cronjob.yaml          # hourly, digest-pinned; gravity tables only, pihole-01 -> pihole-02
-        └── cnp-egress.yaml       # egress default-deny: cluster DNS + the two instances on 443
+├── Makefile                      # bootstrap: components -> sops-age -> sync, one CLUSTER per run
+├── README.md                     # no kustomization.yaml and no manifest at this level
+└── clusters/
+    └── homelab/                  # the home cluster's tree; spec.path ./kubernetes/clusters/homelab
+        ├── kustomization.yaml    # root of the flux-system Kustomization
+        ├── flux-system/
+        │   ├── kustomization.yaml
+        │   ├── gotk-components.yaml      # `flux install --export`; generated, DO NOT EDIT
+        │   └── gotk-sync.yaml            # GitRepository + Kustomization pointing at this repo
+        ├── cilium/
+        │   ├── ks.yaml                   # Flux Kustomization "cilium" -> ./kubernetes/clusters/homelab/cilium/app
+        │   └── app/
+        │       ├── kustomization.yaml    # namespace kube-system; values.yaml -> ConfigMap
+        │       ├── ocirepository.yaml    # oci://quay.io/cilium/charts/cilium, tag = CILIUM_VERSION
+        │       ├── helmrelease.yaml      # release "cilium", chartRef -> the OCIRepository
+        │       └── values.yaml           # shared with ansible/roles/talos/tasks/cni.yaml
+        ├── cilium-lb/
+        │   ├── ks.yaml                   # Flux Kustomization "cilium-lb", dependsOn cilium, sops decryption
+        │   └── app/
+        │       ├── pool.sops.yaml        # CiliumLoadBalancerIPPool "lan"; spec (the LAN bounds) encrypted
+        │       └── l2-policy.yaml        # CiliumL2AnnouncementPolicy "lan", workers only
+        ├── cluster-secrets/
+        │   ├── ks.yaml                   # Flux Kustomization "cluster-secrets", sops decryption, wait
+        │   └── app/
+        │       └── secrets.sops.yaml     # Secret "cluster-secrets" in flux-system: DOMAIN, TRAEFIK_LB_IP, ACME_EMAIL
+        ├── cert-manager/
+        │   ├── ks.yaml                   # Flux Kustomization "cert-manager", dependsOn cilium, wait
+        │   └── app/
+        │       ├── namespace.yaml        # cert-manager, no PodSecurity label
+        │       ├── helmrepository.yaml   # https://charts.jetstack.io
+        │       ├── helmrelease.yaml      # chart cert-manager v1.21.1, values from the ConfigMap
+        │       └── values.yaml           # crds.enabled; DNS-01 self-checks pinned to public resolvers
+        ├── cert-manager-issuers/
+        │   ├── ks.yaml                   # Flux Kustomization, dependsOn cert-manager + cluster-secrets, postBuild
+        │   └── app/
+        │       ├── kustomization.yaml    # NO top-level namespace — it would be stamped onto the ClusterIssuers
+        │       ├── secret.sops.yaml      # cloudflare-api-token (key api-token) in cert-manager
+        │       ├── letsencrypt-staging.yaml     # ClusterIssuer, ACME staging directory
+        │       └── letsencrypt-production.yaml  # ClusterIssuer, separate account key
+        ├── traefik/
+        │   ├── ks.yaml                   # Flux Kustomization, dependsOn cert-manager-issuers + cilium-lb + cluster-secrets, postBuild, wait
+        │   └── app/
+        │       ├── namespace.yaml        # traefik; unprivileged, so no PodSecurity label
+        │       ├── helmrepository.yaml   # https://traefik.github.io/charts
+        │       ├── helmrelease.yaml      # chart traefik 41.5.0, values from the ConfigMap
+        │       ├── values.yaml           # 2 replicas, pinned LB IP, TLSStore/default, dashboard route
+        │       ├── certificate.yaml      # wildcard-tls: ${DOMAIN} + *.${DOMAIN}, production issuer
+        │       ├── secret-dashboard-auth.sops.yaml  # dashboard-auth-users: htpasswd, bcrypt only
+        │       └── secret-longhorn-auth.sops.yaml   # longhorn-auth-users: a DIFFERENT credential
+        ├── traefik-middlewares/
+        │   ├── ks.yaml                   # Flux Kustomization, dependsOn traefik — the Middleware CRD ships in the chart
+        │   └── app/
+        │       ├── kustomization.yaml    # namespace traefik (both CRs are namespaced, unlike the ClusterIssuers)
+        │       └── middlewares.yaml      # default-headers (HSTS) + one basic-auth Middleware per service
+        ├── lan-services/
+        │   ├── ks.yaml                   # Flux Kustomization "lan-services", dependsOn traefik + traefik-middlewares + cluster-secrets, postBuild
+        │   └── app/
+        │       ├── kustomization.yaml    # namespace lan-services
+        │       ├── namespace.yaml        # lan-services; no PodSecurity label, this layer runs no pods
+        │       ├── rumba.yaml            # Proxmox node: headless Service + EndpointSlice + IngressRoute
+        │       ├── tango.yaml            # ditto
+        │       ├── salsa.yaml            # ditto
+        │       ├── samba.yaml            # ditto
+        │       ├── voyager.yaml          # TrueNAS CORE
+        │       ├── pihole-pair.yaml      # pihole-01, pihole-02, pihole-vip; the admin UI route on the VIP
+        │       └── hubble.yaml       # the router; plain HTTP, no serversTransport
+        ├── tailscale/
+        │   ├── ks.yaml                   # Flux Kustomization "tailscale", sops decryption
+        │   └── app/
+        │       ├── namespace.yaml        # PodSecurity "privileged" — NET_ADMIN + a privileged sysctl init
+        │       ├── rbac.yaml             # SA + Role on the tailscale-state Secret
+        │       ├── secret.sops.yaml      # tailscale-auth: TS_AUTHKEY (OAuth client secret)
+        │       └── deployment.yaml       # one replica, Recreate, hostname homelab
+        ├── longhorn/
+        │   ├── ks.yaml                   # Flux Kustomization "longhorn", dependsOn cilium, wait
+        │   └── app/
+        │       ├── namespace.yaml        # longhorn-system, PodSecurity "privileged"
+        │       ├── helmrepository.yaml   # https://charts.longhorn.io
+        │       ├── helmrelease.yaml      # chart longhorn 1.12.1, values from the ConfigMap
+        │       └── values.yaml           # 3 replicas, hard zone anti-affinity, default class
+        ├── longhorn-jobs/
+        │   ├── ks.yaml                   # Flux Kustomization "longhorn-jobs", dependsOn longhorn
+        │   └── app/
+        │       ├── kustomization.yaml    # namespace longhorn-system
+        │       └── recurringjob-trim.yaml # RecurringJob; the CRD ships in the chart, so it cannot share longhorn's pass
+        ├── monitoring/
+        │   ├── ks.yaml                   # Flux Kustomization "monitoring", dependsOn cilium + longhorn + cluster-secrets + traefik-middlewares, wait
+        │   └── app/
+        │       ├── kustomization.yaml    # namespace monitoring; wires the three values.yaml generators + dashboards
+        │       ├── namespace.yaml        # monitoring; no PodSecurity label (baseline default)
+        │       ├── helmrepositories.yaml # prometheus-community + grafana-community
+        │       ├── prometheus/           # HelmRelease + values: remote-write receiver, empty scrape config
+        │       ├── loki/                 # HelmRelease + values: Monolithic mode, filesystem on a Longhorn PVC
+        │       ├── grafana/              # HelmRelease + values: stateless, fixed prometheus/loki datasource UIDs
+        │       ├── ingest/               # the off-cluster write paths: ingest-auth Middleware + Secret, two IngressRoutes
+        │       ├── secret-grafana-admin.sops.yaml  # admin password
+        │       └── dashboards/           # JSON dashboards as ConfigMaps, substitute disabled (see its README)
+        ├── alloy/
+        │   ├── ks.yaml                   # Flux Kustomization "alloy", dependsOn monitoring
+        │   └── app/
+        │       ├── kustomization.yaml    # namespace alloy; wires namespace, HelmRepository and the four sub-directories
+        │       ├── namespace.yaml        # PodSecurity "privileged" — hostPath/hostPID/hostNetwork + root
+        │       ├── helmrepository.yaml   # https://grafana.github.io/helm-charts
+        │       ├── alloy/                # HelmRelease + values: the node-local DaemonSet, all 20 nodes
+        │       ├── alloy-cluster/        # HelmRelease + values: one-replica Deployment for cluster-wide scrapes, prefers a Pi
+        │       ├── alloy-events/         # HelmRelease + values: one-replica Deployment for Kubernetes events
+        │       └── config/               # River configs, substitute disabled: config.alloy + cluster.alloy + events.alloy
+        ├── host-monitoring/
+        │   ├── ks.yaml                   # Flux Kustomization, dependsOn monitoring + cilium-lb + cluster-secrets, postBuild, sops
+        │   └── app/
+        │       ├── kustomization.yaml    # namespace host-monitoring; the blackbox/graphite/values/targets generators
+        │       ├── namespace.yaml        # host-monitoring; no PodSecurity label (baseline default)
+        │       ├── helmrepository.yaml   # https://grafana.github.io/helm-charts
+        │       ├── pve-exporter.yaml     # Deployment + Service, multi-target /pve; secret-pve-exporter.sops.yaml holds the token
+        │       ├── pihole-exporter.yaml  # Deployment + Service, Pi-hole v6 API; secret-pihole-exporter.sops.yaml holds the password
+        │       ├── blackbox-exporter.yaml # Deployment + Service; blackbox/blackbox.yml: tcp_connect, http_2xx, dns_lookup
+        │       ├── graphite-exporter.yaml # Deployment + Service + the LoadBalancer "graphite" (TCP 2003)
+        │       ├── alloy-gateway/        # HelmRelease + values + the hand-written LoadBalancer "syslog" (UDP/TCP 514)
+        │       ├── config/               # gateway.alloy, substitute disabled
+        │       └── targets/targets.json  # the substituted probe/poll target list, mounted at /etc/alloy-targets
+        ├── searxng/
+            ├── ks.yaml                   # Flux Kustomization, dependsOn traefik + traefik-middlewares + cluster-secrets, postBuild, sops
+            └── app/
+                ├── kustomization.yaml    # namespace searxng
+                ├── namespace.yaml        # searxng; no PodSecurity label (both pods satisfy "restricted")
+                ├── config/               # settings.yml + limiter.toml, generated WITH a name hash so an edit rolls the pod
+                ├── secret.sops.yaml      # SEARXNG_SECRET, the cookie-signing key
+                ├── deployment.yaml       # one replica; base URL, limiter and Valkey URL as SEARXNG_* env
+                ├── service.yaml          # searxng:8080, no scrape annotation (the metrics job is in alloy/)
+                ├── valkey.yaml           # Deployment + Service; no persistence, 64 MB, allkeys-lru
+                └── ingressroute.yaml     # Host(searx.<domain>), default-headers only — no auth middleware
+        ├── glance/
+        │   ├── ks.yaml                   # Flux Kustomization, dependsOn traefik + traefik-middlewares + cluster-secrets, postBuild, NO sops
+        │   └── app/
+        │       ├── kustomization.yaml    # namespace glance
+        │       ├── namespace.yaml        # glance; no PodSecurity label (the pod satisfies "restricted")
+        │       ├── config/               # glance.yml, generated WITH a name hash so an edit rolls the pod
+        │       ├── deployment.yaml       # one replica; no command or env — the image entrypoint reads /app/config/glance.yml
+        │       ├── service.yaml          # glance:8080, no scrape annotation (Glance exposes no metrics)
+        │       └── ingressroute.yaml     # Host(home.<domain>), default-headers + glance-auth
+        ├── home-assistant/
+        │   ├── ks.yaml                   # Flux Kustomization, dependsOn traefik + traefik-middlewares + longhorn + cluster-secrets, postBuild, NO sops
+        │   └── app/
+        │       ├── kustomization.yaml    # namespace home-assistant; configuration.yaml generated WITH a name hash
+        │       ├── namespace.yaml        # home-assistant, PodSecurity "privileged" — hostNetwork for mDNS/SSDP
+        │       ├── pvc.yaml              # home-assistant-config, 10Gi, no storageClassName (Longhorn default)
+        │       ├── config/               # configuration.yaml, mounted read-only over the claim via subPath
+        │       ├── deployment.yaml       # one replica, Recreate, hostNetwork; init container seeds automations/scripts/scenes
+        │       ├── service.yaml          # LoadBalancer on ${HOME_ASSISTANT_LB_IP}, externalTrafficPolicy Cluster
+        │       └── ingressroute.yaml     # Host(homeassistant.<domain>), default-headers only — no auth middleware
+        ├── orb-agent/
+        │   ├── ks.yaml                   # Flux Kustomization, no dependsOn, sops decryption
+        │   └── app/
+        │       ├── kustomization.yaml    # namespace orb-agent
+        │       ├── namespace.yaml        # orb-agent, PodSecurity "privileged" — hostNetwork for the LAN scan
+        │       ├── secret.sops.yaml      # orb-agent-fleet: FLEET_AUTH_URL, FLEET_CLIENT_ID, FLEET_CLIENT_SECRET
+        │       └── deployment.yaml       # one replica, Recreate, hostNetwork; Fleet-managed, args [run]
+        ├── lancache/
+        │   ├── ks.yaml                   # Flux Kustomization, dependsOn cilium + cilium-lb + cluster-secrets, postBuild, NO sops
+        │   └── app/
+        │       ├── kustomization.yaml    # namespace lancache
+        │       ├── namespace.yaml        # lancache, PodSecurity "baseline" — the image starts as root
+        │       ├── pv-cache.yaml         # NFS /mnt/Voyager/lancache, 500Gi, Retain, pre-bound, media-library's mount options
+        │       ├── pvc-cache.yaml        # lancache-cache, bound by volumeName
+        │       ├── deployment.yaml       # one replica, Recreate, amd64 only, digest-pinned; cache and logs on the NFS volume
+        │       ├── service.yaml          # LoadBalancer on ${LANCACHE_LB_IP}, ports 80 + 443, externalTrafficPolicy Cluster
+        │       └── cnp-egress.yaml       # egress default-deny: DNS + public addresses on 80/443 — the image is an open proxy
+        └── nebula-sync/
+            ├── ks.yaml                   # Flux Kustomization, dependsOn cilium + lan-services, sops decryption, NO postBuild
+            └── app/
+                ├── kustomization.yaml    # namespace nebula-sync
+                ├── namespace.yaml        # nebula-sync, PodSecurity "restricted"
+                ├── secret.sops.yaml      # nebula-sync: PIHOLE_PASSWORD, a copy of dns_pihole_web_password that `make lint` holds equal
+                ├── cronjob.yaml          # hourly, digest-pinned; gravity tables only, pihole-01 -> pihole-02
+                └── cnp-egress.yaml       # egress default-deny: cluster DNS + the two instances on 443
 ```
 
 `flux-system/gotk-sync.yaml` declares a `GitRepository` for this repo
 (`main`, anonymous HTTPS — the repo is public) and a `Kustomization` that
-reconciles `./kubernetes` with `prune: true` and SOPS decryption. Because
-`./kubernetes` includes `flux-system/`, Flux manages its own controllers and
-sync objects from the first reconcile on.
+reconciles `./kubernetes/clusters/homelab` with `prune: true` and SOPS
+decryption. Because that path includes `flux-system/`, Flux manages its own
+controllers and sync objects from the first reconcile on.
 
-Everything Flux reconciles is listed in the root `kustomization.yaml`. New
+Every layer path in this README is relative to `clusters/homelab/`. Each
+cluster has its own tree under `clusters/` and its own sync, and
+`kubernetes/` itself holds no `kustomization.yaml` and no manifest: a sync
+pointed at it would apply every cluster's `flux-system/` onto one cluster
+(`docs/design/skylab-flux.md`).
+
+Everything Flux reconciles is listed in the tree's root,
+`clusters/homelab/kustomization.yaml`. New
 layers are added as further Flux `Kustomization` CRs (with `dependsOn` for
 ordering) rather than by growing the root tree — see "Adding workloads".
 `cilium/` is the first: the root tree applies only `ks.yaml`; that CR applies
@@ -239,8 +249,9 @@ ordering) rather than by growing the root tree — see "Adding workloads".
 
 | Input | Where | Why |
 | --- | --- | --- |
-| kube context `homelab` | `~/.kube/config` (merged by `make -C ansible kubeconfig`) | Every `kubectl` call pins `--context`; the operator's kubeconfig may hold unrelated clusters. |
-| Age private key | `$SOPS_AGE_KEY_FILE` (default `~/.config/sops/age/keys.txt`) | Lands in-cluster as the `sops-age` Secret so kustomize-controller can decrypt `*.sops.yaml`. |
+| `CLUSTER` | `make` variable, default `homelab` | Picks the tree (`clusters/$CLUSTER`), the kube context and the age key; `skylab` is the only other value accepted. |
+| kube context named `$CLUSTER` | `~/.kube/config` (merged by `make -C ansible kubeconfig`) | Every `kubectl` call pins `--context`; the operator's kubeconfig may hold unrelated clusters. |
+| Age private key | `$SOPS_AGE_KEY_FILE` (default `~/.config/sops/age/keys.txt`) for `homelab`, `$SKYLAB_AGE_KEY_FILE` (default `~/.config/sops/age/skylab.txt`) for `skylab` | Lands in-cluster as the `sops-age` Secret so kustomize-controller can decrypt `*.sops.yaml`. Each cluster gets only its own key. |
 | `FLUX_VERSION` | repo-root `versions.env` | Pins `gotk-components.yaml`; `make lint` refuses a mismatch. |
 | `CILIUM_VERSION` | repo-root `versions.env` | The chart the `talos` role seeds; `make lint` refuses a `cilium/app/ocirepository.yaml` tag that differs. |
 | `DOMAIN` | `cluster-secrets/app/secrets.sops.yaml` | The root domain every route hangs off. Reaches manifests through Flux `postBuild` substitution, so this public repo never carries it. |
@@ -265,20 +276,21 @@ ordering) rather than by growing the root tree — see "Adding workloads".
 
 ```bash
 make -C kubernetes            # or: make kubernetes / make homelab from the root
+make -C kubernetes CLUSTER=skylab
 ```
 
 `apply` (the default) runs `build` → `lint` → `components` → `secret` →
-`sync`:
+`sync` against one cluster, `CLUSTER` (default `homelab`):
 
-1. **components** — server-side apply `gotk-components.yaml`; wait for the
-   Flux CRDs to be Established and the four controller Deployments to be
-   Available.
+1. **components** — server-side apply the tree's `gotk-components.yaml`;
+   wait for the Flux CRDs to be Established and the four controller
+   Deployments to be Available.
 2. **secret** — `kubectl create secret generic sops-age
-   --from-file=age.agekey=$SOPS_AGE_KEY_FILE`, piped through
+   --from-file=age.agekey=<the cluster's key file>`, piped through
    `kubectl apply` so it is idempotent. Must exist before the Kustomization
    first reconciles: kustomize-controller reads it at the start of every
    reconcile and errors otherwise.
-3. **sync** — server-side apply `flux-system/`; wait for the
+3. **sync** — server-side apply the tree's `flux-system/`; wait for the
    `GitRepository` and `Kustomization` to be Ready.
 
 Two phases because the CRs in `gotk-sync.yaml` cannot be applied until their
@@ -289,10 +301,12 @@ conflict. Re-running on a healthy cluster is a no-op (seconds); Flux
 re-asserts git on its next reconcile either way.
 
 Other targets: `check` (server dry run once Flux is installed, client-side
-validation before), `lint` (offline: version pins, `kubectl kustomize` of
-the root and every `*/app`, and an `ENC[` sweep over every `*.sops.yaml` —
-see "Secrets"), `status` (`flux get all -A` + pods), `generate` (see
-"Upgrading").
+validation before), `lint` (offline, over every `clusters/*` tree whatever
+`CLUSTER` is: version pins, `kubectl kustomize` of each root and every
+`*/app`, every `ks.yaml` and `gotk-sync.yaml` path inside its own tree, no
+manifest at `kubernetes/` outside a tree, and an `ENC[` sweep over every
+`*.sops.yaml` — see "Secrets"), `status` (`flux get all -A` + pods),
+`generate` (see "Upgrading").
 
 ## Verify
 
@@ -872,7 +886,7 @@ Consequences:
 - **The job, its schedule and its targets live in the Console, not in git.**
   Change them there; this layer only keeps the agent running.
 - **The Fleet client secret is shown once.** Rotating it means a new agent in
-  the Console, then `sops kubernetes/orb-agent/app/secret.sops.yaml`.
+  the Console, then `sops kubernetes/clusters/homelab/orb-agent/app/secret.sops.yaml`.
 - **Off switch: `replicas: 0` in git.** One replica: one agent for each Fleet
   client identity.
 - **Never on skylab.** Skylab is a separate cluster, and it is not on the
@@ -1156,7 +1170,7 @@ kubectl --context homelab -n lan-services get endpointslices \
    value that has to land in a `configMapGenerator` input, goes the
    `cluster-secrets` way instead: `${VAR}` plus `postBuild.substituteFrom`
    (see "Cluster secrets").
-2. List the directory in `kubernetes/kustomization.yaml`.
+2. List the directory in `kubernetes/clusters/homelab/kustomization.yaml`.
 3. `make -C kubernetes lint`, PR, merge. Flux picks it up within the
    `GitRepository` interval (1 m) and reconciles it.
 4. Metrics: annotate the pod with `prometheus.io/scrape: "true"` and
@@ -1178,7 +1192,7 @@ Decryption happens in-cluster: the Kustomization's `decryption.secretRef`
 points at `sops-age`, the same Age key the operator uses locally.
 
 ```bash
-sops kubernetes/<layer>/<name>.sops.yaml     # create / edit; never hand-edit
+sops kubernetes/clusters/homelab/<layer>/<name>.sops.yaml   # create / edit; never hand-edit
 ```
 
 The repo is public: Secret names, namespaces and keys are visible, only the
@@ -1205,7 +1219,7 @@ make -C kubernetes generate    # flux install --export --version=$FLUX_VERSION
 make -C kubernetes lint        # header now matches
 ```
 
-PR the regenerated `gotk-components.yaml`; Flux upgrades itself when the
+PR every tree's regenerated `gotk-components.yaml`; Flux upgrades itself when the
 merge lands on `main`. `make -C kubernetes` afterwards is still a no-op.
 
 ## Footguns
@@ -1213,7 +1227,7 @@ merge lands on `main`. `make -C kubernetes` afterwards is still a no-op.
 - **Never `kubectl delete kustomization flux-system`.** With `prune: true`
   its finalizer garbage-collects Flux's own CRDs and controllers — and every
   Kustomization/HelmRelease they own. Removing `flux-system` from
-  `kubernetes/kustomization.yaml` on `main` has the same effect. To take Flux
+  `kubernetes/clusters/homelab/kustomization.yaml` on `main` has the same effect. To take Flux
   off the cluster deliberately, use `flux uninstall` (deletes the components,
   strips finalizers, removes CRDs and the namespace; workloads stay). Setting
   `spec.deletionPolicy: Orphan` on the `flux-system` Kustomization would

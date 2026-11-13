@@ -58,7 +58,7 @@ exists. The vars file holds what differs per cluster:
 | Build dir | `.talos/clusterconfig/` | `.talos/skylab/` |
 | Apply step | `apply-config --insecure` in maintenance mode | skipped: `user_data` delivered it |
 | Extra patches | none | `templates/patches/skylab/` |
-| Cilium values | `kubernetes/cilium/app/values.yaml` | `kubernetes/clusters/skylab/cilium/app/values.yaml` (`docs/design/skylab-flux.md`) |
+| Cilium values | `kubernetes/clusters/homelab/cilium/app/values.yaml` | `kubernetes/clusters/skylab/cilium/app/values.yaml` (`docs/design/skylab-flux.md`) |
 
 The shared tasks (secrets bundle, `gen config` + patch, bootstrap,
 kubeconfig, Cilium seed, health) take these values; the VIP lookup and the

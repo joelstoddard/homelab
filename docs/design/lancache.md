@@ -1,6 +1,6 @@
 # LANCache: the game download cache
 
-`kubernetes/lancache/` runs `lancachenet/monolithic`, the HTTP cache that the
+`kubernetes/clusters/homelab/lancache/` runs `lancachenet/monolithic`, the HTTP cache that the
 DNS chain's lancache-dns containers send game CDN names to
 (`docs/design/dns-chain.md`). One nginx, one pinned LAN address, one NFS
 dataset on voyager.

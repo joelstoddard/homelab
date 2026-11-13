@@ -3,10 +3,10 @@
 How a LAN or tailnet client reaches a cluster service at
 `https://<name>.example.com` with a publicly-trusted certificate and no
 per-service TLS configuration. Layers:
-`kubernetes/{cluster-secrets,cert-manager,cert-manager-issuers,traefik,traefik-middlewares}/`,
+`kubernetes/clusters/homelab/{cluster-secrets,cert-manager,cert-manager-issuers,traefik,traefik-middlewares}/`,
 plus `lan-services/` for hosts outside the cluster; LAN DNS
 `ansible/roles/dns/` (`docs/design/dns-chain.md`); first in-cluster consumer
-`kubernetes/longhorn/`.
+`kubernetes/clusters/homelab/longhorn/`.
 
 ## Problem
 
@@ -199,7 +199,7 @@ names beneath it, never the apex `example.com` or `www.example.com`.
 
 ## Off-cluster LAN backends
 
-`kubernetes/lan-services/` fronts seven hosts that are not pods — the four
+`kubernetes/clusters/homelab/lan-services/` fronts seven hosts that are not pods — the four
 Proxmox nodes, TrueNAS, Pi-hole, and the router — with the same wildcard
 certificate every in-cluster route gets. An `IngressRoute`'s `services` entry
 names a `Service`, and Traefik has no notion of routing straight to a bare

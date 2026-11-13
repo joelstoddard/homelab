@@ -239,9 +239,9 @@ truth (`docs/design/talos-machine-config.md`):
    `~/.kube/config` (other clusters' contexts are preserved).
 5. **cni** (localhost, once) — the machine config ships no CNI (no flannel,
    no kube-proxy), so nothing can schedule yet. `helm install` seeds Cilium
-   into `kube-system` from `kubernetes/cilium/app/values.yaml` at
+   into `kube-system` from `kubernetes/clusters/homelab/cilium/app/values.yaml` at
    `CILIUM_VERSION` — only if the release is absent. Flux adopts and owns
-   it afterwards (`kubernetes/cilium/`); this step never touches an existing
+   it afterwards (`kubernetes/clusters/homelab/cilium/`); this step never touches an existing
    release. Why this shape: [`design/cilium-bootstrap.md`](./design/cilium-bootstrap.md).
 6. **health** (localhost, once) — `talosctl health` until etcd, the
    apiserver and every node are Ready. Last, because Ready needs the CNI.
@@ -281,7 +281,9 @@ make -C kubernetes
 ```
 
 installs Flux CD from the committed manifests and points it at this repo's
-`main`; from then on [`kubernetes/`](../kubernetes/) is reconciled by Flux.
+`main`; from then on
+[`kubernetes/clusters/homelab/`](../kubernetes/clusters/homelab/) is
+reconciled by Flux.
 Its first reconcile adopts the Cilium release Step 3 seeded (same name,
 same values; expect one rolling restart of the Cilium pods as Flux re-labels
 them with its digest-suffixed chart version); LoadBalancer pool and workloads
@@ -313,7 +315,7 @@ disk — [`design/pi-netboot-steady-state.md`](design/pi-netboot-steady-state.md
 Each node must be Ready and the cluster healthy before the next. Re-running
 is a no-op. Budget 3–4 min per node.
 
-**With Longhorn installed** (`kubernetes/longhorn/`), a VM's drain blocks on
+**With Longhorn installed** (`kubernetes/clusters/homelab/longhorn/`), a VM's drain blocks on
 Longhorn's instance-manager PodDisruptionBudgets while the node holds a
 volume's last healthy replica — the roll then fails at the 15 m timeout
 rather than proceeding, which is the safe outcome. A Pi reboot drains

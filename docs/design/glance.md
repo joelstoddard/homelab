@@ -1,6 +1,6 @@
 # Glance: the start page
 
-`kubernetes/glance/` serves a browser start page at `home.${DOMAIN}`: a search
+`kubernetes/clusters/homelab/glance/` serves a browser start page at `home.${DOMAIN}`: a search
 box pointed at the cluster's own SearXNG, one tile per service grouped by what
 the service does, each with a reachability dot, and a column of live figures
 from Prometheus. A sidebar holds weather, a calendar link, the three personal
@@ -109,7 +109,7 @@ same constraint that kept a blackbox probe of `searx.${DOMAIN}` out of the
 `monitoring` layer.
 
 So every `check-url` names an in-cluster Service. For the seven off-cluster
-hosts this costs nothing extra, because `kubernetes/lan-services/` already
+hosts this costs nothing extra, because `kubernetes/clusters/homelab/lan-services/` already
 publishes a headless Service per host whose EndpointSlice carries the real LAN
 address. Probing `rumba.lan-services.svc` rather than a `${RUMBA_IP}` keeps
 those addresses in exactly one place and out of this layer.
@@ -238,7 +238,7 @@ and redirects to the same 404.
 
 The self-signed certificates on the Proxmox, TrueNAS and Pi-hole backends are
 the same ones that make the `lan-insecure` `ServersTransport` necessary in
-`kubernetes/lan-services/`.
+`kubernetes/clusters/homelab/lan-services/`.
 
 ## Behind basic auth
 
@@ -309,8 +309,8 @@ than blanking a link.
 
 ### Checking a change
 
-`flux build kustomization glance --path kubernetes/glance/app
---kustomization-file kubernetes/glance/ks.yaml` renders the layer with the live
+`flux build kustomization glance --path kubernetes/clusters/homelab/glance/app
+--kustomization-file kubernetes/clusters/homelab/glance/ks.yaml` renders the layer with the live
 `cluster-secrets`, through the same substitution code as the controller. In
 the output, `glance.yml` must carry `- $include: stats.yml` with a single
 sigil, and `stats.yml` must still read `${DOMAIN}` and `{{ $q :=`. Running

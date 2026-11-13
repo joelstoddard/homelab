@@ -55,13 +55,13 @@ keepalived for the Pi-hole VIP, with the NetBox-tag groups and SOPS group
 vars — in `ansible/roles/dns/`, run by `make -C ansible apply-dns`; the
 OpenTofu for all six containers in `dns.tf` under the four
 `opentofu/resources/<nuc>/` folders; and the cache lancache-dns points at,
-`kubernetes/lancache/` (`docs/design/lancache.md`). All six containers are in
+`kubernetes/clusters/homelab/lancache/` (`docs/design/lancache.md`). All six containers are in
 NetBox, with their addresses cross-checked against the group vars. The Pi-hole
 pair's adlists, groups and clients are `opentofu/resources/pihole-config/`,
-applied to pihole-01 by `make dns`, and `kubernetes/nebula-sync/` copies them
-to pihole-02 (see "Lists and their sync"). `kubernetes/lan-services/` names
+applied to pihole-01 by `make dns`, and `kubernetes/clusters/homelab/nebula-sync/` copies them
+to pihole-02 (see "Lists and their sync"). `kubernetes/clusters/homelab/lan-services/` names
 each instance and the VIP in-cluster, and routes `pihole.<domain>` to the VIP,
-so the admin UI is whichever instance holds it. `kubernetes/host-monitoring/`
+so the admin UI is whichever instance holds it. `kubernetes/clusters/homelab/host-monitoring/`
 polls both Pi-hole instances' APIs, probes each one and the VIP for a public
 name, Bind9's wildcard and lancache-dns's rewrite, and scrapes the
 `prometheus-bind-exporter` the role installs beside every BIND link
@@ -127,7 +127,7 @@ manual lever.
 
 - **The wildcard survives into the zone.** `* IN A <traefik>` keeps the rule
   that adding a service is one route object and nothing else. Explicit A
-  records for the hosts `kubernetes/lan-services/` fronts would be actively
+  records for the hosts `kubernetes/clusters/homelab/lan-services/` fronts would be actively
   harmful — see the failure modes.
 
 - **The passthroughs are BIND forward zones.** Each is
@@ -200,7 +200,7 @@ manual lever.
 
 Adlists, groups and clients are declared once, in
 `opentofu/resources/pihole-config/`, and written to **pihole-01 only**.
-nebula-sync, an hourly `CronJob` in `kubernetes/nebula-sync/`, copies them
+nebula-sync, an hourly `CronJob` in `kubernetes/clusters/homelab/nebula-sync/`, copies them
 one way to pihole-02 through the Pi-hole API and runs gravity there.
 
 - **One writer per kind of state.** The `dns` role owns each instance's
@@ -297,7 +297,7 @@ the features, and the resolvers.
   `dig @<bind9> deb.debian.org` and read `journalctl -u named` for TLS errors.
 
 - **An A record added for a `lan-services` backend.** `rumba.example.com` and
-  the six other names in `kubernetes/lan-services/` are reachable by name
+  the six other names in `kubernetes/clusters/homelab/lan-services/` are reachable by name
   *because* the wildcard sends them to Traefik, which terminates TLS on the
   wildcard certificate and proxies to the backend. An explicit A record shadows
   the wildcard, so the client reaches the host directly and gets its
@@ -316,7 +316,7 @@ the features, and the resolvers.
   returns NODATA for `_acme-challenge.example.com` TXT from the wildcard, so
   the query never reaches public DNS.
   `dns01RecursiveNameservers` and `dns01RecursiveNameserversOnly` in
-  `kubernetes/cert-manager/app/values.yaml` stay load-bearing. Search
+  `kubernetes/clusters/homelab/cert-manager/app/values.yaml` stay load-bearing. Search
   `Waiting for DNS-01 challenge propagation`.
 
 - **The cluster cannot pull images.** This applies only once the nodes are

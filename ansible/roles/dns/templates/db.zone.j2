@@ -32,5 +32,5 @@ ns{{ loop.index }} IN A {{ dns_bind9_addresses[host] }}
 {% endfor %}
 
 ; Static records go below, in zone format. An explicit record shadows the
-; wildcard, so never add a host that kubernetes/lan-services/ fronts: the
+; wildcard, so never add a host that kubernetes/clusters/homelab/lan-services/ fronts: the
 ; name would reach the host directly and serve its own certificate.

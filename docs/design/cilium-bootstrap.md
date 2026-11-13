@@ -1,7 +1,7 @@
 # Cilium bootstrap
 
 Why the `talos` role installs Cilium once (`ansible/roles/talos/tasks/cni.yaml`)
-and Flux owns it from then on (`kubernetes/cilium/`), why the two share one
+and Flux owns it from then on (`kubernetes/clusters/homelab/cilium/`), why the two share one
 values file and one version pin, and why the health wait moved to the end of
 `playbooks/talos.yaml`.
 
@@ -34,7 +34,7 @@ Two repo facts constrain where the seed can go:
 release with `kubernetes.core.helm_info`, then `kubernetes.core.helm` installs
 release `cilium` into `kube-system` from `oci://quay.io/cilium/charts/cilium`
 — **only if the release does not exist**.
-`kubernetes/cilium/app/helmrelease.yaml` declares the same release name and
+`kubernetes/clusters/homelab/cilium/app/helmrelease.yaml` declares the same release name and
 namespace, so helm-controller's first reconcile finds the seeded release and
 takes it over as an upgrade (revision 2).
 
@@ -55,27 +55,27 @@ has moved the release on (a bumped version, changed values), a re-run of
 
 One values file, one version pin:
 
-- `kubernetes/cilium/app/values.yaml` is passed to `helm install` by the
+- `kubernetes/clusters/homelab/cilium/app/values.yaml` is passed to `helm install` by the
   role and wrapped in a ConfigMap (`configMapGenerator`, no hash suffix) for
   the HelmRelease's `valuesFrom`. It holds what Talos prescribes —
   `ipam.mode: kubernetes`, kube-proxy replacement against KubePrism
   (`localhost:7445`), the agent capability lists, no cgroup remount — plus
-  `l2announcements.enabled` for the `kubernetes/cilium-lb/` layer. The seed
+  `l2announcements.enabled` for the `kubernetes/clusters/homelab/cilium-lb/` layer. The seed
   carries that too, so adoption is still a values no-op.
 - `CILIUM_VERSION` in repo-root `versions.env` (no `v` — the chart tags carry
   none). The role reads it with the `versions.env` lookup; the Flux
   `OCIRepository` pins the same tag literally; `make -C kubernetes lint`
   fails when they disagree, the guard `FLUX_VERSION` already has.
 
-`kubernetes/cilium/ks.yaml` (the Flux `Kustomization`) and
-`kubernetes/cilium/app/` (what it applies) are separate directories so the
+`kubernetes/clusters/homelab/cilium/ks.yaml` (the Flux `Kustomization`) and
+`kubernetes/clusters/homelab/cilium/app/` (what it applies) are separate directories so the
 root `flux-system` Kustomization applies only the CR, never the HelmRelease
 itself. `wait: true` makes a later `dependsOn: cilium` mean "CRDs registered
 and agents Ready" — the LB-IPAM pool needs exactly that.
 
 ### Consequences
 
-- Removing `cilium/` from `kubernetes/kustomization.yaml` (or the
+- Removing `cilium/` from `kubernetes/clusters/homelab/kustomization.yaml` (or the
   HelmRelease) on `main` prunes the CNI: every pod loses networking, Flux's
   included. Same class of footgun as pruning `flux-system`.
 - `helm` joins `install.sh` (pinned there, like `sops` and `tofu`, because

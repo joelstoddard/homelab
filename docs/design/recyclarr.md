@@ -17,7 +17,7 @@ The synced profiles are the upstream `sonarr/web-1080p` and
 `radarr/hd-bluray-web` templates: WEB-1080p and HD Bluray + WEB, with
 `reset_unmatched_scores` on so a hand-edited score is corrected rather than
 preserved. The templates ship as mostly commented-out optional custom formats —
-roughly 85% of their line count — and `kubernetes/media/app/config/recyclarr.yml`
+roughly 85% of their line count — and `kubernetes/clusters/homelab/media/app/config/recyclarr.yml`
 keeps only the groups they enable by default. A group listed under
 `custom_format_groups.add` is explicit; the sync log also reports groups
 `implicit via` the quality profile, which arrive whether or not they are listed.

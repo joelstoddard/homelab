@@ -115,7 +115,8 @@ Current implementation:
   `bootstrap.yaml` (`talosctl bootstrap` etcd on the first control-plane
   node), `kubeconfig.yaml` (merge into `~/.kube/config`), `cni.yaml` (the
   machine config ships no CNI — `cni.name: none`, kube-proxy disabled — so
-  this `helm install`s Cilium from `kubernetes/cilium/app/values.yaml` at
+  this `helm install`s Cilium from
+  `kubernetes/clusters/homelab/cilium/app/values.yaml` at
   `CILIUM_VERSION`, once, only if the release is absent; Flux owns it after
   that) and `health.yaml` (`talosctl health`, last, because Ready needs the
   CNI). That order is load-bearing: `docs/design/cilium-bootstrap.md`. Cluster
@@ -203,16 +204,24 @@ with `LIMIT=pihole-config`, which the root `make dns` does. Its
 ### Kubernetes (kubernetes/)
 
 The cluster is bootstrapped by the `talos` role + `playbooks/talos.yaml` (see
-above and `docs/talos-bootstrap.md`). `kubernetes/` holds Flux CD:
-`make -C kubernetes` installs the committed `flux-system/gotk-components.yaml`
+above and `docs/talos-bootstrap.md`). `kubernetes/` holds Flux CD, one tree
+per cluster under `kubernetes/clusters/<cluster>/`; the home tree is
+`kubernetes/clusters/homelab/`, every layer path below is relative to it,
+and `kubernetes/` itself holds no `kustomization.yaml` and no manifest
+(`docs/design/skylab-flux.md`). `make -C kubernetes` (`CLUSTER=homelab`
+by default, which picks the tree, kube context and age key) installs the
+tree's committed `flux-system/gotk-components.yaml`
 (`flux install --export`, pinned by `FLUX_VERSION` in `versions.env`), lands
 the operator's Age key as the `sops-age` Secret, and applies `gotk-sync.yaml`
 — a `GitRepository` for this public repo's `main` plus a `Kustomization`
-reconciling `./kubernetes` with `prune: true` and SOPS decryption. The path
-includes `flux-system/`, so Flux manages itself after merge. Declarative
-install, not `flux bootstrap` (which pushes to `main` and needs a write
-token). New layers are Flux `Kustomization` CRs listed in the root
-`kubernetes/kustomization.yaml`, each pointing at its own `<layer>/app/`;
+reconciling `./kubernetes/clusters/homelab` with `prune: true` and SOPS
+decryption. The path includes `flux-system/`, so Flux manages itself after
+merge. Declarative install, not `flux bootstrap` (which pushes to `main` and
+needs a write token). `make -C kubernetes lint` checks every
+`clusters/*` tree whatever `CLUSTER` is. New layers are Flux
+`Kustomization` CRs listed in the tree's root
+`kubernetes/clusters/homelab/kustomization.yaml`, each pointing at its own
+`./kubernetes/clusters/homelab/<layer>/app`;
 Kubernetes Secrets are `*.sops.yaml` with only `data`/`stringData` encrypted
 (`.sops.yaml` rule; `spec` too, for CRs whose values are LAN addresses). The first layer is `cilium/`: an `OCIRepository` +
 `HelmRelease` that adopts the release the `talos` role seeded (same name,

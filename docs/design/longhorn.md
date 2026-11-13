@@ -2,7 +2,7 @@
 
 Why Longhorn (not Rook/Ceph), why every worker contributes its EPHEMERAL
 partition, what Talos needed for it, and how the mixed amd64/arm64 fleet is
-guarded. Layer: `kubernetes/longhorn/`. Machine side:
+guarded. Layer: `kubernetes/clusters/homelab/longhorn/`. Machine side:
 `ansible/roles/talos/templates/patches/cluster.yaml.j2`, `versions.env`
 (schematics), `playbooks/upgrade.yaml`.
 
@@ -192,7 +192,7 @@ they are system-generated, and this cluster configures no backup target.
   degraded, not lost. Never reset two storage nodes at once. `make
   apply-reset` with `"all"` wipes every replica in the cluster — every
   volume.
-- **Pruning `kubernetes/longhorn/` uninstalls Longhorn — and its volumes.**
+- **Pruning `kubernetes/clusters/homelab/longhorn/` uninstalls Longhorn — and its volumes.**
   Longhorn's `deleting-confirmation-flag` (default false) refuses the
   uninstall until set, which is the last line of defence; treat the layer
   like `cilium/`.

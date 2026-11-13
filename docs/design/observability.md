@@ -2,9 +2,9 @@
 
 Metrics and logs for every node, pod and platform component: Grafana Alloy
 scrapes and tails, Prometheus and Loki store on Longhorn, Grafana shows
-dashboards that live in git as JSON. Layers: `kubernetes/monitoring/`
-(backends) and `kubernetes/alloy/` (collectors); metrics exposure in
-`kubernetes/cilium/`, `traefik/`, `tailscale/`; control-plane component
+dashboards that live in git as JSON. Layers: `kubernetes/clusters/homelab/monitoring/`
+(backends) and `kubernetes/clusters/homelab/alloy/` (collectors); metrics exposure in
+`kubernetes/clusters/homelab/cilium/`, `traefik/`, `tailscale/`; control-plane component
 metrics from `ansible/roles/talos/templates/patches/controlplane.yaml.j2`.
 
 ## Problem
@@ -260,7 +260,7 @@ there `namespace` and `pod` are already the subject.
 - A Cilium values change rolls every agent once (`rollOutCiliumPods`).
 - **The Cilium chart's dashboards are off** (`dashboards`,
   `operator.dashboards`, `hubble.metrics.dashboards` in
-  `kubernetes/cilium/app/values.yaml`). Of 185 panel queries across the six
+  `kubernetes/clusters/homelab/cilium/app/values.yaml`). Of 185 panel queries across the six
   dashboards, 6 return data. The chart writes `rate(...[1m])` against a 60 s
   scrape interval, so a window holds fewer than two samples and `rate()` is
   empty; the same queries over `[5m]` return data. The Cilium and Operator
