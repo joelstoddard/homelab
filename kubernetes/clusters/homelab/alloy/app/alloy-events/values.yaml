@@ -12,6 +12,32 @@ alloy:
     limits:
       cpu: 200m
       memory: 256Mi
+# Replaces the chart's default role, which reads every Secret in the cluster.
+# Its own rbac values cannot express events alone: an empty clusterRules list
+# renders invalid YAML.
+rbac:
+  create: false
+extraObjects:
+  - apiVersion: rbac.authorization.k8s.io/v1
+    kind: ClusterRole
+    metadata:
+      name: alloy-events
+    rules:
+      - apiGroups: [""]
+        resources: ["events"]
+        verbs: ["get", "list", "watch"]
+  - apiVersion: rbac.authorization.k8s.io/v1
+    kind: ClusterRoleBinding
+    metadata:
+      name: alloy-events
+    roleRef:
+      apiGroup: rbac.authorization.k8s.io
+      kind: ClusterRole
+      name: alloy-events
+    subjects:
+      - kind: ServiceAccount
+        name: alloy-events
+        namespace: alloy
 controller:
   type: deployment
   replicas: 1

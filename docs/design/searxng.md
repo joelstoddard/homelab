@@ -96,8 +96,9 @@ Alternatives considered and rejected: a second SOPS Secret in the `alloy`
 namespace means two copies to rotate in step, and substituting the value into
 an Alloy ConfigMap would mean giving that layer a `postBuild` it deliberately
 does not have — `cluster.alloy` is full of `$1` and `${1}`, and keeping envsubst
-away from it is the point. Reading the Secret needs no extra RBAC: the Alloy
-chart's ClusterRole already grants `secrets` `get,list,watch` cluster-wide.
+away from it is the point. `alloy-cluster`'s values grant `get` on
+`flux-system/cluster-secrets` and on no other Secret (`observability.md`,
+"Least-privilege RBAC").
 
 Everything else comes free. Traefik's per-service metrics cover request rate,
 errors and latency with no configuration, and the per-node log tailer picks up
