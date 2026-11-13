@@ -1,0 +1,48 @@
+# Deschedule only, never rebalance: both plugins touch pods that already do
+# not work (docs/design/descheduler.md).
+kind: Deployment
+deschedulingInterval: 5m
+replicas: 1
+
+resources:
+  requests:
+    cpu: 10m
+    memory: 64Mi
+  limits:
+    cpu: 500m
+    memory: 128Mi
+
+podSecurityContext:
+  seccompProfile:
+    type: RuntimeDefault
+
+deschedulerPolicy:
+  profiles:
+    - name: default
+      pluginConfig:
+        - name: DefaultEvictor
+          args:
+            podProtections:
+              defaultDisabled:
+                - PodsWithLocalStorage
+                - SystemCriticalPods
+        - name: RemovePodsHavingTooManyRestarts
+          args:
+            podRestartThreshold: 5
+            includingInitContainers: true
+            # Load-bearing: restart counts never reset, so without it every
+            # healthy pod with an old crash history is a target.
+            states:
+              - CrashLoopBackOff
+        - name: RemoveFailedPods
+          args:
+            minPodLifetimeSeconds: 3600
+            # A failed Job's pod holds the run's logs; the Job controller owns
+            # its history.
+            excludeOwnerKinds:
+              - Job
+      plugins:
+        deschedule:
+          enabled:
+            - RemovePodsHavingTooManyRestarts
+            - RemoveFailedPods

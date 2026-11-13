@@ -8,6 +8,7 @@ resources:
   - flux-system
   - cilium/ks.yaml
   - cilium-lb/ks.yaml
+  - descheduler/ks.yaml
   - cluster-secrets/ks.yaml
   - cert-manager/ks.yaml
   - cert-manager-issuers/ks.yaml
