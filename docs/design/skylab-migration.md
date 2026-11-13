@@ -47,7 +47,17 @@ nothing else.
 **Resources.** Every container is Burstable with its memory request below its
 limit, so `LimitedSwap` can swap it (`docs/design/skylab-bootstrap.md`,
 "Skylab-only patches"). The request is the container's steady-state memory on
-Ashburn, measured before the layer PR. The limit is twice the request.
+Ashburn, measured before the layer PR, rounded up to a power of two and never
+below 16Mi. The limit is twice the request:
+
+| Container | Measured | Request | Limit |
+|---|---|---|---|
+| joelst | 5.5 MiB | 16Mi | 32Mi |
+| metachat server | 5.7 MiB, just after a restart | 32Mi | 64Mi |
+| coturn | 27.9 MiB | 32Mi | 64Mi |
+
+metachat's request is one step above the rule, because its measurement holds
+no rooms.
 
 Both layers live under `kubernetes/clusters/skylab/`, depend on
 `cloudflared` and `cluster-secrets` and are substituted. The manifests live
@@ -66,8 +76,8 @@ interface to version, and the repo has no commit convention to derive one
 from. The run number only increases, which is all Renovate needs.
 
 Both packages stay private. Each app namespace has a `dockerconfigjson`
-Secret, `app/pull-secret.sops.yaml`, built from a classic personal access
-token with only `read:packages`. The container registry accepts no
+Secret, `ghcr-pull` in `app/pull-secret.sops.yaml`, built from a classic
+personal access token with only `read:packages`. The container registry accepts no
 fine-grained token. The scope covers every package the account owns, so the
 token expires after 1 year.
 
@@ -113,7 +123,11 @@ shows "· relayed" when it does.
 | `PUBLIC_ORIGIN`, `ALLOWED_ORIGINS` | built from `${METACHAT_ZONE}` (skylab's `cluster-secrets`) |
 | `TURN_URLS` | `turn.${METACHAT_ZONE}`, the DNS-only record from the ingress design |
 | `METRICS_TOKEN` | `${METACHAT_METRICS_TOKEN}` (skylab's `cluster-secrets`), substituted into the server's Secret |
-| `TURN_SECRET`, `turnserver.conf` | the layer's `app/secret.sops.yaml`, the conf mounted as a file |
+| `TURN_SECRET` | the layer's `app/secret.sops.yaml` (Secret `metachat`, beside `METRICS_TOKEN`) |
+| coturn's `turnserver.conf` | `app/turn-secret.sops.yaml` (Secret `coturn` in `metachat-turn`), mounted as a file; its one line is `static-auth-secret` with the same value |
+
+A Secret mounts only in its own namespace, so the TURN secret is in two
+files.
 
 During the parity test `ALLOWED_ORIGINS` also lists the test hostname,
 `metachat-next.${METACHAT_ZONE}`. The cutover PR removes it.
@@ -124,7 +138,8 @@ Deployment passes both as `$(HOST_IP)` in `args`, which the kubelet expands
 from a downward-API env var. Whether Flux's substitution leaves `$(...)`
 intact is **unverified**, so the coturn Deployment carries
 `kustomize.toolkit.fluxcd.io/substitute: disabled`. It needs no substituted
-value: everything else it reads is in the mounted file.
+value. Every flag but the secret is a literal in `args`, so the deny list is
+reviewed in the diff rather than hidden in ciphertext.
 
 ### Metrics
 

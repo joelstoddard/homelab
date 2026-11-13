@@ -1,0 +1,109 @@
+# coturn on hostNetwork: TURN cannot use the tunnel, and no NetworkPolicy
+# applies here, so the deny list below and the firewalls are its boundary
+# (docs/design/skylab-security.md, "coturn's relay boundary").
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: coturn
+  namespace: metachat-turn
+  labels:
+    app.kubernetes.io/name: coturn
+  # The kubelet, not Flux, must expand $(HOST_IP); nothing here is substituted.
+  annotations:
+    kustomize.toolkit.fluxcd.io/substitute: disabled
+spec:
+  replicas: 1
+  # Two pods cannot hold the same host ports.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: coturn
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: coturn
+    spec:
+      hostNetwork: true
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        runAsGroup: 65534
+        fsGroup: 65534
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: coturn
+          image: coturn/coturn:4.18.0
+          env:
+            - name: HOST_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.hostIP
+          # Every flag but the secret, which is the mounted file's one line.
+          # Ranges, not CIDRs: --denied-peer-ip takes <ip[-ip]>.
+          args:
+            - -c
+            - /etc/coturn/turnserver.conf
+            - --log-file=stdout
+            - --listening-ip=$(HOST_IP)
+            - --relay-ip=$(HOST_IP)
+            - --listening-port=3478
+            - --no-tls
+            - --min-port=49160
+            - --max-port=49500
+            - --realm=metachat
+            - --fingerprint
+            - --use-auth-secret
+            - --no-multicast-peers
+            - --denied-peer-ip=$(HOST_IP)
+            # RFC 1918; 10/8 holds the pod and Service CIDRs.
+            - --denied-peer-ip=10.0.0.0-10.255.255.255
+            - --denied-peer-ip=172.16.0.0-172.31.255.255
+            - --denied-peer-ip=192.168.0.0-192.168.255.255
+            # CGNAT, which holds the tailnet.
+            - --denied-peer-ip=100.64.0.0-100.127.255.255
+            - --denied-peer-ip=169.254.0.0-169.254.255.255
+            - --denied-peer-ip=127.0.0.0-127.255.255.255
+            - --user-quota=64
+            - --total-quota=4096
+            - --max-bps=131072
+          ports:
+            - name: turn-udp
+              containerPort: 3478
+              protocol: UDP
+            - name: turn-tcp
+              containerPort: 3478
+              protocol: TCP
+          readinessProbe:
+            tcpSocket:
+              port: turn-tcp
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: turn-tcp
+            periodSeconds: 30
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            # Without NET_BIND_SERVICE, exec of the image's turnserver fails
+            # with "Operation not permitted" (its file capabilities).
+            capabilities:
+              drop: ["ALL"]
+              add: ["NET_BIND_SERVICE"]
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              memory: 64Mi
+          volumeMounts:
+            - name: config
+              mountPath: /etc/coturn
+              readOnly: true
+      volumes:
+        - name: config
+          secret:
+            secretName: coturn
+            defaultMode: 0440

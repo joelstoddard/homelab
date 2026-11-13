@@ -23,18 +23,21 @@ Skylab commands run from the Mac, switched to the personal tailnet
    and that the home Flux reconciles from there. No `kubernetes/clusters/skylab/`
    file may merge before this (`docs/design/skylab-flux.md`, "No root above
    the trees").
-5. Create the classic token (`read:packages`, 1-year expiry) and encrypt it
-   into `kubernetes/clusters/skylab/joelst/app/pull-secret.sops.yaml` and
+5. Create the classic token (`read:packages`, 1-year expiry) and encrypt it,
+   as the `dockerconfigjson` Secret `ghcr-pull`, into
+   `kubernetes/clusters/skylab/joelst/app/pull-secret.sops.yaml` and
    `kubernetes/clusters/skylab/metachat/app/pull-secret.sops.yaml`, to the
-   operator key and the skylab key.
+   operator key and the skylab key. List each in its directory's
+   `kustomization.yaml`.
 6. homelab: merge `resources/cloudflare/`. The import plan must show no change
    to the three live records other than their `comment`
    (`opentofu/resources/cloudflare/README.md`). Apply it, then pipe the tunnel token into
    `kubernetes/clusters/skylab/cloudflared/app/secret.sops.yaml` and list it in
    that directory's `kustomization.yaml` (`docs/design/skylab-ingress.md`).
 7. homelab: merge skylab's `cluster-secrets` (`METACHAT_ZONE`,
-   `METACHAT_METRICS_TOKEN`) and the `joelst` and `metachat` layers. Nothing
-   reconciles them until skylab's Flux exists.
+   `METACHAT_METRICS_TOKEN`), metachat's two TURN secret files
+   (`docs/design/skylab-migration.md`, "Configuration"), and the `joelst` and
+   `metachat` layers. Nothing reconciles them until skylab's Flux exists.
 
 ## The gate
 

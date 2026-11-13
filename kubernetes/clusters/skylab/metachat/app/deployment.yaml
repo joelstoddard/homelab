@@ -1,0 +1,80 @@
+# One replica, Recreate: rooms live in the process's memory, so two servers
+# would split one room in two. docs/design/skylab-migration.md, "metachat".
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: metachat
+  namespace: metachat
+  labels:
+    app.kubernetes.io/name: metachat
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: metachat
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: metachat
+    spec:
+      automountServiceAccountToken: false
+      imagePullSecrets:
+        - name: ghcr-pull
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: server
+          image: ghcr.io/joelstoddard/metachat:v0.3.0
+          env:
+            - name: PUBLIC_ORIGIN
+              value: https://metachat.${METACHAT_ZONE}
+            # The test origin goes in the cutover PR.
+            - name: ALLOWED_ORIGINS
+              value: https://metachat.${METACHAT_ZONE},https://metachat-next.${METACHAT_ZONE}
+            - name: TURN_URLS
+              value: turn:turn.${METACHAT_ZONE}:3478?transport=udp,turn:turn.${METACHAT_ZONE}:3478?transport=tcp
+            # cloudflared passes Cloudflare's own header, and the ingress
+            # policy admits nothing else. Never TRUST_PROXY.
+            - name: CLIENT_IP_HEADER
+              value: CF-Connecting-IP
+            - name: TURN_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: metachat
+                  key: TURN_SECRET
+            - name: METRICS_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: metachat
+                  key: METRICS_TOKEN
+          ports:
+            - name: http
+              containerPort: 8080
+          # / is the SPA; /metrics wants the bearer token.
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http
+            periodSeconds: 30
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              memory: 64Mi

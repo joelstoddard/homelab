@@ -11,3 +11,4 @@ resources:
   - cert-manager/ks.yaml
   - cloudflared/ks.yaml
   - joelst/ks.yaml
+  - metachat/ks.yaml
