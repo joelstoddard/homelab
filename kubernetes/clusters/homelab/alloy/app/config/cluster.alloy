@@ -676,3 +676,66 @@ prometheus.scrape "home_assistant" {
 
 	bearer_token = remote.kubernetes.secret.cluster_secrets.data["HOME_ASSISTANT_TOKEN"]
 }
+
+// ------------------------------------------- cluster-wide: descheduler --
+
+// HTTPS on a self-signed certificate with no authentication, which the
+// annotation-driven scrapes cannot reach (docs/design/descheduler.md).
+discovery.kubernetes "descheduler" {
+	role = "pod"
+
+	namespaces {
+		names = ["descheduler"]
+	}
+
+	selectors {
+		role  = "pod"
+		label = "app.kubernetes.io/name=descheduler"
+	}
+}
+
+discovery.relabel "descheduler" {
+	targets = discovery.kubernetes.descheduler.targets
+
+	rule {
+		source_labels = ["__meta_kubernetes_pod_ip"]
+		regex         = "(.+)"
+		replacement   = "$1:10258"
+		target_label  = "__address__"
+	}
+
+	rule {
+		source_labels = ["__meta_kubernetes_namespace"]
+		target_label  = "namespace"
+	}
+
+	rule {
+		source_labels = ["__meta_kubernetes_pod_name"]
+		target_label  = "pod"
+	}
+
+	rule {
+		source_labels = ["__meta_kubernetes_pod_name"]
+		target_label  = "instance"
+	}
+
+	rule {
+		source_labels = ["__meta_kubernetes_pod_node_name"]
+		target_label  = "node"
+	}
+}
+
+prometheus.scrape "descheduler" {
+	targets         = discovery.relabel.descheduler.output
+	forward_to      = [prometheus.remote_write.prometheus.receiver]
+	job_name        = "descheduler"
+	scheme          = "https"
+	scrape_interval = "60s"
+	// Eviction series carry the evicted pod's namespace and node; keep those
+	// rather than renaming them exported_*.
+	honor_labels = true
+
+	tls_config {
+		insecure_skip_verify = true
+	}
+}
