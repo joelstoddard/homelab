@@ -131,12 +131,16 @@ defaults that hide the control-plane components.
     kubelet, kube-scheduler and kube-controller-manager (`apiserver_*`,
     `kubelet_*`, `scheduler_*`, client-go workqueue, informer and REST
     client, authn/authz, and kubelet's storage, volume, CSI and DRA
-    operation histograms), Cilium agent and operator, Alloy, Prometheus,
-    Loki, Grafana, Flux's `gotk_reconcile_duration_seconds` and Traefik's
+    operation histograms), Cilium agent and operator, Prometheus and Loki
+    (Alloy's `prometheus_*` and `loki_*` component histograms with them),
+    Grafana, Flux's `gotk_reconcile_duration_seconds` and Traefik's
     per-router latency. `go_*_bucket` Go-runtime histograms go from the
     Kubernetes components and from every annotated pod. The `_sum` and
     `_count` series stay, so rates and means remain queryable; only
-    quantiles are lost.
+    quantiles are lost. Alloy's controller histograms
+    (`alloy_component_evaluation_seconds_bucket`,
+    `alloy_component_dependencies_wait_seconds_bucket`, ~1,200 series
+    across 23 Alloys) are kept: the Alloy / Controller dashboard reads them.
   - `kubernetes_feature_enabled` on every Kubernetes component.
   - apiserver per-resource watch-cache and list bookkeeping
     (`apiserver_watch_cache_*`, `apiserver_cache_list_*`,

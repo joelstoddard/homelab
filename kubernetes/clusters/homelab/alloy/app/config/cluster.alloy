@@ -143,7 +143,7 @@ prometheus.relabel "annotated_pods" {
 
 	rule {
 		source_labels = ["__name__"]
-		regex         = "(cilium|prometheus|loki|grafana|alloy_component|go)_.*_bucket"
+		regex         = "(cilium|prometheus|loki|grafana|go)_.*_bucket"
 		action        = "drop"
 	}
 
