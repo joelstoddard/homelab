@@ -79,9 +79,11 @@ cannot touch the library.
 
 The one volume is mounted twice by `subPath`: `cache/` at `/data/cache` and
 `logs/` at `/data/logs`, two of the four paths the image declares as volumes. The image
-writes its access and error logs to files there, not to stdout, so they are
-not in Loki; an `emptyDir` for them would grow on the node's ephemeral storage
-with no bound.
+writes its access and error logs to files there, not to stdout; an `emptyDir`
+for them would grow on the node's ephemeral storage with no bound. Nothing in
+the image rotates or prunes `/data/logs` (its cleanup hook covers
+`/var/log/nginx` only), so the files grow inside the dataset's quota. "Logs
+and hit rate" covers how they reach Loki.
 
 `CACHE_DISK_SIZE` is `450g`, nginx's `max_size`. The image leaves
 `MIN_FREE_DISK` at `10g`, nginx's `min_free`, which the dataset's quota
@@ -152,6 +154,79 @@ not owned by `www-data`. Over NFS against a full cache that walk is the slow
 part, so the startup probe allows 30 minutes. With Mapall every file is owned
 by `www-data` on the server, so the walk changes nothing; it only takes time.
 
+## Logs and hit rate
+
+nginx writes its logs only to files under `/data/logs`, so two follower
+containers in the pod copy them to stdout, where the node's Alloy tails them
+into Loki like any other container (`docs/design/observability.md`):
+
+| Container | Follows | In Loki as |
+| --- | --- | --- |
+| `access-log` | `access.log`, minus every `/lancache-heartbeat` line | `{namespace="lancache", container="access-log"}` |
+| `error-log` | `error.log`, `upstream-error.log`, `stream-error.log`, interleaved | `{namespace="lancache", container="error-log"}` |
+
+`stream-access.log`, the SNI proxy's one line per HTTPS connection, stays on
+the dataset only.
+
+- **The access log is JSON.** `NGINX_LOG_FORMAT=cachelog-json` selects the
+  image's own JSON variant of its `cachelog` format: the same fields, named,
+  with `bytes_sent` a number. LogQL reads it with `| json`, where the default
+  format would need a positional `pattern` over twelve quoted fields.
+
+- **The heartbeat is dropped before Loki.** The kubelet's three probes and the
+  image's own hourly heartbeat all request `/lancache-heartbeat`, which is
+  almost every line the cache writes: over four days in November 2026, 3
+  lines in the file were anything else. `grep -v` drops them in the follower,
+  so they cost no Loki ingest.
+
+- **The followers are the cache's own image**, pinned to the same digest, run
+  as `www-data` (uid 33) with a read-only root, no capabilities and the logs
+  mounted read-only. It is already on the node, carries GNU `tail` and `grep`
+  (`grep --line-buffered` is what keeps a filtered line from waiting in a
+  pipe buffer), and a digest bump moves all three containers together.
+
+- **`tail -n 0 -F`.** `-F` reopens a file that is replaced and waits for one
+  that does not exist yet, which is the state at pod start: nginx creates the
+  files only after the startup hooks. `-n 0` starts at the end, so a follower
+  restart re-sends nothing, and loses whatever nginx writes while it is down.
+
+- **The `trap`.** A shell running as PID 1 ignores SIGTERM unless it installs
+  a handler. Without one, each follower holds pod deletion for the whole
+  termination grace period and is then killed, and under `Recreate` that is
+  added to every rollout's outage. With it the shell exits at once and the
+  kernel ends `tail` and `grep` with the PID namespace. Measured with the pinned
+  image: 0 s to stop with the trap; without it, the full grace period then
+  exit 137.
+
+- **Resources.** Each follower requests 5m CPU and 16Mi, limited to 100m and
+  64Mi. Measured under amd64 emulation on a Mac, they used 9 and 14 MiB.
+
+### Hit rate
+
+The hit rate is LogQL over the access log, on the `Services/LANCache`
+dashboard (`kubernetes/clusters/homelab/monitoring/app/dashboards/Services/lancache.json`),
+not a Prometheus metric. The image exports only nginx's `stub_status`, which
+counts connections and knows nothing of the cache. A metric would need a
+log-parsing exporter beside nginx, or a `stage.metrics` in the node Alloy's
+pod-log pipeline, which every node runs for one pod's benefit. At a few
+requests a day, LogQL over Loki's 30-day retention costs nothing, and there
+is no alerting that would need the metric in Prometheus.
+
+- **Requests**: `HIT` lines over every line with a non-empty
+  `upstream_cache_status`. An empty status is a request nginx answered without
+  the cache, such as the loop-detection `508`, and is left out of both ratios.
+- **Bytes**: the sum of `bytes_sent` on `HIT` lines over the same sum on every
+  cached line, the share of game downloads that did not cross the uplink.
+
+nginx writes one line per client request when it completes, so a long
+download lands in the throughput panel as one spike at its end, and its 1 MiB
+slices are not counted separately. `remote_addr` is the announcing node, not
+the LAN client, because of `externalTrafficPolicy: Cluster` (Design).
+
+Metric queries name the fields they extract
+(`| json upstream_cache_status, bytes_sent`). A bare `| json` also extracts the
+per-line `timestamp`, which makes every line its own series before the `sum`.
+
 ## Egress
 
 The cache is an open proxy by construction. Port 80 runs
@@ -208,8 +283,14 @@ same clients can reach those hosts directly.
   `kubectl -n lancache get svc lancache` shows the reserved address.
 
 - **HTTPS to a redirected name fails.** Port 443 missing from the Service, or
-  the SNI proxy cannot resolve the name through `UPSTREAM_DNS`. The access log
-  for the stream proxy is `logs/stream-access.log` on the dataset.
+  the SNI proxy cannot resolve the name through `UPSTREAM_DNS`. The stream
+  proxy's errors are in Loki under `container="error-log"`; its access log is
+  `logs/stream-access.log` on the dataset.
+
+- **The LANCache dashboard reads empty while games download.** A follower is
+  not running, or Alloy is not shipping the pod's stdout. `kubectl -n lancache
+  logs deploy/lancache -c access-log` shows what the follower emits; the
+  raw file is `logs/access.log` on the dataset.
 
 - **Slow first downloads.** A miss is fetched from the CDN and written to NFS
   before it is served, and voyager's disks set the ceiling for hits. lancache
