@@ -18,7 +18,7 @@ resources:
 # config/ with substitution disabled, the targets file deliberately here.
 #
 # blackbox-config keeps its content hash: blackbox reads its config only at
-# startup, so the name change is what rolls the pod. See kubernetes/searxng/app/.
+# startup, so the name change is what rolls the pod. See kubernetes/clusters/homelab/searxng/app/.
 configMapGenerator:
   - name: blackbox-config
     files:
