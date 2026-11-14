@@ -1,0 +1,18 @@
+# No auth Middleware: Uptime Kuma has its own login. Its UI runs over
+# Socket.IO; Traefik passes WebSocket upgrades with no extra Middleware.
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: uptime-kuma
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - kind: Rule
+      match: Host(`uptime.${DOMAIN}`)
+      middlewares:
+        - name: default-headers
+          namespace: traefik
+      services:
+        - name: uptime-kuma
+          port: 3001
