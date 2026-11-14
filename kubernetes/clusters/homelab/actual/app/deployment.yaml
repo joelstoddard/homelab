@@ -19,6 +19,9 @@ spec:
       labels:
         app.kubernetes.io/name: actual
     spec:
+      # Service links would inject ACTUAL_PORT=tcp://..., which the app reads
+      # as its own port setting (docs/design/actual.md, Traps).
+      enableServiceLinks: false
       securityContext:
         runAsUser: 1000
         runAsGroup: 1000

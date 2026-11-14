@@ -66,5 +66,11 @@ scrape job, as SearXNG's is. Glance has a tile for it.
 
 ## Traps
 
+**Service links collide with the app's settings.** The `uptime-kuma`
+Service makes Kubernetes inject `UPTIME_KUMA_PORT=tcp://<address>:3001`,
+the name of Uptime Kuma's own port setting. The pod sets
+`enableServiceLinks: false`, as Actual's does, where the same collision
+stops the server (`docs/design/actual.md`).
+
 **Set up the admin account on the first visit.** Until then, the first person
 to open the page creates the admin account.
