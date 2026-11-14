@@ -88,6 +88,12 @@ configMapGenerator:
   - name: dashboard-glance
     files: [Services/glance.json]
     options: {annotations: {grafana_folder: Services}}
+  - name: dashboard-actual
+    files: [Services/actual.json]
+    options: {annotations: {grafana_folder: Services}}
+  - name: dashboard-uptime-kuma
+    files: [Services/uptime-kuma.json]
+    options: {annotations: {grafana_folder: Services}}
   - name: dashboard-home-assistant
     files: [Services/home-assistant.json]
     options: {annotations: {grafana_folder: Services}}

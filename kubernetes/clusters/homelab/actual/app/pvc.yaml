@@ -1,0 +1,14 @@
+# Budget files and the server's account database. Longhorn, not Voyager: the
+# pool is nearly full and SQLite corrupts on NFS (docs/design/actual.md).
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: actual-data
+  labels:
+    app.kubernetes.io/name: actual
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 2Gi
