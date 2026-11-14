@@ -1,0 +1,79 @@
+# The image ships no USER and would run as root; it runs as 1000 on a
+# read-only root, writing only /data (the volume) and /tmp.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: actual
+  labels:
+    app.kubernetes.io/name: actual
+spec:
+  replicas: 1
+  # One RWO volume: a second pod could not mount it during a rolling update.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: actual
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: actual
+    spec:
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      # Preferred, not required: the Pis hold the cluster's spare memory.
+      affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              preference:
+                matchExpressions:
+                  - key: kubernetes.io/arch
+                    operator: In
+                    values: ["arm64"]
+      containers:
+        - name: actual
+          image: docker.io/actualbudget/actual-server:26.11.0
+          ports:
+            - name: http
+              containerPort: 5006
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            failureThreshold: 3
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: data
+              mountPath: /data
+            - name: tmp
+              mountPath: /tmp
+          resources:
+            requests:
+              cpu: 10m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: actual-data
+        - name: tmp
+          emptyDir: {}

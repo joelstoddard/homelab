@@ -1,0 +1,19 @@
+# No auth Middleware: Actual has its own server password, set in the UI on
+# first visit. TLSStore/default serves the wildcard, which Actual needs: the
+# browser app requires HTTPS.
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: actual
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - kind: Rule
+      match: Host(`actual.${DOMAIN}`)
+      middlewares:
+        - name: default-headers
+          namespace: traefik
+      services:
+        - name: actual
+          port: 5006
