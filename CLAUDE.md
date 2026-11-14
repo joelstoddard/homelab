@@ -301,7 +301,7 @@ full list is `flux-system`, `cilium`, `cilium-lb`, `descheduler`, `cluster-secre
 `cert-manager-issuers`, `traefik`, `traefik-middlewares`, `lan-services`,
 `tailscale`, `longhorn`, `longhorn-jobs`, `monitoring`, `alloy`,
 `host-monitoring`, `searxng`, `media`, `media-downloads`, `media-egress`, `glance`,
-`home-assistant`, `orb-agent`, `lancache`, `nebula-sync`).
+`home-assistant`, `actual`, `uptime-kuma`, `orb-agent`, `lancache`, `nebula-sync`).
 `cluster-secrets/` is one SOPS Secret in `flux-system` holding `DOMAIN`,
 `TRAEFIK_LB_IP` and `ACME_EMAIL`; consumers (`cert-manager-issuers`,
 `traefik`, `longhorn`) add `dependsOn: cluster-secrets` +
@@ -468,6 +468,17 @@ location and the URLs are therefore set in the UI and survive in
 No auth middleware — Home Assistant has its own login, as do SearXNG,
 Jellyfin, the four \*arr applications and qBittorrent. Two replicas are
 impossible, not merely unwise. See `docs/design/home-assistant.md`.
+`actual/` and `uptime-kuma/` (`dependsOn: traefik, traefik-middlewares, longhorn,
+cluster-secrets`, substituted, no `decryption`) are Actual, the finance
+manager, on `actual.${DOMAIN}`, and Uptime Kuma, a status page with no
+notifications, on `uptime.${DOMAIN}`. Each is one replica, `Recreate`, its
+own login, a preferred arm64 affinity and a Longhorn RWO volume (2Gi / 1Gi),
+running as uid 1000 on a read-only root. Both keep SQLite on Longhorn,
+never on Voyager: SQLite corrupts on NFS. Uptime Kuma pins
+`UPTIME_KUMA_DB_TYPE=sqlite`, its monitors are UI state with no backup until
+#228, and they reach targets by `.svc` name or address because cluster DNS
+cannot resolve the LAN wildcard. See `docs/design/actual.md` and
+`docs/design/uptime-kuma.md`.
 `orb-agent/` (`decryption`, no `dependsOn`, not substituted) is the LAN
 discovery agent for NetBox Assurance: one `netboxlabs/orb-agent` replica,
 `Recreate`, Fleet-managed, on `hostNetwork` in a PodSecurity `privileged`
