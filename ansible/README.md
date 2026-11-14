@@ -114,9 +114,11 @@ normal power-on boots from disk — no UEFI fiddling between phases.
 
 ```bash
 # 1. Set up the PXE server and pre-stage tango's iPXE+preseed; the role
-#    fires a WOL packet at the end which boots tango into PXE:
-make apply-pxe LIMIT=tango
-#    (drop LIMIT to run against every host in the pxe group)
+#    fires a WOL packet at the end which boots tango into PXE. The
+#    installer leaves a disk that holds partitions alone, so wiping an
+#    installed tango means powering it off and naming it:
+make apply-pxe EXTRA_VARS='{"proxmox_reinstall_hosts": ["Tango"]}'
+#    (drop EXTRA_VARS on a fresh build: every NUC with a blank disk is installed)
 
 # 2. tango will:
 #    - PXE-boot, fetch ipxe.efi, chain to /boot/<mac>.ipxe.
