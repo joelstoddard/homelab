@@ -809,7 +809,7 @@
             "uid": "prometheus"
           },
           "refId": "A",
-          "expr": "group by (app) (label_replace(kube_replicaset_owner{exported_namespace=\"$namespace\", owner_name=\"$workload\", owner_name=~\"(sonarr|radarr|prowlarr|lidarr|bazarr|sabnzbd|jellyfin|home-assistant|searxng|glance|media-egress|tailscale|lancache)(-exporter)?\"}, \"app\", \"$1\", \"owner_name\", \"(.+?)(-exporter)?\"))",
+          "expr": "group by (app) (label_replace(kube_replicaset_owner{exported_namespace=\"$namespace\", owner_name=\"$workload\", owner_name=~\"(sonarr|radarr|prowlarr|lidarr|bazarr|sabnzbd|jellyfin|home-assistant|searxng|glance|media-egress|tailscale|lancache|actual|uptime-kuma)(-exporter)?\"}, \"app\", \"$1\", \"owner_name\", \"(.+?)(-exporter)?\"))",
           "legendFormat": "{{app}}",
           "instant": true
         }
