@@ -47,6 +47,14 @@ spec:
             - name: http
               containerPort: 3001
           # 200 before and after setup; "/" redirects to the setup page.
+          # Migrations run before the server listens; the startup probe gives
+          # a slow one on a Pi up to 5 minutes before liveness takes over.
+          startupProbe:
+            httpGet:
+              path: /api/entry-page
+              port: http
+            periodSeconds: 10
+            failureThreshold: 30
           readinessProbe:
             httpGet:
               path: /api/entry-page

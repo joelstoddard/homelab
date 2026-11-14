@@ -33,7 +33,7 @@ NFS carries whatever corruption NFS gave it.
 
 **Monitors are UI state.** They are configured in the UI and live only in the
 database, not in git. Until #228 adds backups, losing all three volume
-replicas means setting them up again.
+replicas loses them.
 
 **Monitors use in-cluster names or addresses.** The pod resolves through
 cluster DNS, which cannot resolve the LAN wildcard (the same limit Glance has,

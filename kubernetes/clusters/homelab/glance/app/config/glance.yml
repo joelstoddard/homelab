@@ -160,7 +160,7 @@ pages:
                     icon: di:grafana
                   - title: Uptime Kuma
                     url: https://uptime.${DOMAIN}
-                    # / redirects to the login page; this answers 200 without auth.
+                    # / redirects to the setup or login page; this answers 200 without auth.
                     check-url: http://uptime-kuma.uptime-kuma.svc:3001/api/entry-page
                     icon: di:uptime-kuma
 
