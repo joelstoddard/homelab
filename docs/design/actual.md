@@ -49,6 +49,13 @@ tile for it.
 
 ## Traps
 
+**Service links break the port setting.** Kubernetes injects
+`ACTUAL_PORT=tcp://<address>:5006` into every pod in the namespace for the
+`actual` Service, and Actual reads `ACTUAL_PORT` as its listen port, so it
+exits with "ports must be within range". The pod sets
+`enableServiceLinks: false`; keep it, and keep it for any Service renamed to
+match an app's own environment prefix.
+
 **The server password is the only gate.** The route is reachable from the LAN
 and the tailnet. Set the password on the first visit, before anyone else
 reaches the page.

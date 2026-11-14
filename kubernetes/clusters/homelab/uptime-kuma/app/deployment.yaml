@@ -19,6 +19,9 @@ spec:
       labels:
         app.kubernetes.io/name: uptime-kuma
     spec:
+      # Service links would inject UPTIME_KUMA_PORT=tcp://..., which the app reads
+      # as its own port setting (docs/design/uptime-kuma.md, Traps).
+      enableServiceLinks: false
       securityContext:
         runAsUser: 1000
         runAsGroup: 1000
