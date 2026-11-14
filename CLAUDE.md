@@ -253,7 +253,9 @@ needs a write token). `make -C kubernetes lint` checks every
 `kubernetes/clusters/skylab/`, holds `flux-system`, its own `cilium` (no
 LB-IPAM pool or L2, `nodePort.addresses: ["127.0.0.0/8"]`),
 `cilium-policies` (the metadata-service deny), `cluster-secrets`,
-`cert-manager` and `cloudflared`; `lint` runs its security guards and
+`cert-manager`, `cloudflared`, `joelst` and `metachat` (the server, plus
+coturn on `hostNetwork` in a `privileged` `metachat-turn` namespace,
+`docs/design/skylab-migration.md`); `lint` runs its security guards and
 `make -C kubernetes probe CLUSTER=skylab` its live probes
 (`docs/design/skylab-security.md`). New layers are Flux
 `Kustomization` CRs listed in the tree's root

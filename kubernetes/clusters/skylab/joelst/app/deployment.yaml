@@ -1,0 +1,63 @@
+# docs/design/skylab-migration.md, "joelst". The image's nginx config is baked
+# in and carries the hostnames, so this layer substitutes nothing.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: joelst
+  labels:
+    app.kubernetes.io/name: joelst
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: joelst
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: joelst
+    spec:
+      automountServiceAccountToken: false
+      imagePullSecrets:
+        - name: ghcr-pull
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 101
+        runAsGroup: 101
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: nginx
+          image: ghcr.io/joelstoddard/joelst:1.0.15
+          ports:
+            - name: http
+              containerPort: 8080
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http
+            periodSeconds: 30
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              memory: 32Mi
+          # nginx-unprivileged keeps its pid and temp files in /tmp. Nothing
+          # goes over /etc/nginx/conf.d: it would hide the site's own config.
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir:
+            sizeLimit: 16Mi

@@ -1,0 +1,39 @@
+# Default-deny egress with kube-dns only: the server calls out on nothing, and
+# the ICE servers are the browsers' to reach. docs/design/skylab-security.md.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: egress
+  namespace: metachat
+spec:
+  endpointSelector: {}
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
+---
+# Only cloudflared reaches the server, so nothing else can forge
+# CF-Connecting-IP (docs/design/skylab-migration.md, "Client IP").
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: ingress
+  namespace: metachat
+spec:
+  endpointSelector: {}
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: cloudflared
+            app.kubernetes.io/name: cloudflared
+      toPorts:
+        - ports:
+            - port: "8080"
+              protocol: TCP

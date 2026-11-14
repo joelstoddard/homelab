@@ -124,12 +124,12 @@ on that app's own ports:
 |---|---|
 | `cloudflared` | 443/tcp; 7844/tcp and 7844/udp (Cloudflare edge) |
 | `forgejo` | 443/tcp (GitHub, for mirrors and the reconciler; Let's Encrypt is cert-manager's, not Forgejo's) |
-| `joelst`, `metachat` | 443/tcp, narrowed to DNS only if they call out on nothing |
+| `joelst`, `metachat` | none: nginx serves files and the metachat server calls out on nothing, so each allows kube-dns alone |
 
 "The internet" is `0.0.0.0/0` except `10.0.0.0/8`, `172.16.0.0/12`,
 `192.168.0.0/16`, `100.64.0.0/10` (CGNAT, which includes the tailnet),
 `169.254.0.0/16` and `127.0.0.0/8`. Destination ports are per app, never any
-port. What joelst and metachat actually call out on is measured at build.
+port.
 
 `alloy` carries one too, with no internet at all: kube-dns, the
 `kube-apiserver` and `host` entities, and the ingest device's tailnet

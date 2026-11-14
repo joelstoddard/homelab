@@ -1,0 +1,13 @@
+# NO top-level `namespace:`: the layer spans metachat and metachat-turn, so
+# every resource names its own.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - namespace.yaml
+  - networkpolicy.yaml
+  - pull-secret.sops.yaml
+  - secret.sops.yaml
+  - turn-secret.sops.yaml
+  - deployment.yaml
+  - service.yaml
+  - coturn.yaml

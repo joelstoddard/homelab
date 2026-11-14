@@ -1,0 +1,26 @@
+# metachat and its coturn (docs/design/skylab-migration.md): no pod before the
+# metadata deny, SOPS for the pull and TURN secrets, and the zone substituted.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: metachat
+  namespace: flux-system
+spec:
+  interval: 10m0s
+  path: ./kubernetes/clusters/skylab/metachat/app
+  prune: true
+  dependsOn:
+    - name: cilium-policies
+    - name: cloudflared
+    - name: cluster-secrets
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+  decryption:
+    provider: sops
+    secretRef:
+      name: sops-age
+  postBuild:
+    substituteFrom:
+      - kind: Secret
+        name: cluster-secrets
