@@ -158,6 +158,11 @@ pages:
                     # / redirects to the login page; this answers 200 without auth.
                     check-url: http://grafana.monitoring.svc/api/health
                     icon: di:grafana
+                  - title: Uptime Kuma
+                    url: https://uptime.${DOMAIN}
+                    # / redirects to the login page; this answers 200 without auth.
+                    check-url: http://uptime-kuma.uptime-kuma.svc:3001/api/entry-page
+                    icon: di:uptime-kuma
 
               - type: monitor
                 title: Home Automation
@@ -180,6 +185,10 @@ pages:
                     url: https://searx.${DOMAIN}
                     check-url: http://searxng.searxng.svc:8080/healthz
                     icon: di:searxng
+                  - title: Actual
+                    url: https://actual.${DOMAIN}
+                    check-url: http://actual.actual.svc:5006/health
+                    icon: di:actual-budget
 
           - type: split-column
             widgets:
