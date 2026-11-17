@@ -9,6 +9,8 @@ namespace: it-tools
 resources:
   - namespace.yaml
   - deployment-it-tools.yaml
+  - deployment-helpers.yaml
+  - middlewares.yaml
   - service.yaml
   - ingressroute.yaml
 configMapGenerator:

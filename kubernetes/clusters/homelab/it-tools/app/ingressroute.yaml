@@ -1,6 +1,8 @@
 # One hostname for the app and every helper, so the browser reuses the one
 # cached it-tools-auth credential for the /svc/* calls and the app's
 # Cross-Origin-Embedder-Policy never sees a cross-origin request.
+# A /svc/* rule matches only a same-origin request, so another site cannot
+# drive a helper with that cached credential; it falls through to the app.
 apiVersion: traefik.io/v1alpha1
 kind: IngressRoute
 metadata:
@@ -18,4 +20,53 @@ spec:
           namespace: traefik
       services:
         - name: it-tools
+          port: 8080
+    - kind: Rule
+      match: Host(`it-tools.${DOMAIN}`) && PathPrefix(`/svc/net`) && Header(`Sec-Fetch-Site`, `same-origin`)
+      middlewares:
+        - name: default-headers
+          namespace: traefik
+        - name: it-tools-auth
+          namespace: traefik
+        - name: strip-svc
+      services:
+        - name: network-utils
+          port: 8000
+    - kind: Rule
+      match: Host(`it-tools.${DOMAIN}`) && PathPrefix(`/svc/pdf`) && Header(`Sec-Fetch-Site`, `same-origin`)
+      middlewares:
+        - name: default-headers
+          namespace: traefik
+        - name: it-tools-auth
+          namespace: traefik
+        - name: strip-svc
+      services:
+        - name: htmltopdf
+          port: 3000
+    - kind: Rule
+      match: Host(`it-tools.${DOMAIN}`) && PathPrefix(`/svc/cors`) && Header(`Sec-Fetch-Site`, `same-origin`)
+      middlewares:
+        - name: default-headers
+          namespace: traefik
+        - name: it-tools-auth
+          namespace: traefik
+        - name: strip-svc
+        - name: cors-xrw
+        - name: cors-https-target
+        - name: cors-http-target
+      services:
+        - name: cors-anywhere
+          port: 8080
+          # Otherwise cors-anywhere tells every site it fetches this hostname.
+          passHostHeader: false
+    - kind: Rule
+      match: Host(`it-tools.${DOMAIN}`) && PathPrefix(`/svc/bridge`) && Header(`Sec-Fetch-Site`, `same-origin`)
+      middlewares:
+        - name: default-headers
+          namespace: traefik
+        - name: it-tools-auth
+          namespace: traefik
+        - name: strip-svc
+      services:
+        - name: tcp-udp-bridge
           port: 8080
