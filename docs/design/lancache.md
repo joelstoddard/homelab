@@ -248,9 +248,10 @@ egress default-deny:
 | `0.0.0.0/0` except the private, CGNAT, link-local and loopback ranges | 80, 443 | the CDN origins themselves |
 
 Cluster DNS is matched by endpoint labels, not by Service CIDR, because
-Cilium's socket-LB rewrites a Service address to a backend before policy
-sees the connection. Ingress is left out of default-deny on purpose: the
-kubelet's probes arrive as ingress.
+Cilium's per-packet load balancing translates a Service address to a backend
+before policy sees the packet (`docs/design/cilium-per-packet-lb.md`).
+Ingress is left out of default-deny on purpose: the kubelet's probes arrive
+as ingress.
 
 What the policy does not close: the proxy still reaches any public host for
 anyone on the LAN or the tailnet. That is the job the cache does, and the
