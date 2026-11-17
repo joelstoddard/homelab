@@ -76,6 +76,9 @@ configMapGenerator:
   - name: dashboard-smart
     files: [Hosts/smart.json]
     options: {annotations: {grafana_folder: Hosts}}
+  - name: dashboard-router
+    files: [Hosts/router.json]
+    options: {annotations: {grafana_folder: Hosts}}
   - name: dashboard-searxng
     files: [Services/searxng.json]
     options: {annotations: {grafana_folder: Services}}

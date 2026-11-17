@@ -23,7 +23,7 @@ the constraints of the stack apply throughout: a public repo (no address or doma
 | pihole-01, pihole-02 | The DNS chain's Pi-hole pair, Debian 13 LXCs (`docs/design/dns-chain.md`) | no — they resolve through Quad9, which cannot answer the ingest hostnames | `pihole-exporter` polls each v6 API; blackbox `dns_lookup`, `dns_wildcard` and `dns_lancache` probe each instance and the VIP |
 | bind9-01, bind9-02, lancache-01, lancache-02 | The DNS chain's BIND links, Debian 13 LXCs (`docs/design/dns-chain.md`) | no — same resolver constraint as the Pi-holes | `prometheus-bind-exporter` on each container, scraped by the gateway |
 | voyager | TrueNAS CORE (FreeBSD) | no — the base system stays stock, there are no Apps | Reporting → remote Graphite; System → Advanced → remote syslog |
-| hubble | ASUS router, stock firmware | no — nothing is installable | blackbox probes from the cluster; its own remote syslog |
+| hubble | ASUS router, stock firmware | no — nothing is installable | blackbox probes from the cluster; its own remote syslog; Home Assistant's ASUSWRT integration polls its web API for CPU, memory, temperature and WAN counters |
 
 ## Design
 
@@ -365,8 +365,16 @@ measured: the window holds no outage.
 
 - Syslog over UDP loses lines whenever the gateway restarts or the L2
   announcement moves, and says nothing about having lost them.
-- The router is probes and syslog only: no CPU, memory or interface
-  counters. SNMP or SSH would be the next step and is out of scope.
+- The router's counters come through Home Assistant: the ASUSWRT
+  integration polls the web API over HTTPS (port 8443, which needs the
+  router's Authentication Method set to "Both" so the port-80 `hubble`
+  route keeps working), and the `home-assistant` scrape carries them as
+  `homeassistant_sensor_*` series (`Hosts/router.json`). The stock
+  3.0.0.6.102 firmware has no SNMP. The integration and the router login
+  live in Home Assistant's `.storage`, not in git, so a rebuild that wipes
+  that volume loses them. Its entity IDs contain the router's address, so
+  queries select on `friendly_name`. Its sensors sample every 30 s, and it
+  reports no load average or Wi-Fi radio temperatures.
 - TrueNAS metric names are flattened collectd paths, not a curated schema:
   fine in Explore, no dashboard until the mapping exists.
 - A failing drive shows on the `SMART` dashboard only: the stack has no
