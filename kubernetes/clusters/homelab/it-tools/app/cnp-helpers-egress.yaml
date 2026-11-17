@@ -1,0 +1,51 @@
+# The helpers relay to any address a user names, so they reach only the world
+# entity and never TrueNAS NFS. See docs/design/it-tools.md, "Egress".
+#
+# The explicit `ingress: false` keeps the kubelet's probes out of default-deny.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: helpers-egress
+spec:
+  endpointSelector:
+    matchLabels:
+      it-tools.homelab/helper: "true"
+  enableDefaultDeny:
+    egress: true
+    ingress: false
+  egress:
+    # By endpoint, not by Service CIDR: per-packet LB translates the Service
+    # address before policy sees it (docs/design/cilium-per-packet-lb.md).
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: ANY
+    - toEntities:
+        - world
+  egressDeny:
+    - toCIDR:
+        - ${VOYAGER_IP}/32
+      toPorts:
+        - ports:
+            - port: "111"
+              protocol: ANY
+            - port: "2049"
+              protocol: ANY
+    # The control-plane VIP is not a Node address, so it is world: deny the
+    # Kubernetes and Talos API ports on every destination instead.
+    - toEntities:
+        - world
+      toPorts:
+        - ports:
+            - port: "6443"
+              protocol: TCP
+            - port: "10250"
+              protocol: TCP
+            - port: "50000"
+              protocol: TCP
+            - port: "50001"
+              protocol: TCP

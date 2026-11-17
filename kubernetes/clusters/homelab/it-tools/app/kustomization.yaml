@@ -11,6 +11,7 @@ resources:
   - deployment-it-tools.yaml
   - deployment-helpers.yaml
   - middlewares.yaml
+  - cnp-helpers-egress.yaml
   - service.yaml
   - ingressroute.yaml
 configMapGenerator:
