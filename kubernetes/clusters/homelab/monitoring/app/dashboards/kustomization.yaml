@@ -97,6 +97,15 @@ configMapGenerator:
   - name: dashboard-uptime-kuma
     files: [Services/uptime-kuma.json]
     options: {annotations: {grafana_folder: Services}}
+  - name: dashboard-seerr
+    files: [Services/seerr.json]
+    options: {annotations: {grafana_folder: Services}}
+  - name: dashboard-flaresolverr
+    files: [Services/flaresolverr.json]
+    options: {annotations: {grafana_folder: Services}}
+  - name: dashboard-qbittorrent
+    files: [Services/qbittorrent.json]
+    options: {annotations: {grafana_folder: Services}}
   - name: dashboard-home-assistant
     files: [Services/home-assistant.json]
     options: {annotations: {grafana_folder: Services}}

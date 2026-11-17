@@ -10,6 +10,8 @@ resources:
   - pvc-config.yaml
   - media-egress.yaml
   - qbittorrent.yaml
+  - secret-qbittorrent-exporter.sops.yaml
+  - qbittorrent-exporter.yaml
 # The nftables ruleset, hashed so an edit rolls the pod that applies it.
 # Substitution is disabled on it: envsubst would eat an nft variable, and the
 # file is embedded verbatim rather than parsed as a manifest.

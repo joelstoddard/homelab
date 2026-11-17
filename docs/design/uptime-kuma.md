@@ -59,10 +59,23 @@ dozen monitors, not a measurement here. Re-measure after a week.
 
 `Services/uptime-kuma.json` reads Traefik's per-service request series,
 kube-state-metrics, cAdvisor, the volume's `kubelet_volume_stats_*` and the
-pod's logs in Loki. Uptime Kuma's own `/metrics` (each monitor's status and
-response time) needs an API key created in its UI, so scraping it is a
-follow-up once a key exists: a SOPS Secret in the `alloy` layer and an explicit
-scrape job, as SearXNG's is. Glance has a tile for it.
+pod's logs in Loki, plus Uptime Kuma's own `/metrics`: each monitor's status,
+response time and certificate expiry, as `monitor_*` series under
+`job="uptime-kuma"`. `/metrics` takes an API key as the basic-auth password
+and ignores the username. The key is created in the UI (Settings → API Keys)
+and stored as `UPTIME_KUMA_API_KEY` in `cluster-secrets`; `cluster.alloy`
+reads it at runtime and scrapes through an explicit job, as it does for
+SearXNG. Revoking the key in the UI turns the dashboard's `Scrape` panel red.
+Monitor names become label values, so renaming a monitor starts a new series.
+Glance has a tile for it.
+
+**The CronJobs report through push monitors.** Recyclarr and nebula-sync run
+their work in an init container, and a `push` container then calls the push
+monitor's URL, so the push happens only after a run exits 0. A failed run or
+a missing run shows as down in Uptime Kuma once the monitor's heartbeat
+interval passes. Each push URL holds its monitor's token, so it is a curl
+config file in a SOPS Secret (`recyclarr-push`, `nebula-sync-push`), with
+no `$` for Flux's substitution to eat.
 
 ## Traps
 

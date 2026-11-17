@@ -264,6 +264,11 @@ the lookup takes the same cluster-DNS-then-WAN path regardless of which side
 does it. FlareSolverr inherits the design-wide DNS leak "Traps" already
 covers, and nothing more.
 
+**Metrics are on their own port.** `PROMETHEUS_ENABLED` starts FlareSolverr's
+exporter on 8192, which the deny on 8191 does not cover, so Alloy scrapes it
+and Uptime Kuma checks `/metrics` there through the Service. Neither needs
+the fetcher's port.
+
 **Bring-up is partly database state, not manifest.** FlareSolverr must be
 registered in Prowlarr under Settings → Indexers → Proxies, given a tag, and
 that tag applied to each indexer that needs it — none of which a Kustomize

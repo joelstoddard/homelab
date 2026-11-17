@@ -573,8 +573,8 @@ substituted) is an hourly `CronJob` copying the Pi-hole pair's gravity tables
 through the `lan-services` names, then running gravity on pihole-02:
 `FULL_SYNC=false` and no `SYNC_CONFIG_*`, because the `dns` role owns each
 instance's config. The image is digest-pinned and multi-arch; the namespace
-is PSA `restricted`; a `CiliumNetworkPolicy` limits egress to cluster DNS
-and the two Services on 443 via `toServices`. The password is
+is PSA `restricted`; a `CiliumNetworkPolicy` limits egress to cluster DNS,
+the two Services on 443 via `toServices`, and Uptime Kuma's push endpoint. The password is
 `PIHOLE_PASSWORD` in `app/secret.sops.yaml`, a copy of
 `dns_pihole_web_password` (the only source; Flux decrypts only its own
 layer) that `make -C kubernetes lint` fails on if it differs, appended to `PRIMARY` and
