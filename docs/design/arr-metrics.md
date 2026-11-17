@@ -32,6 +32,20 @@ rather than a service; kube-state-metrics already reports its schedule and
 per-run outcome through `kube_cronjob_*` and `kube_job_status_failed`, on
 `exported_namespace` like every other series from that collector.
 
+**qBittorrent has the same shape with a different exporter.** exportarr does
+not speak qBittorrent, so `media-downloads/app/qbittorrent-exporter.yaml`
+runs [qbittorrent-exporter](https://github.com/martabal/qbittorrent-exporter)
+on port 8090 under `job="qbittorrent-exporter"`. It authenticates with
+qBittorrent's API key (qBittorrent 5.2 and later), from the
+`qbittorrent-exporter` Secret, not with the Web UI password. The key is set
+in the qBittorrent UI and copied into the Secret, the same direction as
+Bazarr's and SABnzbd's. `ENABLE_TRACKER` is off: tracker series label each
+tracker's URL, and a private tracker's URL embeds the account's passkey.
+qBittorrent's Host check includes the port, so a port-forward test must
+forward local 8080 and use the Service name, or every call returns 401.
+The exporter is not labelled
+`egress.homelab/via: media-egress`: it talks only to qBittorrent's Service.
+
 **Two secrets, because the keys travel in opposite directions.** `arr-apikeys`
 holds keys this repo *sets*: the four core \*arr (`docs/design/arr-core.md`)
 take theirs from the environment, so git is the source of truth and the
