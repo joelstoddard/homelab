@@ -1,7 +1,5 @@
 # The helpers relay to any address a user names, so they reach only the world
-# entity and never TrueNAS NFS. See docs/design/it-tools.md, "Egress".
-#
-# The explicit `ingress: false` keeps the kubelet's probes out of default-deny.
+# entity. See docs/design/it-tools.md, "Egress".
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
@@ -12,6 +10,7 @@ spec:
       it-tools.homelab/helper: "true"
   enableDefaultDeny:
     egress: true
+    # Explicit, so the kubelet's probes stay out of default-deny.
     ingress: false
   egress:
     # By endpoint, not by Service CIDR: per-packet LB translates the Service

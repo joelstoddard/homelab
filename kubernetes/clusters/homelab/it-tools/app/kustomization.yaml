@@ -1,8 +1,5 @@
-# Every resource here is namespaced, so a top-level namespace: is safe.
-#
-# The settings are a generator WITHOUT disableNameSuffixHash: they are mounted
-# by subPath, which never sees an update, so the hash in the name is what rolls
-# the pod on an edit.
+# The settings are mounted by subPath, which never sees an update, so the
+# generator keeps its name hash to roll the pod on an edit.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 namespace: it-tools
