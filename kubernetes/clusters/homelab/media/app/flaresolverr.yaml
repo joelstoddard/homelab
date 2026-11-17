@@ -20,6 +20,11 @@ spec:
       labels:
         app.kubernetes.io/name: flaresolverr
         egress.homelab/via: media-egress
+      # The exporter listens on its own port, which the ingress deny on 8191
+      # does not cover.
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8192"
     spec:
       nodeSelector:
         kubernetes.io/arch: amd64
@@ -33,9 +38,15 @@ spec:
               value: Europe/London
             - name: PROXY_URL
               value: socks5://media-egress-socks5.media-downloads.svc.cluster.local:1055
+            - name: PROMETHEUS_ENABLED
+              value: "true"
+            - name: PROMETHEUS_PORT
+              value: "8192"
           ports:
             - name: http
               containerPort: 8191
+            - name: metrics
+              containerPort: 8192
           # / is FlareSolverr's own status page and answers once headless
           # Chrome has finished starting.
           startupProbe:
@@ -79,6 +90,10 @@ spec:
     - name: http
       port: 8191
       targetPort: http
+    # Uptime Kuma's check: port 8191 admits only Prowlarr.
+    - name: metrics
+      port: 8192
+      targetPort: metrics
 # No IngressRoute: FlareSolverr is an unauthenticated URL fetcher with only a
 # status page, and Prowlarr reaches it over .svc. Exposing it would put an
 # open fetcher behind the wildcard certificate.

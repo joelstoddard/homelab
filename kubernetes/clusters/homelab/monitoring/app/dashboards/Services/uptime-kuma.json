@@ -264,14 +264,307 @@
       }
     },
     {
-      "id": 8,
+      "type": "stat",
+      "title": "Monitors down",
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 0,
+        "y": 12
+      },
+      "description": "Monitors whose last check failed. Group monitors are left out: they only roll up their children.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "count(monitor_status{job=\"uptime-kuma\", monitor_type!=\"group\"} == 0) or vector(0)"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        }
+      },
+      "id": 7
+    },
+    {
+      "type": "stat",
+      "title": "Monitors",
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 6,
+        "y": 12
+      },
+      "description": "Every monitor that reports a status. Zero means the scrape is failing: check up{job=\"uptime-kuma\"} and the API key.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "count(monitor_status{job=\"uptime-kuma\", monitor_type!=\"group\"})"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "0"
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "none",
+        "graphMode": "none",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        }
+      },
+      "id": 8
+    },
+    {
+      "type": "stat",
+      "title": "Scrape",
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 12,
+        "y": 12
+      },
+      "description": "Alloy's scrape of /metrics. Down with the pod up means the API key in cluster-secrets was revoked or is wrong.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max(up{job=\"uptime-kuma\"})"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "Down",
+                  "color": "red",
+                  "index": 0
+                },
+                "1": {
+                  "text": "Up",
+                  "color": "green",
+                  "index": 1
+                },
+                "2": {
+                  "text": "Pending",
+                  "color": "orange",
+                  "index": 2
+                },
+                "3": {
+                  "text": "Maintenance",
+                  "color": "blue",
+                  "index": 3
+                }
+              }
+            }
+          ],
+          "noValue": "No data"
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        }
+      },
+      "id": 9
+    },
+    {
+      "type": "stat",
+      "title": "Shortest certificate",
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 18,
+        "y": 12
+      },
+      "description": "Days left on the soonest-expiring certificate any HTTPS monitor sees. The wildcard renews at 30 days left.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "min(monitor_cert_days_remaining{job=\"uptime-kuma\", monitor_type!=\"group\"} > 0)"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "d",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 14
+              },
+              {
+                "color": "green",
+                "value": 30
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        }
+      },
+      "id": 10
+    },
+    {
+      "type": "state-timeline",
+      "title": "Monitor status",
+      "gridPos": {
+        "h": 16,
+        "w": 24,
+        "x": 0,
+        "y": 16
+      },
+      "description": "One row per monitor, from each check's result. Gaps are scrapes Alloy missed, not checks Uptime Kuma skipped.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max by (monitor_name) (monitor_status{job=\"uptime-kuma\", monitor_type!=\"group\"})",
+          "legendFormat": "{{monitor_name}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "Down",
+                  "color": "red",
+                  "index": 0
+                },
+                "1": {
+                  "text": "Up",
+                  "color": "green",
+                  "index": 1
+                },
+                "2": {
+                  "text": "Pending",
+                  "color": "orange",
+                  "index": 2
+                },
+                "3": {
+                  "text": "Maintenance",
+                  "color": "blue",
+                  "index": 3
+                }
+              }
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "options": {
+        "showValue": "never",
+        "mergeValues": true,
+        "rowHeight": 0.8
+      },
+      "id": 11
+    },
+    {
+      "type": "timeseries",
+      "title": "Slowest monitors",
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 32
+      },
+      "description": "The ten slowest checks by last response time. External monitors run through the internet, so they sit above in-cluster ones.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "topk(10, max by (monitor_name) (monitor_response_time{job=\"uptime-kuma\", monitor_type!=\"group\"}))",
+          "legendFormat": "{{monitor_name}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms"
+        },
+        "overrides": []
+      },
+      "id": 12
+    },
+    {
+      "id": 13,
       "type": "timeseries",
       "title": "CPU against limit",
       "gridPos": {
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 12
+        "y": 40
       },
       "datasource": {
         "type": "prometheus",
@@ -297,14 +590,14 @@
       }
     },
     {
-      "id": 9,
+      "id": 14,
       "type": "timeseries",
       "title": "Memory against limit",
       "gridPos": {
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 12
+        "y": 40
       },
       "description": "Grows with the number of monitors and their history kept in memory. Limits are upstream's footprint until a week of real use is measured.",
       "datasource": {
@@ -331,14 +624,14 @@
       }
     },
     {
-      "id": 10,
+      "id": 15,
       "type": "timeseries",
       "title": "Network throughput",
       "gridPos": {
         "h": 8,
         "w": 8,
         "x": 16,
-        "y": 12
+        "y": 40
       },
       "description": "Mostly outbound: every monitor's check leaves this pod on its own interval.",
       "datasource": {
@@ -365,7 +658,7 @@
       }
     },
     {
-      "id": 13,
+      "id": 16,
       "type": "timeseries",
       "title": "Volume usage",
       "description": "The SQLite database: monitors, settings and history. History grows with monitor count and retention; nothing backs it up until #228.",
@@ -377,7 +670,7 @@
         "h": 8,
         "w": 24,
         "x": 0,
-        "y": 20
+        "y": 48
       },
       "fieldConfig": {
         "defaults": {
@@ -417,14 +710,14 @@
       ]
     },
     {
-      "id": 11,
+      "id": 17,
       "type": "timeseries",
       "title": "OOM kills",
       "gridPos": {
         "h": 6,
         "w": 24,
         "x": 0,
-        "y": 28
+        "y": 56
       },
       "description": "The NUCs are oversubscribed and have OOM-killed workloads before, which is why this is here for a pod that should never need it.",
       "datasource": {
@@ -446,14 +739,14 @@
       }
     },
     {
-      "id": 12,
+      "id": 18,
       "type": "logs",
       "title": "Logs",
       "gridPos": {
         "h": 10,
         "w": 24,
         "x": 0,
-        "y": 34
+        "y": 62
       },
       "datasource": {
         "type": "loki",

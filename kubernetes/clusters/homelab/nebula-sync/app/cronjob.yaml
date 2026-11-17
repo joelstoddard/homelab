@@ -28,7 +28,8 @@ spec:
             runAsNonRoot: true
             seccompProfile:
               type: RuntimeDefault
-          containers:
+          # An init container, so the push container below runs only on success.
+          initContainers:
             - name: nebula-sync
               # Pinned by index digest; it carries amd64 and arm64.
               image: ghcr.io/lovelaze/nebula-sync:v0.11.3@sha256:59c51378460f6dc8707cc91a16aa62dff5cd5dd8b39353658b45cb00d6bfddd8
@@ -83,3 +84,30 @@ spec:
                 limits:
                   cpu: 500m
                   memory: 128Mi
+          containers:
+            # Runs only after the sync above exits 0, so a missing heartbeat
+            # in Uptime Kuma means a failed or missing run.
+            - name: push
+              image: docker.io/curlimages/curl:8.23.0
+              args: ["--fail", "--silent", "--show-error", "--retry", "3", "--config", "/etc/push/curlrc"]
+              volumeMounts:
+                - name: push
+                  mountPath: /etc/push
+                  readOnly: true
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+              resources:
+                requests:
+                  cpu: 10m
+                  memory: 16Mi
+                limits:
+                  cpu: 100m
+                  memory: 32Mi
+          volumes:
+            # The push URL holds the monitor's token, so it is a Secret.
+            - name: push
+              secret:
+                secretName: nebula-sync-push

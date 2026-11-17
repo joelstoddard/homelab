@@ -6,6 +6,7 @@ resources:
   - secret-jellyfin-exporter.sops.yaml
   - secret-arr-apikeys.sops.yaml
   - secret-exporter-apikeys.sops.yaml
+  - secret-recyclarr-push.sops.yaml
   - pv-library.yaml
   - pvc-library.yaml
   - pvc-jellyfin-config.yaml

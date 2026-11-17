@@ -678,6 +678,59 @@ prometheus.scrape "home_assistant" {
 	bearer_token = remote.kubernetes.secret.cluster_secrets.data["HOME_ASSISTANT_TOKEN"]
 }
 
+// ------------------------------------------- cluster-wide: Uptime Kuma --
+
+// Uptime Kuma's /metrics (each monitor's status and response time) needs an
+// API key as the basic-auth password, which the annotation-driven scrapes
+// cannot carry (docs/design/uptime-kuma.md).
+discovery.kubernetes "uptime_kuma" {
+	role = "endpoints"
+
+	namespaces {
+		names = ["uptime-kuma"]
+	}
+
+	selectors {
+		role  = "endpoints"
+		field = "metadata.name=uptime-kuma"
+	}
+}
+
+discovery.relabel "uptime_kuma" {
+	targets = discovery.kubernetes.uptime_kuma.targets
+
+	rule {
+		source_labels = ["__meta_kubernetes_namespace"]
+		target_label  = "namespace"
+	}
+
+	rule {
+		source_labels = ["__meta_kubernetes_pod_name"]
+		target_label  = "pod"
+	}
+
+	rule {
+		source_labels = ["__meta_kubernetes_pod_name"]
+		target_label  = "instance"
+	}
+
+	rule {
+		source_labels = ["__meta_kubernetes_pod_node_name"]
+		target_label  = "node"
+	}
+}
+
+prometheus.scrape "uptime_kuma" {
+	targets         = discovery.relabel.uptime_kuma.output
+	forward_to      = [prometheus.remote_write.prometheus.receiver]
+	job_name        = "uptime-kuma"
+	scrape_interval = "60s"
+
+	basic_auth {
+		password = remote.kubernetes.secret.cluster_secrets.data["UPTIME_KUMA_API_KEY"]
+	}
+}
+
 // ------------------------------------------- cluster-wide: descheduler --
 
 // HTTPS on a self-signed certificate with no authentication, which the

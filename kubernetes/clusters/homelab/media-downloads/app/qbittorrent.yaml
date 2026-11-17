@@ -86,6 +86,34 @@ spec:
             limits:
               cpu: "2"
               memory: 1Gi
+        # qBittorrent logs only to a rotated file on the config claim, so this
+        # puts it on stdout for Loki, as lancache's followers do. The trap
+        # lets a shell running as PID 1 stop on SIGTERM.
+        - name: log
+          image: lscr.io/linuxserver/qbittorrent:5.2.3_v2.0.14-ls476
+          command:
+            - sh
+            - -c
+            - trap 'exit 0' TERM; tail -n 0 -F /config/qBittorrent/logs/qbittorrent.log & wait
+          securityContext:
+            runAsUser: 1000
+            runAsGroup: 1000
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: config
+              mountPath: /config
+              readOnly: true
+          resources:
+            requests:
+              cpu: 5m
+              memory: 16Mi
+            limits:
+              cpu: 100m
+              memory: 64Mi
       volumes:
         - name: downloads
           persistentVolumeClaim:
