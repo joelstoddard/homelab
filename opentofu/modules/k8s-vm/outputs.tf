@@ -20,5 +20,5 @@ output "mac_address" {
 
 output "planned_ip" {
   description = "Primary IPv4 from NetBox. Informational — tofu does not configure the VM's network address."
-  value       = try(local.nb_vm.primary_ip4, null)
+  value       = try(data.netbox_ip_address.primary4[0].ip_address, null)
 }
