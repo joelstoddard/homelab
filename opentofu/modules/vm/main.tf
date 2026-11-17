@@ -39,6 +39,7 @@ resource "proxmox_virtual_environment_vm" "vm" {
 
   memory {
     dedicated = var.memory_mb
+    floating  = var.balloon_min_mb
   }
 
   efi_disk {

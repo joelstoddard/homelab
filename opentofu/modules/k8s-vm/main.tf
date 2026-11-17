@@ -43,6 +43,10 @@ locals {
   vm_id    = local.is_server ? (100 + local.idx) : (200 + local.idx)
   mac      = format("52:54:00:00:%s:%02d", local.is_server ? "01" : "02", local.idx)
   role_tag = local.is_server ? "k8s-server" : "k8s-agent"
+
+  # Workers balloon down to 4000 MB; the control plane keeps etcd fully
+  # resident — docs/design/zram-swap.md, "Ballooning the workers".
+  balloon_min_mb = local.is_server ? 0 : 4000
 }
 
 module "vm" {
@@ -52,8 +56,9 @@ module "vm" {
   vm_name   = var.vm_name
   vm_id     = local.vm_id
 
-  cores     = local.nb_vm.vcpus
-  memory_mb = local.nb_vm.memory_mb
+  cores          = local.nb_vm.vcpus
+  memory_mb      = local.nb_vm.memory_mb
+  balloon_min_mb = local.balloon_min_mb
   # NetBox stores disk in MB (decimal). The vm module expects GB.
   disk_size_gb = floor(local.nb_vm.disk_size_mb / 1000)
 
