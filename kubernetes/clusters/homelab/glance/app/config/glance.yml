@@ -189,6 +189,10 @@ pages:
                     url: https://actual.${DOMAIN}
                     check-url: http://actual.actual.svc:5006/health
                     icon: di:actual-budget
+                  - title: IT-Tools
+                    url: https://it-tools.${DOMAIN}
+                    check-url: http://it-tools.it-tools.svc:8080/
+                    icon: di:it-tools
 
           - type: split-column
             widgets:
