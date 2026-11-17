@@ -27,7 +27,7 @@ their order is the fail-closed design. A `killswitch` init container runs to
 completion first and installs an nftables ruleset — its own `inet
 ts-killswitch` table, so neither it nor tailscaled can reconcile the other
 away — that drops everything except loopback traffic, replies on an
-already-open connection, the cluster CIDRs, the apiserver, and anything
+already-open connection, the cluster CIDRs, and anything
 tailscaled itself sends as root.
 
 Every rule in that ruleset carries a `counter`, and so does an explicit final
@@ -320,25 +320,22 @@ The accepts, in order, and why each is there:
   through the tunnel rather than being caught only by the `skuid` accept
   below.
 - `ip daddr 10.244.0.0/16` and `ip daddr 10.96.0.0/12` — the cluster's pod and
-  Service CIDRs, so cluster DNS answers. These are the cluster's real values:
+  Service CIDRs, so cluster DNS and the apiserver Service answer. These are the cluster's real values:
   the `talos` role overrides neither `podSubnets` nor `serviceSubnets`, so
   the Kubernetes defaults stand.
-- `ip daddr 10.0.0.0/20 tcp dport 6443` — the apiserver, for the reason in the
-  traps below. Scoped to the apiserver port, so it buys reachability to an
-  apiserver and nothing else on the LAN.
 - `meta skuid 0` — last of the accepts, and it covers only tailscaled's own
   bootstrap traffic: control plane and DERP,
   before any tunnel exists and before its fwmark applies. `gost` — the
   process that makes every proxied dial, and the one a dial takes when the
   exit node is lost — runs as uid 1000, not 0, so this rule does not cover it: a
-  proxied dial has to clear `tailscale0` or the apiserver rule above, or the
+  proxied dial has to clear `tailscale0` or the cluster-CIDR accepts, or the
   chain's final `drop` takes it.
 
 **The kill switch governs every proxied dial.** `gost`
 dials as uid 1000, so `meta skuid 0`
 doesn't cover it, and the accepts above it are what a proxied connection
 actually has to clear — `tailscale0` for anything the tunnel can route, the
-cluster-CIDR and apiserver accepts for nothing else, and the final `drop` for
+cluster-CIDR accepts for nothing else, and the final `drop` for
 everything not covered, LAN destinations included. That is why this
 namespace pays the `privileged` PodSecurity cost for `NET_ADMIN`, on three
 containers: `killswitch`, `iprules` and `tailscale`.
@@ -475,20 +472,15 @@ handler into a liveness restart.
   preference below tailscaled's own that send the pod and Service CIDRs plus
   the apiserver into `lookup main` before table 52 ever sees them.
   Deleting that container silently reopens this exact failure.
-- **A Service CIDR rule never sees a Service address.** Cilium runs
-  `kubeProxyReplacement`, so socket-LB rewrites the destination at `connect()`
-  — before the netfilter output hook and before any routing decision. An
-  nftables rule or an `ip rule` that reasons about `10.96.0.0/12` is therefore
-  reasoning about a destination already rewritten away by the time it runs.
-  This generalises past this layer: *any* egress policy in this cluster written
-  against the Service CIDR is wrong for the same reason.
-- **The apiserver is the case where that bites.** containerboot talks to the
-  apiserver continuously to persist its node key in `TS_KUBE_SECRET`, its kube
-  client carries no fwmark, and by the time the kill switch sees the packet the
-  destination is a control-plane node's LAN address. Without
-  `ip daddr 10.0.0.0/20 tcp dport 6443 accept` the daemon is dropped, fatals on
-  `CheckSecretPermissions` and the pod never starts — fail-closed, but bring-up
-  cannot even reach the leak test.
+- **Inside this pod, rules see the Service address; Cilium policy does not.**
+  Cilium's socket LB covers the host namespace only
+  (`docs/design/cilium-per-packet-lb.md`), so a pod's connection keeps its
+  Service address through the pod's own netfilter and routing, and Cilium
+  translates it per packet as it leaves the pod. The kill switch and the
+  `ip rule`s therefore match `10.96.0.0/12`: containerboot reaches the
+  apiserver as `10.96.0.1:443`, and DNS goes to the kube-dns ClusterIP. A
+  `CiliumNetworkPolicy` runs after that translation, so it must select
+  endpoints, never the Service CIDR.
 - **Filtering needs a routing half too.** The kill switch decides what may
   leave; a separate `ip rule` set, in the `iprules` init container, decides
   which way it goes — tailscaled owns host routing (table 52, the exit
