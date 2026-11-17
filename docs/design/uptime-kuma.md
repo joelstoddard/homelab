@@ -69,6 +69,14 @@ SearXNG. Revoking the key in the UI turns the dashboard's `Scrape` panel red.
 Monitor names become label values, so renaming a monitor starts a new series.
 Glance has a tile for it.
 
+**The CronJobs report through push monitors.** Recyclarr and nebula-sync run
+their work in an init container, and a `push` container then calls the push
+monitor's URL, so the push happens only after a run exits 0. A failed run or
+a missing run shows as down in Uptime Kuma once the monitor's heartbeat
+interval passes. Each push URL holds its monitor's token, so it is a curl
+config file in a SOPS Secret (`recyclarr-push`, `nebula-sync-push`), with
+no `$` for Flux's substitution to eat.
+
 ## Traps
 
 **Service links collide with the app's settings.** The `uptime-kuma`

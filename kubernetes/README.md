@@ -955,7 +955,8 @@ sync".
   nebula-sync splits `REPLICAS` on commas and each entry on its first `|`,
   so the password must contain neither.
 - **Egress is cluster DNS and the two instances on 443 only**, through
-  `toServices` on the selectorless `lan-services` Services.
+  `toServices` on the selectorless `lan-services` Services, plus Uptime
+  Kuma on 3001 for the `push` container's heartbeat after a successful run.
 - **An empty pihole-01 empties pihole-02.** Before rebuilding pihole-01,
   commit `spec.suspend: true` on the CronJob (Flux reverts a live suspend);
   the runbook is in `ansible/roles/dns/README.md`, "Rebuilding pihole-01".
@@ -963,7 +964,7 @@ sync".
 ```bash
 flux --context homelab get ks nebula-sync
 kubectl --context homelab -n nebula-sync create job --from=cronjob/nebula-sync nebula-sync-manual
-kubectl --context homelab -n nebula-sync logs job/nebula-sync-manual
+kubectl --context homelab -n nebula-sync logs job/nebula-sync-manual -c nebula-sync
 ```
 
 ## Cluster secrets
