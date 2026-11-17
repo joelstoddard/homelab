@@ -110,6 +110,17 @@
       ],
     },
     {
+      description: 'ansible-core 2.19+ breaks the redact callback and community.sops; resolvelib follows ansible-core 2.18\'s cap',
+      matchManagers: ['pip_requirements'],
+      matchPackageNames: ['ansible-core'],
+      allowedVersions: '<2.19.0',
+    },
+    {
+      matchManagers: ['pip_requirements'],
+      matchPackageNames: ['resolvelib'],
+      allowedVersions: '<1.1.0',
+    },
+    {
       description: 'CI Python matches the operator venv: 3.14 has no rpds-py wheel (.github/workflows/lint.yaml)',
       matchManagers: ['github-actions'],
       matchDepNames: ['python'],
