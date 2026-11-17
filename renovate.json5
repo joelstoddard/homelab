@@ -101,9 +101,10 @@
       prBodyNotes: ['A bad bump stops the Pis netbooting. Netboot one Pi from the operator VM before merging.'],
     },
     {
-      description: 'ansible/requirements.txt is a full freeze: one PR, majors apart, checked as a set',
+      description: 'ansible/requirements.txt is a full freeze: one PR, majors included, because a minor can need another pin\'s major (wcmatch 10.2 needs bracex 3)',
       matchManagers: ['pip_requirements'],
       groupName: 'ansible python deps',
+      separateMajorMinor: false,
       prBodyNotes: [
         'Check the set installs: `make -C ansible build` then `make -C ansible lint`.',
       ],

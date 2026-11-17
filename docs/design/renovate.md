@@ -78,7 +78,9 @@ when something breaks.
 - **The Python freeze is one PR.** `ansible/requirements.txt` pins every
   transitive package, so separate PRs would number in the dozens and
   merge into sets that do not install. All its updates share the
-  `ansible python deps` group, with majors in a second PR.
+  `ansible python deps` group, majors included: a minor in one pin can
+  require a major in another (wcmatch 10.2 needs bracex 3), so a split
+  PR does not install.
 
 - **Annotated pins.** A pin that no built-in manager reads carries a
   `# renovate: datasource=… depName=…` comment on the line above it:
