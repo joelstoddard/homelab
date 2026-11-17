@@ -31,7 +31,7 @@ tag each image is built from, not on `develop`:
 | Prowlarr | `lscr.io/linuxserver/prowlarr:2.6.5.5623-ls161` | `PROWLARR__AUTH__APIKEY` |
 | Sonarr | `lscr.io/linuxserver/sonarr:4.0.20.3014-ls325` | `SONARR__AUTH__APIKEY` |
 | Radarr | `lscr.io/linuxserver/radarr:6.4.4.10685-ls317` | `RADARR__AUTH__APIKEY` |
-| Lidarr | `lscr.io/linuxserver/lidarr:3.1.0.4875-ls41` | `LIDARR__AUTH__APIKEY` |
+| Lidarr | `lscr.io/linuxserver/lidarr:3.1.6.5079-ls48` | `LIDARR__AUTH__APIKEY` |
 
 The flat `<APP>__APIKEY` form these replaced still appears in older guides, so
 re-read both files when bumping a major version rather than assuming the name
@@ -137,8 +137,16 @@ deliberately do not carry:
    the setting lives in `qBittorrent.conf` on the config volume, which the
    application writes itself. See `docs/design/media-egress.md`.
 6. Register qBittorrent as a download client in Sonarr, Radarr and Lidarr —
-   host `qbittorrent.media-downloads.svc.cluster.local`, port 8080, the Web UI
-   credentials. "Test" must go green before saving.
+   host `qbittorrent.media-downloads.svc.cluster.local`, port 8080, and
+   qBittorrent's API key (the one in the `qbittorrent-exporter` Secret), not
+   the Web UI credentials. "Test" must go green before saving. With
+   credentials, each app sends them as Basic auth on every request beside its
+   cached session cookie. qBittorrent holds sessions only in memory, so after
+   a qBittorrent restart every request falls back to Basic auth: it logs
+   "WebAPI login success", opens a new session for an hour, and never returns
+   the 403 that would make the app replace its cookie. That repeats until the
+   app restarts. The API key uses no session. Lidarr needs 3.1.6 or later for
+   the key field.
 7. Add those three to Prowlarr under Settings → Apps, each with its own key
    from `arr-apikeys`, then sync the indexers.
 8. Confirm the first **torrent** import hardlinks rather than copies: the
