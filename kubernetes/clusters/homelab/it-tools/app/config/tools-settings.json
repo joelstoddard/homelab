@@ -1,0 +1,10 @@
+{
+  "dns-prop": { "url": "https://it-tools.${DOMAIN}/svc/net" },
+  "dns-tester": { "url": "https://it-tools.${DOMAIN}/svc/net" },
+  "https-tester": { "url": "https://it-tools.${DOMAIN}/svc/net" },
+  "ping": { "url": "https://it-tools.${DOMAIN}/svc/net" },
+  "html-to-pdf": { "url": "https://it-tools.${DOMAIN}/svc/pdf" },
+  "multi-links-dl": { "url": "https://it-tools.${DOMAIN}/svc/cors" },
+  "short-urls-expander": { "cors-anywhere-url": "https://it-tools.${DOMAIN}/svc/cors" },
+  "tcp-udp-port-tester": { "ws": "wss://it-tools.${DOMAIN}/svc/bridge" }
+}
