@@ -101,12 +101,24 @@
       prBodyNotes: ['A bad bump stops the Pis netbooting. Netboot one Pi from the operator VM before merging.'],
     },
     {
-      description: 'ansible/requirements.txt is a full freeze: one PR, majors apart, checked as a set',
+      description: 'ansible/requirements.txt is a full freeze: one PR, majors included, because a minor can need another pin\'s major (wcmatch 10.2 needs bracex 3)',
       matchManagers: ['pip_requirements'],
       groupName: 'ansible python deps',
+      separateMajorMinor: false,
       prBodyNotes: [
         'Check the set installs: `make -C ansible build` then `make -C ansible lint`.',
       ],
+    },
+    {
+      description: 'ansible-core 2.19+ breaks the redact callback and community.sops; resolvelib follows ansible-core 2.18\'s cap',
+      matchManagers: ['pip_requirements'],
+      matchPackageNames: ['ansible-core'],
+      allowedVersions: '<2.19.0',
+    },
+    {
+      matchManagers: ['pip_requirements'],
+      matchPackageNames: ['resolvelib'],
+      allowedVersions: '<1.1.0',
     },
     {
       description: 'CI Python matches the operator venv: 3.14 has no rpds-py wheel (.github/workflows/lint.yaml)',

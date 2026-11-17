@@ -338,10 +338,11 @@ pods on the spot, while etcd reads its arguments only at start and Talos
 refuses `talosctl service etcd restart` ("doesn't support restart operation
 via API"). So follow it with one graceful reboot per control-plane node,
 `talosctl -n <ip> reboot --wait`, checking `talosctl etcd status` and the
-node's Ready condition before the next. After each, `curl
-http://<control-plane-ip>:2381/metrics` answers 200 and `curl -k
+node's Ready condition before the next. After each, `up{job="etcd"}` for
+that node is 1 (the `etcd-metrics` firewall rule admits `:2381` only from
+worker addresses, so a `curl` from the LAN times out) and `curl -k
 https://<control-plane-ip>:10259/metrics` returns 403 (listening and
-authenticating, not a connection refusal). Verified 2026-09-11 on all five.
+authenticating, not a connection refusal).
 `docs/design/observability.md`.
 
 ## Rebuild / bumping versions

@@ -56,8 +56,9 @@ defaults that hide the control-plane components.
   by pod annotation, and `alloy-cluster` is the name the chart gives a
   clustered `alloy` release's peer Service. Its control-plane targets are
   host-network listeners on the node addresses (`0.0.0.0` binds from the
-  talos role's patch), reachable from a pod because no Talos ingress
-  firewall or Cilium host policy is configured.
+  talos role's patch). No Cilium host policy is configured, and Talos's
+  ingress firewall admits etcd's `:2381` from worker addresses only
+  (Talos control plane, below).
 - **No Prometheus Operator, no CRDs.** Flux, Cilium, cert-manager,
   kube-state-metrics and Traefik already carry the annotations — Traefik's
   chart annotates its own pods once `metrics.prometheus` is on, so this
@@ -226,8 +227,19 @@ defaults that hide the control-plane components.
   (`docs/talos-bootstrap.md`, "In-place upgrade"). etcd
   runs as a Talos host service, not a static pod, so Alloy discovers it by
   node (`node-role.kubernetes.io/control-plane`) on `:2381` over plain
-  HTTP; the metrics carry no key data, and a `NetworkRuleConfig` is the
-  follow-up if that is unwanted.
+  HTTP. The same patch adds a `NetworkRuleConfig`, `etcd-metrics`, that
+  admits `:2381` from every worker's address and drops it from anywhere
+  else; no default action is set, so every other port stays open. The
+  sources are node addresses, not the pod CIDR, because the scrape arrives
+  masqueraded: conntrack on a control-plane node shows the connection from
+  the `alloy-cluster` pod's node address, and on that node the original
+  tuple carries the pod IP. Workers only, because `alloy-cluster` tolerates
+  no control-plane taint. Any pod on a worker, a host-network process
+  there, or a tailnet client the subnet router forwards still reaches
+  `:2381`; the firewall keeps it off the rest of the LAN. Adding
+  or re-addressing a worker changes the control-plane configs, so roll
+  them with it. A scraper moved onto a control-plane node would see
+  `up{job="etcd"}` drop to 0.
 - **Services overview → Service → app dashboard.** Grafana is the detailed
   view for one misbehaving workload. `Services/services-overview.json` (uid
   `services-overview`) is one table, a row per Deployment, StatefulSet and
