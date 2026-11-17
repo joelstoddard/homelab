@@ -30,11 +30,6 @@ data "netbox_device" "host" {
   }
 }
 
-data "netbox_ip_address" "primary4" {
-  count = try(local.nb_vm.primary_ip4_id, null) == null ? 0 : 1
-  id    = local.nb_vm.primary_ip4_id
-}
-
 locals {
   nb_vm = try(data.netbox_virtual_machines.match.virtual_machines[0], null)
 
