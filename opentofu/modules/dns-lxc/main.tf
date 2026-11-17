@@ -13,7 +13,7 @@ module "lxc" {
   disk_size_gb      = floor(local.nb_vm.disk_size_mb / 1000)
   disk_datastore_id = "local"
 
-  static_ipv4_cidr = local.nb_vm.primary_ip4
+  static_ipv4_cidr = data.netbox_ip_address.primary4.ip_address
   ipv4_gateway     = var.ipv4_gateway
   # Never the chain itself, or a cold rebuild cannot resolve apt.
   dns_servers     = ["9.9.9.9", "149.112.112.112"]

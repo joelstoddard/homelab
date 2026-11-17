@@ -1,29 +1,37 @@
-# Single-VM NetBox lookup. The provider exposes only a regex-filtered
-# plural data source AND does the regex filtering client-side — so the
-# `limit` param applies BEFORE the filter. Setting it to 1 means
-# "fetch 1 row, then try to match" which fails when the matching row
-# isn't first. Pull plenty and let the anchored regex select one.
+# The plural data source, because the singular one errors before a
+# postcondition can name the missing VM. Its items carry only the ids of the
+# host and the primary IPv4, so each is a second lookup.
 #
 # The postconditions fail the plan when NetBox places the VM on another NUC
 # than the per-NUC dir that declares it. A check block would only warn.
 data "netbox_virtual_machines" "match" {
-  name_regex = "^${var.vm_name}$"
-  limit      = 100
+  filters = [{ name = "name", value = var.vm_name }]
 
   lifecycle {
     postcondition {
-      condition     = length(self.vms) > 0
+      condition     = length(self.virtual_machines) > 0
       error_message = "NetBox has no VM named '${var.vm_name}'. Model it in NetBox first: platform=talos, assigned to the matching NUC, tags k8s + k8s-server/k8s-agent, vm_id/MAC per the convention above."
     }
     postcondition {
-      condition     = try(self.vms[0].device_name, null) == var.node_name
-      error_message = "NetBox places '${var.vm_name}' on '${try(coalesce(self.vms[0].device_name, "(no device)"), "(missing)")}' but this call placed it on '${var.node_name}'. Update NetBox or move the module call to the matching per-NUC dir."
+      condition     = try(self.virtual_machines[0].device_id, null) != null
+      error_message = "NetBox places '${var.vm_name}' on no device but this call placed it on '${var.node_name}'. Update NetBox or move the module call to the matching per-NUC dir."
+    }
+  }
+}
+
+data "netbox_device" "host" {
+  id = local.nb_vm.device_id
+
+  lifecycle {
+    postcondition {
+      condition     = self.name == var.node_name
+      error_message = "NetBox places '${var.vm_name}' on '${self.name}' but this call placed it on '${var.node_name}'. Update NetBox or move the module call to the matching per-NUC dir."
     }
   }
 }
 
 locals {
-  nb_vm = try(data.netbox_virtual_machines.match.vms[0], null)
+  nb_vm = try(data.netbox_virtual_machines.match.virtual_machines[0], null)
 
   is_server = startswith(var.vm_name, "k8s-server-")
   idx       = tonumber(substr(var.vm_name, length(var.vm_name) - 2, 2))
