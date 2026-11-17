@@ -1,0 +1,242 @@
+# The four companion helpers. Each runs as uid 1000 on a read-only root; all
+# carry the helper label the egress policy selects (cnp-helpers-egress.yaml).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: network-utils
+  labels:
+    app.kubernetes.io/name: network-utils
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: network-utils
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: network-utils
+        it-tools.homelab/helper: "true"
+    spec:
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+        # Unprivileged ICMP for the ping tool, instead of NET_RAW.
+        sysctls:
+          - name: net.ipv4.ping_group_range
+            value: "0 2147483647"
+      containers:
+        - name: network-utils
+          image: docker.io/sharevb/network-utils-ws:e659e68e2e37fd86d0f63a33cf6f312a22e0b24a@sha256:90990f76448ea1157bc7f93b6bc8b2680c55af73ae22899f217b95dc67a5b8f1
+          ports:
+            - name: http
+              containerPort: 8000
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+          resources:
+            requests:
+              cpu: 10m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+      volumes:
+        - name: tmp
+          emptyDir: {}
+---
+# Chromium starts on the first request, not at boot, so Ready says nothing
+# about it. It needs a writable HOME and a /dev/shm larger than the default.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: htmltopdf
+  labels:
+    app.kubernetes.io/name: htmltopdf
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: htmltopdf
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: htmltopdf
+        it-tools.homelab/helper: "true"
+    spec:
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: htmltopdf
+          image: docker.io/sharevb/puppeteer-htmltopdf:d0aa9fc70ea2337d83bbffc75f75c700dcc7e171@sha256:b0b7450369046000bd8c9e2efdd5e49ff84780223397b0175fe4136b8e6cff83
+          env:
+            - name: HOME
+              value: /tmp
+          ports:
+            - name: http
+              containerPort: 3000
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            - name: shm
+              mountPath: /dev/shm
+          resources:
+            requests:
+              cpu: 50m
+              memory: 256Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+      volumes:
+        - name: tmp
+          emptyDir: {}
+        - name: shm
+          emptyDir:
+            medium: Memory
+            sizeLimit: 256Mi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cors-anywhere
+  labels:
+    app.kubernetes.io/name: cors-anywhere
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: cors-anywhere
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: cors-anywhere
+        it-tools.homelab/helper: "true"
+    spec:
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: cors-anywhere
+          image: docker.io/sharevb/cors-anywhere:latest@sha256:8660dd3ce5c9dce8d365d37bc5e723e0ddb749643138b36b72a2798d853c3474
+          env:
+            - name: CORSANYWHERE_ALLOWED_HTTP_METHODS
+              value: HEAD,GET,POST
+            # Replaces the default list, so cookie and cookie2 stay in it.
+            - name: CORSANYWHERE_REMOVE_HEADERS
+              value: cookie,cookie2,referer,x-forwarded-for,x-forwarded-host,x-forwarded-port,x-forwarded-prefix,x-forwarded-proto,x-forwarded-server,x-real-ip
+          ports:
+            - name: http
+              containerPort: 8080
+          readinessProbe:
+            tcpSocket:
+              port: http
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tcp-udp-bridge
+  labels:
+    app.kubernetes.io/name: tcp-udp-bridge
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: tcp-udp-bridge
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: tcp-udp-bridge
+        it-tools.homelab/helper: "true"
+    spec:
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: tcp-udp-bridge
+          image: docker.io/sharevb/ws-tcp-udp-bridge:3e565cbb273d4811d39274612adb6aa4e77e2db4@sha256:2992e0c5682c4059f8863cf5dd95507db95ccd28745a7a5516f03bca39567816
+          ports:
+            - name: ws
+              containerPort: 8080
+          readinessProbe:
+            tcpSocket:
+              port: ws
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: ws
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi

@@ -1,0 +1,18 @@
+# The settings are mounted by subPath, which never sees an update, so the
+# generator keeps its name hash to roll the pod on an edit.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: it-tools
+resources:
+  - namespace.yaml
+  - deployment-it-tools.yaml
+  - deployment-helpers.yaml
+  - middlewares.yaml
+  - cnp-helpers-egress.yaml
+  - service.yaml
+  - ingressroute.yaml
+configMapGenerator:
+  - name: it-tools-settings
+    files:
+      - config/tools-settings.json
+      - config/tools-filter.json

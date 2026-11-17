@@ -97,6 +97,9 @@ configMapGenerator:
   - name: dashboard-uptime-kuma
     files: [Services/uptime-kuma.json]
     options: {annotations: {grafana_folder: Services}}
+  - name: dashboard-it-tools
+    files: [Services/it-tools.json]
+    options: {annotations: {grafana_folder: Services}}
   - name: dashboard-seerr
     files: [Services/seerr.json]
     options: {annotations: {grafana_folder: Services}}

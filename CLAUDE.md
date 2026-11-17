@@ -301,7 +301,7 @@ full list is `flux-system`, `cilium`, `cilium-lb`, `descheduler`, `cluster-secre
 `cert-manager-issuers`, `traefik`, `traefik-middlewares`, `lan-services`,
 `tailscale`, `longhorn`, `longhorn-jobs`, `monitoring`, `alloy`,
 `host-monitoring`, `searxng`, `media`, `media-downloads`, `media-egress`, `glance`,
-`home-assistant`, `actual`, `uptime-kuma`, `orb-agent`, `lancache`, `nebula-sync`).
+`home-assistant`, `actual`, `uptime-kuma`, `it-tools`, `orb-agent`, `lancache`, `nebula-sync`).
 `cluster-secrets/` is one SOPS Secret in `flux-system` holding `DOMAIN`,
 `TRAEFIK_LB_IP` and `ACME_EMAIL`; consumers (`cert-manager-issuers`,
 `traefik`, `longhorn`) add `dependsOn: cluster-secrets` +
@@ -479,6 +479,23 @@ never on Voyager: SQLite corrupts on NFS. Uptime Kuma pins
 #228, and they reach targets by `.svc` name or address because cluster DNS
 cannot resolve the LAN wildcard. See `docs/design/actual.md` and
 `docs/design/uptime-kuma.md`.
+`it-tools/` (`dependsOn: traefik, traefik-middlewares, cluster-secrets`,
+substituted, no `decryption`) is ShareVB's maintained IT-Tools fork on
+`it-tools.${DOMAIN}`, not the stale upstream: one static app pod plus four
+helpers (network utils, HTML-to-PDF, cors-anywhere, a WebSocket TCP/UDP
+bridge) under `/svc/<name>` on the same hostname, all behind the one
+`it-tools-auth` Middleware, so `tools-settings.json` holds URLs and never a
+credential (the app serves it publicly). That Middleware sets
+`removeHeader: true` because cors-anywhere forwards headers to the sites it
+fetches. Traefik's `sanitizePath` turns `/https://host` into `/https:/host`
+and refuses to put `//` back, so the cors route rewrites it to `host:443`;
+those replacements are `$${1}` in git. `helpers-egress` allows only DNS and
+the `world` entity (cluster pods, nodes and LB addresses are unreachable)
+and denies TrueNAS NFS plus the Kubernetes and Talos API ports everywhere,
+because the control-plane VIP is `world` to Cilium. Every `/svc/*` rule also
+matches `Sec-Fetch-Site: same-origin`, so no other site can drive a helper
+with the cached credential. No Docker image downloader: Talos has no Docker
+socket. See `docs/design/it-tools.md`.
 `orb-agent/` (`decryption`, no `dependsOn`, not substituted) is the LAN
 discovery agent for NetBox Assurance: one `netboxlabs/orb-agent` replica,
 `Recreate`, Fleet-managed, on `hostNetwork` in a PodSecurity `privileged`
