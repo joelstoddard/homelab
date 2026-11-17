@@ -114,6 +114,30 @@ or any LoadBalancer address, and cannot reach the Kubernetes or Talos API
 ports on any host. The Proxmox hosts and the rest of the LAN are
 reachable.
 
+## Monitoring
+
+No IT-Tools workload exports Prometheus metrics. `Services/it-tools.json`
+reads kube-state-metrics, cAdvisor and Traefik's per-service series for health,
+resources and traffic. The per-tool panels are LogQL over Traefik's JSON
+access log, where `RequestPath` `/svc/<tool>` names the helper. That log is
+also the only request record for cors-anywhere and the bridge, which log
+nothing per request. Alloy tails every container's stdout into Loki, so the
+container logs need no extra wiring.
+
+Uptime Kuma monitors are UI state (`docs/design/uptime-kuma.md`). IT-Tools has
+five, one per workload, on in-cluster names because cluster DNS cannot resolve
+the LAN wildcard:
+
+| Monitor | Type | Target |
+| --- | --- | --- |
+| IT-Tools | HTTP | `http://it-tools.it-tools.svc:8080/` |
+| IT-Tools network utils | HTTP | `http://network-utils.it-tools.svc:8000/health` |
+| IT-Tools HTML to PDF | HTTP | `http://htmltopdf.it-tools.svc:3000/health` |
+| IT-Tools cors-anywhere | TCP port | `cors-anywhere.it-tools.svc`, 8080 |
+| IT-Tools TCP/UDP bridge | TCP port | `tcp-udp-bridge.it-tools.svc`, 8080 |
+
+Glance has a tile in its Tools group.
+
 ## Images
 
 Every image is pinned by digest. The app takes dated release tags. The
