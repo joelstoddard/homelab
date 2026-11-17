@@ -58,8 +58,8 @@ at all.
 A TUN device means table 52's
 `0.0.0.0/0` catches the pod's own outbound traffic to cluster destinations
 too, not just a proxied client's. An `iprules` init container runs between
-`killswitch` and `tailscale` and carves the pod and Service CIDRs plus the
-apiserver out to `lookup main`, at a preference (5100) below
+`killswitch` and `tailscale` and sends the pod and Service CIDRs and the home
+LAN to `lookup main`, at a preference (5100) below
 tailscaled's own 5270 and outside the 52xx range it reconciles — see "Traps"
 for what happens without it. It does not relax `media-downloads` to
 `baseline`, though: the kill switch and the `iprules` carve-out both need
@@ -96,17 +96,15 @@ Three things to design around:
   port-forward plumbing will be built. Verify before relying on this.
 - **A proxied dial only goes into the tunnel while a tailnet route covers its
   destination — and the kill switch is a second, local backstop.** With
-  the exit node applied that route is `0.0.0.0/0`, so every proxied dial —
-  home LAN included — goes into the tunnel and dies at the exit node's own
-  RFC1918 boundary. That is not the only thing stopping it: `gost`
-  dials as uid 1000, so `meta skuid 0` does not cover it, and a LAN
-  destination the tunnel somehow forwarded would still meet a kill switch
-  with no accept for it. Kernel mode's routing tradeoff is that
-  table 52's default route also catches the pod's own cluster traffic, so
-  an `iprules` init container carves the pod, Service
-  and apiserver CIDRs out to `lookup main` (see "Inside the ruleset") —
-  but that carve-out is scoped to cluster destinations, not the home LAN, so
-  it doesn't reopen this. The tunnel-route guarantee holds only while a route
+  the exit node applied that route is `0.0.0.0/0`, so every proxied dial
+  outside the cluster and the home LAN goes into the tunnel. Kernel mode's
+  routing tradeoff is that table 52's default route also catches the pod's
+  own cluster traffic, so an `iprules` init container sends the pod and
+  Service CIDRs and the home LAN (`10.0.0.0/20`) to `lookup main` (see
+  "Inside the ruleset"). A home-LAN dial therefore leaves by `eth0`, where
+  the kill switch has no accept for it: `gost` dials as uid 1000, so
+  `meta skuid 0` does not cover it, and the dial fails locally and shows on
+  the final `drop` counter instead of failing at the exit node. The tunnel-route guarantee holds only while a route
   to the destination exists, though: an exit node missing from the netmap
   entirely — never applied, retired, an expired subscription, an ACL change —
   leaves nothing to route into, and a proxied dial goes out directly over
@@ -469,8 +467,8 @@ handler into a liveness restart.
   missing carve-out read as intermittent rather than as a routing fault:
   `lookup kubernetes.default.svc on 10.96.0.10:53: no such host`,
   containerboot crash-looping. `iprules` is the dedicated fix — `ip rule` entries at a
-  preference below tailscaled's own that send the pod and Service CIDRs plus
-  the apiserver into `lookup main` before table 52 ever sees them.
+  preference below tailscaled's own that send the pod and Service CIDRs
+  into `lookup main` before table 52 ever sees them.
   Deleting that container silently reopens this exact failure.
 - **Inside this pod, rules see the Service address; Cilium policy does not.**
   Cilium's socket LB covers the host namespace only
