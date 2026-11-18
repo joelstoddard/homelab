@@ -1,0 +1,28 @@
+---
+# Whether a running Talos VM needs a power cycle, from its Proxmox config
+# (`pvesh get .../pending`: talos_resize_config) and the MB the guest sees
+# (talos_resize_seen_mb). Shared by the decision and the post-cycle check in
+# tasks/resize.yaml.
+#
+# Any pending key needs the cycle: Proxmox applies it only at the next start.
+# Otherwise the guest must see between its balloon minimum (the running
+# `balloon`, where 0 means no device and unset means memory) and NetBox
+# `memory`: a balloon inflates down to that minimum, and seeing more than
+# NetBox means a shrink.
+- name: Decide whether a power cycle is needed — {{ inventory_hostname }}
+  ansible.builtin.set_fact:
+    talos_resize_pending: "{{ talos_resize_pending_keys }}"
+    talos_resize_floor_mb: "{{ talos_resize_floor }}"
+    talos_resize_needed: >-
+      {{ talos_resize_pending_keys | length > 0
+         or not ((talos_resize_floor | int) - talos_resize_tolerance_mb
+                 <= (talos_resize_seen_mb | int) <= (memory | int)) }}
+  vars:
+    talos_resize_pending_keys: >-
+      {{ talos_resize_config | selectattr('pending', 'defined')
+         | union(talos_resize_config | selectattr('delete', 'defined'))
+         | map(attribute='key') | unique | list }}
+    talos_resize_balloon: >-
+      {{ talos_resize_config | selectattr('key', 'eq', 'balloon')
+         | map(attribute='value') | first | default(memory) | int }}
+    talos_resize_floor: "{{ talos_resize_balloon if talos_resize_balloon | int > 0 else memory | int }}"

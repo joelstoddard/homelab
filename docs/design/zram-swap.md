@@ -27,10 +27,10 @@ A hard kill is not a restart. It can leave a corrupt Talos image behind that
 survives an image remove and a re-pull, and only an EPHEMERAL wipe clears it
 (`docs/talos-bootstrap.md`, "Recovery"), so each event costs a node rebuild.
 
-Right-sizing the VMs and setting balloon minimums is the real fix; the VMs
-were sized afterwards (see the overcommit section below) and the balloon
-minimums are #139. zram is the floor underneath both: somewhere for the
-kernel to reclaim to before it starts killing guests.
+Right-sized VMs and a balloon minimum on every worker are the fix (the
+overcommit and ballooning sections below). zram is the floor underneath
+both: somewhere for the kernel to reclaim to before it starts killing
+guests.
 
 ## Design
 
@@ -165,7 +165,9 @@ headroom — 8 GB per VM is not available on a 16 GB host at this ratio.
 etcd is the one workload that must stay fully resident: Raft is sensitive to
 fsync latency, and compressed pages on the critical path show up as leader
 elections. Keeping the control-plane VMs at 4000 MB also keeps one
-uncompressed node per physical host. `playbooks/resize.yaml` refuses
+uncompressed node per physical host. The same reason keeps them off the
+balloon: a balloon takes guest pages away outright, which etcd survives no
+better than having them compressed. `playbooks/resize.yaml` refuses
 control-plane targets unless `resize_allow_controlplane` is set.
 
 ### The failure mode to watch
@@ -183,11 +185,57 @@ the 15.5 GB device, and per-service latency from Traefik's `traefik_service_requ
 Roll back by returning NetBox to 6000 MB and re-running the resize; the
 resize treats a guest that sees more than NetBox as a shrink and cycles it.
 
+## Ballooning the workers
+
+Without a balloon device the host cannot take back guest memory: a worker
+fills its 5000 MB with page cache over days and zram has to hold the
+difference. Each worker VM therefore carries a virtio balloon with a
+4000 MB minimum (`memory.floating` in `opentofu/modules/vm`, set by
+`opentofu/modules/k8s-vm` from the VM's role); the control-plane VMs carry
+`floating = 0`, which removes the device. Proxmox's autoballooning
+(`pvestatd`) keeps host memory use at 80 %: above it, balloons inflate
+towards their minimums, below it they deflate back towards `memory`. Talos
+loads `virtio_balloon` whenever the device exists.
+
+### Why 4000 MB
+
+At a 4000 MB minimum a fully inflated guest sees 3768 MB. The agents'
+highest observed use is 2.95 GB (the overcommit section above), so a worker
+pushed all the way down keeps about 0.8 GB above that peak. At 4000 MB the
+agents OOMed only under the pre-diet observability stack.
+
+### The trial it rests on
+
+k8s-agent-01 on rumba, at `memory: 5000` and `balloon: 4000`, power-cycled:
+
+| | Before | Ballooned, day 1 |
+| --- | --- | --- |
+| Host MemAvailable | 1096 MB | ~2200 MB |
+| Guest MemTotal | 4768 MB | 3768 MB |
+| Guest MemAvailable | — | ~2450 MB |
+| Guest PSI memory | — | 0.00 |
+| OOM kills | — | none |
+
+Autoballooning reclaimed straight to the minimum. Like the overcommit table,
+day 1 overstates the gain: the rest of the host's guests still fill their
+caches over the following days, and whenever host use drops under 80 %
+the balloons deflate and the worker's cache grows back. Judge it on host
+MemAvailable and zram `DATA` after several days with every worker
+ballooned.
+
+### Rolling it back
+
+Set `balloon_min_mb` to 0 in `opentofu/modules/k8s-vm`, `make -C opentofu
+apply`, then `make -C ansible apply-resize EXTRA_VARS='{"resize_hosts":
+"agents"}'`. Removing the device pends until a power cycle like adding it
+does.
+
 ### Applying a geometry change
 
-Proxmox holds a memory change as a PENDING config: the running QEMU process
-keeps its old geometry and a guest-side reboot re-enters the same process, so
-only a full stop and start applies it. `reboot_after_update` is therefore
+Proxmox holds a memory change, and adding or removing a balloon device, as a
+PENDING config: the running QEMU process keeps its old geometry and a
+guest-side reboot re-enters the same process, so only a full stop and start
+applies it. `reboot_after_update` is therefore
 `false` in `opentofu/modules/vm` — the provider's own reboot is a hard
 `qmstop` + `qmstart` fired at every changed VM in parallel, which is the hard
 kill that can leave a corrupt Talos image behind (`docs/talos-bootstrap.md`,
@@ -199,3 +247,11 @@ it up: halt, stop, start, one node at a time, gated on node Ready, no
 degraded Longhorn volume, and cluster health — the same gates
 `playbooks/upgrade.yaml` uses. It verifies the guest's own reported total
 afterwards, because a node returning proves only that it booted.
+
+The resize reads each VM's config on its NUC (`pvesh get
+/nodes/localhost/qemu/<vmid>/pending`). Any pending key forces the cycle,
+since a balloon device leaves `memory` unchanged. Otherwise a guest is
+sized when it sees between its running balloon minimum (or `memory`, with
+no balloon) and NetBox `memory`, less `talos_resize_tolerance_mb` for the
+firmware reservation; the same check, with nothing left pending, is the
+verification after the cycle (`ansible/roles/talos/tasks/resize-decision.yaml`).

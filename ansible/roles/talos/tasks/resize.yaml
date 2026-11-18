@@ -3,11 +3,12 @@
 # written to its Proxmox config. Invoked per node from playbooks/resize.yaml
 # (serial: 1, connection: local).
 #
-# A memory or CPU change lands in Proxmox as a PENDING config: the running
-# QEMU process keeps its old geometry, and a guest-side reboot re-enters the
-# same process, so only a full stop + start applies it. `reboot_after_update`
-# is false in opentofu/modules/vm, so tofu never does this itself — it would
-# hard-kill every changed VM in parallel (docs/design/zram-swap.md).
+# A memory, CPU or balloon-device change lands in Proxmox as a PENDING
+# config: the running QEMU process keeps its old geometry, and a guest-side
+# reboot re-enters the same process, so only a full stop + start applies it.
+# `reboot_after_update` is false in opentofu/modules/vm, so tofu never does
+# this itself — it would hard-kill every changed VM in parallel
+# (docs/design/zram-swap.md).
 #
 # `talosctl shutdown` halts the guest cleanly; qm stop/start run on the NUC
 # that owns the VM, which NetBox names in cluster_device. The health gates
@@ -31,23 +32,30 @@
   changed_when: false
   check_mode: false
 
-# NetBox drives both the Proxmox config (via OpenTofu) and this comparison,
-# so a node already carrying its target size is skipped rather than cycled.
-# The guest always sees less than configured, so seeing more means a shrink.
-- name: Decide whether the power cycle is needed — {{ inventory_hostname }}
-  ansible.builtin.set_fact:
-    talos_resize_needed: >-
-      {{ not ((memory | int) - talos_resize_tolerance_mb
-              <= (talos_resize_seen | int) <= (memory | int)) }}
+- name: Read the Proxmox config of {{ inventory_hostname }}
+  ansible.builtin.command:
+    cmd: "{{ talos_pvesh_bin }} get /nodes/localhost/qemu/{{ talos_resize_vmid }}/pending --output-format json"
+  delegate_to: "{{ talos_resize_node }}"
   vars:
-    talos_resize_seen: "{{ talos_resize_before.stdout_lines[1].split()[1] | default(0) }}"
+    ansible_connection: ssh
+  register: talos_resize_config_before
+  changed_when: false
+  check_mode: false
+
+- name: Decide whether the power cycle is needed.
+  ansible.builtin.include_tasks: resize-decision.yaml
+  vars:
+    talos_resize_config: "{{ talos_resize_config_before.stdout | from_json }}"
+    talos_resize_seen_mb: "{{ talos_resize_before.stdout_lines[1].split()[1] | default(0) }}"
 
 - name: Report the plan for {{ inventory_hostname }}
   ansible.builtin.debug:
     msg: >-
       {{ inventory_hostname }} on {{ talos_resize_node }} (vmid {{ talos_resize_vmid }}):
-      guest sees {{ talos_resize_before.stdout_lines[1].split()[1] }} MB, NetBox says
-      {{ memory }} MB — {{ 'power-cycling' if talos_resize_needed | bool else 'already sized, skipping' }}.
+      guest sees {{ talos_resize_before.stdout_lines[1].split()[1] }} MB, balloon minimum
+      {{ talos_resize_floor_mb }} MB, NetBox says {{ memory }} MB, pending
+      {{ talos_resize_pending | join(', ') or 'nothing' }}
+      — {{ 'power-cycling' if talos_resize_needed | bool else 'already sized, skipping' }}.
 
 - name: Apply the pending geometry to {{ inventory_hostname }}
   when: talos_resize_needed | bool and not ansible_check_mode
@@ -88,21 +96,46 @@
 - name: Gate on Longhorn being fully replicated again.
   ansible.builtin.import_tasks: gate-longhorn-healthy.yaml
 
-# The node returning proves it booted; only the guest's own total proves the
-# new geometry took. Talos reports slightly less than configured (firmware
-# reservation), hence the tolerance.
-- name: Verify the guest now sees the configured memory — {{ inventory_hostname }}
-  ansible.builtin.command:
-    cmd: "{{ talos_resize_ctl }} memory"
-  register: talos_resize_after
-  changed_when: false
-  failed_when: >-
-    not ((memory | int) - talos_resize_tolerance_mb
-         <= (talos_resize_after.stdout_lines[1].split()[1] | int) <= (memory | int))
-  retries: 30
-  delay: 10
-  until: talos_resize_after is not failed
+# The node returning proves it booted; only an empty pending config and the
+# guest's own total prove the new geometry took. Talos reports slightly less
+# than configured (firmware reservation), hence the tolerance.
+- name: Verify the new geometry took — {{ inventory_hostname }}
   when: not ansible_check_mode
+  block:
+    - name: Read the applied Proxmox config of {{ inventory_hostname }}
+      ansible.builtin.command:
+        cmd: "{{ talos_pvesh_bin }} get /nodes/localhost/qemu/{{ talos_resize_vmid }}/pending --output-format json"
+      delegate_to: "{{ talos_resize_node }}"
+      vars:
+        ansible_connection: ssh
+      register: talos_resize_config_after
+      changed_when: false
+
+    - name: Wait for the guest to see its configured memory — {{ inventory_hostname }}
+      ansible.builtin.command:
+        cmd: "{{ talos_resize_ctl }} memory"
+      register: talos_resize_after
+      changed_when: false
+      retries: 30
+      delay: 10
+      until: >-
+        not talos_resize_after.failed
+        and talos_resize_after.stdout_lines | length > 1
+
+    - name: Decide on the applied config.
+      ansible.builtin.include_tasks: resize-decision.yaml
+      vars:
+        talos_resize_config: "{{ talos_resize_config_after.stdout | from_json }}"
+        talos_resize_seen_mb: "{{ talos_resize_after.stdout_lines[1].split()[1] }}"
+
+    - name: Require that no further cycle is needed — {{ inventory_hostname }}
+      ansible.builtin.assert:
+        that: not (talos_resize_needed | bool)
+        fail_msg: >-
+          {{ inventory_hostname }} sees {{ talos_resize_after.stdout_lines[1].split()[1] }} MB
+          (expected {{ talos_resize_floor_mb }}–{{ memory }} MB, less up to
+          {{ talos_resize_tolerance_mb }}), pending {{ talos_resize_pending | join(', ') or 'nothing' }}.
+          Was `make -C opentofu apply` run after the NetBox change?
 
 - name: Wait for the whole cluster to be healthy before the next node.
   ansible.builtin.import_tasks: health.yaml
