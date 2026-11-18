@@ -6,13 +6,11 @@
     'config:recommended',
     ':dependencyDashboard',
     ':semanticCommitTypeAll(chore)',
-    'schedule:weekends',
   ],
   labels: ['dependencies'],
-  prConcurrentLimit: 5,
-  vulnerabilityAlerts: {
-    schedule: ['at any time'],
-  },
+  // Every update opens as soon as Renovate sees it: no schedule, no PR caps.
+  prHourlyLimit: 0,
+  prConcurrentLimit: 0,
   flux: {
     managerFilePatterns: ['/^kubernetes/clusters/.+\\.ya?ml$/'],
   },
