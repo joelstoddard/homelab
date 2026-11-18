@@ -40,6 +40,25 @@ cluster DNS, which cannot resolve the LAN wildcard (the same limit Glance has,
 `docs/design/glance.md`). An in-cluster app is `http://<service>.<namespace>.svc:<port>`;
 an off-cluster host is its `lan-services` Service name or its address.
 
+**External services also report their provider's own status.** A
+reachability monitor on an external service measures the path from here: the
+DNS chain, the egress and the provider's bot rules. Where the provider
+publishes a status API, a `json-query` monitor beside it reads the provider's
+own verdict for the component this homelab uses, so the two together say
+whose side a failure is on. The query form depends on the host:
+
+| Status page host | URL | Query | Expected |
+|---|---|---|---|
+| Atlassian Statuspage (GitHub, Cloudflare) | `<page>/api/v2/components/<id>.json` | `component.status` | `operational` |
+| Statuspage-compatible (Docker, Tailscale) | `<page>/api/v2/components.json` | `components[id="<id>"].status` | `operational` |
+| status.io (Let's Encrypt) | `https://api.status.io/1.0/status/<page id>` | `result.status[name="<name>"].status_code` | `100` |
+
+Component IDs come from `<page>/api/v2/components.json`. The second form
+serves no single-component endpoint. A mistyped ID gives the same `Empty or
+undefined response` error as a bad query. A service with no
+status API (Bitwarden, Hetzner, the Debian and Proxmox mirrors) has only its
+reachability monitor.
+
 **Prefers the Pis, non-root, no auth Middleware.** As Actual
 (`docs/design/actual.md`): a preferred arm64 affinity, uid 1000 with `fsGroup`
 on a read-only root and an `emptyDir` at `/tmp`, which meets the `restricted`
@@ -84,6 +103,16 @@ Service makes Kubernetes inject `UPTIME_KUMA_PORT=tcp://<address>:3001`,
 the name of Uptime Kuma's own port setting. The pod sets
 `enableServiceLinks: false`, as Actual's does, where the same collision
 stops the server (`docs/design/actual.md`).
+
+**A page behind bot protection measures the bot rules, not the service.**
+`dash.cloudflare.com` answers the pod with Cloudflare's "you have been
+blocked" 403 intermittently, whatever the user agent, so a reachability
+monitor on it flaps while the dashboard is healthy. Its only monitor is the
+provider's status page.
+
+**JSON queries are JSONata.** `$component` names a variable and evaluates to
+nothing, so the monitor goes down with `Empty or undefined response`.
+Write `component.status`.
 
 **Set up the admin account on the first visit.** Until then, the first person
 to open the page creates the admin account.

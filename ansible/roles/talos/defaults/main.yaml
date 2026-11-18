@@ -166,13 +166,14 @@ cilium_release_namespace: "kube-system"
 cilium_values_file: "{{ role_path }}/../../../kubernetes/clusters/homelab/cilium/app/values.yaml"
 
 # A guest reports less RAM than Proxmox configures, because firmware and the
-# kernel reserve some (~210 MB on a 4000 MB Talos VM). tasks/resize.yaml
-# compares against NetBox with this slack.
+# kernel reserve some (~210 MB on a 4000 MB Talos VM). tasks/resize-decision.yaml
+# compares against the balloon minimum and NetBox with this slack.
 talos_resize_tolerance_mb: 400
 
 # Binaries (overridable if not on PATH). qm is absolute because a
 # non-interactive SSH session on a Proxmox host does not get /usr/sbin.
 talos_qm_bin: "/usr/sbin/qm"
+talos_pvesh_bin: "/usr/bin/pvesh"
 talosctl_bin: "talosctl"
 sops_bin: "sops"
 helm_bin: "helm"

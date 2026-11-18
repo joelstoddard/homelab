@@ -38,6 +38,17 @@ variable "memory_mb" {
   }
 }
 
+variable "balloon_min_mb" {
+  description = "Balloon minimum in MB (bpg memory.floating). 0 removes the balloon device, so the guest keeps all of memory_mb resident."
+  type        = number
+  default     = 0
+
+  validation {
+    condition     = var.balloon_min_mb >= 0
+    error_message = "balloon_min_mb must be 0 (no balloon) or a positive minimum."
+  }
+}
+
 variable "disk_size_gb" {
   description = "Root disk size in GB. Created empty."
   type        = number
