@@ -28,14 +28,10 @@ table inet ts-killswitch {
     # what lets gost's own dials out through the tunnel.
     oifname "tailscale0" counter accept
 
-    # Cluster pod and Service CIDRs: DNS to kube-dns, whose ClusterIP
-    # socket-LB may rewrite to a pod address before this chain sees it.
+    # Cluster pod and Service CIDRs: kube-dns and the apiserver Service, which
+    # this chain sees untranslated (docs/design/cilium-per-packet-lb.md).
     ip daddr 10.244.0.0/16 counter accept
     ip daddr 10.96.0.0/12 counter accept
-
-    # The apiserver, which socket-LB has already rewritten to a node's LAN
-    # address by the time this chain sees it; containerboot fatals without it.
-    ip daddr 10.0.0.0/20 tcp dport 6443 counter accept
 
     # Covers only tailscaled's own bootstrap: control plane and DERP, which run
     # before the tunnel exists and so carry no fwmark. gost dials as uid 1000

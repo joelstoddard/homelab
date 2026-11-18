@@ -1,0 +1,6 @@
+{
+  "excludeCategoryFilterRegex": "",
+  "includeCategoryFilterRegex": "",
+  "excludeToolsFilterRegex": "^/docker-image-downloader",
+  "includeToolsFilterRegex": ""
+}
