@@ -128,9 +128,13 @@ defaults that hide the control-plane components.
 - **Talos machine logs from a separate Alloy.** Kubelet, containerd, etcd,
   machined and kernel logs live outside `/var/log/pods`, and Talos ships them
   only as JSON lines over TCP or UDP. The talos role's node patch points
-  `machine.logging.destinations` and a `KmsgLogConfig` at
-  `tcp://<ingest address>:5170/` (`talos_logging_address`, from
-  `ansible/roles/talos/vars/homelab.sops.yaml`). The receiver is
+  `machine.logging.destinations` at `tcp://<ingest address>:5170/`, tagged
+  with the node name (`talos_logging_address`, from
+  `ansible/roles/talos/vars/homelab.sops.yaml`). That stream carries kernel
+  messages too, as `service="kernel"`, so there is no `KmsgLogConfig`: its
+  lines duplicate the service stream, take no tags, and arrive from the
+  node's Cilium internal address, which Alloy cannot map to a node name. The
+  receiver is
   `alloy-talos` in the `host-monitoring` layer, a one-replica Deployment
   behind a `talos-logs` LoadBalancer Service on the shared
   `${INGEST_LB_IP}`. Alloy's only receiver for the format,
@@ -141,6 +145,13 @@ defaults that hide the control-plane components.
   runs. A logging-only machine-config change applies without a reboot.
   `make -C kubernetes lint` fails when the SOPS copy of the address differs
   from `INGEST_LB_IP`.
+- **Talos lines are filtered before Loki.** One node sends about 747 MiB a
+  day as the exporter's JSON wrapper: 72 % `auditd` records and 27 %
+  machined `authorizer authorized` lines from the Talos dashboard's
+  once-a-second API polls. Twenty nodes at that rate fill Loki's 20 GiB
+  volume well inside its 30-day retention. `talos.alloy` drops both, keeps
+  only the Talos `msg` as the line, and labels it `node`, `service` and
+  `level`.
 - **Only the nodes reach the Talos receiver.** Cilium runs in tunnel mode and
   SNATs LoadBalancer traffic it forwards to another node, so a backend sees a
   forwarded LAN client as that node, and a node-only NetworkPolicy alone
@@ -309,7 +320,9 @@ defaults that hide the control-plane components.
 `app`, then `k8s-app`). `instance` is the node name for node-level jobs.
 Logs: `namespace`, `pod`, `container`, `app`, `node`, `stream`,
 `job=<namespace>/<app>`; events: `job="loki.source.kubernetes_events"`;
-Talos machine and kernel logs: `job="talos"`.
+Talos machine and kernel logs: `job="talos"`, `node`, `service` (the Talos
+service: `kubelet`, `containerd`, `machined`, `kernel`, …) and `level` (Talos's
+own, mostly `info` even for errors).
 
 **kube-state-metrics series describe one pod but are scraped from another, and
 the collision renames the subject.** On those series `namespace` and `pod` are
@@ -571,10 +584,11 @@ grows while Prometheus is unreachable, so neither moves.
 
 ## Known limitations
 
-- Talos machine logs arrive as the raw JSON line with `job="talos"` only;
-  the `node`, `service` and `level` labels are #186's remaining work.
-  `KmsgLogConfig` takes no extra tags, so a kernel line names its node only
-  through the sender's address.
+- Talos lines are lost while `alloy-talos` restarts or moves: Talos
+  reconnects by itself but does not resend what it logged in the gap (23 s
+  in the measured rollout). Only the first connection after the config is
+  applied sends the node's buffer since boot. Audit records are not
+  collected at all.
 - No alerting. Grafana unified alerting is available later without new
   components.
 - Prometheus and Alloy UIs are not exposed; `kubectl port-forward`.
