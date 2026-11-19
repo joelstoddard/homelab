@@ -24,11 +24,13 @@ when something breaks.
   workflow (`.github/workflows/lint.yaml`) runs on every Renovate PR: the
   drift guards in `make -C kubernetes lint-offline`, `make -C ansible build
   lint` and `tofu fmt`. It proves a PR is consistent and installs, not that
-  the new version runs on the cluster. Updates land on weekends, at most five PRs
-  open at once. A security update ignores the schedule when GitHub raises
-  a vulnerability alert for it, which covers the Python packages but not the
-  images, charts or annotated pins. The Dependency
-  Dashboard issue lists everything pending.
+  the new version runs on the cluster. The Dependency Dashboard issue lists
+  everything pending.
+
+- **Every update opens at once.** There is no schedule, no hourly cap and no
+  cap on open PRs (`prHourlyLimit` and `prConcurrentLimit` are 0). Each run
+  of the hosted app opens a PR for every update it finds. The cost is review
+  load: a backlog lands as one wave of PRs, each running CI.
 
 - **Every cluster tree.** The `flux` and `kubernetes` managers match
   `kubernetes/clusters/*/**`, so a new tree is covered without a config
