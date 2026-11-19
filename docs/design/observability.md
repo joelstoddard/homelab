@@ -125,6 +125,22 @@ defaults that hide the control-plane components.
 - **Events from a separate Alloy.** `loki.source.kubernetes_events` must run
   once, or every instance emits every event, so a one-replica `alloy-events`
   Deployment runs it alone.
+- **Talos machine logs from a separate Alloy.** Kubelet, containerd, etcd,
+  machined and kernel logs live outside `/var/log/pods`, and Talos ships them
+  only as JSON lines over TCP or UDP. The talos role's node patch points
+  `machine.logging.destinations` and a `KmsgLogConfig` at
+  `tcp://<ingest address>:5170/` (`talos_logging_address`, from
+  `ansible/roles/talos/vars/homelab.sops.yaml`). The receiver is
+  `alloy-talos` in the `host-monitoring` layer, a one-replica Deployment
+  behind a `talos-logs` LoadBalancer Service on the shared
+  `${INGEST_LB_IP}`. Alloy's only receiver for the format,
+  `otelcol.receiver.tcplog`, needs `--stability.level=experimental`. A
+  release of its own keeps that flag off every other Alloy, so a breaking
+  change in a chart bump stops Talos logs only. The receiver is central, not
+  one per node, so a booting node's lines arrive before its own kubelet
+  runs. A logging-only machine-config change applies without a reboot.
+  `make -C kubernetes lint` fails when the SOPS copy of the address differs
+  from `INGEST_LB_IP`.
 - **Least-privilege RBAC.** The chart's default ClusterRole grants `get`,
   `list` and `watch` on every Secret. The DaemonSet runs as root with
   hostPID on all 20 nodes, so with that role one compromised node could read
@@ -133,7 +149,7 @@ defaults that hide the control-plane components.
   file uses. The DaemonSet gets nodes, pods and `nodes/metrics`.
   `alloy-cluster` gets nodes, pods, Services, Endpoints, the `/metrics` URL,
   and a Role in `flux-system` for `get` on `cluster-secrets` only.
-  `alloy-events` gets events. `alloy-gateway` gets no role. A new
+  `alloy-events` gets events. `alloy-gateway` and `alloy-talos` get no role. A new
   `discovery.kubernetes` role or `remote.kubernetes.*` component needs a rule
   in that release's values. Without one, the component logs `forbidden` and
   its targets go absent.
@@ -276,7 +292,8 @@ defaults that hide the control-plane components.
 `kube-scheduler`, `etcd`, otherwise the pod's `app.kubernetes.io/name` (then
 `app`, then `k8s-app`). `instance` is the node name for node-level jobs.
 Logs: `namespace`, `pod`, `container`, `app`, `node`, `stream`,
-`job=<namespace>/<app>`; events: `job="loki.source.kubernetes_events"`.
+`job=<namespace>/<app>`; events: `job="loki.source.kubernetes_events"`;
+Talos machine and kernel logs: `job="talos"`.
 
 **kube-state-metrics series describe one pod but are scraped from another, and
 the collision renames the subject.** On those series `namespace` and `pod` are
@@ -538,10 +555,10 @@ grows while Prometheus is unreachable, so neither moves.
 
 ## Known limitations
 
-- Talos machine logs (kubelet, containerd, kernel) are not collected: Talos
-  ships them as JSON lines over TCP/UDP, and Alloy's only receiver for that,
-  `otelcol.receiver.tcplog`, is experimental and runs only with
-  `--stability.level=experimental` (#186).
+- Talos machine logs arrive as the raw JSON line with `job="talos"` only;
+  the `node`, `service` and `level` labels are #186's remaining work.
+  `KmsgLogConfig` takes no extra tags, so a kernel line names its node only
+  through the sender's address.
 - No alerting. Grafana unified alerting is available later without new
   components.
 - Prometheus and Alloy UIs are not exposed; `kubectl port-forward`.

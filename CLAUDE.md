@@ -392,7 +392,10 @@ third Alloy (`alloy-gateway`) scrapes all four, plus the
 lancache-dns container (`job="bind"`, `:9119`), and runs the syslog receiver;
 the two receivers share one pinned `${INGEST_LB_IP}` through
 `lbipam.cilium.io/sharing-key`, syslog on 1514 in the pod so it needs neither
-root nor NET_BIND_SERVICE. The Alloys on the Proxmox hosts push
+root nor NET_BIND_SERVICE. Another Alloy, `alloy-talos`, takes the Talos
+nodes' machine and kernel logs on TCP 5170 of the same address
+(`job="talos"`), alone with the experimental stability flag that
+`otelcol.receiver.tcplog` needs. The Alloys on the Proxmox hosts push
 in through `prometheus.${DOMAIN}/api/v1/write` and
 `loki.${DOMAIN}/loki/api/v1/push` — `monitoring/app/ingest/`, one `hosts`
 credential behind the `ingest-auth` Middleware, a deliberate exception to the
