@@ -42,6 +42,9 @@ ALLOY_CONFIG   := $(HOME_TREE)/alloy/app/config
 DNS_VARS_FILE      := ../ansible/inventory/group_vars/dns.sops.yaml
 PIHOLE_PASSWORD_COPIES := $(HOME_TREE)/nebula-sync/app/secret.sops.yaml \
                           $(HOME_TREE)/host-monitoring/app/secret-pihole-exporter.sops.yaml
+# The talos role's copy of INGEST_LB_IP: Ansible cannot read Flux's Secret.
+TALOS_VARS_FILE    := ../ansible/roles/talos/vars/homelab.sops.yaml
+CLUSTER_SECRETS    := $(HOME_TREE)/cluster-secrets/app/secrets.sops.yaml
 ALLOY_RELEASES := $(HOME_TREE)/alloy/app/alloy/helmrelease.yaml \
                   $(HOME_TREE)/alloy/app/alloy-cluster/helmrelease.yaml \
                   $(HOME_TREE)/alloy/app/alloy-events/helmrelease.yaml \
@@ -66,9 +69,10 @@ help:
 	@echo "              OCIRepository matches CILIUM_VERSION, kubectl kustomize builds each root and"
 	@echo "              every */app, every Flux path stays in its own tree, kubernetes/ holds no"
 	@echo "              manifest, every *.sops.yaml is encrypted, every *.json parses, and every"
-	@echo "              PIHOLE_PASSWORD copy matches its source (needs the age key), and skylab's"
-	@echo "              NodePort bind, metadata deny, app egress policies and no NodePort/LB Service."
-	@echo "  lint-offline - lint without the PIHOLE_PASSWORD comparison: no age key. CI runs it."
+	@echo "              PIHOLE_PASSWORD copy and talos_logging_address match their sources (need the"
+	@echo "              age key), and skylab's NodePort bind, metadata deny, app egress policies and"
+	@echo "              no NodePort/LB Service."
+	@echo "  lint-offline - lint without the age-key comparisons. CI runs it."
 	@echo "  check     - Server-side dry run of CLUSTER's flux-system/ (client-side before the first install)."
 	@echo "  apply     - components -> sops-age secret -> sync, on CLUSTER. Idempotent. Default."
 	@echo "  generate  - Regenerate every tree's gotk-components.yaml from FLUX_VERSION (needs the flux CLI)."
@@ -230,6 +234,12 @@ lint: lint-offline
 			exit 1; }; \
 	done
 	@echo ">> every PIHOLE_PASSWORD copy matches dns_pihole_web_password"
+	@a=$$(sops -d --extract '["talos_logging_address"]' $(TALOS_VARS_FILE)) || exit 1; \
+	b=$$(sops -d --extract '["stringData"]["INGEST_LB_IP"]' $(CLUSTER_SECRETS)) || exit 1; \
+	[ -n "$$a" ] && [ "$$a" = "$$b" ] || { \
+		echo "$(TALOS_VARS_FILE) talos_logging_address is empty or differs from INGEST_LB_IP; change both." >&2; \
+		exit 1; }
+	@echo ">> talos_logging_address matches INGEST_LB_IP"
 
 # Only flux-system/ is dry-run: SOPS-encrypted Secrets elsewhere fail a
 # server dry run (top-level `sops:` field, non-base64 values). Before the
