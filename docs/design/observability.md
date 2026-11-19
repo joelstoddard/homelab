@@ -141,6 +141,22 @@ defaults that hide the control-plane components.
   runs. A logging-only machine-config change applies without a reboot.
   `make -C kubernetes lint` fails when the SOPS copy of the address differs
   from `INGEST_LB_IP`.
+- **Only the nodes reach the Talos receiver.** Cilium runs in tunnel mode and
+  SNATs LoadBalancer traffic it forwards to another node, so a backend sees a
+  forwarded LAN client as that node, and a node-only NetworkPolicy alone
+  admits it. `talos-logs` therefore sets `loadBalancerSourceRanges`, which
+  Cilium checks against the real client before the SNAT, to the 20 node
+  addresses as `/32`s (`TALOS_NODE_SOURCE_RANGES` in `cluster-secrets`, a
+  JSON list). A missing key substitutes `127.0.0.1/32`, which admits no one.
+  `allocateLoadBalancerNodePorts: false`, because Cilium applies source
+  ranges to the LoadBalancer address only (`bpf-lb-source-range-all-types`
+  is off) and a NodePort would skip them. The `alloy-talos-ingress`
+  CiliumNetworkPolicy admits only the `host` and `remote-node` entities to
+  5170, so pods cannot send lines either. The node list is maintained by
+  hand: a new or re-addressed node sends nothing until its address is in
+  `TALOS_NODE_SOURCE_RANGES`. `make -C kubernetes lint-offline` fails if the
+  Service loses either guard; `make -C kubernetes lint` fails if the key is
+  not a non-empty list of `/32`s.
 - **Least-privilege RBAC.** The chart's default ClusterRole grants `get`,
   `list` and `watch` on every Secret. The DaemonSet runs as root with
   hostPID on all 20 nodes, so with that role one compromised node could read
