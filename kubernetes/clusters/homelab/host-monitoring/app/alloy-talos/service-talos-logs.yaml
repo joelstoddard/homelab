@@ -1,0 +1,19 @@
+# The address the talos role's node patch sends machine and kernel logs to
+# (talos_logging_port). Shares the pinned ingest address via the sharing key.
+apiVersion: v1
+kind: Service
+metadata:
+  name: talos-logs
+  annotations:
+    lbipam.cilium.io/ips: "${INGEST_LB_IP}"
+    lbipam.cilium.io/sharing-key: ingest
+spec:
+  type: LoadBalancer
+  selector:
+    app.kubernetes.io/name: alloy
+    app.kubernetes.io/instance: alloy-talos
+  ports:
+    - name: talos-logs
+      port: 5170
+      targetPort: 5170
+      protocol: TCP

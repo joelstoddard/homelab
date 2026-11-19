@@ -45,7 +45,8 @@ PIHOLE_PASSWORD_COPIES := $(HOME_TREE)/nebula-sync/app/secret.sops.yaml \
 ALLOY_RELEASES := $(HOME_TREE)/alloy/app/alloy/helmrelease.yaml \
                   $(HOME_TREE)/alloy/app/alloy-cluster/helmrelease.yaml \
                   $(HOME_TREE)/alloy/app/alloy-events/helmrelease.yaml \
-                  $(HOME_TREE)/host-monitoring/app/alloy-gateway/helmrelease.yaml
+                  $(HOME_TREE)/host-monitoring/app/alloy-gateway/helmrelease.yaml \
+                  $(HOME_TREE)/host-monitoring/app/alloy-talos/helmrelease.yaml
 # Skylab's security guards and probes (docs/design/skylab-security.md). A
 # listed layer must carry a default-deny egress policy once it exists.
 SKYLAB_TREE          := clusters/skylab
@@ -124,10 +125,10 @@ lint-offline:
 	done
 	@for f in $(ALLOY_RELEASES); do \
 		grep -q '^      version: "$(ALLOY_VERSION)"$$' $$f || { \
-			echo "$$f is not at chart $(ALLOY_VERSION); the four Alloy releases and versions.env bump together." >&2; \
+			echo "$$f is not at chart $(ALLOY_VERSION); every Alloy release and versions.env bump together." >&2; \
 			exit 1; }; \
 	done
-	@echo ">> the four Alloy HelmReleases at chart $(ALLOY_VERSION)"
+	@echo ">> every Alloy HelmRelease at chart $(ALLOY_VERSION)"
 	@a=$$(sed -n '/^prometheus\.relabel "kube_components" {/,/^}/p' $(ALLOY_CONFIG)/config.alloy); \
 	b=$$(sed -n '/^prometheus\.relabel "kube_components" {/,/^}/p' $(ALLOY_CONFIG)/cluster.alloy); \
 	[ -n "$$a" ] && [ "$$a" = "$$b" ] || { \

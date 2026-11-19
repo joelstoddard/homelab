@@ -1,0 +1,31 @@
+// The Talos Alloy: service and kernel logs from every home-cluster node,
+// one JSON object per line over TCP (machine.logging + KmsgLogConfig in the
+// talos role's node patch). docs/design/observability.md.
+
+// add_attributes keeps the sender's address: kernel lines carry no node tag.
+otelcol.receiver.tcplog "talos" {
+	listen_address = "0.0.0.0:5170"
+	add_attributes = true
+
+	output {
+		logs = [otelcol.exporter.loki.talos.input]
+	}
+}
+
+otelcol.exporter.loki "talos" {
+	forward_to = [loki.process.talos.receiver]
+}
+
+loki.process "talos" {
+	stage.static_labels {
+		values = {job = "talos"}
+	}
+
+	forward_to = [loki.write.loki.receiver]
+}
+
+loki.write "loki" {
+	endpoint {
+		url = "http://loki.monitoring.svc:3100/loki/api/v1/push"
+	}
+}
