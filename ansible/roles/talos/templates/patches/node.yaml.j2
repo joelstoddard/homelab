@@ -23,13 +23,6 @@ apiVersion: v1alpha1
 kind: HostnameConfig
 hostname: {{ node }}
 auto: "off"
-{% if log_url %}
----
-apiVersion: v1alpha1
-kind: KmsgLogConfig
-name: loki
-url: {{ log_url }}
-{% endif %}
 {% if talos_static_network %}
 ---
 apiVersion: v1alpha1

@@ -75,13 +75,9 @@ class NodePatchTest(unittest.TestCase):
             "extraTags": {"node": "node-a"},
         }])
 
-    def test_address_adds_kernel_log_document(self):
-        self.assertEqual(self._kmsg(self._render("192.168.1.50")), [{
-            "apiVersion": "v1alpha1",
-            "kind": "KmsgLogConfig",
-            "name": "loki",
-            "url": "tcp://192.168.1.50:5170/",
-        }])
+    def test_address_adds_no_kernel_log_document(self):
+        # The service stream already carries kernel lines, with the node tag.
+        self.assertEqual(self._kmsg(self._render("192.168.1.50")), [])
 
     def test_no_address_no_logging(self):
         docs = self._render("")
