@@ -37,6 +37,12 @@ loki.process "talos" {
 		expression = "machined/authz/(unix/)?authorizer authorized"
 	}
 
+	// The dashboard's own calls; remote calls and failures stay.
+	stage.drop {
+		source     = "msg"
+		expression = "machined OK \\[[^]]+\\] \\S+ unary Success \\(:authority=localhost;"
+	}
+
 	stage.labels {
 		values = {node = "", service = "", level = ""}
 	}

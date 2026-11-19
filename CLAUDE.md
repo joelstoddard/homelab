@@ -395,7 +395,7 @@ the two receivers share one pinned `${INGEST_LB_IP}` through
 root nor NET_BIND_SERVICE. Another Alloy, `alloy-talos`, takes the Talos
 nodes' machine and kernel logs on TCP 5170 of the same address
 (`job="talos"`, labelled `node`/`service`/`level`, `auditd` and the dashboard's
-authz polls dropped), alone with the experimental stability flag that
+API polls dropped), alone with the experimental stability flag that
 `otelcol.receiver.tcplog` needs; `loadBalancerSourceRanges` from
 `TALOS_NODE_SOURCE_RANGES` (the 20 node `/32`s, deny-all when missing), no
 NodePort and a CiliumNetworkPolicy keep the LAN and pods from sending, so a
