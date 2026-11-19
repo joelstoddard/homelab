@@ -45,6 +45,7 @@ PIHOLE_PASSWORD_COPIES := $(HOME_TREE)/nebula-sync/app/secret.sops.yaml \
 # The talos role's copy of INGEST_LB_IP: Ansible cannot read Flux's Secret.
 TALOS_VARS_FILE    := ../ansible/roles/talos/vars/homelab.sops.yaml
 CLUSTER_SECRETS    := $(HOME_TREE)/cluster-secrets/app/secrets.sops.yaml
+TALOS_LOGS_SERVICE := $(HOME_TREE)/host-monitoring/app/alloy-talos/service-talos-logs.yaml
 ALLOY_RELEASES := $(HOME_TREE)/alloy/app/alloy/helmrelease.yaml \
                   $(HOME_TREE)/alloy/app/alloy-cluster/helmrelease.yaml \
                   $(HOME_TREE)/alloy/app/alloy-events/helmrelease.yaml \
@@ -133,6 +134,11 @@ lint-offline:
 			exit 1; }; \
 	done
 	@echo ">> every Alloy HelmRelease at chart $(ALLOY_VERSION)"
+	@grep -q '^  loadBalancerSourceRanges: $${TALOS_NODE_SOURCE_RANGES:=\[127\.0\.0\.1/32\]}$$' $(TALOS_LOGS_SERVICE) && \
+	grep -q '^  allocateLoadBalancerNodePorts: false$$' $(TALOS_LOGS_SERVICE) || { \
+		echo "$(TALOS_LOGS_SERVICE) must keep its deny-by-default source ranges and no NodePort, or the LAN can send Talos log lines." >&2; \
+		exit 1; }
+	@echo ">> talos-logs admits only the nodes"
 	@a=$$(sed -n '/^prometheus\.relabel "kube_components" {/,/^}/p' $(ALLOY_CONFIG)/config.alloy); \
 	b=$$(sed -n '/^prometheus\.relabel "kube_components" {/,/^}/p' $(ALLOY_CONFIG)/cluster.alloy); \
 	[ -n "$$a" ] && [ "$$a" = "$$b" ] || { \
@@ -240,6 +246,10 @@ lint: lint-offline
 		echo "$(TALOS_VARS_FILE) talos_logging_address is empty or differs from INGEST_LB_IP; change both." >&2; \
 		exit 1; }
 	@echo ">> talos_logging_address matches INGEST_LB_IP"
+	@sops -d --extract '["stringData"]["TALOS_NODE_SOURCE_RANGES"]' $(CLUSTER_SECRETS) | python3 -c 'import ipaddress, json, sys; r = json.load(sys.stdin); sys.exit(not (r and all(ipaddress.ip_network(c).prefixlen == 32 for c in r)))' || { \
+		echo "TALOS_NODE_SOURCE_RANGES in $(CLUSTER_SECRETS) must be a non-empty JSON list of /32s." >&2; \
+		exit 1; }
+	@echo ">> TALOS_NODE_SOURCE_RANGES is a list of node /32s"
 
 # Only flux-system/ is dry-run: SOPS-encrypted Secrets elsewhere fail a
 # server dry run (top-level `sops:` field, non-base64 values). Before the

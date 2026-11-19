@@ -9,6 +9,11 @@ metadata:
     lbipam.cilium.io/sharing-key: ingest
 spec:
   type: LoadBalancer
+  # Only the nodes may send: Cilium checks these ranges before its SNAT hides
+  # the client, and a missing key denies everyone. docs/design/observability.md.
+  loadBalancerSourceRanges: ${TALOS_NODE_SOURCE_RANGES:=[127.0.0.1/32]}
+  # A NodePort would skip the source ranges.
+  allocateLoadBalancerNodePorts: false
   selector:
     app.kubernetes.io/name: alloy
     app.kubernetes.io/instance: alloy-talos
