@@ -48,7 +48,10 @@ class ClusterMembershipTest(unittest.TestCase):
         return path
 
     def _run(self, *extra):
-        args = [PLAYBOOK_BIN, "-i", self.inventory, self.playbook]
+        # Skip the cluster's SOPS vars: CI has no age key to decrypt them.
+        absent = os.path.join(self.tmp, "absent.sops.yaml")
+        args = [PLAYBOOK_BIN, "-i", self.inventory, self.playbook,
+                "-e", f"talos_cluster_sops_vars={absent}"]
         for e in extra:
             args += ["-e", e]
         env = dict(os.environ, ANSIBLE_ROLES_PATH=ROLES)

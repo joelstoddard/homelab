@@ -1,0 +1,16 @@
+talos_logging_address: ENC[AES256_GCM,data:p7rGB2TAMz3eDA==,iv:htE/wlFvAUVMRjxrQI8YrlTc2vzMcDEvrp75laUY7P0=,tag:DpxVkRSsKyGhfeip/RLmBQ==,type:str]
+sops:
+    age:
+        - recipient: age1h5hafnt22aqn7uahcsmv5v8gfgwcxanypw0lantcush7jppt99fskz6vcv
+          enc: |
+            -----BEGIN AGE ENCRYPTED FILE-----
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSA0dE0vdEhpUi9qNGlnQnIv
+            QWQxVnVhdWNKQ3lCTXdZb1k1WjRJdXI4ZXo0Ck9GbWozZk9rZk52c2g1OS80Yyty
+            U0pQbCt4SUp3SmFKOHVzOTRCUitGZTQKLS0tIHYxNGtvdkd0Q1dCTjNMR2E2ejNj
+            Z1ZEU3hmVDliOExoSmFuWWRTdXJJSTgKKSNHYm9MaISwYZtBTfHR4iEKufLfXddc
+            EsA8MXjN/o1mLsXPxmZz92GGY/2BBxbcV2iGrNrt+QoPMCs1e3RiIg==
+            -----END AGE ENCRYPTED FILE-----
+    lastmodified: "2026-11-19T11:18:31Z"
+    mac: ENC[AES256_GCM,data:04mMw6TpjU4ngX1xF1WqukMRrMtMGac9xdUN9YoSnopYAzlLfEux0JJIe8MKWoM3XNu7WO91i8geYSLYPuhApuqTNrj/d13NE8eJM3pycrMpDTEpPkoqQC43jNrxMnr1wV7ipcUf80I6LB8sLtK5k/Xj0DwVijT8beZB4E3/N1Q=,iv:V7rRky1jZj9oMr597mpW7ZjXsQR3TMp67mkmgyTx8xc=,tag:bAbQ0Og5nxiwzSV+8owCiA==,type:str]
+    unencrypted_suffix: _unencrypted
+    version: 3.12.2

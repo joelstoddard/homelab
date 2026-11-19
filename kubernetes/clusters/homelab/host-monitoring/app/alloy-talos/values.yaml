@@ -1,0 +1,31 @@
+# One Alloy: receives the Talos nodes' service and kernel logs as JSON lines.
+# Its own release because otelcol.receiver.tcplog needs the experimental
+# stability level, which stays off every other Alloy. docs/design/observability.md.
+alloy:
+  configMap:
+    create: false
+    name: alloy-talos-config
+    key: talos.alloy
+  stabilityLevel: experimental
+  extraPorts:
+    - name: talos-logs
+      port: 5170
+      targetPort: 5170
+      protocol: TCP
+  resources:
+    requests:
+      cpu: 20m
+      memory: 96Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
+# Nothing here reads the Kubernetes API; the chart's default role reads every
+# Secret in the cluster.
+rbac:
+  create: false
+controller:
+  type: deployment
+  replicas: 1
+  podAnnotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "12345"

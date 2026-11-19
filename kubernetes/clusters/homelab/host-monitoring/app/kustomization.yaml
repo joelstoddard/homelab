@@ -12,6 +12,9 @@ resources:
   - graphite-exporter.yaml
   - alloy-gateway/helmrelease.yaml
   - alloy-gateway/service-syslog.yaml
+  - alloy-talos/helmrelease.yaml
+  - alloy-talos/service-talos-logs.yaml
+  - alloy-talos/cnp-ingress.yaml
   - config
 # This layer is substituted by Flux: every generator input here may contain
 # the cluster-secrets variable names and no other $ — the River file sits in
@@ -31,6 +34,11 @@ configMapGenerator:
   - name: alloy-gateway-values
     files:
       - values.yaml=alloy-gateway/values.yaml
+    options:
+      disableNameSuffixHash: true
+  - name: alloy-talos-values
+    files:
+      - values.yaml=alloy-talos/values.yaml
     options:
       disableNameSuffixHash: true
   - name: gateway-targets
