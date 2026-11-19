@@ -1,11 +1,9 @@
-// The Talos Alloy: service and kernel logs from every home-cluster node,
-// one JSON object per line over TCP (machine.logging + KmsgLogConfig in the
-// talos role's node patch). docs/design/observability.md.
+// The Talos Alloy: service and kernel logs from every home-cluster node, one
+// JSON object per line over TCP (machine.logging in the talos role's node
+// patch). docs/design/observability.md.
 
-// add_attributes keeps the sender's address: kernel lines carry no node tag.
 otelcol.receiver.tcplog "talos" {
 	listen_address = "0.0.0.0:5170"
-	add_attributes = true
 
 	output {
 		logs = [otelcol.exporter.loki.talos.input]
@@ -16,9 +14,43 @@ otelcol.exporter.loki "talos" {
 	forward_to = [loki.process.talos.receiver]
 }
 
+// The exporter wraps each Talos line as {"body": "<the line>"}.
 loki.process "talos" {
+	stage.json {
+		expressions = {body = "body"}
+	}
+
+	stage.json {
+		source      = "body"
+		expressions = {msg = "msg", node = "node", service = "\"talos-service\"", level = "\"talos-level\""}
+	}
+
+	// About 72 % and 27 % of one node's bytes: audit records, and the Talos
+	// dashboard's once-a-second API polls.
+	stage.drop {
+		source = "service"
+		value  = "auditd"
+	}
+
+	stage.drop {
+		source     = "msg"
+		expression = "machined/authz/(unix/)?authorizer authorized"
+	}
+
+	stage.labels {
+		values = {node = "", service = "", level = ""}
+	}
+
 	stage.static_labels {
 		values = {job = "talos"}
+	}
+
+	stage.label_drop {
+		values = ["exporter"]
+	}
+
+	stage.output {
+		source = "msg"
 	}
 
 	forward_to = [loki.write.loki.receiver]
