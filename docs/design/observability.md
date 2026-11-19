@@ -149,9 +149,12 @@ defaults that hide the control-plane components.
   day as the exporter's JSON wrapper: 72 % `auditd` records and 27 %
   machined `authorizer authorized` lines from the Talos dashboard's
   once-a-second API polls. Twenty nodes at that rate fill Loki's 20 GiB
-  volume well inside its 30-day retention. `talos.alloy` drops both, keeps
-  only the Talos `msg` as the line, and labels it `node`, `service` and
-  `level`.
+  volume well inside its 30-day retention. `talos.alloy` drops both, and
+  the dashboard's successful calls themselves (`unary Success` with
+  `:authority=localhost`), which are 99 % of what is left at 37.6 MiB a
+  day. Remote API calls, such as an operator's `talosctl apply-config`, and
+  every failure stay. It keeps only the Talos `msg` as the line and labels
+  it `node`, `service` and `level`.
 - **Only the nodes reach the Talos receiver.** Cilium runs in tunnel mode and
   SNATs LoadBalancer traffic it forwards to another node, so a backend sees a
   forwarded LAN client as that node, and a node-only NetworkPolicy alone
