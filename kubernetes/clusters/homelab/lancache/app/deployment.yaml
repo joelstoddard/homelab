@@ -38,7 +38,7 @@ spec:
       containers:
         - name: lancache
           # latest, 2026-10-09. Upstream publishes no versioned tags.
-          image: lancachenet/monolithic@sha256:155817065b13cc427aa0014acc34bbb389591400d7639c95abcfcfb2230ad7f0
+          image: lancachenet/monolithic@sha256:f4e56b92d0ed7b36ad663adfc6d86d0f33e3412f0238712c4cdae4047761a3fe
           env:
             # Public, never the DNS chain: lancache-dns answers the CDN names
             # with this cache's own address, so resolving through it loops.
@@ -114,7 +114,7 @@ spec:
         # would stall every Recreate rollout (docs/design/lancache.md, "Logs
         # and hit rate").
         - name: access-log
-          image: lancachenet/monolithic@sha256:155817065b13cc427aa0014acc34bbb389591400d7639c95abcfcfb2230ad7f0
+          image: lancachenet/monolithic@sha256:f4e56b92d0ed7b36ad663adfc6d86d0f33e3412f0238712c4cdae4047761a3fe
           command:
             - sh
             - -c
@@ -141,7 +141,7 @@ spec:
               cpu: 100m
               memory: 64Mi
         - name: error-log
-          image: lancachenet/monolithic@sha256:155817065b13cc427aa0014acc34bbb389591400d7639c95abcfcfb2230ad7f0
+          image: lancachenet/monolithic@sha256:f4e56b92d0ed7b36ad663adfc6d86d0f33e3412f0238712c4cdae4047761a3fe
           command:
             - sh
             - -c
