@@ -19,6 +19,7 @@ INVENTORY = """\
 talos:
   hosts:
     node-a: {ansible_host: 192.168.1.21}
+    Node-B: {ansible_host: 192.168.1.22}
 """
 
 PLAYBOOK = """\
@@ -26,7 +27,6 @@ PLAYBOOK = """\
   connection: local
   gather_facts: false
   vars:
-    node: node-a
     talos_controlplane_hosts: []
     talos_static_network: false
     talos_version: v1.13.10
@@ -55,10 +55,10 @@ class NodePatchTest(unittest.TestCase):
             f.write(content)
         return path
 
-    def _render(self, address):
+    def _render(self, address, node="node-a"):
         args = [PLAYBOOK_BIN, "-i", self.inventory, self.playbook,
                 "-e", f"roles_dir={ROLES}", "-e", f"out={self.out}",
-                "-e", json.dumps({"talos_logging_address": address})]
+                "-e", json.dumps({"talos_logging_address": address, "node": node})]
         result = subprocess.run(args, cwd=self.tmp, capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stdout)
         with open(self.out) as f:
@@ -74,6 +74,11 @@ class NodePatchTest(unittest.TestCase):
             "format": "json_lines",
             "extraTags": {"node": "node-a"},
         }])
+
+    def test_node_tag_is_lowercase_like_the_kubernetes_node_name(self):
+        # NetBox capitalises the Pis' names; every other label uses the lowercase node name.
+        docs = self._render("192.168.1.50", node="Node-B")
+        self.assertEqual(docs[0]["machine"]["logging"]["destinations"][0]["extraTags"], {"node": "node-b"})
 
     def test_address_adds_no_kernel_log_document(self):
         # The service stream already carries kernel lines, with the node tag.
