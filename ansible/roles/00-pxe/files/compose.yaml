@@ -11,7 +11,7 @@ services:
     restart: unless-stopped
 
   caddy:
-    image: caddy:2.8
+    image: caddy:2.11
     network_mode: host
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
