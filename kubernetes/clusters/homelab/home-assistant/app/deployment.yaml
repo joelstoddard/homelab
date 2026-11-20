@@ -48,7 +48,7 @@ spec:
         # without this the first boot never completes. Written without a single
         # dollar sign: shell variables in a substituted layer are eaten.
         - name: seed-includes
-          image: busybox:1.37.0
+          image: busybox:1.38.0
           command:
             - sh
             - -c
