@@ -52,7 +52,7 @@ datasources:
 # its datasource file a Secret: docs/design/observability.md.
 extraInitContainers:
   - name: install-netbox-plugin
-    image: docker.io/grafana/grafana:13.2.1-distroless
+    image: docker.io/grafana/grafana:13.3.1-distroless
     command: [/usr/share/grafana/bin/grafana]
     args: [cli, --pluginsDir, /var/lib/grafana/plugins, plugins, install, netboxlabs-netbox-datasource, 1.0.3]
     securityContext:
