@@ -1,8 +1,8 @@
 ---
 # Plays are tagged so the PXE server can be (re)configured without waking
-# anything: `make apply-pxe TAGS=pxe-server` runs plays 1-2 only. (A --limit
+# anything: `make apply-pxe TAGS=pxe-server` runs plays 1-3 only. (A --limit
 # on localhost does NOT work for that: it skips play 1, so the per-host
-# root_password never reaches the preseed render in play 2.)
+# root_password never reaches the preseed render in play 3.)
 - name: Load per-host SOPS vars onto each PXE target.
   hosts: pxe
   tags: [pxe-server]
@@ -15,10 +15,61 @@
     - name: Load this host's SOPS-encrypted vars.
       ansible.builtin.import_tasks: playbooks/tasks/load-host-sops-vars.yaml
 
+# NUCs that answer no SSH are netbooted; the installer, not this probe, decides
+# whether to install (docs/pxe-flow.md, Play 2). To wipe one, power it off and:
+#   make apply-pxe EXTRA_VARS='{"proxmox_reinstall_hosts": ["Rumba"]}'
+# Not proxmox_install_hosts itself: an extra var outranks the closing play's [].
+- name: Find the NUCs to netboot.
+  hosts: localhost
+  tags: [pxe-server]
+  connection: local
+  gather_facts: false
+  tasks:
+    # check_mode: false — the probe is read-only, and a skipped probe would
+    # mark every NUC pending in a dry run.
+    - name: Probe each Proxmox host for SSH.
+      ansible.builtin.wait_for:
+        host: "{{ hostvars[item].ansible_host }}"
+        port: 22
+        timeout: 5
+      loop: "{{ groups['proxmox'] | default([]) }}"
+      register: install_ssh_probe
+      ignore_errors: true
+      check_mode: false
+
+    - name: Register the NUCs that answer no SSH as the install set.
+      ansible.builtin.add_host:
+        name: "{{ item.item }}"
+        groups: proxmox_install_pending
+      loop: "{{ install_ssh_probe.results }}"
+      loop_control:
+        label: "{{ item.item }}"
+      when: item is failed or item.item in proxmox_reinstall_hosts | default([])
+      changed_when: false
+
+    # A misspelt name never matches a probe result, so check it here; the
+    # role's own check sees only the names that reached the install set.
+    - name: Refuse unknown names in proxmox_reinstall_hosts.
+      ansible.builtin.assert:
+        that: proxmox_reinstall_hosts | default([]) | difference(groups['proxmox'] | default([])) | length == 0
+        fail_msg: >-
+          proxmox_reinstall_hosts contains names that are not Proxmox hosts:
+          {{ proxmox_reinstall_hosts | default([]) | difference(groups['proxmox'] | default([])) }}.
+          Use NetBox inventory names exactly (e.g. "Rumba").
+
+    - name: Install plan.
+      ansible.builtin.debug:
+        msg: >-
+          netboot (a blank disk is installed, any other is booted as it is):
+          {{ groups['proxmox_install_pending'] | default([]) | difference(proxmox_reinstall_hosts | default([])) | join(', ') or 'none' }};
+          reinstall (disk wiped): {{ proxmox_reinstall_hosts | default([]) | join(', ') or 'none' }}
+
 - name: Start PXE server.
   hosts: localhost
   tags: [pxe-server]
   connection: local
+  vars:
+    proxmox_install_hosts: "{{ groups['proxmox_install_pending'] | default([]) }}"
   # dnsmasq reads its config through a single-file Docker bind mount, which
   # keeps pointing at the OLD inode after Ansible's atomic template write until
   # the container restarts. If a later task fails, a notified restart would be
@@ -36,8 +87,21 @@
   hosts: pxe:!talos
   tags: [wol]
   gather_facts: false
-  pre_tasks:
-    - name: Load this host's SOPS-encrypted vars.
-      ansible.builtin.import_tasks: playbooks/tasks/load-host-sops-vars.yaml
   roles:
     - 01-wake-on-lan
+
+# Every woken NUC is back on its disk, so take its preseed (the root password
+# hash) off the LAN again.
+- name: Close the install gate.
+  hosts: localhost
+  tags: [wol]
+  connection: local
+  force_handlers: true
+  gather_facts: true
+  tasks:
+    - name: Re-render the PXE server with no NUC being installed.
+      ansible.builtin.include_role:
+        name: 00-pxe
+      vars:
+        proxmox_install_hosts: []
+      when: groups['proxmox_install_pending'] | default([]) | length > 0
