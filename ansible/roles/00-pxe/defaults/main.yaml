@@ -33,7 +33,7 @@ dhcp_proxy: true
 # the version, the fragment or pxe_server_ip changes. Only when there are
 # talos PXE hosts (the Pis).
 # renovate: datasource=github-tags depName=u-boot/u-boot
-uboot_version: "v2025.01"
+uboot_version: "v2025.10"
 uboot_repo: "https://source.denx.de/u-boot/u-boot.git"
 uboot_defconfig: "rpi_arm64_defconfig"
 uboot_cross_compile: "aarch64-linux-gnu-"
