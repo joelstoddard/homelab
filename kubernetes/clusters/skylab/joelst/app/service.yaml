@@ -1,0 +1,15 @@
+# The tunnel's origin, joelst.joelst.svc.cluster.local:8080
+# (opentofu/resources/cloudflare/hostnames.tf).
+apiVersion: v1
+kind: Service
+metadata:
+  name: joelst
+  labels:
+    app.kubernetes.io/name: joelst
+spec:
+  selector:
+    app.kubernetes.io/name: joelst
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
