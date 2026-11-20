@@ -38,7 +38,7 @@ spec:
         - name: killswitch
           # Distroless, purely for `nft`; it ships no shell, so the ruleset is
           # a file. See docs/design/media-egress.md, "Inside the ruleset".
-          image: registry.k8s.io/build-image/distroless-iptables:v0.9.7
+          image: registry.k8s.io/build-image/distroless-iptables:v0.11.3
           command: ["/usr/sbin/nft", "-f", "/etc/killswitch/ruleset.nft"]
           # Capabilities are per container, not per pod. Root as well, because
           # netlink refuses the write without it.
