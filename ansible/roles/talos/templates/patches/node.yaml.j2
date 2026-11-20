@@ -16,7 +16,7 @@ machine:
       - endpoint: {{ log_url }}
         format: json_lines
         extraTags:
-          node: {{ node }}
+          node: {{ node | lower }}
 {% endif %}
 ---
 apiVersion: v1alpha1
