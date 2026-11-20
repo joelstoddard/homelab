@@ -28,7 +28,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: valkey
-          image: docker.io/valkey/valkey:8.1.10-alpine
+          image: docker.io/valkey/valkey:9.2.0-alpine
           # The entrypoint prepends valkey-server when the first argument starts
           # with a dash, but naming it is clearer than relying on that.
           args:
