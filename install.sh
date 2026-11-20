@@ -79,7 +79,7 @@ fi
 # tofu isn't in apt for Debian/Ubuntu; pull the upstream .deb release.
 # Bump TOFU_VERSION when operator workstations move.
 # renovate: datasource=github-releases depName=opentofu/opentofu extractVersion=^v(?<version>.+)$
-TOFU_VERSION="1.10.6"
+TOFU_VERSION="1.13.9"
 TOFU_ARCH="$(dpkg --print-architecture)"
 if have_version "$TOFU_VERSION" tofu --version; then
     echo ">> OpenTofu ${TOFU_VERSION} already installed"
