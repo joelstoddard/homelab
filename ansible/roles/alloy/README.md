@@ -18,6 +18,11 @@ Design: `docs/design/host-monitoring.md`.
   replaces the file on disk.
 - The `alloy` system user in the `systemd-journal` group, so
   `loki.source.journal` can read the journal without root.
+- `/etc/udev/rules.d/99-powercap-alloy.rules`, which makes each RAPL
+  `energy_uj` counter group `alloy`, mode `0440`, so the unix exporter's
+  `rapl` collector can read CPU power (`node_rapl_*`). The kernel keeps them
+  root-only; why that is opened here: `docs/design/host-monitoring.md`,
+  "CPU power".
 - `CUSTOM_ARGS="--disable-reporting"` in `/etc/default/alloy`, disabling
   Grafana's usage-reporting phone-home.
 - The `alloy` systemd service, enabled and started.

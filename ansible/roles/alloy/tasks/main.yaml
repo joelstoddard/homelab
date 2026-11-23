@@ -67,6 +67,15 @@
     append: true
   notify: Restart alloy
 
+- name: Let Alloy read the CPU energy counters.
+  ansible.builtin.copy:
+    src: 99-powercap-alloy.rules
+    dest: /etc/udev/rules.d/99-powercap-alloy.rules
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Apply the powercap udev rule
+
 - name: Disable usage reporting.
   ansible.builtin.lineinfile:
     path: /etc/default/alloy

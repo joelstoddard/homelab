@@ -4,6 +4,20 @@
     name: alloy
     state: restarted
 
+# The rule only fires on a powercap uevent, so replay one for the running
+# boot; the collector reads the counters on every scrape, no restart needed.
+- name: Reload udev rules
+  ansible.builtin.command:
+    cmd: udevadm control --reload
+  changed_when: true
+  listen: Apply the powercap udev rule
+
+- name: Replay powercap uevents
+  ansible.builtin.command:
+    cmd: udevadm trigger --subsystem-match=powercap --action=change
+  changed_when: true
+  listen: Apply the powercap udev rule
+
 - name: Restart smartctl_exporter
   ansible.builtin.systemd:
     name: smartctl_exporter
