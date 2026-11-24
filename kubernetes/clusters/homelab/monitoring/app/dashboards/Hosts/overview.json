@@ -26,6 +26,12 @@
     },
     {
       "type": "link",
+      "title": "Voyager (TrueNAS)",
+      "url": "/d/homelab-host-voyager",
+      "icon": "dashboard"
+    },
+    {
+      "type": "link",
       "title": "NetBox intent vs reality",
       "url": "/d/homelab-netbox",
       "icon": "dashboard"

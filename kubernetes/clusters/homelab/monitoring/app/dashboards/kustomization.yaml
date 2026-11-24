@@ -115,6 +115,9 @@ configMapGenerator:
   - name: dashboard-host-buran
     files: [Hosts/buran.json]
     options: {annotations: {grafana_folder: Hosts}}
+  - name: dashboard-host-voyager
+    files: [Hosts/voyager.json]
+    options: {annotations: {grafana_folder: Hosts}}
   - name: dashboard-hosts-overview
     files: [Hosts/overview.json]
     options: {annotations: {grafana_folder: Hosts}}
