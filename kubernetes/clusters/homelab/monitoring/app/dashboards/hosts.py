@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
-"""Render one Hosts/<host>.json per NUC from templates/host.json.
+"""Render one Hosts/<host>.json per physical host from templates/host.json.
 
   python3 hosts.py
 
-templates/hosts.json maps each host to its feature flags, e.g.
-{"rumba": {"fans": false, "power": true}}. In the template, "__HOST__" in any
-string becomes the host name, and a panel carrying "homelabRequires": "<flag>"
-is kept only when that flag is true. Re-run after editing either file;
+templates/hosts.json maps each host to its settings, e.g.
+{"rumba": {"fans": false, "power": true, "rootfs": "/"}}. In the template,
+"__HOST__" in any string becomes the host name and "__<KEY>__" becomes a
+string setting's value; a panel carrying "homelabRequires": "<flag>" is kept
+only when that boolean flag is true. Re-run after editing either file;
 test_hosts.py fails while a committed host file is stale.
 """
 import copy
@@ -21,13 +22,15 @@ PLACEHOLDER = "__HOST__"
 MARKER = "homelabRequires"
 
 
-def _substitute(node, host):
+def _substitute(node, values):
     if isinstance(node, dict):
-        return {k: _substitute(v, host) for k, v in node.items()}
+        return {k: _substitute(v, values) for k, v in node.items()}
     if isinstance(node, list):
-        return [_substitute(v, host) for v in node]
+        return [_substitute(v, values) for v in node]
     if isinstance(node, str):
-        return node.replace(PLACEHOLDER, host)
+        for placeholder, value in values.items():
+            node = node.replace(placeholder, value)
+        return node
     return node
 
 
@@ -44,7 +47,9 @@ def _filter(panels, features):
 
 
 def render(template, host, features):
-    d = _substitute(copy.deepcopy(template), host)
+    values = {PLACEHOLDER: host}
+    values.update({f"__{k.upper()}__": v for k, v in features.items() if isinstance(v, str)})
+    d = _substitute(copy.deepcopy(template), values)
     d["panels"] = _filter(d.get("panels", []), features)
     d["uid"] = f"homelab-host-{host}"
     d["title"] = host.capitalize()

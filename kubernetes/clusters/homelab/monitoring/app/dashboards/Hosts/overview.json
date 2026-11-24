@@ -2,7 +2,7 @@
   "id": null,
   "uid": "homelab-hosts-overview",
   "title": "Hosts overview",
-  "description": "The four Proxmox NUCs side by side, the cluster's guests, and links to each host. docs/design/host-monitoring.md.",
+  "description": "Every physical host side by side (NUCs and Pis), the Proxmox cluster's guests, and links to each host. docs/design/host-monitoring.md.",
   "tags": [
     "hosts"
   ],
@@ -37,9 +37,9 @@
   "panels": [
     {
       "type": "table",
-      "title": "NUCs",
+      "title": "Hosts",
       "id": 1,
-      "description": "One row per Proxmox host. Click a host for its dashboard.",
+      "description": "One row per physical host: the four Proxmox NUCs and the eight Talos Pis. SMART, drive wear and power are blank where a host does not report them. Click a host for its dashboard.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -47,31 +47,31 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "time() - node_boot_time_seconds{job=\"node-exporter\"} and on (instance) group by (instance) (up{job=\"smartctl\"})",
+          "expr": "time() - node_boot_time_seconds{job=\"node-exporter\"} and on (instance) group by (instance) (node_boot_time_seconds{job=\"node-exporter\", instance!~\"k8s-.*\"})",
           "format": "table",
           "instant": true
         },
         {
           "refId": "B",
-          "expr": "100 * (1 - avg by (instance) (rate(node_cpu_seconds_total{job=\"node-exporter\", mode=\"idle\"}[5m]))) and on (instance) group by (instance) (up{job=\"smartctl\"})",
+          "expr": "100 * (1 - avg by (instance) (rate(node_cpu_seconds_total{job=\"node-exporter\", mode=\"idle\"}[5m]))) and on (instance) group by (instance) (node_boot_time_seconds{job=\"node-exporter\", instance!~\"k8s-.*\"})",
           "format": "table",
           "instant": true
         },
         {
           "refId": "C",
-          "expr": "100 * (1 - node_memory_MemAvailable_bytes{job=\"node-exporter\"} / node_memory_MemTotal_bytes{job=\"node-exporter\"}) and on (instance) group by (instance) (up{job=\"smartctl\"})",
+          "expr": "100 * (1 - node_memory_MemAvailable_bytes{job=\"node-exporter\"} / node_memory_MemTotal_bytes{job=\"node-exporter\"}) and on (instance) group by (instance) (node_boot_time_seconds{job=\"node-exporter\", instance!~\"k8s-.*\"})",
           "format": "table",
           "instant": true
         },
         {
           "refId": "D",
-          "expr": "100 * (1 - node_filesystem_avail_bytes{job=\"node-exporter\", mountpoint=\"/\"} / node_filesystem_size_bytes{job=\"node-exporter\", mountpoint=\"/\"}) and on (instance) group by (instance) (up{job=\"smartctl\"})",
+          "expr": "100 * (1 - node_filesystem_avail_bytes{job=\"node-exporter\", mountpoint=\"/\"} / node_filesystem_size_bytes{job=\"node-exporter\", mountpoint=\"/\"}) and on (instance) group by (instance) (node_boot_time_seconds{job=\"node-exporter\", instance!~\"k8s-.*\"})",
           "format": "table",
           "instant": true
         },
         {
           "refId": "E",
-          "expr": "max by (instance) (node_hwmon_temp_celsius{job=\"node-exporter\"}) and on (instance) group by (instance) (up{job=\"smartctl\"})",
+          "expr": "max by (instance) (node_hwmon_temp_celsius{job=\"node-exporter\"}) and on (instance) group by (instance) (node_boot_time_seconds{job=\"node-exporter\", instance!~\"k8s-.*\"})",
           "format": "table",
           "instant": true
         },
@@ -613,7 +613,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "100 * (1 - avg by (instance) (rate(node_cpu_seconds_total{job=\"node-exporter\", mode=\"idle\"}[$__rate_interval]))) and on (instance) group by (instance) (up{job=\"smartctl\"})",
+          "expr": "100 * (1 - avg by (instance) (rate(node_cpu_seconds_total{job=\"node-exporter\", mode=\"idle\"}[$__rate_interval]))) and on (instance) group by (instance) (node_boot_time_seconds{job=\"node-exporter\", instance!~\"k8s-.*\"})",
           "legendFormat": "{{instance}}"
         }
       ],
@@ -661,7 +661,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "100 * (1 - node_memory_MemAvailable_bytes{job=\"node-exporter\"} / node_memory_MemTotal_bytes{job=\"node-exporter\"}) and on (instance) group by (instance) (up{job=\"smartctl\"})",
+          "expr": "100 * (1 - node_memory_MemAvailable_bytes{job=\"node-exporter\"} / node_memory_MemTotal_bytes{job=\"node-exporter\"}) and on (instance) group by (instance) (node_boot_time_seconds{job=\"node-exporter\", instance!~\"k8s-.*\"})",
           "legendFormat": "{{instance}}"
         }
       ],
@@ -729,7 +729,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "max by (instance) (node_hwmon_temp_celsius{job=\"node-exporter\"}) and on (instance) group by (instance) (up{job=\"smartctl\"})",
+          "expr": "max by (instance) (node_hwmon_temp_celsius{job=\"node-exporter\"}) and on (instance) group by (instance) (node_boot_time_seconds{job=\"node-exporter\", instance!~\"k8s-.*\"})",
           "legendFormat": "{{instance}}"
         }
       ],
@@ -789,7 +789,7 @@
       "type": "timeseries",
       "id": 8,
       "title": "Network received",
-      "description": "Bits per second in on each host's physical interfaces (eth*).",
+      "description": "Bits per second in on each host's physical interfaces (bridges, container and tunnel interfaces left out).",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -797,7 +797,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by (instance) (8 * rate(node_network_receive_bytes_total{job=\"node-exporter\", device=~\"eth.*\"}[$__rate_interval])) and on (instance) group by (instance) (up{job=\"smartctl\"})",
+          "expr": "sum by (instance) (8 * rate(node_network_receive_bytes_total{job=\"node-exporter\", device!~\"lo|veth.*|tap.*|fwbr.*|fwpr.*|fwln.*|vmbr.*|cilium.*|lxc.*|dummy.*|ip6tnl.*|sit.*|teql.*|tunl.*|bond.*\"}[$__rate_interval])) and on (instance) group by (instance) (node_boot_time_seconds{job=\"node-exporter\", instance!~\"k8s-.*\"})",
           "legendFormat": "{{instance}}"
         }
       ],

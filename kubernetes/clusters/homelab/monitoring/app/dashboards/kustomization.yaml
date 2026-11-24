@@ -91,6 +91,30 @@ configMapGenerator:
   - name: dashboard-host-tango
     files: [Hosts/tango.json]
     options: {annotations: {grafana_folder: Hosts}}
+  - name: dashboard-host-kosmos
+    files: [Hosts/kosmos.json]
+    options: {annotations: {grafana_folder: Hosts}}
+  - name: dashboard-host-vostok
+    files: [Hosts/vostok.json]
+    options: {annotations: {grafana_folder: Hosts}}
+  - name: dashboard-host-soyuz
+    files: [Hosts/soyuz.json]
+    options: {annotations: {grafana_folder: Hosts}}
+  - name: dashboard-host-zond
+    files: [Hosts/zond.json]
+    options: {annotations: {grafana_folder: Hosts}}
+  - name: dashboard-host-salyut
+    files: [Hosts/salyut.json]
+    options: {annotations: {grafana_folder: Hosts}}
+  - name: dashboard-host-mir
+    files: [Hosts/mir.json]
+    options: {annotations: {grafana_folder: Hosts}}
+  - name: dashboard-host-voskhod
+    files: [Hosts/voskhod.json]
+    options: {annotations: {grafana_folder: Hosts}}
+  - name: dashboard-host-buran
+    files: [Hosts/buran.json]
+    options: {annotations: {grafana_folder: Hosts}}
   - name: dashboard-hosts-overview
     files: [Hosts/overview.json]
     options: {annotations: {grafana_folder: Hosts}}
