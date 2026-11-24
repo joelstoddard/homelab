@@ -1,10 +1,9 @@
 {
   "uid": "homelab-router",
-  "title": "Router",
-  "description": "The ASUS router's own counters, read by Home Assistant's ASUSWRT integration and scraped from /api/prometheus (docs/design/host-monitoring.md).",
+  "title": "Hubble",
+  "description": "Hubble, the router, as a host: its own CPU, memory, temperature, uptime, WAN rate and totals, and connected devices, read by Home Assistant's ASUSWRT integration from /api/prometheus, plus its syslog. docs/design/host-monitoring.md.",
   "tags": [
-    "hosts",
-    "network"
+    "hosts"
   ],
   "schemaVersion": 39,
   "editable": false,
@@ -712,6 +711,20 @@
         "x": 0,
         "y": 29
       }
+    }
+  ],
+  "links": [
+    {
+      "type": "link",
+      "title": "Hosts overview",
+      "url": "/d/homelab-hosts-overview",
+      "icon": "dashboard"
+    },
+    {
+      "type": "link",
+      "title": "Network overview",
+      "url": "/d/homelab-network-overview",
+      "icon": "dashboard"
     }
   ]
 }
