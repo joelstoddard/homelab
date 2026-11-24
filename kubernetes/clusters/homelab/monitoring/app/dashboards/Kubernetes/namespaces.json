@@ -573,8 +573,8 @@
     },
     {
       "type": "timeseries",
-      "title": "Waiting and OOM-killed",
-      "description": "Containers stuck waiting (with the reason), and containers whose last exit was an OOM kill. Empty is healthy.",
+      "title": "Waiting and OOM kills",
+      "description": "Containers stuck waiting (with the reason), and restarts caused by an OOM kill, in the interval they happened. Empty is healthy.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -587,8 +587,8 @@
         },
         {
           "refId": "B",
-          "expr": "sum by (exported_pod, container) (kube_pod_container_status_last_terminated_reason{exported_namespace=\"$namespace\", reason=\"OOMKilled\"}) > 0",
-          "legendFormat": "{{exported_pod}}/{{container}} OOMKilled"
+          "expr": "sum by (exported_pod, container) ((increase(kube_pod_container_status_restarts_total{exported_namespace=\"$namespace\"}[$__rate_interval]) > 0) * on (exported_namespace, exported_pod, container) group_left () (kube_pod_container_status_last_terminated_reason{exported_namespace=\"$namespace\", reason=\"OOMKilled\"} == 1))",
+          "legendFormat": "{{exported_pod}}/{{container}} OOM kill"
         }
       ],
       "fieldConfig": {
