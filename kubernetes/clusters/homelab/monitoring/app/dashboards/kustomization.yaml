@@ -13,8 +13,8 @@ configMapGenerator:
   - name: dashboard-k8s-views-global
     files: [Kubernetes/k8s-views-global.json]
     options: {annotations: {grafana_folder: Kubernetes}}
-  - name: dashboard-k8s-views-namespaces
-    files: [Kubernetes/k8s-views-namespaces.json]
+  - name: dashboard-namespaces
+    files: [Kubernetes/namespaces.json]
     options: {annotations: {grafana_folder: Kubernetes}}
   - name: dashboard-k8s-views-nodes
     files: [Kubernetes/k8s-views-nodes.json]
