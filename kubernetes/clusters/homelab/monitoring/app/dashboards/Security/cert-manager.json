@@ -115,7 +115,7 @@
             "mode": "thresholds"
           },
           "mappings": [],
-          "noValue": "0",
+          "noValue": "None",
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -289,7 +289,8 @@
               }
             ]
           },
-          "unit": "s"
+          "unit": "s",
+          "noValue": "None"
         },
         "overrides": []
       },
@@ -362,7 +363,8 @@
               }
             ]
           },
-          "unit": "s"
+          "unit": "s",
+          "noValue": "None"
         },
         "overrides": []
       },
@@ -564,7 +566,8 @@
               }
             ]
           },
-          "unit": "short"
+          "unit": "short",
+          "noValue": "None"
         },
         "overrides": []
       },
@@ -642,7 +645,7 @@
             }
           },
           "mappings": [],
-          "noValue": "0",
+          "noValue": "None",
           "thresholds": {
             "mode": "absolute",
             "steps": [

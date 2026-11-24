@@ -1,0 +1,69 @@
+#!/usr/bin/env python3
+"""Render one Hosts/<host>.json per NUC from templates/host.json.
+
+  python3 hosts.py
+
+templates/hosts.json maps each host to its feature flags, e.g.
+{"rumba": {"fans": false, "power": true}}. In the template, "__HOST__" in any
+string becomes the host name, and a panel carrying "homelabRequires": "<flag>"
+is kept only when that flag is true. Re-run after editing either file;
+test_hosts.py fails while a committed host file is stale.
+"""
+import copy
+import json
+import os
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+TEMPLATE = "templates/host.json"
+FEATURES = "templates/hosts.json"
+HOSTS_DIR = "Hosts"
+PLACEHOLDER = "__HOST__"
+MARKER = "homelabRequires"
+
+
+def _substitute(node, host):
+    if isinstance(node, dict):
+        return {k: _substitute(v, host) for k, v in node.items()}
+    if isinstance(node, list):
+        return [_substitute(v, host) for v in node]
+    if isinstance(node, str):
+        return node.replace(PLACEHOLDER, host)
+    return node
+
+
+def _filter(panels, features):
+    kept = []
+    for p in panels:
+        if MARKER in p and not features[p[MARKER]]:
+            continue
+        p.pop(MARKER, None)
+        if "panels" in p:
+            p["panels"] = _filter(p["panels"], features)
+        kept.append(p)
+    return kept
+
+
+def render(template, host, features):
+    d = _substitute(copy.deepcopy(template), host)
+    d["panels"] = _filter(d.get("panels", []), features)
+    d["uid"] = f"homelab-host-{host}"
+    d["title"] = host.capitalize()
+    return d
+
+
+def dump(dashboard):
+    return json.dumps(dashboard, indent=2, ensure_ascii=False) + "\n"
+
+
+def main():
+    with open(os.path.join(HERE, TEMPLATE)) as f:
+        template = json.load(f)
+    with open(os.path.join(HERE, FEATURES)) as f:
+        features = json.load(f)
+    for host, flags in features.items():
+        with open(os.path.join(HERE, HOSTS_DIR, f"{host}.json"), "w") as f:
+            f.write(dump(render(template, host, flags)))
+
+
+if __name__ == "__main__":
+    main()

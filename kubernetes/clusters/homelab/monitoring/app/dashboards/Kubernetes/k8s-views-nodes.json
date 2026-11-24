@@ -298,7 +298,7 @@
             "uid": "${datasource}"
           },
           "exemplar": true,
-          "expr": "sum(kube_pod_info{node=\"$node\", cluster=\"$cluster\"})",
+          "expr": "sum(kube_pod_info{exported_node=\"$node\", cluster=\"$cluster\"})",
           "interval": "",
           "legendFormat": "",
           "refId": "A"
@@ -437,7 +437,7 @@
             "uid": "${datasource}"
           },
           "exemplar": true,
-          "expr": "kube_pod_info{node=\"$node\", cluster=\"$cluster\"}",
+          "expr": "label_replace(label_replace(kube_pod_info{exported_node=\"$node\", cluster=\"$cluster\"}, \"namespace\", \"$1\", \"exported_namespace\", \"(.+)\"), \"pod\", \"$1\", \"exported_pod\", \"(.+)\")",
           "format": "table",
           "interval": "",
           "legendFormat": "",
@@ -3934,14 +3934,14 @@
           "type": "prometheus",
           "uid": "${datasource}"
         },
-        "definition": "label_values(kube_node_info{cluster=\"$cluster\"}, node)",
+        "definition": "label_values(kube_node_info{cluster=\"$cluster\"}, exported_node)",
         "hide": 0,
         "includeAll": false,
         "multi": false,
         "name": "node",
         "options": [],
         "query": {
-          "query": "label_values(kube_node_info{cluster=\"$cluster\"}, node)",
+          "query": "label_values(kube_node_info{cluster=\"$cluster\"}, exported_node)",
           "refId": "StandardVariableQuery"
         },
         "refresh": 2,
@@ -3980,7 +3980,7 @@
   },
   "timepicker": {},
   "timezone": "",
-  "title": "Kubernetes / Views / Nodes",
+  "title": "Nodes",
   "uid": "k8s_views_nodes",
   "version": 40,
   "weekStart": "",

@@ -204,7 +204,7 @@ the dataset only.
 ### Hit rate
 
 The hit rate is LogQL over the access log, on the `Services/LANCache`
-dashboard (`kubernetes/clusters/homelab/monitoring/app/dashboards/Services/lancache.json`),
+dashboard (`kubernetes/clusters/homelab/monitoring/app/dashboards/Network/lancache.json`),
 not a Prometheus metric. The image exports only nginx's `stub_status`, which
 counts connections and knows nothing of the cache. A metric would need a
 log-parsing exporter beside nginx, or a `stage.metrics` in the node Alloy's

@@ -337,7 +337,8 @@
       "description": "The maximum duration of slow component evaluations over time.\n\nThis shows components that took longer than 1 minute to evaluate. Ideally, no component \nshould take more than 1 minute to evaluate. The components displayed in this chart\nmay be a sign of a problem with the pipeline or performance issues.\n",
       "fieldConfig": {
         "defaults": {
-          "unit": "s"
+          "unit": "s",
+          "noValue": "None"
         }
       },
       "gridPos": {
