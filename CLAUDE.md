@@ -591,7 +591,7 @@ the same image, `tail -F` to stdout) put them in Loki; the access log is the
 image's `cachelog-json` and `access-log` drops the `/lancache-heartbeat`
 probe lines. The follower command needs its `trap 'exit 0' TERM`: a shell as
 PID 1 ignores SIGTERM and stalls every `Recreate` rollout. Hit rate is LogQL
-on `Services/lancache.json`, not a metric. See `docs/design/lancache.md`.
+on `Network/lancache.json`, not a metric. See `docs/design/lancache.md`.
 `nebula-sync/` (`dependsOn: cilium, lan-services`, `decryption`, NOT
 substituted) is an hourly `CronJob` copying the Pi-hole pair's gravity tables
 (groups, adlists, domain lists, clients) one way from pihole-01 to pihole-02

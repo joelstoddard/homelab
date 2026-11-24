@@ -2985,7 +2985,7 @@
   },
   "timepicker": {},
   "timezone": "",
-  "title": "Kubernetes / Views / Namespaces",
+  "title": "Namespaces",
   "uid": "k8s_views_ns",
   "version": 46,
   "weekStart": "",

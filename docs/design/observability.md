@@ -79,7 +79,7 @@ defaults that hide the control-plane components.
   folder named by its `grafana_folder` annotation, read-only. Iterating on a
   dashboard: Save As a copy, iterate, Export (sharing-externally off), drop
   the file in git; the copy dies with the pod.
-- **Alloy mixin dashboards.** `Alloy/alloy-resources.json`,
+- **Alloy mixin dashboards.** `Kubernetes/alloy-resources.json`,
   `alloy-controller.json`, `alloy-prometheus-remote-write.json` and
   `alloy-loki.json` are the alloy-mixin's own rendered JSON,
   committed upstream under `operations/alloy-mixin/rendered/dashboards/`,
@@ -88,7 +88,7 @@ defaults that hide the control-plane components.
   every Alloy bump, from `monitoring/app/dashboards/`, one command per file:
 
   ```sh
-  python3 vendor.py Alloy/alloy-resources.json --drop-var cluster \
+  python3 vendor.py Kubernetes/alloy-resources.json --drop-var cluster \
     --url https://raw.githubusercontent.com/grafana/alloy/<tag>/operations/alloy-mixin/rendered/dashboards/alloy-resources.json
   ```
 
