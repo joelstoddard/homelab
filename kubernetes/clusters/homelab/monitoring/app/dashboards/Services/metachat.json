@@ -503,7 +503,8 @@
           },
           "color": {
             "mode": "palette-classic"
-          }
+          },
+          "noValue": "None"
         },
         "overrides": []
       },
@@ -554,7 +555,8 @@
           },
           "color": {
             "mode": "palette-classic"
-          }
+          },
+          "noValue": "None"
         },
         "overrides": []
       },

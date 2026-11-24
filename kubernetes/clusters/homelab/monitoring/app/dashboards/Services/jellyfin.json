@@ -99,7 +99,7 @@
     {"id": 25, "type": "timeseries", "title": "Transcode bitrate", "gridPos": {"h": 8, "w": 6, "x": 18, "y": 8},
      "datasource": {"type": "prometheus", "uid": "prometheus"},
      "targets": [{"refId": "A", "expr": "sum(jellyfin_transcoding_session_bitrate_bits_per_second)", "legendFormat": "total"}],
-     "fieldConfig": {"defaults": {"unit": "bps", "min": 0}, "overrides": []}},
+     "fieldConfig": {"defaults": {"unit": "bps", "min": 0, "noValue": "None"}, "overrides": []}},
 
     {"id": 5, "type": "timeseries", "title": "Requests by status", "gridPos": {"h": 8, "w": 12, "x": 0, "y": 16},
      "description": "Traefik's view of requests to Jellyfin, which exposes no Prometheus endpoint without a plugin. LAN clients that reach the pod directly bypass the ingress and are not counted.",
