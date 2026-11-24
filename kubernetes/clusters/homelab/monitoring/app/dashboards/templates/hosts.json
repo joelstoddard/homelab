@@ -1,0 +1,6 @@
+{
+  "rumba": {"fans": false, "power": false},
+  "salsa": {"fans": true, "power": false},
+  "samba": {"fans": true, "power": false},
+  "tango": {"fans": true, "power": false}
+}

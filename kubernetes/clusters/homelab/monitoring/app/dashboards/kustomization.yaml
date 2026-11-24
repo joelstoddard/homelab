@@ -73,8 +73,20 @@ configMapGenerator:
   - name: dashboard-netbox
     files: [Hosts/netbox.json]
     options: {annotations: {grafana_folder: Hosts}}
-  - name: dashboard-smart
-    files: [Hosts/smart.json]
+  - name: dashboard-host-rumba
+    files: [Hosts/rumba.json]
+    options: {annotations: {grafana_folder: Hosts}}
+  - name: dashboard-host-salsa
+    files: [Hosts/salsa.json]
+    options: {annotations: {grafana_folder: Hosts}}
+  - name: dashboard-host-samba
+    files: [Hosts/samba.json]
+    options: {annotations: {grafana_folder: Hosts}}
+  - name: dashboard-host-tango
+    files: [Hosts/tango.json]
+    options: {annotations: {grafana_folder: Hosts}}
+  - name: dashboard-hosts-overview
+    files: [Hosts/overview.json]
     options: {annotations: {grafana_folder: Hosts}}
   - name: dashboard-router
     files: [Network/router.json]

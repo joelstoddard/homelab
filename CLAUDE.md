@@ -37,7 +37,7 @@ The root `Makefile` delegates to subdirectory Makefiles; `ansible/`, `opentofu/`
 
 CI is `.github/workflows/lint.yaml`: `make lint-sops` (every file a `.sops.yaml` rule covers is encrypted), `make -C opentofu fmt` and `tofu validate` per resource dir, `make -C kubernetes lint-offline` (`lint` minus the one check that decrypts), `make -C ansible build lint`, and every directory's `test_*.py` under `ansible/.venv/bin/python -m unittest`, on every pull request. It holds no age key, so a check that needs one stays out of `lint-offline`.
 
-Testing is dry runs against the live fleet, then a live check of the behaviour. Unit tests cover only small, self-contained logic (the `talos` role's filter and task files, the dashboard `vendor.py`), as `test_*.py` beside the code. Lint proves syntax only, so a change is verified by its dry run (`make -C ansible check*`, `make -C opentofu check` — exit 0 is no changes, 2 is changes — or `flux build kustomization <layer>`), then by exercising what it does after apply. Templated decision logic in a role (a Jinja comparison that picks a branch) is tested by dry-running it against a host on each side of the decision; lint never evaluates it (#304).
+Testing is dry runs against the live fleet, then a live check of the behaviour. Unit tests cover only small, self-contained logic (the `talos` role's filter and task files, the dashboard `vendor.py` and `hosts.py`), as `test_*.py` beside the code. Lint proves syntax only, so a change is verified by its dry run (`make -C ansible check*`, `make -C opentofu check` — exit 0 is no changes, 2 is changes — or `flux build kustomization <layer>`), then by exercising what it does after apply. Templated decision logic in a role (a Jinja comparison that picks a branch) is tested by dry-running it against a host on each side of the decision; lint never evaluates it (#304).
 
 ## Architecture
 
@@ -136,7 +136,7 @@ Current implementation:
   cluster (the four NUCs, NetBox tag `alloy` → group `alloy`): apt repo,
   one `config.alloy` template, journald access, service, plus
   `smartctl_exporter` from `trixie-backports` on loopback, which that Alloy
-  scrapes (`job="smartctl"`, dashboard `Hosts/smart.json`).
+  scrapes (`job="smartctl"`, the SMART row of each `Hosts/<host>.json`).
   Dispatched from `02-preflights`, with `playbooks/alloy.yaml` /
   `make -C ansible apply-alloy` as the targeted entry point; the read-only
   PVE token the cluster's exporter uses comes from the `proxmox` library's
