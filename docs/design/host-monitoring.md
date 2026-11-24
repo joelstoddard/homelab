@@ -267,6 +267,18 @@ the constraints of the stack apply throughout: a public repo (no address or doma
   uses 3-8 MiB per host. The NUCs hold no ZFS pool (the root is ext4 on a
   plain partition), so there is no ZFS detail to collect there; the fleet's
   ZFS is TrueNAS, which reports through its Graphite stream.
+- **CPU power.** Each NUC exposes four RAPL zones under
+  `/sys/class/powercap`: `package-0` (the CPU package), `core`, `uncore` (the
+  integrated GPU) and `psys` (the whole platform). The unix exporter's `rapl`
+  collector turns them into `node_rapl_*_joules_total`, whose rate is watts.
+  Since kernel 5.10 the `energy_uj` files are root-only, closing the PLATYPUS
+  side channel, in which an unprivileged process infers another's secrets
+  from fine-grained power readings; Alloy runs as `alloy`, so the collector
+  failed (`node_scrape_collector_success{collector="rapl"} 0`). A udev rule
+  from the `alloy` role gives the files group `alloy`, mode `0440`, on every
+  `add` or `change` uevent. Every other account keeps the kernel default.
+  The trade-off is accepted because the hypervisors run only the operator's
+  own guests and services, and QEMU guests cannot read the host's sysfs.
 - **Two settings are clicked, not committed.** TrueNAS CORE: System →
   Reporting → Remote Graphite Server, and System → Advanced → Syslog server
   (UDP), both the ingest address. The router: System Log → Remote log server,
