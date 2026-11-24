@@ -340,7 +340,7 @@
     {
       "type": "stat",
       "title": "Nodes not ready",
-      "description": "Longhorn nodes that are not ready or not schedulable.",
+      "description": "Longhorn nodes that are not ready or not schedulable, each counted once.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -348,7 +348,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "count(longhorn_node_status{condition=~\"ready|schedulable\"} == 0) or on () vector(0)",
+          "expr": "count(count by (exported_node) (longhorn_node_status{condition=~\"ready|schedulable\"} == 0)) or on () vector(0)",
           "instant": true
         }
       ],

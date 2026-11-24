@@ -278,7 +278,11 @@ the constraints of the stack apply throughout: a public repo (no address or doma
   from the `alloy` role gives the files group `alloy`, mode `0440`, on every
   `add` or `change` uevent. Every other account keeps the kernel default.
   The trade-off is accepted because the hypervisors run only the operator's
-  own guests and services, and QEMU guests cannot read the host's sysfs.
+  own guests and services: QEMU guests cannot read the host's sysfs, and
+  the unprivileged DNS containers share the kernel but map no host group,
+  so the `alloy` gid is not theirs. The rule matches `intel-rapl*:*`, which
+  also covers `intel-rapl-mmio` zones on CPUs that have them; the collector
+  fails whole on the first unreadable zone.
 - **Two settings are clicked, not committed.** TrueNAS CORE: System →
   Reporting → Remote Graphite Server, and System → Advanced → Syslog server
   (UDP), both the ingest address. The router: System Log → Remote log server,

@@ -58,6 +58,12 @@
       },
       "targets": [
         {
+          "refId": "U",
+          "expr": "max by (instance) (up{job=\"node-exporter\", instance!~\"k8s-.*\"}) or max by (instance) (max_over_time(up{job=\"node-exporter\", instance!~\"k8s-.*\"}[1d])) * 0 or label_replace(count(servers_Voyager_local_uptime_uptime) > bool 0 or count(max_over_time(servers_Voyager_local_uptime_uptime[1d])) * 0, \"instance\", \"voyager\", \"\", \"\") or label_replace(max(homeassistant_entity_available{job=\"home-assistant\", friendly_name=\"Router Uptime\"}) or max(max_over_time(homeassistant_entity_available{job=\"home-assistant\", friendly_name=\"Router Uptime\"}[1d])) * 0, \"instance\", \"hubble\", \"\", \"\")",
+          "format": "table",
+          "instant": true
+        },
+        {
           "refId": "A",
           "expr": "max by (instance) (time() - node_boot_time_seconds{job=\"node-exporter\"} and on (instance) group by (instance) (node_boot_time_seconds{job=\"node-exporter\", instance!~\"k8s-.*\"})) or label_replace(max(servers_Voyager_local_uptime_uptime), \"instance\", \"voyager\", \"\", \"\") or label_replace(max(homeassistant_sensor_duration_s{job=\"home-assistant\", friendly_name=\"Router Uptime\"}), \"instance\", \"hubble\", \"\", \"\")",
           "format": "table",
@@ -119,17 +125,19 @@
             },
             "indexByName": {
               "instance": 0,
-              "Value #A": 1,
-              "Value #B": 2,
-              "Value #C": 3,
-              "Value #D": 4,
-              "Value #E": 5,
-              "Value #F": 6,
-              "Value #G": 7,
-              "Value #H": 8
+              "Value #U": 1,
+              "Value #A": 2,
+              "Value #B": 3,
+              "Value #C": 4,
+              "Value #D": 5,
+              "Value #E": 6,
+              "Value #F": 7,
+              "Value #G": 8,
+              "Value #H": 9
             },
             "renameByName": {
               "instance": "Host",
+              "Value #U": "Up",
               "Value #A": "Uptime",
               "Value #B": "CPU",
               "Value #C": "Memory",
@@ -149,6 +157,58 @@
           }
         },
         "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Up"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "none"
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "red",
+                      "value": null
+                    },
+                    {
+                      "color": "green",
+                      "value": 1
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "1": {
+                        "text": "Up",
+                        "color": "green"
+                      },
+                      "0": {
+                        "text": "Down",
+                        "color": "red"
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          },
           {
             "matcher": {
               "id": "byName",

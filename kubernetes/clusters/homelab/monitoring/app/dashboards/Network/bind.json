@@ -5,7 +5,7 @@
   "description": "Bind9 and lancache-dns, the DNS chain's two BIND links. docs/design/host-monitoring.md.",
   "tags": [
     "dns",
-    "hosts"
+    "network"
   ],
   "timezone": "browser",
   "schemaVersion": 39,
