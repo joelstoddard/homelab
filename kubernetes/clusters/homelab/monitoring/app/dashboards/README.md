@@ -21,7 +21,9 @@ four NUCs and the eight Pis. Edit `templates/host.json` (the dashboard, with
 flags, its main filesystem `rootfs`, its Loki selector `logs` and that
 stream's level label `loglevel`), then run `python3 hosts.py`. A panel or row
 carrying `"homelabRequires": "<flag>"` is dropped for a host whose flag is
-false, so a Pi shows no empty Fans, Power, SMART or CPU-core rows. `test_hosts.py` fails
+false, so a Pi shows no empty Fans, Power, SMART or CPU-core rows; one
+carrying `"homelabUnless": "<flag>"` is kept only where the flag is false,
+which fills the power slot of a Pi's Summary row with its load. `test_hosts.py` fails
 while a committed host file is stale. `templates/` holds no ConfigMap.
 
 | File | Folder | Source | Revision | Local edits |

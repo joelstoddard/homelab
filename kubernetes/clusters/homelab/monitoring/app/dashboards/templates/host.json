@@ -415,11 +415,67 @@
       "homelabRequires": "power"
     },
     {
+      "type": "stat",
+      "title": "Load, 5 min",
+      "description": "Run-queue length averaged over five minutes, against the core count in the CPU and memory row.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "node_load5{instance=\"__HOST__\"}",
+          "legendFormat": "",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "decimals": 2
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "id": 8,
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 20,
+        "y": 1
+      },
+      "homelabUnless": "power"
+    },
+    {
       "type": "row",
       "title": "Temperatures",
       "collapsed": false,
       "panels": [],
-      "id": 8,
+      "id": 9,
       "gridPos": {
         "h": 1,
         "w": 24,
@@ -488,7 +544,7 @@
           "sort": "desc"
         }
       },
-      "id": 9,
+      "id": 10,
       "gridPos": {
         "h": 8,
         "w": 12,
@@ -559,7 +615,7 @@
           "sort": "desc"
         }
       },
-      "id": 10,
+      "id": 11,
       "gridPos": {
         "h": 8,
         "w": 12,
@@ -629,7 +685,7 @@
           "sort": "desc"
         }
       },
-      "id": 11,
+      "id": 12,
       "gridPos": {
         "h": 7,
         "w": 24,
@@ -642,7 +698,7 @@
       "title": "Fans",
       "collapsed": false,
       "panels": [],
-      "id": 12,
+      "id": 13,
       "gridPos": {
         "h": 1,
         "w": 24,
@@ -693,7 +749,7 @@
           "sort": "desc"
         }
       },
-      "id": 13,
+      "id": 14,
       "gridPos": {
         "h": 7,
         "w": 24,
@@ -707,7 +763,7 @@
       "title": "Power",
       "collapsed": false,
       "panels": [],
-      "id": 14,
+      "id": 15,
       "gridPos": {
         "h": 1,
         "w": 24,
@@ -773,7 +829,7 @@
           "sort": "desc"
         }
       },
-      "id": 15,
+      "id": 16,
       "gridPos": {
         "h": 8,
         "w": 18,
@@ -829,7 +885,7 @@
           "values": false
         }
       },
-      "id": 16,
+      "id": 17,
       "gridPos": {
         "h": 4,
         "w": 6,
@@ -843,7 +899,7 @@
       "title": "SMART",
       "collapsed": false,
       "panels": [],
-      "id": 17,
+      "id": 18,
       "gridPos": {
         "h": 1,
         "w": 24,
@@ -917,7 +973,7 @@
           "values": false
         }
       },
-      "id": 18,
+      "id": 19,
       "gridPos": {
         "h": 4,
         "w": 4,
@@ -976,7 +1032,7 @@
           "values": false
         }
       },
-      "id": 19,
+      "id": 20,
       "gridPos": {
         "h": 4,
         "w": 4,
@@ -1039,7 +1095,7 @@
           "values": false
         }
       },
-      "id": 20,
+      "id": 21,
       "gridPos": {
         "h": 4,
         "w": 4,
@@ -1102,7 +1158,7 @@
           "values": false
         }
       },
-      "id": 21,
+      "id": 22,
       "gridPos": {
         "h": 4,
         "w": 4,
@@ -1161,7 +1217,7 @@
           "values": false
         }
       },
-      "id": 22,
+      "id": 23,
       "gridPos": {
         "h": 4,
         "w": 4,
@@ -1216,7 +1272,7 @@
           "values": false
         }
       },
-      "id": 23,
+      "id": 24,
       "gridPos": {
         "h": 4,
         "w": 4,
@@ -1271,7 +1327,7 @@
           "sort": "desc"
         }
       },
-      "id": 24,
+      "id": 25,
       "gridPos": {
         "h": 7,
         "w": 24,
@@ -1285,7 +1341,7 @@
       "title": "Storage",
       "collapsed": false,
       "panels": [],
-      "id": 25,
+      "id": 26,
       "gridPos": {
         "h": 1,
         "w": 24,
@@ -1349,7 +1405,7 @@
           "values": false
         }
       },
-      "id": 26,
+      "id": 27,
       "gridPos": {
         "h": 8,
         "w": 8,
@@ -1399,7 +1455,7 @@
           "sort": "desc"
         }
       },
-      "id": 27,
+      "id": 28,
       "gridPos": {
         "h": 8,
         "w": 16,
@@ -1453,7 +1509,7 @@
           "sort": "desc"
         }
       },
-      "id": 28,
+      "id": 29,
       "gridPos": {
         "h": 8,
         "w": 12,
@@ -1507,7 +1563,7 @@
           "sort": "desc"
         }
       },
-      "id": 29,
+      "id": 30,
       "gridPos": {
         "h": 8,
         "w": 12,
@@ -1561,7 +1617,7 @@
           "sort": "desc"
         }
       },
-      "id": 30,
+      "id": 31,
       "gridPos": {
         "h": 8,
         "w": 12,
@@ -1612,7 +1668,7 @@
           "sort": "desc"
         }
       },
-      "id": 31,
+      "id": 32,
       "gridPos": {
         "h": 8,
         "w": 12,
@@ -1625,7 +1681,7 @@
       "title": "CPU and memory",
       "collapsed": false,
       "panels": [],
-      "id": 32,
+      "id": 33,
       "gridPos": {
         "h": 1,
         "w": 24,
@@ -1681,7 +1737,7 @@
           "sort": "desc"
         }
       },
-      "id": 33,
+      "id": 34,
       "gridPos": {
         "h": 8,
         "w": 12,
@@ -1735,7 +1791,7 @@
           "sort": "desc"
         }
       },
-      "id": 34,
+      "id": 35,
       "gridPos": {
         "h": 8,
         "w": 12,
@@ -1800,7 +1856,7 @@
           "sort": "desc"
         }
       },
-      "id": 35,
+      "id": 36,
       "gridPos": {
         "h": 8,
         "w": 12,
@@ -1870,7 +1926,7 @@
           "sort": "desc"
         }
       },
-      "id": 36,
+      "id": 37,
       "gridPos": {
         "h": 8,
         "w": 12,
@@ -1883,7 +1939,7 @@
       "title": "Network",
       "collapsed": false,
       "panels": [],
-      "id": 37,
+      "id": 38,
       "gridPos": {
         "h": 1,
         "w": 24,
@@ -1933,7 +1989,7 @@
           "sort": "desc"
         }
       },
-      "id": 38,
+      "id": 39,
       "gridPos": {
         "h": 8,
         "w": 12,
@@ -1983,7 +2039,7 @@
           "sort": "desc"
         }
       },
-      "id": 39,
+      "id": 40,
       "gridPos": {
         "h": 8,
         "w": 12,
@@ -2038,7 +2094,7 @@
           "sort": "desc"
         }
       },
-      "id": 40,
+      "id": 41,
       "gridPos": {
         "h": 6,
         "w": 24,
@@ -2051,7 +2107,7 @@
       "title": "Logs",
       "collapsed": false,
       "panels": [],
-      "id": 41,
+      "id": 42,
       "gridPos": {
         "h": 1,
         "w": 24,
@@ -2097,7 +2153,7 @@
           "mode": "multi"
         }
       },
-      "id": 42,
+      "id": 43,
       "gridPos": {
         "h": 6,
         "w": 24,
@@ -2126,7 +2182,7 @@
         "dedupStrategy": "none",
         "enableLogDetails": true
       },
-      "id": 43,
+      "id": 44,
       "gridPos": {
         "h": 14,
         "w": 24,

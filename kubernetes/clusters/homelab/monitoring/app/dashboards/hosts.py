@@ -7,7 +7,8 @@ templates/hosts.json maps each host to its settings, e.g.
 {"rumba": {"fans": false, "power": true, "rootfs": "/"}}. In the template,
 "__HOST__" in any string becomes the host name and "__<KEY>__" becomes a
 string setting's value; a panel carrying "homelabRequires": "<flag>" is kept
-only when that boolean flag is true. Re-run after editing either file;
+only when that boolean flag is true, and one carrying "homelabUnless": "<flag>"
+only when it is false. Re-run after editing either file;
 test_hosts.py fails while a committed host file is stale.
 """
 import copy
@@ -20,6 +21,7 @@ FEATURES = "templates/hosts.json"
 HOSTS_DIR = "Hosts"
 PLACEHOLDER = "__HOST__"
 MARKER = "homelabRequires"
+UNLESS = "homelabUnless"
 
 
 def _substitute(node, values):
@@ -39,7 +41,10 @@ def _filter(panels, features):
     for p in panels:
         if MARKER in p and not features[p[MARKER]]:
             continue
+        if UNLESS in p and features[p[UNLESS]]:
+            continue
         p.pop(MARKER, None)
+        p.pop(UNLESS, None)
         if "panels" in p:
             p["panels"] = _filter(p["panels"], features)
         kept.append(p)
