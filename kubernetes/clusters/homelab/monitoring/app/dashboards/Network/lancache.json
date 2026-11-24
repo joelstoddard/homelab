@@ -61,6 +61,7 @@
 
     {"id": 9, "type": "logs", "title": "Error logs (cache, upstream, SNI proxy)", "gridPos": {"h": 10, "w": 12, "x": 12, "y": 22},
      "datasource": {"type": "loki", "uid": "loki"},
+     "fieldConfig": {"defaults": {"noValue": "None"}, "overrides": []},
      "options": {"showTime": true, "wrapLogMessage": true, "sortOrder": "Descending", "dedupStrategy": "none", "enableLogDetails": true},
      "targets": [{"refId": "A", "expr": "{namespace=\"lancache\", container=\"error-log\"}"}]}
   ]

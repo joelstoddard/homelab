@@ -145,6 +145,9 @@ configMapGenerator:
   - name: dashboard-lancache
     files: [Network/lancache.json]
     options: {annotations: {grafana_folder: Network}}
+  - name: dashboard-network-overview
+    files: [Network/overview.json]
+    options: {annotations: {grafana_folder: Network}}
   - name: dashboard-media-egress
     files: [Network/media-egress.json]
     options: {annotations: {grafana_folder: Network}}
