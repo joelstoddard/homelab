@@ -109,39 +109,6 @@
       "type": "row"
     },
     {
-      "datasource": "${datasource}",
-      "description": "Successful journal reads.\t\n",
-      "fieldConfig": {
-        "defaults": {
-          "custom": {
-            "fillOpacity": 20,
-            "gradientMode": "hue",
-            "stacking": {
-              "mode": "normal"
-            }
-          },
-          "unit": "cps"
-        }
-      },
-      "gridPos": {
-        "h": 10,
-        "w": 12,
-        "x": 0,
-        "y": 12
-      },
-      "targets": [
-        {
-          "datasource": "${datasource}",
-          "expr": "sum by (${groupby}) (rate(loki_source_journal_target_lines_total{namespace=~\"$namespace\", job=~\"$job\", instance=~\"$instance\"}[$__rate_interval]))\n",
-          "instant": false,
-          "legendFormat": "__auto",
-          "range": true
-        }
-      ],
-      "title": "Journal lines read",
-      "type": "timeseries"
-    },
-    {
       "collapsed": false,
       "datasource": "${datasource}",
       "gridPos": {
@@ -178,46 +145,6 @@
         }
       ],
       "title": "Write requests success rate",
-      "type": "timeseries"
-    },
-    {
-      "datasource": "${datasource}",
-      "description": "Percentile write latency.\n",
-      "fieldConfig": {
-        "defaults": {
-          "unit": "s"
-        }
-      },
-      "gridPos": {
-        "h": 10,
-        "w": 12,
-        "x": 12,
-        "y": 23
-      },
-      "targets": [
-        {
-          "datasource": "${datasource}",
-          "expr": "histogram_quantile(\n  0.99,\n  sum by (${groupby}) (\n    rate(loki_write_request_duration_seconds{namespace=~\"$namespace\", job=~\"$job\", instance=~\"$instance\", host=~\"$url\"}[$__rate_interval])\n  )\n)\nor ignoring(le)\nhistogram_quantile(\n  0.99,\n  sum by (le, ${groupby}) (\n    rate(loki_write_request_duration_seconds_bucket{namespace=~\"$namespace\", job=~\"$job\", instance=~\"$instance\", host=~\"$url\"}[$__rate_interval])\n  )\n)\n",
-          "instant": false,
-          "legendFormat": "{{${groupby}}} p99",
-          "range": true
-        },
-        {
-          "datasource": "${datasource}",
-          "expr": "histogram_quantile(\n  0.95,\n  sum by (${groupby}) (\n    rate(loki_write_request_duration_seconds{namespace=~\"$namespace\", job=~\"$job\", instance=~\"$instance\", host=~\"$url\"}[$__rate_interval])\n  )\n)\nor ignoring(le)\nhistogram_quantile(\n  0.95,\n  sum by (le, ${groupby}) (\n    rate(loki_write_request_duration_seconds_bucket{namespace=~\"$namespace\", job=~\"$job\", instance=~\"$instance\", host=~\"$url\"}[$__rate_interval])\n  )\n)\n",
-          "instant": false,
-          "legendFormat": "{{${groupby}}} p95",
-          "range": true
-        },
-        {
-          "datasource": "${datasource}",
-          "expr": "histogram_quantile(\n  0.50,\n  sum by (${groupby}) (\n    rate(loki_write_request_duration_seconds{namespace=~\"$namespace\", job=~\"$job\", instance=~\"$instance\", host=~\"$url\"}[$__rate_interval])\n  )\n)\nor ignoring(le)\nhistogram_quantile(\n  0.50,\n  sum by (le, ${groupby}) (\n    rate(loki_write_request_duration_seconds_bucket{namespace=~\"$namespace\", job=~\"$job\", instance=~\"$instance\", host=~\"$url\"}[$__rate_interval])\n  )\n)\n",
-          "instant": false,
-          "legendFormat": "{{${groupby}}} p50",
-          "range": true
-        }
-      ],
-      "title": "Write latency",
       "type": "timeseries"
     },
     {
@@ -284,83 +211,6 @@
         }
       ],
       "title": "Bytes dropped",
-      "type": "timeseries"
-    },
-    {
-      "datasource": "${datasource}",
-      "description": "Shows distribution of write request sizes over time.\n",
-      "gridPos": {
-        "h": 10,
-        "w": 12,
-        "x": 0,
-        "y": 43
-      },
-      "maxDataPoints": 30,
-      "options": {
-        "calculate": false,
-        "cellGap": 0,
-        "color": {
-          "scheme": "Spectral"
-        },
-        "exemplars": {
-          "color": "rgba(255,0,255,0.7)"
-        },
-        "filterValues": {
-          "le": 0.1
-        },
-        "tooltip": {
-          "show": true,
-          "yHistogram": true
-        },
-        "yAxis": {
-          "unit": "bytes"
-        }
-      },
-      "pluginVersion": "9.0.6",
-      "targets": [
-        {
-          "datasource": "${datasource}",
-          "expr": "sum(increase(loki_write_request_size_bytes{namespace=~\"$namespace\", job=~\"$job\", instance=~\"$instance\"}[$__rate_interval]))\nor ignoring (le)\nsum by (le) (increase(loki_write_request_size_bytes_bucket{namespace=~\"$namespace\", job=~\"$job\", instance=~\"$instance\"}[$__rate_interval]))\n",
-          "format": "heatmap",
-          "instant": false,
-          "legendFormat": "{{le}}",
-          "range": true
-        }
-      ],
-      "title": "Write request size distribution",
-      "type": "heatmap"
-    },
-    {
-      "datasource": "${datasource}",
-      "description": "p99 and p50 of entry propagation latency. Prefers native histogram, falls back to classic histogram when native is unavailable.\n",
-      "fieldConfig": {
-        "defaults": {
-          "unit": "s"
-        }
-      },
-      "gridPos": {
-        "h": 10,
-        "w": 12,
-        "x": 12,
-        "y": 43
-      },
-      "targets": [
-        {
-          "datasource": "${datasource}",
-          "expr": "histogram_quantile(\n  0.99,\n  sum by (${groupby}) (\n\trate(loki_write_entry_propagation_latency_seconds{namespace=~\"$namespace\", job=~\"$job\", instance=~\"$instance\"}[$__rate_interval])\n  )\n)\nor ignoring(le)\nhistogram_quantile(\n  0.99,\n  sum by (le, ${groupby}) (\n\trate(loki_write_entry_propagation_latency_seconds_bucket{namespace=~\"$namespace\", job=~\"$job\", instance=~\"$instance\"}[$__rate_interval])\n  )\n)\n",
-          "instant": false,
-          "legendFormat": "{{${groupby}}} p99",
-          "range": true
-        },
-        {
-          "datasource": "${datasource}",
-          "expr": "histogram_quantile(\n  0.50,\n  sum by (${groupby}) (\n\trate(loki_write_entry_propagation_latency_seconds{namespace=~\"$namespace\", job=~\"$job\", instance=~\"$instance\"}[$__rate_interval])\n  )\n)\nor ignoring(le)\nhistogram_quantile(\n  0.50,\n  sum by (le, ${groupby}) (\n\trate(loki_write_entry_propagation_latency_seconds_bucket{namespace=~\"$namespace\", job=~\"$job\", instance=~\"$instance\"}[$__rate_interval])\n  )\n)\n",
-          "instant": false,
-          "legendFormat": "{{${groupby}}} p50",
-          "range": true
-        }
-      ],
-      "title": "Entry propagation latency",
       "type": "timeseries"
     }
   ],

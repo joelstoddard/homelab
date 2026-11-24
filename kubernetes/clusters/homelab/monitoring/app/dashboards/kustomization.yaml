@@ -19,8 +19,8 @@ configMapGenerator:
   - name: dashboard-k8s-views-nodes
     files: [Kubernetes/k8s-views-nodes.json]
     options: {annotations: {grafana_folder: Kubernetes}}
-  - name: dashboard-k8s-views-pods
-    files: [Kubernetes/k8s-views-pods.json]
+  - name: dashboard-pods
+    files: [Kubernetes/pods.json]
     options: {annotations: {grafana_folder: Kubernetes}}
   - name: dashboard-node-exporter-full
     files: [Kubernetes/node-exporter-full.json]

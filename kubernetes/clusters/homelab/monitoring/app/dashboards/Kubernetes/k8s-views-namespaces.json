@@ -1146,7 +1146,8 @@
               }
             ]
           },
-          "unit": "short"
+          "unit": "short",
+          "noValue": "None"
         },
         "overrides": []
       },
@@ -1252,7 +1253,8 @@
               }
             ]
           },
-          "unit": "short"
+          "unit": "short",
+          "noValue": "None"
         },
         "overrides": []
       },
