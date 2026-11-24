@@ -44,7 +44,7 @@
     },
     {
       "type": "link",
-      "title": "Router",
+      "title": "Hubble (router)",
       "url": "/d/homelab-router",
       "icon": "dashboard",
       "keepTime": true

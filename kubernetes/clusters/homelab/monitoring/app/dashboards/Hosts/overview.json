@@ -2,7 +2,7 @@
   "id": null,
   "uid": "homelab-hosts-overview",
   "title": "Hosts overview",
-  "description": "Every physical host side by side (NUCs and Pis), the Proxmox cluster's guests, and links to each host. docs/design/host-monitoring.md.",
+  "description": "Every physical host side by side (NUCs, Pis, Voyager and the router Hubble), the Proxmox cluster's guests, and links to each host. docs/design/host-monitoring.md.",
   "tags": [
     "hosts"
   ],
@@ -32,6 +32,12 @@
     },
     {
       "type": "link",
+      "title": "Hubble (router)",
+      "url": "/d/homelab-router",
+      "icon": "dashboard"
+    },
+    {
+      "type": "link",
       "title": "NetBox intent vs reality",
       "url": "/d/homelab-netbox",
       "icon": "dashboard"
@@ -45,7 +51,7 @@
       "type": "table",
       "title": "Hosts",
       "id": 1,
-      "description": "One row per physical host: the four Proxmox NUCs and the eight Talos Pis. SMART, drive wear and power are blank where a host does not report them. Click a host for its dashboard.",
+      "description": "One row per physical host: the four Proxmox NUCs, the eight Talos Pis, Voyager (TrueNAS) and Hubble (the router). Voyager's Root disk is its pool. SMART, drive wear and power are blank where a host does not report them. Click a host for its dashboard.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -53,31 +59,31 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "time() - node_boot_time_seconds{job=\"node-exporter\"} and on (instance) group by (instance) (node_boot_time_seconds{job=\"node-exporter\", instance!~\"k8s-.*\"})",
+          "expr": "max by (instance) (time() - node_boot_time_seconds{job=\"node-exporter\"} and on (instance) group by (instance) (node_boot_time_seconds{job=\"node-exporter\", instance!~\"k8s-.*\"})) or label_replace(max(servers_Voyager_local_uptime_uptime), \"instance\", \"voyager\", \"\", \"\") or label_replace(max(homeassistant_sensor_duration_s{job=\"home-assistant\", friendly_name=\"Router Uptime\"}), \"instance\", \"hubble\", \"\", \"\")",
           "format": "table",
           "instant": true
         },
         {
           "refId": "B",
-          "expr": "100 * (1 - avg by (instance) (rate(node_cpu_seconds_total{job=\"node-exporter\", mode=\"idle\"}[5m]))) and on (instance) group by (instance) (node_boot_time_seconds{job=\"node-exporter\", instance!~\"k8s-.*\"})",
+          "expr": "max by (instance) (100 * (1 - avg by (instance) (rate(node_cpu_seconds_total{job=\"node-exporter\", mode=\"idle\"}[5m]))) and on (instance) group by (instance) (node_boot_time_seconds{job=\"node-exporter\", instance!~\"k8s-.*\"})) or label_replace(max(100 * (1 - servers_Voyager_local_aggregation_cpu_average_cpu_idle / (servers_Voyager_local_aggregation_cpu_average_cpu_idle + servers_Voyager_local_aggregation_cpu_average_cpu_interrupt + servers_Voyager_local_aggregation_cpu_average_cpu_nice + servers_Voyager_local_aggregation_cpu_average_cpu_system + servers_Voyager_local_aggregation_cpu_average_cpu_user))), \"instance\", \"voyager\", \"\", \"\") or label_replace(max(homeassistant_sensor_unit_percent{job=\"home-assistant\", friendly_name=\"Router CPU usage\"}), \"instance\", \"hubble\", \"\", \"\")",
           "format": "table",
           "instant": true
         },
         {
           "refId": "C",
-          "expr": "100 * (1 - node_memory_MemAvailable_bytes{job=\"node-exporter\"} / node_memory_MemTotal_bytes{job=\"node-exporter\"}) and on (instance) group by (instance) (node_boot_time_seconds{job=\"node-exporter\", instance!~\"k8s-.*\"})",
+          "expr": "max by (instance) (100 * (1 - node_memory_MemAvailable_bytes{job=\"node-exporter\"} / node_memory_MemTotal_bytes{job=\"node-exporter\"}) and on (instance) group by (instance) (node_boot_time_seconds{job=\"node-exporter\", instance!~\"k8s-.*\"})) or label_replace(max(100 * (servers_Voyager_local_memory_memory_wired + servers_Voyager_local_memory_memory_active) / (servers_Voyager_local_memory_memory_wired + servers_Voyager_local_memory_memory_active + servers_Voyager_local_memory_memory_inactive + servers_Voyager_local_memory_memory_laundry + servers_Voyager_local_memory_memory_free)), \"instance\", \"voyager\", \"\", \"\") or label_replace(max(homeassistant_sensor_unit_percent{job=\"home-assistant\", friendly_name=\"Router Memory usage\"}), \"instance\", \"hubble\", \"\", \"\")",
           "format": "table",
           "instant": true
         },
         {
           "refId": "D",
-          "expr": "100 * (1 - node_filesystem_avail_bytes{job=\"node-exporter\", mountpoint=\"/\"} / node_filesystem_size_bytes{job=\"node-exporter\", mountpoint=\"/\"}) and on (instance) group by (instance) (node_boot_time_seconds{job=\"node-exporter\", instance!~\"k8s-.*\"})",
+          "expr": "max by (instance) (100 * (1 - node_filesystem_avail_bytes{job=\"node-exporter\", mountpoint=~\"/|/var\", fstype=~\"ext4|xfs\"} / node_filesystem_size_bytes{job=\"node-exporter\", mountpoint=~\"/|/var\", fstype=~\"ext4|xfs\"}) and on (instance) group by (instance) (node_boot_time_seconds{job=\"node-exporter\", instance!~\"k8s-.*\"})) or label_replace(100 * sum({__name__=~\"servers_Voyager_local_df_mnt_Voyager(_.+)?_df_complex_used\"}) / (sum({__name__=~\"servers_Voyager_local_df_mnt_Voyager(_.+)?_df_complex_used\"}) + sum(servers_Voyager_local_df_mnt_Voyager_df_complex_free)), \"instance\", \"voyager\", \"\", \"\")",
           "format": "table",
           "instant": true
         },
         {
           "refId": "E",
-          "expr": "max by (instance) (node_hwmon_temp_celsius{job=\"node-exporter\"}) and on (instance) group by (instance) (node_boot_time_seconds{job=\"node-exporter\", instance!~\"k8s-.*\"})",
+          "expr": "max by (instance) (node_hwmon_temp_celsius{job=\"node-exporter\"} and on (instance) group by (instance) (node_boot_time_seconds{job=\"node-exporter\", instance!~\"k8s-.*\"})) or label_replace(max(label_replace(max({__name__=~\"servers_Voyager_local_cputemp_.+_temperature\"}) / 10 - 273.15, \"s\", \"cpu\", \"\", \"\") or label_replace(max({__name__=~\"servers_Voyager_local_disktemp_.+_temperature\"}), \"s\", \"disk\", \"\", \"\")), \"instance\", \"voyager\", \"\", \"\") or label_replace(max(homeassistant_sensor_temperature_celsius{job=\"home-assistant\", friendly_name=\"Router CPU temperature\"}), \"instance\", \"hubble\", \"\", \"\")",
           "format": "table",
           "instant": true
         },
@@ -619,7 +625,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "100 * (1 - avg by (instance) (rate(node_cpu_seconds_total{job=\"node-exporter\", mode=\"idle\"}[$__rate_interval]))) and on (instance) group by (instance) (node_boot_time_seconds{job=\"node-exporter\", instance!~\"k8s-.*\"})",
+          "expr": "max by (instance) (100 * (1 - avg by (instance) (rate(node_cpu_seconds_total{job=\"node-exporter\", mode=\"idle\"}[$__rate_interval]))) and on (instance) group by (instance) (node_boot_time_seconds{job=\"node-exporter\", instance!~\"k8s-.*\"})) or label_replace(max(100 * (1 - servers_Voyager_local_aggregation_cpu_average_cpu_idle / (servers_Voyager_local_aggregation_cpu_average_cpu_idle + servers_Voyager_local_aggregation_cpu_average_cpu_interrupt + servers_Voyager_local_aggregation_cpu_average_cpu_nice + servers_Voyager_local_aggregation_cpu_average_cpu_system + servers_Voyager_local_aggregation_cpu_average_cpu_user))), \"instance\", \"voyager\", \"\", \"\") or label_replace(max(homeassistant_sensor_unit_percent{job=\"home-assistant\", friendly_name=\"Router CPU usage\"}), \"instance\", \"hubble\", \"\", \"\")",
           "legendFormat": "{{instance}}"
         }
       ],
@@ -667,7 +673,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "100 * (1 - node_memory_MemAvailable_bytes{job=\"node-exporter\"} / node_memory_MemTotal_bytes{job=\"node-exporter\"}) and on (instance) group by (instance) (node_boot_time_seconds{job=\"node-exporter\", instance!~\"k8s-.*\"})",
+          "expr": "max by (instance) (100 * (1 - node_memory_MemAvailable_bytes{job=\"node-exporter\"} / node_memory_MemTotal_bytes{job=\"node-exporter\"}) and on (instance) group by (instance) (node_boot_time_seconds{job=\"node-exporter\", instance!~\"k8s-.*\"})) or label_replace(max(100 * (servers_Voyager_local_memory_memory_wired + servers_Voyager_local_memory_memory_active) / (servers_Voyager_local_memory_memory_wired + servers_Voyager_local_memory_memory_active + servers_Voyager_local_memory_memory_inactive + servers_Voyager_local_memory_memory_laundry + servers_Voyager_local_memory_memory_free)), \"instance\", \"voyager\", \"\", \"\") or label_replace(max(homeassistant_sensor_unit_percent{job=\"home-assistant\", friendly_name=\"Router Memory usage\"}), \"instance\", \"hubble\", \"\", \"\")",
           "legendFormat": "{{instance}}"
         }
       ],
@@ -735,7 +741,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "max by (instance) (node_hwmon_temp_celsius{job=\"node-exporter\"}) and on (instance) group by (instance) (node_boot_time_seconds{job=\"node-exporter\", instance!~\"k8s-.*\"})",
+          "expr": "max by (instance) (node_hwmon_temp_celsius{job=\"node-exporter\"} and on (instance) group by (instance) (node_boot_time_seconds{job=\"node-exporter\", instance!~\"k8s-.*\"})) or label_replace(max(label_replace(max({__name__=~\"servers_Voyager_local_cputemp_.+_temperature\"}) / 10 - 273.15, \"s\", \"cpu\", \"\", \"\") or label_replace(max({__name__=~\"servers_Voyager_local_disktemp_.+_temperature\"}), \"s\", \"disk\", \"\", \"\")), \"instance\", \"voyager\", \"\", \"\") or label_replace(max(homeassistant_sensor_temperature_celsius{job=\"home-assistant\", friendly_name=\"Router CPU temperature\"}), \"instance\", \"hubble\", \"\", \"\")",
           "legendFormat": "{{instance}}"
         }
       ],
@@ -803,7 +809,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by (instance) (8 * rate(node_network_receive_bytes_total{job=\"node-exporter\", device!~\"lo|veth.*|tap.*|fwbr.*|fwpr.*|fwln.*|vmbr.*|cilium.*|lxc.*|dummy.*|ip6tnl.*|sit.*|teql.*|tunl.*|bond.*\"}[$__rate_interval])) and on (instance) group by (instance) (node_boot_time_seconds{job=\"node-exporter\", instance!~\"k8s-.*\"})",
+          "expr": "sum by (instance) (8 * rate(node_network_receive_bytes_total{job=\"node-exporter\", device!~\"lo|veth.*|tap.*|fwbr.*|fwpr.*|fwln.*|vmbr.*|cilium.*|lxc.*|dummy.*|ip6tnl.*|sit.*|teql.*|tunl.*|bond.*\"}[$__rate_interval])) and on (instance) group by (instance) (node_boot_time_seconds{job=\"node-exporter\", instance!~\"k8s-.*\"}) or label_replace(8 * sum({__name__=~\"servers_Voyager_local_interface_.+_if_octets_rx\", __name__!~\".*_(bridge|lo)[0-9]*_.*\"}), \"instance\", \"voyager\", \"\", \"\") or label_replace(max(homeassistant_sensor_data_rate_mbit_per_s{job=\"home-assistant\", friendly_name=\"Router Download speed\"}) * 1e6, \"instance\", \"hubble\", \"\", \"\")",
           "legendFormat": "{{instance}}"
         }
       ],

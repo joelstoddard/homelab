@@ -382,7 +382,7 @@ measured: the window holds no outage.
   integration polls the web API over HTTPS (port 8443, which needs the
   router's Authentication Method set to "Both" so the port-80 `hubble`
   route keeps working), and the `home-assistant` scrape carries them as
-  `homeassistant_sensor_*` series (`Network/router.json`). The stock
+  `homeassistant_sensor_*` series (`Hosts/hubble.json`). The stock
   3.0.0.6.102 firmware has no SNMP. The integration and the router login
   live in Home Assistant's `.storage`, not in git, so a rebuild that wipes
   that volume loses them. Its entity IDs contain the router's address, so
