@@ -595,7 +595,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum({__name__=~\"servers_Voyager_local_nfsstat_server_nfsstat_.+\"} >= 0)",
+          "expr": "sum({__name__=~\"servers_Voyager_local_nfsstat_server_nfsstat_.+\", __name__!~\".+_bytes\"} >= 0)",
           "instant": true
         }
       ],

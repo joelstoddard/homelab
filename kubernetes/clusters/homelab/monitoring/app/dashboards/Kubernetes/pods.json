@@ -234,7 +234,7 @@
         {
           "refId": "A",
           "expr": "kube_pod_info{exported_namespace=\"$namespace\", exported_pod=\"$pod\"}",
-          "legendFormat": "{{node}}",
+          "legendFormat": "{{exported_node}}",
           "instant": true
         }
       ],
