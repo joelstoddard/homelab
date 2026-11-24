@@ -86,6 +86,12 @@
           "expr": "max by (instance) (smartctl_device_percentage_used)",
           "format": "table",
           "instant": true
+        },
+        {
+          "refId": "H",
+          "expr": "sum by (instance) (rate(node_rapl_psys_joules_total[5m]))",
+          "format": "table",
+          "instant": true
         }
       ],
       "transformations": [
@@ -107,7 +113,8 @@
               "Value #D": 4,
               "Value #E": 5,
               "Value #F": 6,
-              "Value #G": 7
+              "Value #G": 7,
+              "Value #H": 8
             },
             "renameByName": {
               "instance": "Host",
@@ -117,7 +124,8 @@
               "Value #D": "Root disk",
               "Value #E": "Hottest sensor",
               "Value #F": "SMART",
-              "Value #G": "Drive wear"
+              "Value #G": "Drive wear",
+              "Value #H": "Platform power"
             }
           }
         }
@@ -384,6 +392,18 @@
                 "value": {
                   "type": "color-text"
                 }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Platform power"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "watt"
               }
             ]
           },
