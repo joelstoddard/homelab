@@ -130,6 +130,14 @@
               {
                 "color": "green",
                 "value": null
+              },
+              {
+                "color": "orange",
+                "value": 80
+              },
+              {
+                "color": "red",
+                "value": 90
               }
             ]
           }
@@ -151,20 +159,7 @@
       "id": 3,
       "gridPos": {
         "h": 4,
-        "w": [
-          {
-            "color": "green",
-            "value": null
-          },
-          {
-            "color": "orange",
-            "value": 80
-          },
-          {
-            "color": "red",
-            "value": 90
-          }
-        ],
+        "w": 4,
         "x": 4,
         "y": 1
       }
@@ -196,6 +191,14 @@
               {
                 "color": "green",
                 "value": null
+              },
+              {
+                "color": "orange",
+                "value": 80
+              },
+              {
+                "color": "red",
+                "value": 90
               }
             ]
           },
@@ -218,20 +221,7 @@
       "id": 4,
       "gridPos": {
         "h": 4,
-        "w": [
-          {
-            "color": "green",
-            "value": null
-          },
-          {
-            "color": "orange",
-            "value": 80
-          },
-          {
-            "color": "red",
-            "value": 90
-          }
-        ],
+        "w": 4,
         "x": 8,
         "y": 1
       }
@@ -314,8 +304,16 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
+                "color": "red",
                 "value": null
+              },
+              {
+                "color": "orange",
+                "value": 80
+              },
+              {
+                "color": "green",
+                "value": 90
               }
             ]
           },
@@ -338,20 +336,7 @@
       "id": 6,
       "gridPos": {
         "h": 4,
-        "w": [
-          {
-            "color": "red",
-            "value": null
-          },
-          {
-            "color": "orange",
-            "value": 80
-          },
-          {
-            "color": "green",
-            "value": 90
-          }
-        ],
+        "w": 4,
         "x": 16,
         "y": 1
       }
@@ -383,6 +368,14 @@
               {
                 "color": "green",
                 "value": null
+              },
+              {
+                "color": "orange",
+                "value": 45
+              },
+              {
+                "color": "red",
+                "value": 55
               }
             ]
           }
@@ -404,20 +397,7 @@
       "id": 7,
       "gridPos": {
         "h": 4,
-        "w": [
-          {
-            "color": "green",
-            "value": null
-          },
-          {
-            "color": "orange",
-            "value": 45
-          },
-          {
-            "color": "red",
-            "value": 55
-          }
-        ],
+        "w": 4,
         "x": 20,
         "y": 1
       }
@@ -850,7 +830,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "label_replace({__name__=~\"servers_Voyager_local_nfsstat_server_nfsstat_.+\"}, \"op\", \"$1\", \"__name__\", \"servers_Voyager_local_nfsstat_server_nfsstat_(.+)\") > 0",
+          "expr": "label_replace({__name__=~\"servers_Voyager_local_nfsstat_server_nfsstat_.+\", __name__!~\".+_bytes\"}, \"op\", \"$1\", \"__name__\", \"servers_Voyager_local_nfsstat_server_nfsstat_(.+)\") > 0",
           "legendFormat": "{{op}}"
         }
       ],
