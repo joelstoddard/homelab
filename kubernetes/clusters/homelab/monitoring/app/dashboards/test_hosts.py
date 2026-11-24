@@ -33,6 +33,11 @@ class Render(unittest.TestCase):
         d = render(t, "rumba", {"fans": False})
         self.assertEqual(d["panels"][0]["panels"], [{"id": 1}])
 
+    def test_string_settings_fill_their_placeholders(self):
+        t = {"panels": [{"targets": [{"expr": 'x{mountpoint="__ROOTFS__"} {__LOGS__}'}]}]}
+        d = render(t, "kosmos", {"rootfs": "/var", "logs": 'job="talos", node="kosmos"', "fans": False})
+        self.assertEqual(d["panels"][0]["targets"][0]["expr"], 'x{mountpoint="/var"} {job="talos", node="kosmos"}')
+
     def test_unknown_feature_fails(self):
         with self.assertRaises(KeyError):
             render({"panels": [{"homelabRequires": "gpu"}]}, "rumba", {"fans": True})

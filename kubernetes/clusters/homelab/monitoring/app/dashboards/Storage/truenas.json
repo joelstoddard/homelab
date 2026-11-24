@@ -2,7 +2,7 @@
   "id": null,
   "uid": "homelab-truenas",
   "title": "TrueNAS",
-  "description": "TrueNAS CORE (Voyager) from its collectd Graphite stream (job=\"truenas\", names servers_Voyager_local_*) and its syslog. The names are CORE's; a move to SCALE changes them. docs/design/host-monitoring.md.",
+  "description": "The Voyager pool as storage: space, datasets, disk I/O and temperature, ZFS ARC and NFS. The host itself (CPU, memory, network, syslog) is on Hosts / Voyager. From its collectd Graphite stream (job=\"truenas\", names servers_Voyager_local_*). The names are CORE's; a move to SCALE changes them. docs/design/host-monitoring.md.",
   "tags": [
     "storage"
   ],
@@ -19,26 +19,21 @@
       "title": "Storage overview",
       "url": "/d/homelab-storage-overview",
       "icon": "dashboard"
+    },
+    {
+      "type": "link",
+      "title": "Voyager host",
+      "url": "/d/homelab-host-voyager",
+      "icon": "dashboard"
     }
   ],
   "templating": {
-    "list": [
-      {
-        "name": "search",
-        "label": "Contains",
-        "type": "textbox",
-        "query": "",
-        "current": {
-          "text": "",
-          "value": ""
-        }
-      }
-    ]
+    "list": []
   },
   "panels": [
     {
       "type": "row",
-      "title": "Summary",
+      "title": "Pool",
       "collapsed": false,
       "panels": [],
       "id": 1,
@@ -47,121 +42,6 @@
         "w": 24,
         "x": 0,
         "y": 0
-      }
-    },
-    {
-      "type": "stat",
-      "title": "Uptime",
-      "description": "Time since TrueNAS last booted.",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "servers_Voyager_local_uptime_uptime",
-          "instant": true
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "s",
-          "color": {
-            "mode": "thresholds"
-          },
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              }
-            ]
-          },
-          "decimals": 1
-        },
-        "overrides": []
-      },
-      "options": {
-        "colorMode": "value",
-        "graphMode": "area",
-        "textMode": "value",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        }
-      },
-      "id": 2,
-      "gridPos": {
-        "h": 4,
-        "w": 4,
-        "x": 0,
-        "y": 1
-      }
-    },
-    {
-      "type": "stat",
-      "title": "CPU",
-      "description": "Share of CPU time not idle, averaged across cores.",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "100 * (1 - servers_Voyager_local_aggregation_cpu_average_cpu_idle / (servers_Voyager_local_aggregation_cpu_average_cpu_idle + servers_Voyager_local_aggregation_cpu_average_cpu_interrupt + servers_Voyager_local_aggregation_cpu_average_cpu_nice + servers_Voyager_local_aggregation_cpu_average_cpu_system + servers_Voyager_local_aggregation_cpu_average_cpu_user))",
-          "instant": true
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "percent",
-          "color": {
-            "mode": "thresholds"
-          },
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "orange",
-                "value": 80
-              },
-              {
-                "color": "red",
-                "value": 90
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "options": {
-        "colorMode": "value",
-        "graphMode": "area",
-        "textMode": "value",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        }
-      },
-      "id": 3,
-      "gridPos": {
-        "h": 4,
-        "w": 4,
-        "x": 4,
-        "y": 1
       }
     },
     {
@@ -218,11 +98,11 @@
           "values": false
         }
       },
-      "id": 4,
+      "id": 2,
       "gridPos": {
         "h": 4,
-        "w": 4,
-        "x": 8,
+        "w": 6,
+        "x": 0,
         "y": 1
       }
     },
@@ -271,11 +151,11 @@
           "values": false
         }
       },
-      "id": 5,
+      "id": 3,
       "gridPos": {
         "h": 4,
-        "w": 4,
-        "x": 12,
+        "w": 6,
+        "x": 6,
         "y": 1
       }
     },
@@ -333,11 +213,11 @@
           "values": false
         }
       },
-      "id": 6,
+      "id": 4,
       "gridPos": {
         "h": 4,
-        "w": 4,
-        "x": 16,
+        "w": 6,
+        "x": 12,
         "y": 1
       }
     },
@@ -394,11 +274,11 @@
           "values": false
         }
       },
-      "id": 7,
+      "id": 5,
       "gridPos": {
         "h": 4,
-        "w": 4,
-        "x": 20,
+        "w": 6,
+        "x": 18,
         "y": 1
       }
     },
@@ -407,7 +287,7 @@
       "title": "Storage",
       "collapsed": false,
       "panels": [],
-      "id": 8,
+      "id": 6,
       "gridPos": {
         "h": 1,
         "w": 24,
@@ -457,7 +337,7 @@
           "sort": "desc"
         }
       },
-      "id": 9,
+      "id": 7,
       "gridPos": {
         "h": 8,
         "w": 12,
@@ -507,7 +387,7 @@
           "sort": "desc"
         }
       },
-      "id": 10,
+      "id": 8,
       "gridPos": {
         "h": 8,
         "w": 12,
@@ -562,7 +442,7 @@
           "sort": "desc"
         }
       },
-      "id": 11,
+      "id": 9,
       "gridPos": {
         "h": 8,
         "w": 12,
@@ -617,7 +497,7 @@
           "sort": "desc"
         }
       },
-      "id": 12,
+      "id": 10,
       "gridPos": {
         "h": 8,
         "w": 12,
@@ -672,7 +552,7 @@
           "sort": "desc"
         }
       },
-      "id": 13,
+      "id": 11,
       "gridPos": {
         "h": 8,
         "w": 12,
@@ -738,7 +618,7 @@
           "sort": "desc"
         }
       },
-      "id": 14,
+      "id": 12,
       "gridPos": {
         "h": 8,
         "w": 12,
@@ -751,7 +631,7 @@
       "title": "ZFS and NFS",
       "collapsed": false,
       "panels": [],
-      "id": 15,
+      "id": 13,
       "gridPos": {
         "h": 1,
         "w": 24,
@@ -811,7 +691,7 @@
           "sort": "desc"
         }
       },
-      "id": 16,
+      "id": 14,
       "gridPos": {
         "h": 8,
         "w": 12,
@@ -865,376 +745,12 @@
           "sort": "desc"
         }
       },
-      "id": 17,
+      "id": 15,
       "gridPos": {
         "h": 8,
         "w": 12,
         "x": 12,
         "y": 31
-      }
-    },
-    {
-      "type": "row",
-      "title": "CPU, memory and network",
-      "collapsed": false,
-      "panels": [],
-      "id": 18,
-      "gridPos": {
-        "h": 1,
-        "w": 24,
-        "x": 0,
-        "y": 39
-      }
-    },
-    {
-      "type": "timeseries",
-      "title": "CPU",
-      "description": "Share of CPU time by mode, averaged across cores.",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "100 * servers_Voyager_local_aggregation_cpu_average_cpu_user / (servers_Voyager_local_aggregation_cpu_average_cpu_idle + servers_Voyager_local_aggregation_cpu_average_cpu_interrupt + servers_Voyager_local_aggregation_cpu_average_cpu_nice + servers_Voyager_local_aggregation_cpu_average_cpu_system + servers_Voyager_local_aggregation_cpu_average_cpu_user)",
-          "legendFormat": "user"
-        },
-        {
-          "refId": "B",
-          "expr": "100 * servers_Voyager_local_aggregation_cpu_average_cpu_system / (servers_Voyager_local_aggregation_cpu_average_cpu_idle + servers_Voyager_local_aggregation_cpu_average_cpu_interrupt + servers_Voyager_local_aggregation_cpu_average_cpu_nice + servers_Voyager_local_aggregation_cpu_average_cpu_system + servers_Voyager_local_aggregation_cpu_average_cpu_user)",
-          "legendFormat": "system"
-        },
-        {
-          "refId": "C",
-          "expr": "100 * servers_Voyager_local_aggregation_cpu_average_cpu_interrupt / (servers_Voyager_local_aggregation_cpu_average_cpu_idle + servers_Voyager_local_aggregation_cpu_average_cpu_interrupt + servers_Voyager_local_aggregation_cpu_average_cpu_nice + servers_Voyager_local_aggregation_cpu_average_cpu_system + servers_Voyager_local_aggregation_cpu_average_cpu_user)",
-          "legendFormat": "interrupt"
-        },
-        {
-          "refId": "D",
-          "expr": "100 * servers_Voyager_local_aggregation_cpu_average_cpu_nice / (servers_Voyager_local_aggregation_cpu_average_cpu_idle + servers_Voyager_local_aggregation_cpu_average_cpu_interrupt + servers_Voyager_local_aggregation_cpu_average_cpu_nice + servers_Voyager_local_aggregation_cpu_average_cpu_system + servers_Voyager_local_aggregation_cpu_average_cpu_user)",
-          "legendFormat": "nice"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "percent",
-          "custom": {
-            "lineWidth": 2,
-            "fillOpacity": 30,
-            "showPoints": "never",
-            "stacking": {
-              "mode": "normal",
-              "group": "A"
-            }
-          },
-          "min": 0
-        },
-        "overrides": []
-      },
-      "options": {
-        "legend": {
-          "displayMode": "table",
-          "placement": "right",
-          "calcs": [
-            "mean",
-            "max",
-            "lastNotNull"
-          ]
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        }
-      },
-      "id": 19,
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 40
-      }
-    },
-    {
-      "type": "timeseries",
-      "title": "CPU temperature",
-      "description": "Per-core temperature (the sensor reports tenths of a kelvin).",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "label_replace({__name__=~\"servers_Voyager_local_cputemp_.+_temperature\"}, \"core\", \"$1\", \"__name__\", \"servers_Voyager_local_cputemp_(.+)_temperature\") / 10 - 273.15",
-          "legendFormat": "Core {{core}}"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "celsius",
-          "custom": {
-            "lineWidth": 2,
-            "fillOpacity": 10,
-            "showPoints": "never"
-          },
-          "min": null
-        },
-        "overrides": []
-      },
-      "options": {
-        "legend": {
-          "displayMode": "table",
-          "placement": "right",
-          "calcs": [
-            "mean",
-            "max",
-            "lastNotNull"
-          ]
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        }
-      },
-      "id": 20,
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 40
-      }
-    },
-    {
-      "type": "timeseries",
-      "title": "Memory",
-      "description": "FreeBSD's memory queues: wired holds the ZFS ARC.",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "servers_Voyager_local_memory_memory_wired",
-          "legendFormat": "wired"
-        },
-        {
-          "refId": "B",
-          "expr": "servers_Voyager_local_memory_memory_active",
-          "legendFormat": "active"
-        },
-        {
-          "refId": "C",
-          "expr": "servers_Voyager_local_memory_memory_inactive",
-          "legendFormat": "inactive"
-        },
-        {
-          "refId": "D",
-          "expr": "servers_Voyager_local_memory_memory_laundry",
-          "legendFormat": "laundry"
-        },
-        {
-          "refId": "E",
-          "expr": "servers_Voyager_local_memory_memory_free",
-          "legendFormat": "free"
-        },
-        {
-          "refId": "F",
-          "expr": "servers_Voyager_local_swap_swap_used",
-          "legendFormat": "swap used"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "bytes",
-          "custom": {
-            "lineWidth": 2,
-            "fillOpacity": 10,
-            "showPoints": "never"
-          },
-          "min": 0
-        },
-        "overrides": []
-      },
-      "options": {
-        "legend": {
-          "displayMode": "table",
-          "placement": "right",
-          "calcs": [
-            "mean",
-            "max",
-            "lastNotNull"
-          ]
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        }
-      },
-      "id": 21,
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 48
-      }
-    },
-    {
-      "type": "timeseries",
-      "title": "Network",
-      "description": "Bits per second in and out, per interface.",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "8 * label_replace({__name__=~\"servers_Voyager_local_interface_.+_if_octets_rx\"}, \"interface\", \"$1\", \"__name__\", \"servers_Voyager_local_interface_(.+)_if_octets_rx\")",
-          "legendFormat": "{{interface}} in"
-        },
-        {
-          "refId": "B",
-          "expr": "8 * label_replace({__name__=~\"servers_Voyager_local_interface_.+_if_octets_tx\"}, \"interface\", \"$1\", \"__name__\", \"servers_Voyager_local_interface_(.+)_if_octets_tx\")",
-          "legendFormat": "{{interface}} out"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "bps",
-          "custom": {
-            "lineWidth": 2,
-            "fillOpacity": 10,
-            "showPoints": "never"
-          },
-          "min": 0
-        },
-        "overrides": []
-      },
-      "options": {
-        "legend": {
-          "displayMode": "table",
-          "placement": "right",
-          "calcs": [
-            "mean",
-            "max",
-            "lastNotNull"
-          ]
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        }
-      },
-      "id": 22,
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 48
-      }
-    },
-    {
-      "type": "timeseries",
-      "title": "Load",
-      "description": "Run-queue averages.",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "servers_Voyager_local_load_load_shortterm",
-          "legendFormat": "1 min"
-        },
-        {
-          "refId": "B",
-          "expr": "servers_Voyager_local_load_load_midterm",
-          "legendFormat": "5 min"
-        },
-        {
-          "refId": "C",
-          "expr": "servers_Voyager_local_load_load_longterm",
-          "legendFormat": "15 min"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "short",
-          "custom": {
-            "lineWidth": 2,
-            "fillOpacity": 10,
-            "showPoints": "never"
-          },
-          "min": 0
-        },
-        "overrides": []
-      },
-      "options": {
-        "legend": {
-          "displayMode": "table",
-          "placement": "right",
-          "calcs": [
-            "mean",
-            "max",
-            "lastNotNull"
-          ]
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        }
-      },
-      "id": 23,
-      "gridPos": {
-        "h": 6,
-        "w": 24,
-        "x": 0,
-        "y": 56
-      }
-    },
-    {
-      "type": "row",
-      "title": "Logs",
-      "collapsed": false,
-      "panels": [],
-      "id": 24,
-      "gridPos": {
-        "h": 1,
-        "w": 24,
-        "x": 0,
-        "y": 62
-      }
-    },
-    {
-      "type": "logs",
-      "title": "syslog",
-      "description": "TrueNAS's syslog, received by the cluster's syslog receiver. Filter with the Contains box.",
-      "datasource": {
-        "type": "loki",
-        "uid": "loki"
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "{job=\"syslog\", host=\"voyager\"} |= \"$search\""
-        }
-      ],
-      "options": {
-        "showTime": true,
-        "wrapLogMessage": true,
-        "sortOrder": "Descending",
-        "dedupStrategy": "none",
-        "enableLogDetails": true
-      },
-      "id": 25,
-      "gridPos": {
-        "h": 12,
-        "w": 24,
-        "x": 0,
-        "y": 63
       }
     }
   ]
