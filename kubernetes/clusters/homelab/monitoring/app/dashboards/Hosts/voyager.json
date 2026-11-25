@@ -943,7 +943,7 @@
     {
       "type": "timeseries",
       "title": "Network",
-      "description": "Bits per second in and out, per interface.",
+      "description": "Bits per second per interface: out above zero, in below.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -951,13 +951,13 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "8 * label_replace({__name__=~\"servers_Voyager_local_interface_.+_if_octets_rx\"}, \"interface\", \"$1\", \"__name__\", \"servers_Voyager_local_interface_(.+)_if_octets_rx\")",
-          "legendFormat": "{{interface}} in"
+          "expr": "8 * label_replace({__name__=~\"servers_Voyager_local_interface_.+_if_octets_tx\"}, \"interface\", \"$1\", \"__name__\", \"servers_Voyager_local_interface_(.+)_if_octets_tx\")",
+          "legendFormat": "{{interface}} out"
         },
         {
           "refId": "B",
-          "expr": "8 * label_replace({__name__=~\"servers_Voyager_local_interface_.+_if_octets_tx\"}, \"interface\", \"$1\", \"__name__\", \"servers_Voyager_local_interface_(.+)_if_octets_tx\")",
-          "legendFormat": "{{interface}} out"
+          "expr": "8 * label_replace({__name__=~\"servers_Voyager_local_interface_.+_if_octets_rx\"}, \"interface\", \"$1\", \"__name__\", \"servers_Voyager_local_interface_(.+)_if_octets_rx\")",
+          "legendFormat": "{{interface}} in"
         }
       ],
       "fieldConfig": {
@@ -967,10 +967,22 @@
             "lineWidth": 2,
             "fillOpacity": 10,
             "showPoints": "never"
-          },
-          "min": 0
+          }
         },
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "/.* in/"
+            },
+            "properties": [
+              {
+                "id": "custom.transform",
+                "value": "negative-Y"
+              }
+            ]
+          }
+        ]
       },
       "options": {
         "legend": {
