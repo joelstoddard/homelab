@@ -408,7 +408,9 @@ per-service basic-auth rule because both sinks are write-only. Addresses are
 only ever `${…}` from `cluster-secrets`, listed in
 `host-monitoring/app/targets/targets.json`; the gateway's River sits in
 `app/config/` with substitution disabled and its targets mount at
-`/etc/alloy-targets`, outside the chart's read-only `/etc/alloy`. No ICMP
+`/etc/alloy-targets`, outside the chart's read-only `/etc/alloy`. The Pis'
+Talos API probes (`tcp_connect`, port 50000) are not in that file: `alloy-cluster`
+discovers the arm64 nodes and probes them through the same exporter. No ICMP
 probes: PodSecurity baseline forbids `NET_RAW`. See
 `docs/design/host-monitoring.md`.
 `searxng/` (`dependsOn: traefik, traefik-middlewares, cluster-secrets`,
