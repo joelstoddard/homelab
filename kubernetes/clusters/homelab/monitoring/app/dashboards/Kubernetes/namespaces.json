@@ -2,7 +2,7 @@
   "id": null,
   "uid": "k8s_views_ns",
   "title": "Namespaces",
-  "description": "One namespace: pods, workload health, resources, volumes, network and error lines. Replaces the vendored Kubernetes / Views / Namespaces (grafana.com 15758), which filtered kube-state-metrics on `namespace`, a label that is always `monitoring` here. docs/design/observability.md.",
+  "description": "Every namespace at once, ranked worst first; click a namespace, or pick one in the dropdown, to see that namespace pod by pod. Replaces the vendored Kubernetes / Views / Namespaces (grafana.com 15758), which filtered kube-state-metrics on `namespace`, a label that is always `monitoring` here. docs/design/observability.md.",
   "tags": [
     "kubernetes"
   ],
@@ -48,8 +48,34 @@
         "definition": "label_values(kube_pod_info, exported_namespace)",
         "refresh": 2,
         "sort": 1,
-        "multi": false,
-        "includeAll": false
+        "multi": true,
+        "includeAll": true,
+        "allValue": ".+",
+        "current": {
+          "selected": true,
+          "text": [
+            "All"
+          ],
+          "value": [
+            "$__all"
+          ]
+        }
+      },
+      {
+        "name": "group",
+        "type": "query",
+        "hide": 2,
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "query": {
+          "query": "query_result(label_replace(count(group by (exported_namespace) (kube_pod_info{exported_namespace=~\"$namespace\"})) == 1, \"group\", \"pod\", \"\", \"\") or on () label_replace(vector(0), \"group\", \"namespace\", \"\", \"\"))",
+          "refId": "group"
+        },
+        "definition": "query_result(label_replace(count(group by (exported_namespace) (kube_pod_info{exported_namespace=~\"$namespace\"})) == 1, \"group\", \"pod\", \"\", \"\") or on () label_replace(vector(0), \"group\", \"namespace\", \"\", \"\"))",
+        "regex": "/group=\"(\\w+)\"/",
+        "refresh": 2
       }
     ]
   },
@@ -70,7 +96,7 @@
     {
       "type": "stat",
       "title": "Pods running",
-      "description": "Pods in phase Running.",
+      "description": "Pods in phase Running across the selected namespaces.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -78,7 +104,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum(kube_pod_status_phase{exported_namespace=\"$namespace\", phase=\"Running\"})",
+          "expr": "sum(kube_pod_status_phase{exported_namespace=~\"$namespace\", phase=\"Running\"})",
           "instant": true
         }
       ],
@@ -131,7 +157,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "count((kube_pod_status_ready{exported_namespace=\"$namespace\", condition=\"false\"} == 1) unless on (exported_namespace, exported_pod) (kube_pod_status_phase{exported_namespace=\"$namespace\", phase=\"Succeeded\"} == 1)) or vector(0)",
+          "expr": "count((kube_pod_status_ready{exported_namespace=~\"$namespace\", condition=\"false\"} == 1) unless on (exported_namespace, exported_pod) (kube_pod_status_phase{exported_namespace=~\"$namespace\", phase=\"Succeeded\"} == 1)) or vector(0)",
           "instant": true
         }
       ],
@@ -180,7 +206,7 @@
     {
       "type": "stat",
       "title": "CPU used",
-      "description": "Cores the namespace's containers use now.",
+      "description": "Cores the selected namespaces' containers use now.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -188,7 +214,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum(rate(container_cpu_usage_seconds_total{namespace=\"$namespace\", container!=\"\", container!=\"POD\"}[5m]))",
+          "expr": "sum(rate(container_cpu_usage_seconds_total{namespace=~\"$namespace\", container!=\"\", container!=\"POD\"}[$__rate_interval]))",
           "instant": true
         }
       ],
@@ -234,7 +260,7 @@
     {
       "type": "stat",
       "title": "Memory used",
-      "description": "Working set of the namespace's containers.",
+      "description": "Working set of the selected namespaces' containers.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -242,7 +268,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum(container_memory_working_set_bytes{namespace=\"$namespace\", container!=\"\", container!=\"POD\"})",
+          "expr": "sum(container_memory_working_set_bytes{namespace=~\"$namespace\", container!=\"\", container!=\"POD\"})",
           "instant": true
         }
       ],
@@ -286,8 +312,8 @@
     },
     {
       "type": "stat",
-      "title": "Share of cluster CPU",
-      "description": "This namespace's CPU against all allocatable cores.",
+      "title": "Restarts, 24 h",
+      "description": "Container restarts in the last 24 hours.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -295,13 +321,13 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "100 * sum(rate(container_cpu_usage_seconds_total{namespace=\"$namespace\", container!=\"\", container!=\"POD\"}[5m])) / sum(kube_node_status_allocatable{resource=\"cpu\"})",
+          "expr": "round(sum(increase(kube_pod_container_status_restarts_total{exported_namespace=~\"$namespace\"}[24h]))) or vector(0)",
           "instant": true
         }
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "percent",
+          "unit": "none",
           "color": {
             "mode": "thresholds"
           },
@@ -311,10 +337,13 @@
               {
                 "color": "green",
                 "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1
               }
             ]
-          },
-          "decimals": 1
+          }
         },
         "overrides": []
       },
@@ -340,8 +369,8 @@
     },
     {
       "type": "stat",
-      "title": "Share of cluster memory",
-      "description": "This namespace's working set against all allocatable memory.",
+      "title": "OOM kills, 24 h",
+      "description": "Restarts in the last 24 hours of containers whose last exit was an OOM kill.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -349,13 +378,13 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "100 * sum(container_memory_working_set_bytes{namespace=\"$namespace\", container!=\"\", container!=\"POD\"}) / sum(kube_node_status_allocatable{resource=\"memory\"})",
+          "expr": "round(sum((increase(kube_pod_container_status_restarts_total{exported_namespace=~\"$namespace\"}[24h]) > 0) * on (exported_namespace, exported_pod, container) group_left () (kube_pod_container_status_last_terminated_reason{exported_namespace=~\"$namespace\", reason=\"OOMKilled\"} == 1))) or vector(0)",
           "instant": true
         }
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "percent",
+          "unit": "none",
           "color": {
             "mode": "thresholds"
           },
@@ -365,10 +394,13 @@
               {
                 "color": "green",
                 "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
               }
             ]
-          },
-          "decimals": 1
+          }
         },
         "overrides": []
       },
@@ -393,6 +425,288 @@
       }
     },
     {
+      "id": 22,
+      "type": "table",
+      "title": "Namespaces, worst first",
+      "description": "One row per namespace, sorted by pods not ready, then OOM kills, then restarts. Click a namespace to see it pod by pod.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 24,
+        "w": 24,
+        "x": 0,
+        "y": 5
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (namespace) (label_replace(label_replace(kube_pod_status_phase{exported_namespace=~\"$namespace\", phase=\"Running\"}, \"namespace\", \"$1\", \"exported_namespace\", \"(.*)\"), \"pod\", \"$1\", \"exported_pod\", \"(.*)\"))",
+          "format": "table",
+          "instant": true,
+          "range": false
+        },
+        {
+          "refId": "B",
+          "expr": "sum by (namespace) (label_replace(label_replace((kube_pod_status_ready{exported_namespace=~\"$namespace\", condition=\"false\"} == 1) unless on (exported_namespace, exported_pod) (kube_pod_status_phase{exported_namespace=~\"$namespace\", phase=\"Succeeded\"} == 1), \"namespace\", \"$1\", \"exported_namespace\", \"(.*)\"), \"pod\", \"$1\", \"exported_pod\", \"(.*)\")) or 0 * sum by (namespace) (label_replace(label_replace(kube_pod_info{exported_namespace=~\"$namespace\"}, \"namespace\", \"$1\", \"exported_namespace\", \"(.*)\"), \"pod\", \"$1\", \"exported_pod\", \"(.*)\"))",
+          "format": "table",
+          "instant": true,
+          "range": false
+        },
+        {
+          "refId": "C",
+          "expr": "sum by (namespace) (rate(container_cpu_usage_seconds_total{namespace=~\"$namespace\", container!=\"\", container!=\"POD\"}[$__rate_interval])) or 0 * sum by (namespace) (label_replace(label_replace(kube_pod_info{exported_namespace=~\"$namespace\"}, \"namespace\", \"$1\", \"exported_namespace\", \"(.*)\"), \"pod\", \"$1\", \"exported_pod\", \"(.*)\"))",
+          "format": "table",
+          "instant": true,
+          "range": false
+        },
+        {
+          "refId": "D",
+          "expr": "sum by (namespace) (container_memory_working_set_bytes{namespace=~\"$namespace\", container!=\"\", container!=\"POD\"}) or 0 * sum by (namespace) (label_replace(label_replace(kube_pod_info{exported_namespace=~\"$namespace\"}, \"namespace\", \"$1\", \"exported_namespace\", \"(.*)\"), \"pod\", \"$1\", \"exported_pod\", \"(.*)\"))",
+          "format": "table",
+          "instant": true,
+          "range": false
+        },
+        {
+          "refId": "E",
+          "expr": "round(sum by (namespace) (label_replace(label_replace(increase(kube_pod_container_status_restarts_total{exported_namespace=~\"$namespace\"}[24h]), \"namespace\", \"$1\", \"exported_namespace\", \"(.*)\"), \"pod\", \"$1\", \"exported_pod\", \"(.*)\")))",
+          "format": "table",
+          "instant": true,
+          "range": false
+        },
+        {
+          "refId": "F",
+          "expr": "round(sum by (namespace) (label_replace(label_replace((increase(kube_pod_container_status_restarts_total{exported_namespace=~\"$namespace\"}[24h]) > 0) * on (exported_namespace, exported_pod, container) group_left () (kube_pod_container_status_last_terminated_reason{exported_namespace=~\"$namespace\", reason=\"OOMKilled\"} == 1), \"namespace\", \"$1\", \"exported_namespace\", \"(.*)\"), \"pod\", \"$1\", \"exported_pod\", \"(.*)\"))) or 0 * sum by (namespace) (label_replace(label_replace(kube_pod_info{exported_namespace=~\"$namespace\"}, \"namespace\", \"$1\", \"exported_namespace\", \"(.*)\"), \"pod\", \"$1\", \"exported_pod\", \"(.*)\"))",
+          "format": "table",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "transformations": [
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true
+            },
+            "indexByName": {
+              "namespace": 0,
+              "Value #A": 1,
+              "Value #B": 2,
+              "Value #C": 3,
+              "Value #D": 4,
+              "Value #E": 5,
+              "Value #F": 6
+            },
+            "renameByName": {
+              "namespace": "Namespace",
+              "Value #A": "Pods running",
+              "Value #B": "Not ready",
+              "Value #C": "CPU",
+              "Value #D": "Memory",
+              "Value #E": "Restarts, 24 h",
+              "Value #F": "OOM kills, 24 h"
+            }
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "filterable": true
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Namespace"
+            },
+            "properties": [
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "Open namespace",
+                    "url": "/d/k8s_views_ns?var-namespace=${__data.fields.namespace}&${__url_time_range}"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Pods running"
+            },
+            "properties": [
+              {
+                "id": "decimals",
+                "value": 0
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Not ready"
+            },
+            "properties": [
+              {
+                "id": "decimals",
+                "value": 0
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "red",
+                      "value": 1
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "CPU"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "cores"
+              },
+              {
+                "id": "decimals",
+                "value": 2
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Memory"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "bytes"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Restarts, 24 h"
+            },
+            "properties": [
+              {
+                "id": "decimals",
+                "value": 0
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "orange",
+                      "value": 1
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "OOM kills, 24 h"
+            },
+            "properties": [
+              {
+                "id": "decimals",
+                "value": 0
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "red",
+                      "value": 1
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "sortBy": [
+          {
+            "displayName": "Not ready",
+            "desc": true
+          },
+          {
+            "displayName": "OOM kills, 24 h",
+            "desc": true
+          },
+          {
+            "displayName": "Restarts, 24 h",
+            "desc": true
+          }
+        ]
+      }
+    },
+    {
       "type": "row",
       "title": "Workloads",
       "collapsed": false,
@@ -402,7 +716,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 5
+        "y": 29
       }
     },
     {
@@ -416,7 +730,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by (phase) (kube_pod_status_phase{exported_namespace=\"$namespace\"}) > 0",
+          "expr": "sum by (phase) (kube_pod_status_phase{exported_namespace=~\"$namespace\"}) > 0",
           "legendFormat": "{{phase}}"
         }
       ],
@@ -457,7 +771,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 6
+        "y": 30
       }
     },
     {
@@ -471,8 +785,8 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "kube_deployment_status_replicas_unavailable{exported_namespace=\"$namespace\"} > 0",
-          "legendFormat": "{{deployment}}"
+          "expr": "kube_deployment_status_replicas_unavailable{exported_namespace=~\"$namespace\"} > 0",
+          "legendFormat": "{{exported_namespace}}/{{deployment}}"
         }
       ],
       "fieldConfig": {
@@ -509,13 +823,13 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 6
+        "y": 30
       }
     },
     {
       "type": "timeseries",
       "title": "Restarts",
-      "description": "Container restarts per interval, by pod. Click a series for the pod.",
+      "description": "Container restarts per interval, per namespace, or per pod when one namespace is chosen. Click a series to drill in.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -523,8 +837,8 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by (exported_pod) (increase(kube_pod_container_status_restarts_total{exported_namespace=\"$namespace\"}[$__rate_interval])) > 0",
-          "legendFormat": "{{exported_pod}}"
+          "expr": "sum by (namespace, $group) (label_replace(label_replace(increase(kube_pod_container_status_restarts_total{exported_namespace=~\"$namespace\"}[$__rate_interval]), \"namespace\", \"$1\", \"exported_namespace\", \"(.*)\"), \"pod\", \"$1\", \"exported_pod\", \"(.*)\")) > 0",
+          "legendFormat": "{{$group}}"
         }
       ],
       "fieldConfig": {
@@ -540,8 +854,12 @@
           "noValue": "None",
           "links": [
             {
+              "title": "Open namespace",
+              "url": "/d/k8s_views_ns?var-namespace=${__field.labels.namespace}&${__url_time_range}"
+            },
+            {
               "title": "Open pod",
-              "url": "/d/k8s_views_pods?var-namespace=$namespace&var-pod=${__field.labels.exported_pod}&${__url_time_range}"
+              "url": "/d/k8s_views_pods?var-namespace=${__field.labels.namespace}&var-pod=${__field.labels.pod}&${__url_time_range}"
             }
           ]
         },
@@ -568,13 +886,13 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 14
+        "y": 38
       }
     },
     {
       "type": "timeseries",
       "title": "Waiting and OOM kills",
-      "description": "Containers stuck waiting (with the reason), and restarts caused by an OOM kill, in the interval they happened. Empty is healthy.",
+      "description": "Containers stuck waiting (with the reason), and restarts caused by an OOM kill, in the interval they happened, per namespace, or per pod when one namespace is chosen. Empty is healthy.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -582,13 +900,13 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by (exported_pod, reason) (kube_pod_container_status_waiting_reason{exported_namespace=\"$namespace\"}) > 0",
-          "legendFormat": "{{exported_pod}} waiting: {{reason}}"
+          "expr": "sum by (namespace, $group, reason) (label_replace(label_replace(kube_pod_container_status_waiting_reason{exported_namespace=~\"$namespace\"}, \"namespace\", \"$1\", \"exported_namespace\", \"(.*)\"), \"pod\", \"$1\", \"exported_pod\", \"(.*)\")) > 0",
+          "legendFormat": "{{$group}} waiting: {{reason}}"
         },
         {
           "refId": "B",
-          "expr": "sum by (exported_pod, container) ((increase(kube_pod_container_status_restarts_total{exported_namespace=\"$namespace\"}[$__rate_interval]) > 0) * on (exported_namespace, exported_pod, container) group_left () (kube_pod_container_status_last_terminated_reason{exported_namespace=\"$namespace\", reason=\"OOMKilled\"} == 1))",
-          "legendFormat": "{{exported_pod}}/{{container}} OOM kill"
+          "expr": "sum by (namespace, $group) (label_replace(label_replace((increase(kube_pod_container_status_restarts_total{exported_namespace=~\"$namespace\"}[$__rate_interval]) > 0) * on (exported_namespace, exported_pod, container) group_left () (kube_pod_container_status_last_terminated_reason{exported_namespace=~\"$namespace\", reason=\"OOMKilled\"} == 1), \"namespace\", \"$1\", \"exported_namespace\", \"(.*)\"), \"pod\", \"$1\", \"exported_pod\", \"(.*)\"))",
+          "legendFormat": "{{$group}} OOM kill"
         }
       ],
       "fieldConfig": {
@@ -625,7 +943,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 14
+        "y": 38
       }
     },
     {
@@ -638,13 +956,13 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 22
+        "y": 46
       }
     },
     {
       "type": "timeseries",
-      "title": "CPU by pod",
-      "description": "Cores used per pod.",
+      "title": "CPU",
+      "description": "Cores used per namespace, or per pod when one namespace is chosen.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -652,8 +970,8 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by (pod) (rate(container_cpu_usage_seconds_total{namespace=\"$namespace\", container!=\"\", container!=\"POD\"}[$__rate_interval]))",
-          "legendFormat": "{{pod}}"
+          "expr": "sum by (namespace, $group) (rate(container_cpu_usage_seconds_total{namespace=~\"$namespace\", container!=\"\", container!=\"POD\"}[$__rate_interval]))",
+          "legendFormat": "{{$group}}"
         }
       ],
       "fieldConfig": {
@@ -689,13 +1007,13 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 23
+        "y": 47
       }
     },
     {
       "type": "timeseries",
-      "title": "Memory by pod",
-      "description": "Working set per pod.",
+      "title": "Memory",
+      "description": "Working set per namespace, or per pod when one namespace is chosen.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -703,8 +1021,8 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by (pod) (container_memory_working_set_bytes{namespace=\"$namespace\", container!=\"\", container!=\"POD\"})",
-          "legendFormat": "{{pod}}"
+          "expr": "sum by (namespace, $group) (container_memory_working_set_bytes{namespace=~\"$namespace\", container!=\"\", container!=\"POD\"})",
+          "legendFormat": "{{$group}}"
         }
       ],
       "fieldConfig": {
@@ -740,13 +1058,13 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 23
+        "y": 47
       }
     },
     {
       "type": "timeseries",
-      "title": "CPU throttling by pod",
-      "description": "Share of CFS periods in which the pod hit its CPU limit. Sustained throttling slows the app.",
+      "title": "CPU throttling",
+      "description": "Share of CFS periods in which containers hit their CPU limit, per namespace, or per pod when one namespace is chosen. Sustained throttling slows the app.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -754,8 +1072,8 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "100 * sum by (pod) (rate(container_cpu_cfs_throttled_periods_total{namespace=\"$namespace\", container!=\"\", container!=\"POD\"}[$__rate_interval])) / sum by (pod) (rate(container_cpu_cfs_periods_total{namespace=\"$namespace\", container!=\"\", container!=\"POD\"}[$__rate_interval])) > 0",
-          "legendFormat": "{{pod}}"
+          "expr": "100 * sum by (namespace, $group) (rate(container_cpu_cfs_throttled_periods_total{namespace=~\"$namespace\", container!=\"\", container!=\"POD\"}[$__rate_interval])) / sum by (namespace, $group) (rate(container_cpu_cfs_periods_total{namespace=~\"$namespace\", container!=\"\", container!=\"POD\"}[$__rate_interval])) > 0",
+          "legendFormat": "{{$group}}"
         }
       ],
       "fieldConfig": {
@@ -792,13 +1110,13 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 31
+        "y": 55
       }
     },
     {
       "type": "timeseries",
       "title": "Requests against use",
-      "description": "Summed CPU and memory requests against what the namespace uses.",
+      "description": "Summed CPU requests against what the selected namespaces use.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -806,12 +1124,12 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum(kube_pod_container_resource_requests{exported_namespace=\"$namespace\", resource=\"cpu\"})",
+          "expr": "sum(kube_pod_container_resource_requests{exported_namespace=~\"$namespace\", resource=\"cpu\"})",
           "legendFormat": "CPU requested (cores)"
         },
         {
           "refId": "B",
-          "expr": "sum(rate(container_cpu_usage_seconds_total{namespace=\"$namespace\", container!=\"\", container!=\"POD\"}[$__rate_interval]))",
+          "expr": "sum(rate(container_cpu_usage_seconds_total{namespace=~\"$namespace\", container!=\"\", container!=\"POD\"}[$__rate_interval]))",
           "legendFormat": "CPU used (cores)"
         }
       ],
@@ -848,7 +1166,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 31
+        "y": 55
       }
     },
     {
@@ -861,7 +1179,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 39
+        "y": 63
       }
     },
     {
@@ -875,8 +1193,8 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "100 * kubelet_volume_stats_used_bytes{namespace=\"$namespace\"} / kubelet_volume_stats_capacity_bytes{namespace=\"$namespace\"}",
-          "legendFormat": "{{persistentvolumeclaim}}"
+          "expr": "100 * kubelet_volume_stats_used_bytes{namespace=~\"$namespace\"} / kubelet_volume_stats_capacity_bytes{namespace=~\"$namespace\"}",
+          "legendFormat": "{{namespace}}/{{persistentvolumeclaim}}"
         }
       ],
       "fieldConfig": {
@@ -913,13 +1231,13 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 40
+        "y": 64
       }
     },
     {
       "type": "timeseries",
-      "title": "Network by pod",
-      "description": "Bits per second received (positive) by each pod. hostNetwork pods report their node's traffic.",
+      "title": "Network",
+      "description": "Bits per second received and sent, per namespace, or per pod when one namespace is chosen. hostNetwork pods report their node's traffic.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -927,13 +1245,13 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "8 * sum by (pod) (rate(container_network_receive_bytes_total{namespace=\"$namespace\"}[$__rate_interval]))",
-          "legendFormat": "{{pod}} in"
+          "expr": "8 * sum by (namespace, $group) (rate(container_network_receive_bytes_total{namespace=~\"$namespace\"}[$__rate_interval]))",
+          "legendFormat": "{{$group}} in"
         },
         {
           "refId": "B",
-          "expr": "8 * sum by (pod) (rate(container_network_transmit_bytes_total{namespace=\"$namespace\"}[$__rate_interval]))",
-          "legendFormat": "{{pod}} out"
+          "expr": "8 * sum by (namespace, $group) (rate(container_network_transmit_bytes_total{namespace=~\"$namespace\"}[$__rate_interval]))",
+          "legendFormat": "{{$group}} out"
         }
       ],
       "fieldConfig": {
@@ -969,13 +1287,13 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 40
+        "y": 64
       }
     },
     {
       "type": "timeseries",
-      "title": "Error lines by pod",
-      "description": "Log lines matching (case-insensitive) \"error\", per pod.",
+      "title": "Error lines",
+      "description": "Log lines matching (case-insensitive) \"error\", per namespace, or per pod when one namespace is chosen.",
       "datasource": {
         "type": "loki",
         "uid": "loki"
@@ -983,8 +1301,8 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by (pod) (count_over_time({namespace=\"$namespace\"} |~ \"(?i)error\" [$__auto]))",
-          "legendFormat": "{{pod}}"
+          "expr": "sum by (namespace, $group) (count_over_time({namespace=~\"$namespace\"} |~ \"(?i)error\" [$__auto]))",
+          "legendFormat": "{{$group}}"
         }
       ],
       "fieldConfig": {
@@ -1022,7 +1340,7 @@
         "h": 7,
         "w": 24,
         "x": 0,
-        "y": 48
+        "y": 72
       }
     }
   ]
