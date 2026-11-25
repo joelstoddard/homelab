@@ -2,7 +2,7 @@
   "id": null,
   "uid": "homelab-pihole",
   "title": "Pi-hole",
-  "description": "The Pi-hole pair, pihole-01 and pihole-02, and their keepalived VIP: which instance serves clients (inferred from query rate; keepalived exports no metrics), each instance's probes, queries, blocking, cache and gravity. pihole-exporter (job=\"pihole\") and the blackbox DNS probes. Replaces the vendored Pi-hole Exporter (grafana.com 10176). docs/design/dns-chain.md, docs/design/host-monitoring.md.",
+  "description": "The Pi-hole pair, pihole-01 and pihole-02, and their keepalived VIP: which instance serves clients (inferred from query rate; keepalived exports no metrics), each instance's probes, queries, blocking, cache and gravity, the top domains, and the top clients named from NetBox. pihole-exporter (job=\"pihole\") and the blackbox DNS probes. Replaces the vendored Pi-hole Exporter (grafana.com 10176). docs/design/dns-chain.md, docs/design/host-monitoring.md.",
   "tags": [
     "dns",
     "network"
@@ -57,6 +57,36 @@
         "multi": true,
         "includeAll": true,
         "allValue": "pihole-.+",
+        "current": {
+          "selected": true,
+          "text": [
+            "All"
+          ],
+          "value": [
+            "$__all"
+          ]
+        }
+      },
+      {
+        "name": "client",
+        "label": "Client",
+        "description": "The selected instances' ten top clients, for the NetBox lookup in Top clients.",
+        "type": "query",
+        "hide": 2,
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "query": {
+          "query": "query_result(topk(10, sum by (source) (pihole_top_sources{job=\"pihole\", hostname=~\"$instance\"})))",
+          "refId": "client"
+        },
+        "definition": "query_result(topk(10, sum by (source) (pihole_top_sources{job=\"pihole\", hostname=~\"$instance\"})))",
+        "regex": "/source=\"([^\"]+)\"/",
+        "refresh": 2,
+        "sort": 0,
+        "multi": true,
+        "includeAll": true,
         "current": {
           "selected": true,
           "text": [
@@ -1305,6 +1335,304 @@
     },
     {
       "type": "row",
+      "title": "Top domains and clients",
+      "collapsed": false,
+      "panels": [],
+      "id": 24,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 48
+      }
+    },
+    {
+      "type": "bargauge",
+      "title": "Top domains today",
+      "description": "The ten most-queried domains today, summed across the selected instances. Each instance reports only its own top list, so a domain near the bottom of one list and absent from the other is undercounted.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "topk(10, sum by (domain) (pihole_top_queries{job=\"pihole\", hostname=~\"$instance\"}))",
+          "legendFormat": "{{domain}}",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "No queries today",
+          "min": 0,
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "orientation": "horizontal",
+        "displayMode": "basic",
+        "showUnfilled": true,
+        "valueMode": "text",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "id": 25,
+      "gridPos": {
+        "h": 10,
+        "w": 12,
+        "x": 0,
+        "y": 49
+      }
+    },
+    {
+      "type": "bargauge",
+      "title": "Top blocked domains today",
+      "description": "The ten most-blocked domains today, summed across the selected instances. An instance that has blocked nothing today reports no list.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "topk(10, sum by (domain) (pihole_top_ads{job=\"pihole\", hostname=~\"$instance\"}))",
+          "legendFormat": "{{domain}}",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "Nothing blocked today",
+          "min": 0,
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "orientation": "horizontal",
+        "displayMode": "basic",
+        "showUnfilled": true,
+        "valueMode": "text",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "id": 26,
+      "gridPos": {
+        "h": 10,
+        "w": 12,
+        "x": 12,
+        "y": 49
+      }
+    },
+    {
+      "type": "table",
+      "title": "Top clients today, named by NetBox",
+      "description": "The ten clients that sent the most queries today, summed across the selected instances, each address looked up in NetBox's IP addresses (the hidden client variable holds the same ten). Device or VM is what the address's interface belongs to, Role the device's role (NetBox gives a VM none here), DNS name and Description the address record's own. NetBox reads \"not in NetBox\" for a client with no address record, which is drift to fix in NetBox; a recorded address assigned to no interface shows blank Device and VM.",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "label_replace(topk(10, sum by (source) (pihole_top_sources{job=\"pihole\", hostname=~\"$instance\"})), \"ip\", \"$1\", \"source\", \"(.*)\")",
+          "format": "table",
+          "instant": true,
+          "range": false
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "netboxlabs-netbox-datasource",
+            "uid": "netbox"
+          },
+          "queryType": "ip-enrichment",
+          "ipSource": "list",
+          "ips": "$client",
+          "contextFields": [
+            "ip",
+            "match_count",
+            "device_name",
+            "vm_name",
+            "device_role",
+            "address_dns_name",
+            "address_description"
+          ],
+          "limit": 100
+        }
+      ],
+      "transformations": [
+        {
+          "id": "joinByField",
+          "options": {
+            "byField": "ip",
+            "mode": "outerTabular"
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "source": true
+            },
+            "indexByName": {
+              "ip": 0,
+              "Value": 1,
+              "Value #A": 1,
+              "match_count": 2,
+              "device_name": 3,
+              "vm_name": 4,
+              "device_role": 5,
+              "address_dns_name": 6,
+              "address_description": 7
+            },
+            "renameByName": {
+              "ip": "Client",
+              "Value": "Queries today",
+              "Value #A": "Queries today",
+              "match_count": "NetBox",
+              "device_name": "Device",
+              "vm_name": "VM",
+              "device_role": "Role",
+              "address_dns_name": "DNS name",
+              "address_description": "Description"
+            }
+          }
+        },
+        {
+          "id": "filterByValue",
+          "options": {
+            "type": "exclude",
+            "match": "any",
+            "filters": [
+              {
+                "fieldName": "Queries today",
+                "config": {
+                  "id": "isNull",
+                  "options": {}
+                }
+              }
+            ]
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "—",
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            }
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Queries today"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "short"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "NetBox"
+            },
+            "properties": [
+              {
+                "id": "noValue",
+                "value": "not in NetBox"
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "0": {
+                        "text": "not in NetBox",
+                        "color": "orange"
+                      }
+                    }
+                  },
+                  {
+                    "type": "value",
+                    "options": {
+                      "1": {
+                        "text": "recorded",
+                        "color": "green"
+                      }
+                    }
+                  },
+                  {
+                    "type": "range",
+                    "options": {
+                      "from": 2,
+                      "to": null,
+                      "result": {
+                        "text": "ambiguous",
+                        "color": "orange"
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "sortBy": [
+          {
+            "displayName": "Queries today",
+            "desc": true
+          }
+        ]
+      },
+      "id": 27,
+      "gridPos": {
+        "h": 11,
+        "w": 24,
+        "x": 0,
+        "y": 59
+      }
+    },
+    {
+      "type": "row",
       "title": "Upstreams and gravity",
       "collapsed": false,
       "panels": [],
@@ -1313,7 +1641,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 48
+        "y": 70
       }
     },
     {
@@ -1360,7 +1688,7 @@
         "h": 9,
         "w": 8,
         "x": 0,
-        "y": 49
+        "y": 71
       }
     },
     {
@@ -1407,7 +1735,7 @@
         "h": 9,
         "w": 8,
         "x": 8,
-        "y": 49
+        "y": 71
       }
     },
     {
@@ -1454,7 +1782,7 @@
         "h": 9,
         "w": 8,
         "x": 16,
-        "y": 49
+        "y": 71
       }
     }
   ]
