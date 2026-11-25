@@ -470,7 +470,7 @@
         },
         {
           "refId": "E",
-          "expr": "round(sum by (namespace) (label_replace(label_replace(increase(kube_pod_container_status_restarts_total{exported_namespace=~\"$namespace\"}[24h]), \"namespace\", \"$1\", \"exported_namespace\", \"(.*)\"), \"pod\", \"$1\", \"exported_pod\", \"(.*)\")))",
+          "expr": "round(sum by (namespace) (label_replace(label_replace(increase(kube_pod_container_status_restarts_total{exported_namespace=~\"$namespace\"}[24h]), \"namespace\", \"$1\", \"exported_namespace\", \"(.*)\"), \"pod\", \"$1\", \"exported_pod\", \"(.*)\"))) and on (namespace) sum by (namespace) (label_replace(label_replace(kube_pod_info{exported_namespace=~\"$namespace\"}, \"namespace\", \"$1\", \"exported_namespace\", \"(.*)\"), \"pod\", \"$1\", \"exported_pod\", \"(.*)\"))",
           "format": "table",
           "instant": true,
           "range": false
@@ -837,7 +837,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by (namespace, $group) (label_replace(label_replace(increase(kube_pod_container_status_restarts_total{exported_namespace=~\"$namespace\"}[$__rate_interval]), \"namespace\", \"$1\", \"exported_namespace\", \"(.*)\"), \"pod\", \"$1\", \"exported_pod\", \"(.*)\")) > 0",
+          "expr": "label_replace(sum by (namespace, $group) (label_replace(label_replace(increase(kube_pod_container_status_restarts_total{exported_namespace=~\"$namespace\"}[$__rate_interval]), \"namespace\", \"$1\", \"exported_namespace\", \"(.*)\"), \"pod\", \"$1\", \"exported_pod\", \"(.*)\")) > 0, \"pod\", \"$$__all\", \"pod\", \"\")",
           "legendFormat": "{{$group}}"
         }
       ],
