@@ -1,0 +1,1698 @@
+{
+  "id": null,
+  "uid": "homelab-traefik",
+  "title": "Traefik",
+  "description": "The ingress: requests, errors, latency and connections per entrypoint, then every service ranked worst first, then the selected services over time, and the served certificate. Replaces the vendored Traefik Official Standalone Dashboard (grafana.com 17346). docs/design/ingress-tls.md.",
+  "tags": [
+    "network"
+  ],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "time": {
+    "from": "now-24h",
+    "to": "now"
+  },
+  "refresh": "1m",
+  "links": [
+    {
+      "type": "link",
+      "title": "Network overview",
+      "url": "/d/homelab-network-overview",
+      "icon": "dashboard",
+      "keepTime": true
+    }
+  ],
+  "templating": {
+    "list": [
+      {
+        "name": "service",
+        "label": "Service",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "query": {
+          "query": "label_values(traefik_service_requests_total, service)",
+          "refId": "service"
+        },
+        "definition": "label_values(traefik_service_requests_total, service)",
+        "regex": "/(.+)@.*/",
+        "refresh": 2,
+        "sort": 1,
+        "multi": true,
+        "includeAll": true,
+        "allValue": ".+",
+        "current": {
+          "selected": true,
+          "text": [
+            "All"
+          ],
+          "value": [
+            "$__all"
+          ]
+        }
+      }
+    ]
+  },
+  "panels": [
+    {
+      "type": "row",
+      "title": "Summary",
+      "collapsed": false,
+      "panels": [],
+      "id": 1,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Requests",
+      "description": "Requests per second across every entrypoint and both Traefik pods.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate(traefik_entrypoint_requests_total[$__rate_interval]))",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "decimals": 2
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "id": 2,
+      "gridPos": {
+        "h": 4,
+        "w": 3,
+        "x": 0,
+        "y": 1
+      }
+    },
+    {
+      "type": "stat",
+      "title": "4xx share",
+      "description": "Share of responses that are client errors: unknown hosts (404), basic-auth refusals (401) and clients that hung up (499). Scanners hitting the bare address keep this above zero.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate(traefik_entrypoint_requests_total{code=~\"4..\"}[$__rate_interval])) / sum(rate(traefik_entrypoint_requests_total[$__rate_interval])) or vector(0)",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 0.2
+              },
+              {
+                "color": "red",
+                "value": 0.5
+              }
+            ]
+          },
+          "decimals": 1
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "id": 3,
+      "gridPos": {
+        "h": 4,
+        "w": 3,
+        "x": 3,
+        "y": 1
+      }
+    },
+    {
+      "type": "stat",
+      "title": "5xx share",
+      "description": "Share of responses that are server errors: the backend failed (500, 502) or could not be reached (503, 504).",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate(traefik_entrypoint_requests_total{code=~\"5..\"}[$__rate_interval])) / sum(rate(traefik_entrypoint_requests_total[$__rate_interval])) or vector(0)",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 0.01
+              },
+              {
+                "color": "red",
+                "value": 0.05
+              }
+            ]
+          },
+          "decimals": 1
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "id": 4,
+      "gridPos": {
+        "h": 4,
+        "w": 3,
+        "x": 6,
+        "y": 1
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Latency p50",
+      "description": "HTTP request duration across every entrypoint, WebSockets excluded (their duration is the connection's lifetime). Traefik's buckets stop at 0.1, 0.3, 1.2 and 5 s, so the value is interpolated between them.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "histogram_quantile(0.5, sum by (le) (rate(traefik_entrypoint_request_duration_seconds_bucket{protocol=\"http\"}[$__rate_interval])))",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 0.3
+              },
+              {
+                "color": "red",
+                "value": 1.2
+              }
+            ]
+          },
+          "decimals": 2,
+          "noValue": "No requests"
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "id": 5,
+      "gridPos": {
+        "h": 4,
+        "w": 3,
+        "x": 9,
+        "y": 1
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Latency p95",
+      "description": "HTTP request duration across every entrypoint, WebSockets excluded (their duration is the connection's lifetime). Traefik's buckets stop at 0.1, 0.3, 1.2 and 5 s, so the value is interpolated between them.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(traefik_entrypoint_request_duration_seconds_bucket{protocol=\"http\"}[$__rate_interval])))",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 0.3
+              },
+              {
+                "color": "red",
+                "value": 1.2
+              }
+            ]
+          },
+          "decimals": 2,
+          "noValue": "No requests"
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "id": 6,
+      "gridPos": {
+        "h": 4,
+        "w": 3,
+        "x": 12,
+        "y": 1
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Open connections",
+      "description": "Client connections open now on the serving entrypoints (web, websecure, uploads).",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(traefik_open_connections{entrypoint!~\"metrics|traefik\"})",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "id": 7,
+      "gridPos": {
+        "h": 4,
+        "w": 3,
+        "x": 15,
+        "y": 1
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Pods unavailable",
+      "description": "Traefik replicas the Deployment wants but are not available. Every route in the cluster goes through these pods.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(kube_deployment_status_replicas_unavailable{exported_namespace=\"traefik\", deployment=\"traefik\"})",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "id": 8,
+      "gridPos": {
+        "h": 4,
+        "w": 3,
+        "x": 18,
+        "y": 1
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Certificate expiry",
+      "description": "Time until the wildcard certificate Traefik serves expires. cert-manager renews it 30 days before; under 25 days means renewal is failing.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "min(traefik_tls_certs_not_after) - time()",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "dtdurations",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1209600
+              },
+              {
+                "color": "green",
+                "value": 2160000
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "id": 9,
+      "gridPos": {
+        "h": 4,
+        "w": 3,
+        "x": 21,
+        "y": 1
+      }
+    },
+    {
+      "type": "row",
+      "title": "Entrypoints",
+      "collapsed": false,
+      "panels": [],
+      "id": 10,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 5
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Requests by entrypoint",
+      "description": "Requests per second each entrypoint accepted. web only redirects to websecure and records no requests; uploads carries the Proxmox routes with a 1 h read timeout.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (entrypoint) (rate(traefik_entrypoint_requests_total[$__rate_interval]))",
+          "legendFormat": "{{entrypoint}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 0,
+            "showPoints": "never"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "mean",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "id": 11,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 6
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Errors by entrypoint",
+      "description": "Share of each entrypoint's responses that are client (4xx) or server (5xx) errors.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (entrypoint) (rate(traefik_entrypoint_requests_total{code=~\"4..\"}[$__rate_interval])) / (sum by (entrypoint) (rate(traefik_entrypoint_requests_total[$__rate_interval])) > 0)",
+          "legendFormat": "{{entrypoint}} 4xx"
+        },
+        {
+          "refId": "B",
+          "expr": "sum by (entrypoint) (rate(traefik_entrypoint_requests_total{code=~\"5..\"}[$__rate_interval])) / (sum by (entrypoint) (rate(traefik_entrypoint_requests_total[$__rate_interval])) > 0)",
+          "legendFormat": "{{entrypoint}} 5xx"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 0,
+            "showPoints": "never"
+          },
+          "noValue": "No requests",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "mean",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "id": 12,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 6
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Latency by entrypoint",
+      "description": "p50 and p95 HTTP request duration per entrypoint, WebSockets excluded. Interpolated between Traefik's 0.1, 0.3, 1.2 and 5 s buckets.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "histogram_quantile(0.5, sum by (entrypoint, le) (rate(traefik_entrypoint_request_duration_seconds_bucket{protocol=\"http\"}[$__rate_interval])))",
+          "legendFormat": "{{entrypoint}} p50"
+        },
+        {
+          "refId": "B",
+          "expr": "histogram_quantile(0.95, sum by (entrypoint, le) (rate(traefik_entrypoint_request_duration_seconds_bucket{protocol=\"http\"}[$__rate_interval])))",
+          "legendFormat": "{{entrypoint}} p95"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 0,
+            "showPoints": "never"
+          },
+          "noValue": "No requests"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "mean",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "id": 13,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 14
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Open connections by entrypoint",
+      "description": "Client connections open on each serving entrypoint, summed over both pods.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (entrypoint) (traefik_open_connections{entrypoint!~\"metrics|traefik\"})",
+          "legendFormat": "{{entrypoint}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 0,
+            "showPoints": "never"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "mean",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "id": 14,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 14
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Responses by status class",
+      "description": "Responses per second across every entrypoint, by status class. 404 is mostly requests for a host no route matches.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (class) (label_replace(rate(traefik_entrypoint_requests_total[$__rate_interval]), \"class\", \"$1\", \"code\", \"([0-9]).*\"))",
+          "legendFormat": "{{class}}xx"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 0,
+            "showPoints": "never"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "mean",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "id": 15,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 22
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Traffic by entrypoint",
+      "description": "Bytes per second received from clients (in) and sent back (out) on each entrypoint.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (entrypoint) (rate(traefik_entrypoint_requests_bytes_total[$__rate_interval]))",
+          "legendFormat": "{{entrypoint}} in"
+        },
+        {
+          "refId": "B",
+          "expr": "sum by (entrypoint) (rate(traefik_entrypoint_responses_bytes_total[$__rate_interval]))",
+          "legendFormat": "{{entrypoint}} out"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "Bps",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 0,
+            "showPoints": "never"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "mean",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "id": 16,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 22
+      }
+    },
+    {
+      "type": "row",
+      "title": "Services",
+      "collapsed": false,
+      "panels": [],
+      "id": 17,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 30
+      }
+    },
+    {
+      "type": "table",
+      "title": "Services, worst first",
+      "description": "One row per Traefik service over the dashboard's time range, sorted by 5xx share, then p95 latency. The name is the Kubernetes service with Traefik's provider suffix cut; CRD routes carry a hash. Latency is blank for a service with no HTTP requests in the range. Click a service to show only it below.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "label_replace(sum by (service) (rate(traefik_service_requests_total{service=~\"$service@.*\"}[$__range])), \"service\", \"$1\", \"service\", \"(.+)@.*\")",
+          "format": "table",
+          "instant": true,
+          "range": false
+        },
+        {
+          "refId": "B",
+          "expr": "label_replace(sum by (service) (rate(traefik_service_requests_total{service=~\"$service@.*\", code=~\"4..\"}[$__range])) / (sum by (service) (rate(traefik_service_requests_total{service=~\"$service@.*\"}[$__range])) > 0) or 0 * sum by (service) (rate(traefik_service_requests_total{service=~\"$service@.*\"}[$__range])), \"service\", \"$1\", \"service\", \"(.+)@.*\")",
+          "format": "table",
+          "instant": true,
+          "range": false
+        },
+        {
+          "refId": "C",
+          "expr": "label_replace(sum by (service) (rate(traefik_service_requests_total{service=~\"$service@.*\", code=~\"5..\"}[$__range])) / (sum by (service) (rate(traefik_service_requests_total{service=~\"$service@.*\"}[$__range])) > 0) or 0 * sum by (service) (rate(traefik_service_requests_total{service=~\"$service@.*\"}[$__range])), \"service\", \"$1\", \"service\", \"(.+)@.*\")",
+          "format": "table",
+          "instant": true,
+          "range": false
+        },
+        {
+          "refId": "D",
+          "expr": "label_replace(histogram_quantile(0.5, sum by (service, le) (rate(traefik_service_request_duration_seconds_bucket{service=~\"$service@.*\", protocol=\"http\"}[$__range]))) >= 0, \"service\", \"$1\", \"service\", \"(.+)@.*\")",
+          "format": "table",
+          "instant": true,
+          "range": false
+        },
+        {
+          "refId": "E",
+          "expr": "label_replace(histogram_quantile(0.95, sum by (service, le) (rate(traefik_service_request_duration_seconds_bucket{service=~\"$service@.*\", protocol=\"http\"}[$__range]))) >= 0, \"service\", \"$1\", \"service\", \"(.+)@.*\")",
+          "format": "table",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "transformations": [
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true
+            },
+            "indexByName": {
+              "service": 0,
+              "Value #A": 1,
+              "Value #B": 2,
+              "Value #C": 3,
+              "Value #D": 4,
+              "Value #E": 5
+            },
+            "renameByName": {
+              "service": "Service",
+              "Value #A": "Requests/s",
+              "Value #B": "4xx share",
+              "Value #C": "5xx share",
+              "Value #D": "p50",
+              "Value #E": "p95"
+            }
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "filterable": true
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Requests/s"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "reqps"
+              },
+              {
+                "id": "decimals",
+                "value": 3
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "4xx share"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percentunit"
+              },
+              {
+                "id": "decimals",
+                "value": 1
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "text",
+                      "value": null
+                    },
+                    {
+                      "color": "orange",
+                      "value": 0.5
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "5xx share"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percentunit"
+              },
+              {
+                "id": "decimals",
+                "value": 1
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "orange",
+                      "value": 0.01
+                    },
+                    {
+                      "color": "red",
+                      "value": 0.05
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "p50"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "s"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "p95"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "s"
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "orange",
+                      "value": 0.3
+                    },
+                    {
+                      "color": "red",
+                      "value": 1.2
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Service"
+            },
+            "properties": [
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "Show only ${__value.raw} here",
+                    "url": "/d/homelab-traefik?var-service=${__value.raw}&${__url_time_range}"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "sortBy": [
+          {
+            "displayName": "5xx share",
+            "desc": true
+          },
+          {
+            "displayName": "p95",
+            "desc": true
+          }
+        ]
+      },
+      "id": 18,
+      "gridPos": {
+        "h": 14,
+        "w": 24,
+        "x": 0,
+        "y": 31
+      }
+    },
+    {
+      "type": "row",
+      "title": "Selected services",
+      "collapsed": false,
+      "panels": [],
+      "id": 19,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 45
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Requests by service",
+      "description": "Requests per second each selected service answered. Idle services are left out.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "label_replace(sum by (service) (rate(traefik_service_requests_total{service=~\"$service@.*\"}[$__rate_interval])) > 0, \"service\", \"$1\", \"service\", \"(.+)@.*\")",
+          "legendFormat": "{{service}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 0,
+            "showPoints": "never"
+          },
+          "noValue": "No requests"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "mean",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "id": 20,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 46
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Responses by code",
+      "description": "Responses per second across the selected services, by status code.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (code) (rate(traefik_service_requests_total{service=~\"$service@.*\"}[$__rate_interval])) > 0",
+          "legendFormat": "{{code}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 0,
+            "showPoints": "never"
+          },
+          "noValue": "No requests"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "mean",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "id": 21,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 46
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "4xx share by service",
+      "description": "Share of each selected service's responses that are client errors. A service behind a basic-auth middleware shows its 401s here.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "label_replace(sum by (service) (rate(traefik_service_requests_total{service=~\"$service@.*\", code=~\"4..\"}[$__rate_interval])) / sum by (service) (rate(traefik_service_requests_total{service=~\"$service@.*\"}[$__rate_interval])) > 0, \"service\", \"$1\", \"service\", \"(.+)@.*\")",
+          "legendFormat": "{{service}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 0,
+            "showPoints": "never"
+          },
+          "noValue": "No client errors",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "mean",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "id": 22,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 54
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "5xx share by service",
+      "description": "Share of each selected service's responses that are server errors.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "label_replace(sum by (service) (rate(traefik_service_requests_total{service=~\"$service@.*\", code=~\"5..\"}[$__rate_interval])) / sum by (service) (rate(traefik_service_requests_total{service=~\"$service@.*\"}[$__rate_interval])) > 0, \"service\", \"$1\", \"service\", \"(.+)@.*\")",
+          "legendFormat": "{{service}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 0,
+            "showPoints": "never"
+          },
+          "noValue": "No server errors",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "mean",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "id": 23,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 54
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Latency p50 by service",
+      "description": "p50 HTTP request duration per selected service, WebSockets excluded. Interpolated between Traefik's 0.1, 0.3, 1.2 and 5 s buckets.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "label_replace(histogram_quantile(0.5, sum by (service, le) (rate(traefik_service_request_duration_seconds_bucket{service=~\"$service@.*\", protocol=\"http\"}[$__rate_interval]))) >= 0, \"service\", \"$1\", \"service\", \"(.+)@.*\")",
+          "legendFormat": "{{service}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 0,
+            "showPoints": "never"
+          },
+          "noValue": "No requests"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "mean",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "id": 24,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 62
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Latency p95 by service",
+      "description": "p95 HTTP request duration per selected service, WebSockets excluded. Interpolated between Traefik's 0.1, 0.3, 1.2 and 5 s buckets.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "label_replace(histogram_quantile(0.95, sum by (service, le) (rate(traefik_service_request_duration_seconds_bucket{service=~\"$service@.*\", protocol=\"http\"}[$__rate_interval]))) >= 0, \"service\", \"$1\", \"service\", \"(.+)@.*\")",
+          "legendFormat": "{{service}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 0,
+            "showPoints": "never"
+          },
+          "noValue": "No requests"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "mean",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "id": 25,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 62
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Traffic by service",
+      "description": "Bytes per second each selected service received (in) and sent (out). Proxmox ISO uploads show as in.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "label_replace(sum by (service) (rate(traefik_service_requests_bytes_total{service=~\"$service@.*\"}[$__rate_interval])) > 0, \"service\", \"$1\", \"service\", \"(.+)@.*\")",
+          "legendFormat": "{{service}} in"
+        },
+        {
+          "refId": "B",
+          "expr": "label_replace(sum by (service) (rate(traefik_service_responses_bytes_total{service=~\"$service@.*\"}[$__rate_interval])) > 0, \"service\", \"$1\", \"service\", \"(.+)@.*\")",
+          "legendFormat": "{{service}} out"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "Bps",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 0,
+            "showPoints": "never"
+          },
+          "noValue": "No traffic"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "mean",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "id": 26,
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 70
+      }
+    },
+    {
+      "type": "row",
+      "title": "TLS",
+      "collapsed": false,
+      "panels": [],
+      "id": 27,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 78
+      }
+    },
+    {
+      "type": "table",
+      "title": "Certificates",
+      "description": "Each certificate Traefik serves, with the time left before it expires. cert-manager renews 30 days before expiry.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "min by (cn, sans) (traefik_tls_certs_not_after) - time()",
+          "format": "table",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true
+            },
+            "indexByName": {
+              "cn": 0,
+              "sans": 1,
+              "Value": 2
+            },
+            "renameByName": {
+              "cn": "Common name",
+              "sans": "Names",
+              "Value": "Expires in"
+            }
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            }
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Expires in"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "dtdurations"
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "red",
+                      "value": null
+                    },
+                    {
+                      "color": "orange",
+                      "value": 1209600
+                    },
+                    {
+                      "color": "green",
+                      "value": 2160000
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      },
+      "id": 28,
+      "gridPos": {
+        "h": 6,
+        "w": 12,
+        "x": 0,
+        "y": 79
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "TLS requests by version",
+      "description": "HTTPS requests per second by negotiated TLS version.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (tls_version) (rate(traefik_entrypoint_requests_tls_total[$__rate_interval]))",
+          "legendFormat": "TLS {{tls_version}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 0,
+            "showPoints": "never"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "mean",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "id": 29,
+      "gridPos": {
+        "h": 6,
+        "w": 12,
+        "x": 12,
+        "y": 79
+      }
+    }
+  ]
+}

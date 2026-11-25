@@ -37,6 +37,9 @@ configMapGenerator:
   - name: dashboard-traefik
     files: [Network/vendored/traefik.json]
     options: {annotations: {grafana_folder: Network/vendored}}
+  - name: dashboard-traefik-ingress
+    files: [Network/traefik.json]
+    options: {annotations: {grafana_folder: Network}}
   - name: dashboard-cert-manager
     files: [Security/vendored/cert-manager.json]
     options: {annotations: {grafana_folder: Security/vendored}}
