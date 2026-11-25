@@ -124,6 +124,9 @@ configMapGenerator:
   - name: dashboard-router
     files: [Hosts/hubble.json]
     options: {annotations: {grafana_folder: Hosts}}
+  - name: dashboard-hosts-temperatures
+    files: [Hosts/temperatures.json]
+    options: {annotations: {grafana_folder: Hosts}}
   - name: dashboard-searxng
     files: [Services/searxng.json]
     options: {annotations: {grafana_folder: Services}}
