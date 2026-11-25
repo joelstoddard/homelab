@@ -9,6 +9,11 @@ entry, PR. The copy disappears on the next Grafana restart. A file's
 `grafana_folder` is its directory, nested folders included (`Kubernetes/Alloy`,
 `Kubernetes/vendored`); `test_dashboards.py` enforces it.
 
+A `vendored/` subfolder in a folder holds upstream dashboards kept for
+reference. Each is replaced by a hand-written dashboard in the parent folder,
+which is the one the folder overview and the Glance tiles link to; the
+vendored copy carries " (vendored)" in its title so the two are told apart.
+
 Vendoring: `python3 vendor.py <Folder>/<name>.json --id <grafana.com id>`
 pins every datasource reference to the provisioned UIDs (`prometheus`,
 `loki`) and strips `__inputs`. Datasources with other UIDs will show
