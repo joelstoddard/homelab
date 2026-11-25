@@ -28,6 +28,9 @@ configMapGenerator:
   - name: dashboard-longhorn
     files: [Storage/vendored/longhorn.json]
     options: {annotations: {grafana_folder: Storage/vendored}}
+  - name: dashboard-longhorn-volumes
+    files: [Storage/longhorn.json]
+    options: {annotations: {grafana_folder: Storage}}
   - name: dashboard-truenas
     files: [Storage/truenas.json]
     options: {annotations: {grafana_folder: Storage}}
