@@ -89,7 +89,7 @@ the constraints of the stack apply throughout: a public repo (no address or doma
   and probes each one's Talos API (TCP 50000, `tcp_connect`) through the same
   blackbox exporter, with `instance` set to the node name. No address enters
   git, and a new Pi is probed once it joins. Check:
-  `count by (instance)(probe_success{module="tcp_connect"})` lists every Pi.
+  `count by (instance)(probe_success{module="tcp_connect"})` includes every Pi (it also lists hubble, the NUCs and voyager).
 - **The exporters whose `/metrics` is the data are scraped once.**
   `pihole-exporter` and `graphite-exporter` carry no `prometheus.io/scrape`
   annotation: their endpoints are the Pi-hole and TrueNAS data, and the

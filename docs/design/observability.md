@@ -86,8 +86,9 @@ defaults that hide the control-plane components.
   `dashboards/hosts.py` from one template, so a fix reaches every host;
   `test_hosts.py` fails while a generated file is stale. Folders nest:
   `Kubernetes/Alloy` holds the Alloy mixin dashboards, and a `vendored/`
-  subfolder holds each upstream dashboard a hand-written one replaced, kept
-  for reference and titled with " (vendored)".
+  subfolder holds the upstream dashboards kept for reference; one takes
+  " (vendored)" in its title only where it would clash with the hand-written
+  dashboard that replaces it.
 - **No panel reads "No data" without a reason.** A panel whose data is
   never collected here (a collector that is off, a histogram bucket
   `cluster.alloy` drops, a Longhorn series that needs a Kubernetes metrics
