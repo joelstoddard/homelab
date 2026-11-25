@@ -52,6 +52,15 @@ class Folders(unittest.TestCase):
         duplicates = {t: p for t, p in seen.items() if len(p) > 1}
         self.assertEqual(duplicates, {})
 
+    def test_every_uid_is_unique(self):
+        seen = {}
+        for path in FILES:
+            with open(path) as f:
+                uid = json.load(f).get("uid")
+            seen.setdefault(uid, []).append(os.path.relpath(path, HERE))
+        duplicates = {u: p for u, p in seen.items() if len(p) > 1}
+        self.assertEqual(duplicates, {})
+
 
 class Layout(unittest.TestCase):
     def test_every_panel_position_is_whole_numbers(self):
