@@ -46,6 +46,9 @@ configMapGenerator:
   - name: dashboard-cert-manager
     files: [Security/vendored/cert-manager.json]
     options: {annotations: {grafana_folder: Security/vendored}}
+  - name: dashboard-cert-manager-certificates
+    files: [Security/cert-manager.json]
+    options: {annotations: {grafana_folder: Security}}
   - name: dashboard-security-overview
     files: [Security/overview.json]
     options: {annotations: {grafana_folder: Security}}
