@@ -2,7 +2,7 @@
 # the pod env. See docs/design/glance.md, "Live metrics".
 - type: custom-api
   title: Cluster
-  title-url: https://grafana.${DOMAIN}/d/k8s_views_global
+  title-url: https://grafana.${DOMAIN}/d/homelab-kubernetes-overview
   cache: 1m
   options: &links
     prometheus: http://prometheus-server.monitoring.svc
