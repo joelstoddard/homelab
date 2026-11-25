@@ -51,11 +51,22 @@ def _filter(panels, features):
     return kept
 
 
+def _reflow(panels):
+    """Close the vertical gaps dropped panels leave, so the file matches what Grafana draws."""
+    spans = [(p["gridPos"]["y"], p["gridPos"]["y"] + p["gridPos"]["h"]) for p in panels if "gridPos" in p]
+    covered = {y for top, bottom in spans for y in range(top, bottom)}
+    for p in panels:
+        if "gridPos" in p:
+            y = p["gridPos"]["y"]
+            p["gridPos"]["y"] = y - sum(1 for r in range(y) if r not in covered)
+    return panels
+
+
 def render(template, host, features):
     values = {PLACEHOLDER: host}
     values.update({f"__{k.upper()}__": v for k, v in features.items() if isinstance(v, str)})
     d = _substitute(copy.deepcopy(template), values)
-    d["panels"] = _filter(d.get("panels", []), features)
+    d["panels"] = _reflow(_filter(d.get("panels", []), features))
     d["uid"] = f"homelab-host-{host}"
     d["title"] = host.capitalize()
     return d

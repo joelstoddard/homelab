@@ -62,6 +62,23 @@ class Committed(unittest.TestCase):
                                  f"{host}.json is stale: run python3 hosts.py")
 
 
+class Layout(unittest.TestCase):
+    def test_generated_files_have_no_vertical_gap(self):
+        # A dropped panel must not leave its rows empty; Grafana's gravity hides it only in the browser.
+        for host in load(FEATURES):
+            panels = load(os.path.join(HOSTS_DIR, f"{host}.json"))["panels"]
+            covered = {y for p in panels for y in range(p["gridPos"]["y"], p["gridPos"]["y"] + p["gridPos"]["h"])}
+            gaps = sorted(set(range(max(covered))) - covered)
+            self.assertEqual(gaps, [], f"{host}.json leaves rows {gaps} empty")
+
+    def test_render_closes_the_gap_a_dropped_panel_leaves(self):
+        t = {"panels": [{"id": 1, "gridPos": {"x": 0, "y": 0, "w": 24, "h": 2}},
+                        {"id": 2, "homelabRequires": "fans", "gridPos": {"x": 0, "y": 2, "w": 24, "h": 3}},
+                        {"id": 3, "gridPos": {"x": 0, "y": 5, "w": 12, "h": 1}}]}
+        d = render(t, "kosmos", {"fans": False})
+        self.assertEqual([p["gridPos"]["y"] for p in d["panels"]], [0, 2])
+
+
 class Template(unittest.TestCase):
     def test_no_hard_coded_device_names(self):
         exprs = re.findall(r'"expr": "((?:[^"\\]|\\.)*)"', json.dumps(load(TEMPLATE)))
