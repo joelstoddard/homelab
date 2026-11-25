@@ -1,0 +1,2115 @@
+{
+  "id": null,
+  "uid": "homelab-proxmox",
+  "title": "Proxmox",
+  "description": "The Proxmox cluster from pve-exporter (job=\"pve\"): quorum, the four NUCs, every guest ranked worst first, and the storage pools. Pick guests in the dropdown, or click one, to see them alone. Every NUC's exporter reports the whole cluster, so every series is deduplicated by id. Replaces the vendored Proxmox via Prometheus (grafana.com 10347), which showed one exporter instance at a time. docs/design/observability.md.",
+  "tags": [
+    "hosts"
+  ],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "refresh": "1m",
+  "links": [
+    {
+      "type": "link",
+      "title": "Hosts overview",
+      "url": "/d/homelab-hosts-overview",
+      "icon": "dashboard",
+      "keepTime": true
+    },
+    {
+      "type": "dashboards",
+      "title": "Hosts",
+      "tags": [
+        "hosts"
+      ],
+      "asDropdown": true,
+      "includeVars": false,
+      "keepTime": true
+    },
+    {
+      "type": "link",
+      "title": "Kubernetes nodes",
+      "url": "/d/homelab-nodes",
+      "icon": "dashboard",
+      "keepTime": true
+    }
+  ],
+  "annotations": {
+    "list": [
+      {
+        "name": "NetBox changes",
+        "enable": true,
+        "iconColor": "purple",
+        "datasource": {
+          "type": "netboxlabs-netbox-datasource",
+          "uid": "netbox"
+        },
+        "target": {
+          "refId": "Anno",
+          "queryType": "annotations",
+          "objectTypes": [
+            "dcim.device",
+            "virtualization.virtualmachine"
+          ]
+        }
+      }
+    ]
+  },
+  "templating": {
+    "list": [
+      {
+        "name": "guest",
+        "label": "Guest",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "query": {
+          "query": "label_values(pve_guest_info{template=\"0\"}, name)",
+          "refId": "guest"
+        },
+        "definition": "label_values(pve_guest_info{template=\"0\"}, name)",
+        "refresh": 2,
+        "sort": 1,
+        "multi": true,
+        "includeAll": true,
+        "allValue": ".+",
+        "current": {
+          "selected": true,
+          "text": [
+            "All"
+          ],
+          "value": [
+            "$__all"
+          ]
+        }
+      }
+    ]
+  },
+  "panels": [
+    {
+      "type": "row",
+      "title": "Summary",
+      "collapsed": false,
+      "panels": [],
+      "id": 1,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Quorum",
+      "description": "Whether the Proxmox cluster has quorum. Not quorate when any NUC's pve-exporter reports it lost; without quorum no guest can start, stop or change.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "min(pve_cluster_info{quorate=\"1\"} or pve_cluster_info * 0)",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "1": {
+                  "text": "Quorate",
+                  "color": "green"
+                },
+                "0": {
+                  "text": "Not quorate",
+                  "color": "red"
+                }
+              }
+            }
+          ],
+          "noValue": "No data"
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "id": 2,
+      "gridPos": {
+        "h": 4,
+        "w": 3,
+        "x": 0,
+        "y": 1
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Nodes online",
+      "description": "Cluster members Proxmox reports online.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "count(max by (id) (pve_up{id=~\"node/.*\"}) == 1) or vector(0)",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "id": 3,
+      "gridPos": {
+        "h": 4,
+        "w": 3,
+        "x": 3,
+        "y": 1
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Nodes offline",
+      "description": "Cluster members Proxmox reports offline.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "count(max by (id) (pve_up{id=~\"node/.*\"}) == 0) or vector(0)",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "id": 4,
+      "gridPos": {
+        "h": 4,
+        "w": 3,
+        "x": 6,
+        "y": 1
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Guests running",
+      "description": "Selected VMs and containers running (templates excluded).",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "count((max by (id) (pve_up{id=~\"qemu/.*|lxc/.*\"}) == 1) and on (id) max by (id, name, node, type) (pve_guest_info{name=~\"$guest\", template=\"0\"})) or vector(0)",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "id": 5,
+      "gridPos": {
+        "h": 4,
+        "w": 3,
+        "x": 9,
+        "y": 1
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Guests stopped",
+      "description": "Selected VMs and containers stopped. A guest can be stopped on purpose; the Guests table names it.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "count((max by (id) (pve_up{id=~\"qemu/.*|lxc/.*\"}) == 0) and on (id) max by (id, name, node, type) (pve_guest_info{name=~\"$guest\", template=\"0\"})) or vector(0)",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "id": 6,
+      "gridPos": {
+        "h": 4,
+        "w": 3,
+        "x": 12,
+        "y": 1
+      }
+    },
+    {
+      "type": "stat",
+      "title": "CPU used",
+      "description": "CPU the four NUCs use, as a share of all their cores.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(max by (id) (pve_cpu_usage_ratio{id=~\"node/.*\"} * pve_cpu_usage_limit{id=~\"node/.*\"})) / sum(max by (id) (pve_cpu_usage_limit{id=~\"node/.*\"}))",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 0.7
+              },
+              {
+                "color": "red",
+                "value": 0.9
+              }
+            ]
+          },
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "id": 7,
+      "gridPos": {
+        "h": 4,
+        "w": 3,
+        "x": 15,
+        "y": 1
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Memory used",
+      "description": "Memory the four NUCs use, as a share of their total. The NUCs run above 80 % by design: guests are overcommitted onto zram and ballooning (docs/design/zram-swap.md).",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(max by (id) (pve_memory_usage_bytes{id=~\"node/.*\"})) / sum(max by (id) (pve_memory_size_bytes{id=~\"node/.*\"}))",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 0.95
+              },
+              {
+                "color": "red",
+                "value": 0.98
+              }
+            ]
+          },
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "id": 8,
+      "gridPos": {
+        "h": 4,
+        "w": 3,
+        "x": 18,
+        "y": 1
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Storage used",
+      "description": "Space used across every Proxmox storage pool.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(max by (id) (pve_disk_usage_bytes{id=~\"storage/.*\"})) / sum(max by (id) (pve_disk_size_bytes{id=~\"storage/.*\"}))",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 0.8
+              },
+              {
+                "color": "red",
+                "value": 0.9
+              }
+            ]
+          },
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "id": 9,
+      "gridPos": {
+        "h": 4,
+        "w": 3,
+        "x": 21,
+        "y": 1
+      }
+    },
+    {
+      "type": "row",
+      "title": "Nodes",
+      "collapsed": false,
+      "panels": [],
+      "id": 10,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 5
+      }
+    },
+    {
+      "type": "table",
+      "title": "Nodes, busiest first",
+      "description": "One row per NUC: offline first, then the fullest memory. Guest memory is what the running guests are configured with, against the node's memory; above 100 % the node relies on ballooning and zram, by design (docs/design/zram-swap.md). Storage is the node's fullest pool. Click a node to open its host dashboard.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "id": 11,
+      "gridPos": {
+        "h": 7,
+        "w": 24,
+        "x": 0,
+        "y": 6
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max by (node) (label_replace(max by (id) (pve_up{id=~\"node/.*\"}), \"node\", \"$1\", \"id\", \"node/(.+)\"))",
+          "format": "table",
+          "instant": true,
+          "range": false
+        },
+        {
+          "refId": "B",
+          "expr": "max by (node) (label_replace(max by (id) (pve_cpu_usage_ratio{id=~\"node/.*\"}), \"node\", \"$1\", \"id\", \"node/(.+)\"))",
+          "format": "table",
+          "instant": true,
+          "range": false
+        },
+        {
+          "refId": "C",
+          "expr": "max by (node) (label_replace(max by (id) (pve_cpu_usage_limit{id=~\"node/.*\"}), \"node\", \"$1\", \"id\", \"node/(.+)\"))",
+          "format": "table",
+          "instant": true,
+          "range": false
+        },
+        {
+          "refId": "D",
+          "expr": "max by (node) (label_replace(max by (id) (pve_memory_usage_bytes{id=~\"node/.*\"}), \"node\", \"$1\", \"id\", \"node/(.+)\") / label_replace(max by (id) (pve_memory_size_bytes{id=~\"node/.*\"}), \"node\", \"$1\", \"id\", \"node/(.+)\"))",
+          "format": "table",
+          "instant": true,
+          "range": false
+        },
+        {
+          "refId": "E",
+          "expr": "max by (node) (label_replace(max by (id) (pve_memory_size_bytes{id=~\"node/.*\"}), \"node\", \"$1\", \"id\", \"node/(.+)\"))",
+          "format": "table",
+          "instant": true,
+          "range": false
+        },
+        {
+          "refId": "F",
+          "expr": "sum by (node) ((max by (id) (pve_memory_size_bytes{id=~\"qemu/.*|lxc/.*\"}) and on (id) (max by (id) (pve_up{id=~\"qemu/.*|lxc/.*\"}) == 1)) * on (id) group_left (node) max by (id, node) (pve_guest_info{template=\"0\"})) / max by (node) (label_replace(max by (id) (pve_memory_size_bytes{id=~\"node/.*\"}), \"node\", \"$1\", \"id\", \"node/(.+)\"))",
+          "format": "table",
+          "instant": true,
+          "range": false
+        },
+        {
+          "refId": "G",
+          "expr": "max by (node) (label_replace(max by (id) (pve_disk_usage_bytes{id=~\"storage/.*\"}) / max by (id) (pve_disk_size_bytes{id=~\"storage/.*\"}), \"node\", \"$1\", \"id\", \"storage/([^/]+)/.*\"))",
+          "format": "table",
+          "instant": true,
+          "range": false
+        },
+        {
+          "refId": "H",
+          "expr": "count by (node) (((max by (id) (pve_up{id=~\"qemu/.*|lxc/.*\"}) == 1) * on (id) group_left (node) max by (id, node) (pve_guest_info{template=\"0\"}))) or 0 * max by (node) (label_replace(max by (id) (pve_up{id=~\"node/.*\"}), \"node\", \"$1\", \"id\", \"node/(.+)\"))",
+          "format": "table",
+          "instant": true,
+          "range": false
+        },
+        {
+          "refId": "I",
+          "expr": "max by (node) (label_replace(max by (id) (pve_uptime_seconds{id=~\"node/.*\"}), \"node\", \"$1\", \"id\", \"node/(.+)\"))",
+          "format": "table",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "transformations": [
+        {
+          "id": "joinByField",
+          "options": {
+            "byField": "node",
+            "mode": "outerTabular"
+          }
+        },
+        {
+          "id": "formatString",
+          "options": {
+            "stringField": "node",
+            "outputFormat": "Lower Case"
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "Time 1": true,
+              "Time 2": true,
+              "Time 3": true,
+              "Time 4": true,
+              "Time 5": true,
+              "Time 6": true,
+              "Time 7": true,
+              "Time 8": true,
+              "Time 9": true,
+              "id": true
+            },
+            "indexByName": {
+              "node": 0,
+              "Value #A": 1,
+              "Value #B": 2,
+              "Value #C": 3,
+              "Value #D": 4,
+              "Value #E": 5,
+              "Value #F": 6,
+              "Value #G": 7,
+              "Value #H": 8,
+              "Value #I": 9
+            },
+            "renameByName": {
+              "node": "Node",
+              "Value #A": "Status",
+              "Value #B": "CPU used",
+              "Value #C": "Cores",
+              "Value #D": "Memory used",
+              "Value #E": "Memory",
+              "Value #F": "Guest memory",
+              "Value #G": "Storage used",
+              "Value #H": "Guests running",
+              "Value #I": "Uptime"
+            }
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "filterable": true
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Node"
+            },
+            "properties": [
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "Open ${__value.raw}",
+                    "url": "/d/homelab-host-${__value.raw}?${__url_time_range}"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Status"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "1": {
+                        "text": "Online",
+                        "color": "green"
+                      },
+                      "0": {
+                        "text": "Offline",
+                        "color": "red"
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "CPU used"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percentunit"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "orange",
+                      "value": 0.7
+                    },
+                    {
+                      "color": "red",
+                      "value": 0.9
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Memory used"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percentunit"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "orange",
+                      "value": 0.95
+                    },
+                    {
+                      "color": "red",
+                      "value": 0.98
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Memory"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "bytes"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Guest memory"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percentunit"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "orange",
+                      "value": 1.2
+                    },
+                    {
+                      "color": "red",
+                      "value": 1.5
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Storage used"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percentunit"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "orange",
+                      "value": 0.8
+                    },
+                    {
+                      "color": "red",
+                      "value": 0.9
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Uptime"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "s"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "sortBy": [
+          {
+            "displayName": "Status",
+            "desc": false
+          },
+          {
+            "displayName": "Memory used",
+            "desc": true
+          }
+        ]
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Node CPU used",
+      "description": "CPU each NUC uses, as a share of its cores.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max by (node) (label_replace(max by (id) (pve_cpu_usage_ratio{id=~\"node/.*\"}), \"node\", \"$1\", \"id\", \"node/(.+)\"))",
+          "legendFormat": "{{node}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "never"
+          },
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "mean",
+            "max"
+          ],
+          "sortBy": "Max",
+          "sortDesc": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "id": 12,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 13
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Node memory used",
+      "description": "Memory each NUC uses, as a share of its total.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max by (node) (label_replace(max by (id) (pve_memory_usage_bytes{id=~\"node/.*\"}), \"node\", \"$1\", \"id\", \"node/(.+)\") / label_replace(max by (id) (pve_memory_size_bytes{id=~\"node/.*\"}), \"node\", \"$1\", \"id\", \"node/(.+)\"))",
+          "legendFormat": "{{node}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "never"
+          },
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "mean",
+            "max"
+          ],
+          "sortBy": "Max",
+          "sortDesc": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "id": 13,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 13
+      }
+    },
+    {
+      "type": "row",
+      "title": "Guests",
+      "collapsed": false,
+      "panels": [],
+      "id": 14,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 21
+      }
+    },
+    {
+      "type": "table",
+      "title": "Guests, worst first",
+      "description": "One row per selected VM and container: stopped first, then the fullest memory. CPU used is a share of the guest's own vCPUs; a VM's memory used includes its page cache. Disk used is for containers only; Proxmox cannot see inside a VM's disk. Click a guest to see it alone, its node for the host dashboard, or a Kubernetes VM for its node dashboard.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "id": 15,
+      "gridPos": {
+        "h": 14,
+        "w": 24,
+        "x": 0,
+        "y": 22
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max by (id, name, node, type) (pve_guest_info{name=~\"$guest\", template=\"0\"})",
+          "format": "table",
+          "instant": true,
+          "range": false
+        },
+        {
+          "refId": "B",
+          "expr": "(max by (id) (pve_up{id=~\"qemu/.*|lxc/.*\"})) and on (id) max by (id, name, node, type) (pve_guest_info{name=~\"$guest\", template=\"0\"})",
+          "format": "table",
+          "instant": true,
+          "range": false
+        },
+        {
+          "refId": "C",
+          "expr": "(max by (id) (pve_cpu_usage_ratio{id=~\"qemu/.*|lxc/.*\"})) and on (id) max by (id, name, node, type) (pve_guest_info{name=~\"$guest\", template=\"0\"})",
+          "format": "table",
+          "instant": true,
+          "range": false
+        },
+        {
+          "refId": "D",
+          "expr": "(max by (id) (pve_cpu_usage_limit{id=~\"qemu/.*|lxc/.*\"})) and on (id) max by (id, name, node, type) (pve_guest_info{name=~\"$guest\", template=\"0\"})",
+          "format": "table",
+          "instant": true,
+          "range": false
+        },
+        {
+          "refId": "E",
+          "expr": "(max by (id) (pve_memory_usage_bytes{id=~\"qemu/.*|lxc/.*\"}) / max by (id) (pve_memory_size_bytes{id=~\"qemu/.*|lxc/.*\"})) and on (id) max by (id, name, node, type) (pve_guest_info{name=~\"$guest\", template=\"0\"})",
+          "format": "table",
+          "instant": true,
+          "range": false
+        },
+        {
+          "refId": "F",
+          "expr": "(max by (id) (pve_memory_size_bytes{id=~\"qemu/.*|lxc/.*\"})) and on (id) max by (id, name, node, type) (pve_guest_info{name=~\"$guest\", template=\"0\"})",
+          "format": "table",
+          "instant": true,
+          "range": false
+        },
+        {
+          "refId": "G",
+          "expr": "(max by (id) (pve_disk_usage_bytes{id=~\"lxc/.*\"}) / max by (id) (pve_disk_size_bytes{id=~\"lxc/.*\"})) and on (id) max by (id, name, node, type) (pve_guest_info{name=~\"$guest\", template=\"0\"})",
+          "format": "table",
+          "instant": true,
+          "range": false
+        },
+        {
+          "refId": "H",
+          "expr": "(max by (id) (pve_uptime_seconds{id=~\"qemu/.*|lxc/.*\"})) and on (id) max by (id, name, node, type) (pve_guest_info{name=~\"$guest\", template=\"0\"})",
+          "format": "table",
+          "instant": true,
+          "range": false
+        },
+        {
+          "refId": "I",
+          "expr": "(max by (id) (pve_onboot_status)) and on (id) max by (id, name, node, type) (pve_guest_info{name=~\"$guest\", template=\"0\"})",
+          "format": "table",
+          "instant": true,
+          "range": false
+        },
+        {
+          "refId": "J",
+          "expr": "max by (id, k8s) (label_replace(pve_guest_info{name=~\"$guest\", name=~\"k8s-.*\", template=\"0\"}, \"k8s\", \"$1\", \"name\", \"(.*)\"))",
+          "format": "table",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "transformations": [
+        {
+          "id": "joinByField",
+          "options": {
+            "byField": "id",
+            "mode": "outerTabular"
+          }
+        },
+        {
+          "id": "formatString",
+          "options": {
+            "stringField": "node",
+            "outputFormat": "Lower Case"
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "Time 1": true,
+              "Time 2": true,
+              "Time 3": true,
+              "Time 4": true,
+              "Time 5": true,
+              "Time 6": true,
+              "Time 7": true,
+              "Time 8": true,
+              "Time 9": true,
+              "Time 10": true,
+              "Value #A": true,
+              "Value #J": true,
+              "id": true
+            },
+            "indexByName": {
+              "name": 0,
+              "type": 1,
+              "node": 2,
+              "k8s": 3,
+              "Value #B": 4,
+              "Value #C": 5,
+              "Value #D": 6,
+              "Value #E": 7,
+              "Value #F": 8,
+              "Value #G": 9,
+              "Value #H": 10,
+              "Value #I": 11
+            },
+            "renameByName": {
+              "name": "Guest",
+              "type": "Type",
+              "node": "Node",
+              "k8s": "Kubernetes node",
+              "Value #B": "Status",
+              "Value #C": "CPU used",
+              "Value #D": "vCPUs",
+              "Value #E": "Memory used",
+              "Value #F": "Memory",
+              "Value #G": "Disk used",
+              "Value #H": "Uptime",
+              "Value #I": "Start at boot"
+            }
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "filterable": true
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Guest"
+            },
+            "properties": [
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "Open ${__value.raw}",
+                    "url": "/d/homelab-proxmox?var-guest=${__value.raw}&${__url_time_range}"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Type"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "qemu": {
+                        "text": "VM"
+                      },
+                      "lxc": {
+                        "text": "Container"
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Node"
+            },
+            "properties": [
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "Open ${__value.raw}",
+                    "url": "/d/homelab-host-${__value.raw}?${__url_time_range}"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Kubernetes node"
+            },
+            "properties": [
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "Open ${__value.raw}",
+                    "url": "/d/homelab-nodes?var-node=${__value.raw}&${__url_time_range}"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Status"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "1": {
+                        "text": "Running",
+                        "color": "green"
+                      },
+                      "0": {
+                        "text": "Stopped",
+                        "color": "orange"
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "CPU used"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percentunit"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "orange",
+                      "value": 0.7
+                    },
+                    {
+                      "color": "red",
+                      "value": 0.9
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Memory used"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percentunit"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "orange",
+                      "value": 0.9
+                    },
+                    {
+                      "color": "red",
+                      "value": 0.97
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Memory"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "bytes"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Disk used"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percentunit"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "orange",
+                      "value": 0.8
+                    },
+                    {
+                      "color": "red",
+                      "value": 0.9
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Uptime"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "s"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Start at boot"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "1": {
+                        "text": "Yes"
+                      },
+                      "0": {
+                        "text": "No"
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "sortBy": [
+          {
+            "displayName": "Status",
+            "desc": false
+          },
+          {
+            "displayName": "Memory used",
+            "desc": true
+          }
+        ]
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Guests by state",
+      "description": "Selected guests running, stopped, and locked (a backup, migration, snapshot or clone holds the guest).",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "count((max by (id) (pve_up{id=~\"qemu/.*|lxc/.*\"}) == 1) and on (id) max by (id, name, node, type) (pve_guest_info{name=~\"$guest\", template=\"0\"})) or vector(0)",
+          "legendFormat": "running"
+        },
+        {
+          "refId": "B",
+          "expr": "count((max by (id) (pve_up{id=~\"qemu/.*|lxc/.*\"}) == 0) and on (id) max by (id, name, node, type) (pve_guest_info{name=~\"$guest\", template=\"0\"})) or vector(0)",
+          "legendFormat": "stopped"
+        },
+        {
+          "refId": "C",
+          "expr": "count((max by (id) (pve_lock_state == 1)) and on (id) max by (id, name, node, type) (pve_guest_info{name=~\"$guest\", template=\"0\"})) or vector(0)",
+          "legendFormat": "locked"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 30,
+            "showPoints": "never",
+            "stacking": {
+              "mode": "normal",
+              "group": "A"
+            }
+          },
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "mean",
+            "max"
+          ],
+          "sortBy": "Max",
+          "sortDesc": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "id": 16,
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 36
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Top 10 guests by CPU",
+      "description": "Cores used by the ten selected guests busiest over the time range. Click a guest to see it alone.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "((max by (id) (pve_cpu_usage_ratio{id=~\"qemu/.*|lxc/.*\"} * pve_cpu_usage_limit{id=~\"qemu/.*|lxc/.*\"})) * on (id) group_left (name, node, type) max by (id, name, node, type) (pve_guest_info{name=~\"$guest\", template=\"0\"})) and on (id) topk(10, avg_over_time(((max by (id) (pve_cpu_usage_ratio{id=~\"qemu/.*|lxc/.*\"} * pve_cpu_usage_limit{id=~\"qemu/.*|lxc/.*\"})) * on (id) group_left (name, node, type) max by (id, name, node, type) (pve_guest_info{name=~\"$guest\", template=\"0\"}))[$__range:]))",
+          "legendFormat": "{{name}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "cores",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "never"
+          },
+          "min": 0,
+          "links": [
+            {
+              "title": "Open ${__field.labels.name}",
+              "url": "/d/homelab-proxmox?var-guest=${__field.labels.name}&${__url_time_range}"
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "mean",
+            "max"
+          ],
+          "sortBy": "Max",
+          "sortDesc": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "id": 17,
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 36
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Top 10 guests by memory",
+      "description": "Memory used by the ten selected guests with the most over the time range.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "((max by (id) (pve_memory_usage_bytes{id=~\"qemu/.*|lxc/.*\"})) * on (id) group_left (name, node, type) max by (id, name, node, type) (pve_guest_info{name=~\"$guest\", template=\"0\"})) and on (id) topk(10, avg_over_time(((max by (id) (pve_memory_usage_bytes{id=~\"qemu/.*|lxc/.*\"})) * on (id) group_left (name, node, type) max by (id, name, node, type) (pve_guest_info{name=~\"$guest\", template=\"0\"}))[$__range:]))",
+          "legendFormat": "{{name}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "never"
+          },
+          "min": 0,
+          "links": [
+            {
+              "title": "Open ${__field.labels.name}",
+              "url": "/d/homelab-proxmox?var-guest=${__field.labels.name}&${__url_time_range}"
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "mean",
+            "max"
+          ],
+          "sortBy": "Max",
+          "sortDesc": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "id": 18,
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 36
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Guest network",
+      "description": "Bytes each selected guest sends (above zero) and receives (below zero).",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "(max by (id) (rate(pve_network_transmit_bytes{id=~\"qemu/.*|lxc/.*\"}[$__rate_interval]))) * on (id) group_left (name, node, type) max by (id, name, node, type) (pve_guest_info{name=~\"$guest\", template=\"0\"})",
+          "legendFormat": "{{name}} sent"
+        },
+        {
+          "refId": "B",
+          "expr": "(max by (id) (rate(pve_network_receive_bytes{id=~\"qemu/.*|lxc/.*\"}[$__rate_interval]))) * on (id) group_left (name, node, type) max by (id, name, node, type) (pve_guest_info{name=~\"$guest\", template=\"0\"})",
+          "legendFormat": "{{name}} received"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "Bps",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "never"
+          },
+          "links": [
+            {
+              "title": "Open ${__field.labels.name}",
+              "url": "/d/homelab-proxmox?var-guest=${__field.labels.name}&${__url_time_range}"
+            }
+          ]
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".* received"
+            },
+            "properties": [
+              {
+                "id": "custom.transform",
+                "value": "negative-Y"
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "mean",
+            "max"
+          ],
+          "sortBy": "Max",
+          "sortDesc": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "id": 19,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 44
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Guest disk",
+      "description": "Bytes each selected guest writes (above zero) and reads (below zero).",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "(max by (id) (rate(pve_disk_write_bytes{id=~\"qemu/.*|lxc/.*\"}[$__rate_interval]))) * on (id) group_left (name, node, type) max by (id, name, node, type) (pve_guest_info{name=~\"$guest\", template=\"0\"})",
+          "legendFormat": "{{name}} written"
+        },
+        {
+          "refId": "B",
+          "expr": "(max by (id) (rate(pve_disk_read_bytes{id=~\"qemu/.*|lxc/.*\"}[$__rate_interval]))) * on (id) group_left (name, node, type) max by (id, name, node, type) (pve_guest_info{name=~\"$guest\", template=\"0\"})",
+          "legendFormat": "{{name}} read"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "Bps",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "never"
+          },
+          "links": [
+            {
+              "title": "Open ${__field.labels.name}",
+              "url": "/d/homelab-proxmox?var-guest=${__field.labels.name}&${__url_time_range}"
+            }
+          ]
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".* read"
+            },
+            "properties": [
+              {
+                "id": "custom.transform",
+                "value": "negative-Y"
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "mean",
+            "max"
+          ],
+          "sortBy": "Max",
+          "sortDesc": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "id": 20,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 44
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Container disk used",
+      "description": "Root disk used by each selected container, as a share of its size. VMs are absent: Proxmox cannot see inside their disks.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "(max by (id) (pve_disk_usage_bytes{id=~\"lxc/.*\"}) / max by (id) (pve_disk_size_bytes{id=~\"lxc/.*\"})) * on (id) group_left (name, node, type) max by (id, name, node, type) (pve_guest_info{name=~\"$guest\", template=\"0\"})",
+          "legendFormat": "{{name}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "never"
+          },
+          "min": 0,
+          "links": [
+            {
+              "title": "Open ${__field.labels.name}",
+              "url": "/d/homelab-proxmox?var-guest=${__field.labels.name}&${__url_time_range}"
+            }
+          ],
+          "noValue": "No containers selected"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "mean",
+            "max"
+          ],
+          "sortBy": "Max",
+          "sortDesc": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "id": 21,
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 52
+      }
+    },
+    {
+      "type": "row",
+      "title": "Storage",
+      "collapsed": false,
+      "panels": [],
+      "id": 22,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 60
+      }
+    },
+    {
+      "type": "bargauge",
+      "title": "Storage pools, fullest first",
+      "description": "Space used in each Proxmox storage pool, fullest at the top.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sort_desc((max by (id) (pve_disk_usage_bytes{id=~\"storage/.*\"}) / max by (id) (pve_disk_size_bytes{id=~\"storage/.*\"})) * on (id) group_left (node, storage) max by (id, node, storage) (pve_storage_info))",
+          "legendFormat": "{{node}} {{storage}}",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "decimals": 0,
+          "min": 0,
+          "max": 1,
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 0.8
+              },
+              {
+                "color": "red",
+                "value": 0.9
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "orientation": "horizontal",
+        "displayMode": "gradient",
+        "showUnfilled": true,
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "id": 23,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 61
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Storage used",
+      "description": "Space used in each Proxmox storage pool over time.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "(max by (id) (pve_disk_usage_bytes{id=~\"storage/.*\"}) / max by (id) (pve_disk_size_bytes{id=~\"storage/.*\"})) * on (id) group_left (node, storage) max by (id, node, storage) (pve_storage_info)",
+          "legendFormat": "{{node}} {{storage}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "never"
+          },
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "mean",
+            "max"
+          ],
+          "sortBy": "Max",
+          "sortDesc": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "id": 24,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 61
+      }
+    }
+  ]
+}

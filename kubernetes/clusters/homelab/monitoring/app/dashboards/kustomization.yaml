@@ -139,6 +139,9 @@ configMapGenerator:
   - name: dashboard-host-voyager
     files: [Hosts/voyager.json]
     options: {annotations: {grafana_folder: Hosts}}
+  - name: dashboard-hosts-proxmox
+    files: [Hosts/proxmox.json]
+    options: {annotations: {grafana_folder: Hosts}}
   - name: dashboard-hosts-overview
     files: [Hosts/overview.json]
     options: {annotations: {grafana_folder: Hosts}}

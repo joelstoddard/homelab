@@ -556,7 +556,13 @@
                 "value": null
               }
             ]
-          }
+          },
+          "links": [
+            {
+              "title": "Open Proxmox",
+              "url": "/d/homelab-proxmox?${__url_time_range}"
+            }
+          ]
         },
         "overrides": []
       },
@@ -609,7 +615,13 @@
                 "value": null
               }
             ]
-          }
+          },
+          "links": [
+            {
+              "title": "Open Proxmox",
+              "url": "/d/homelab-proxmox?${__url_time_range}"
+            }
+          ]
         },
         "overrides": []
       },
@@ -662,7 +674,13 @@
                 "value": null
               }
             ]
-          }
+          },
+          "links": [
+            {
+              "title": "Open Proxmox",
+              "url": "/d/homelab-proxmox?${__url_time_range}"
+            }
+          ]
         },
         "overrides": []
       },

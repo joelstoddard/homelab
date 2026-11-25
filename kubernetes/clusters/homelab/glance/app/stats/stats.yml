@@ -42,7 +42,7 @@
 # case-insensitive, so they link without lowercasing.
 - type: custom-api
   title: Hypervisors
-  title-url: https://grafana.${DOMAIN}/d/Dp7Cd57Zza
+  title-url: https://grafana.${DOMAIN}/d/homelab-proxmox
   cache: 1m
   options: *links
   template: |
