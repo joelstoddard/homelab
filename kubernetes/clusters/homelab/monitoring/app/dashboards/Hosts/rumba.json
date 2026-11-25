@@ -1412,6 +1412,119 @@
       }
     },
     {
+      "type": "timeseries",
+      "title": "Memory breakdown",
+      "description": "Where the memory goes, from /proc/meminfo. Active and Inactive split the same pages a second way (recently used or reclaimable), so they overlap the other lines. Committed (dashed) is what every process has been promised; above total memory, the host relies on processes never touching all of it.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "node_memory_Active_bytes{instance=\"rumba\"}",
+          "legendFormat": "Active"
+        },
+        {
+          "refId": "B",
+          "expr": "node_memory_Inactive_bytes{instance=\"rumba\"}",
+          "legendFormat": "Inactive"
+        },
+        {
+          "refId": "C",
+          "expr": "node_memory_AnonPages_bytes{instance=\"rumba\"}",
+          "legendFormat": "Anonymous"
+        },
+        {
+          "refId": "D",
+          "expr": "node_memory_Cached_bytes{instance=\"rumba\"}",
+          "legendFormat": "Page cache"
+        },
+        {
+          "refId": "E",
+          "expr": "node_memory_Buffers_bytes{instance=\"rumba\"}",
+          "legendFormat": "Buffers"
+        },
+        {
+          "refId": "F",
+          "expr": "node_memory_Shmem_bytes{instance=\"rumba\"}",
+          "legendFormat": "Shared"
+        },
+        {
+          "refId": "G",
+          "expr": "node_memory_Slab_bytes{instance=\"rumba\"}",
+          "legendFormat": "Kernel slab"
+        },
+        {
+          "refId": "H",
+          "expr": "node_memory_Dirty_bytes{instance=\"rumba\"}",
+          "legendFormat": "Dirty"
+        },
+        {
+          "refId": "I",
+          "expr": "node_memory_Committed_AS_bytes{instance=\"rumba\"}",
+          "legendFormat": "Committed"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "min": 0,
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "never"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Committed"
+            },
+            "properties": [
+              {
+                "id": "custom.lineStyle",
+                "value": {
+                  "fill": "dash",
+                  "dash": [
+                    10,
+                    10
+                  ]
+                }
+              },
+              {
+                "id": "custom.fillOpacity",
+                "value": 0
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "mean",
+            "max",
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "id": 64,
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 45
+      }
+    },
+    {
       "type": "row",
       "title": "System",
       "collapsed": false,
@@ -1420,7 +1533,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 45
+        "y": 53
       }
     },
     {
@@ -1475,7 +1588,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 46
+        "y": 54
       }
     },
     {
@@ -1535,7 +1648,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 46
+        "y": 54
       }
     },
     {
@@ -1585,13 +1698,13 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 54
+        "y": 62
       }
     },
     {
       "type": "timeseries",
       "title": "Clock offset",
-      "description": "The kernel's estimate of its clock's offset from the time source, and its maximum error. etcd on a control-plane node needs both small.",
+      "description": "The kernel's estimate of its clock's offset from the time source, and its maximum error. Certificate checks, log timestamps and etcd all assume clocks in step, so both should stay small.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -1639,7 +1752,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 54
+        "y": 62
       }
     },
     {
@@ -1652,7 +1765,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 62
+        "y": 70
       }
     },
     {
@@ -1721,7 +1834,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 63
+        "y": 71
       }
     },
     {
@@ -1791,7 +1904,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 63
+        "y": 71
       }
     },
     {
@@ -1860,7 +1973,7 @@
         "h": 8,
         "w": 24,
         "x": 0,
-        "y": 71
+        "y": 79
       }
     },
     {
@@ -1873,7 +1986,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 79
+        "y": 87
       }
     },
     {
@@ -1938,7 +2051,7 @@
         "h": 8,
         "w": 18,
         "x": 0,
-        "y": 80
+        "y": 88
       }
     },
     {
@@ -1993,7 +2106,7 @@
         "h": 4,
         "w": 6,
         "x": 18,
-        "y": 80
+        "y": 88
       }
     },
     {
@@ -2006,7 +2119,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 88
+        "y": 96
       }
     },
     {
@@ -2079,7 +2192,7 @@
         "h": 4,
         "w": 4,
         "x": 0,
-        "y": 89
+        "y": 97
       }
     },
     {
@@ -2137,7 +2250,7 @@
         "h": 4,
         "w": 4,
         "x": 4,
-        "y": 89
+        "y": 97
       }
     },
     {
@@ -2199,7 +2312,7 @@
         "h": 4,
         "w": 4,
         "x": 8,
-        "y": 89
+        "y": 97
       }
     },
     {
@@ -2261,7 +2374,7 @@
         "h": 4,
         "w": 4,
         "x": 12,
-        "y": 89
+        "y": 97
       }
     },
     {
@@ -2319,7 +2432,7 @@
         "h": 4,
         "w": 4,
         "x": 16,
-        "y": 89
+        "y": 97
       }
     },
     {
@@ -2373,7 +2486,7 @@
         "h": 4,
         "w": 4,
         "x": 20,
-        "y": 89
+        "y": 97
       }
     },
     {
@@ -2427,7 +2540,7 @@
         "h": 7,
         "w": 24,
         "x": 0,
-        "y": 93
+        "y": 101
       }
     },
     {
@@ -2440,7 +2553,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 100
+        "y": 108
       }
     },
     {
@@ -2494,7 +2607,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 101
+        "y": 109
       }
     },
     {
@@ -2548,7 +2661,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 101
+        "y": 109
       }
     },
     {
@@ -2602,7 +2715,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 109
+        "y": 117
       }
     },
     {
@@ -2653,7 +2766,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 109
+        "y": 117
       }
     },
     {
@@ -2703,7 +2816,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 117
+        "y": 125
       }
     },
     {
@@ -2753,7 +2866,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 117
+        "y": 125
       }
     },
     {
@@ -2766,7 +2879,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 125
+        "y": 133
       }
     },
     {
@@ -2833,7 +2946,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 126
+        "y": 134
       }
     },
     {
@@ -2888,7 +3001,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 126
+        "y": 134
       }
     },
     {
@@ -2943,7 +3056,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 134
+        "y": 142
       }
     },
     {
@@ -3003,7 +3116,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 134
+        "y": 142
       }
     },
     {
@@ -3016,7 +3129,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 142
+        "y": 150
       }
     },
     {
@@ -3062,7 +3175,7 @@
         "h": 6,
         "w": 24,
         "x": 0,
-        "y": 143
+        "y": 151
       }
     },
     {
@@ -3091,7 +3204,7 @@
         "h": 14,
         "w": 24,
         "x": 0,
-        "y": 149
+        "y": 157
       }
     }
   ]

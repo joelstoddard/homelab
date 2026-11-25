@@ -43,6 +43,11 @@ class Render(unittest.TestCase):
         self.assertEqual(render(t, "kosmos", {"power": False})["panels"], [{"id": 2}])
         self.assertEqual(render(t, "rumba", {"power": True})["panels"], [{"id": 1}])
 
+    def test_drops_dashboard_links_whose_feature_is_off(self):
+        t = {"panels": [], "links": [{"title": "Overview"}, {"title": "Proxmox", "homelabRequires": "proxmox"}]}
+        self.assertEqual(render(t, "kosmos", {"proxmox": False})["links"], [{"title": "Overview"}])
+        self.assertEqual(render(t, "rumba", {"proxmox": True})["links"], [{"title": "Overview"}, {"title": "Proxmox"}])
+
     def test_unknown_feature_fails(self):
         with self.assertRaises(KeyError):
             render({"panels": [{"homelabRequires": "gpu"}]}, "rumba", {"fans": True})

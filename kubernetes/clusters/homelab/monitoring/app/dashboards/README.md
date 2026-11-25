@@ -19,19 +19,22 @@ most of their queries return nothing here; see `docs/design/observability.md`.
 Host dashboards: `Hosts/<host>.json` is generated for every physical host, the
 four NUCs and the eight Pis. Edit `templates/host.json` (the dashboard, with
 `__HOST__` for the host name and `__<KEY>__` for a string setting) or
-`templates/hosts.json` (each host's `fans`, `power`, `smart` and `coretemp`
-flags, its main filesystem `rootfs`, its Loki selector `logs` and that
-stream's level label `loglevel`), then run `python3 hosts.py`. A panel or row
-carrying `"homelabRequires": "<flag>"` is dropped for a host whose flag is
-false, so a Pi shows no empty Fans, Power or CPU-core rows; one
-carrying `"homelabUnless": "<flag>"` is kept only where the flag is false,
-which fills the power slot of a Pi's Summary row with its CPU clock. `test_hosts.py` fails
-while a committed host file is stale. `templates/` holds no ConfigMap. The
-layout follows the vendored Node Exporter Full: Summary gauges and small
-stats, one panel each for CPU, memory, network and disk, then CPU and memory,
-System, Temperatures, Fans, Power, SMART, Storage, Network and Logs, keeping
-only panels whose collectors are on for both a NUC and a Pi. A Pi's SMART row reads its USB NVMe drive (`device="sda"`) from the `smartctl`
-DaemonSet. `Hosts/voyager.json` is hand-written in the same order.
+`templates/hosts.json` (each host's `fans`, `power`, `smart`, `coretemp` and
+`proxmox` flags, its main filesystem `rootfs`, its Loki selector `logs` and
+that stream's level label `loglevel`), then run `python3 hosts.py`. A panel,
+row or dashboard link carrying `"homelabRequires": "<flag>"` is dropped for a
+host whose flag is false, so a Pi shows no empty Fans, Power or CPU-core rows
+and no Proxmox link; one carrying `"homelabUnless": "<flag>"` is kept only
+where the flag is false, which fills the power slot of a Pi's Summary row with
+its CPU clock. Panels below a dropped one move up, so a generated file has no
+empty rows. `test_hosts.py` fails while a committed host file is stale or
+leaves a gap. `templates/` holds no ConfigMap. The layout follows the vendored
+Node Exporter Full: Summary gauges and small stats, one panel each for CPU,
+memory, network and disk, then CPU and memory, System, Temperatures, Fans,
+Power, SMART, Storage, Network and Logs. A panel a host cannot fill carries a
+flag rather than reading "No data" there. A Pi's SMART row reads its USB NVMe
+drive (`device="sda"`) from the `smartctl` DaemonSet. `Hosts/voyager.json` is
+hand-written in the same order.
 
 | File | Folder | Source | Revision | Local edits |
 | --- | --- | --- | --- | --- |

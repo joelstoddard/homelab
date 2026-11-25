@@ -6,9 +6,10 @@
 templates/hosts.json maps each host to its settings, e.g.
 {"rumba": {"fans": false, "power": true, "rootfs": "/"}}. In the template,
 "__HOST__" in any string becomes the host name and "__<KEY>__" becomes a
-string setting's value; a panel carrying "homelabRequires": "<flag>" is kept
-only when that boolean flag is true, and one carrying "homelabUnless": "<flag>"
-only when it is false. Re-run after editing either file;
+string setting's value; a panel or dashboard link carrying
+"homelabRequires": "<flag>" is kept only when that boolean flag is true, and
+one carrying "homelabUnless": "<flag>" only when it is false. Panels below a
+dropped one move up to close the gap. Re-run after editing either file;
 test_hosts.py fails while a committed host file is stale.
 """
 import copy
@@ -67,6 +68,8 @@ def render(template, host, features):
     values.update({f"__{k.upper()}__": v for k, v in features.items() if isinstance(v, str)})
     d = _substitute(copy.deepcopy(template), values)
     d["panels"] = _reflow(_filter(d.get("panels", []), features))
+    if "links" in d:
+        d["links"] = _filter(d["links"], features)
     d["uid"] = f"homelab-host-{host}"
     d["title"] = host.capitalize()
     return d
