@@ -70,6 +70,9 @@ configMapGenerator:
   - name: dashboard-pihole
     files: [Network/vendored/pihole.json]
     options: {annotations: {grafana_folder: Network/vendored}}
+  - name: dashboard-pihole-pair
+    files: [Network/pihole.json]
+    options: {annotations: {grafana_folder: Network}}
   - name: dashboard-bind
     files: [Network/bind.json]
     options: {annotations: {grafana_folder: Network}}

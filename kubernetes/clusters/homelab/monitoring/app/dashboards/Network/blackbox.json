@@ -471,28 +471,28 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "label_replace(label_replace(label_replace(max by (instance, module) (probe_success{job=\"blackbox\", module=~\"$module\", instance=~\"$target\"}) or on (instance, module) (max by (instance, module) (last_over_time(probe_success{job=\"blackbox\", module=~\"$module\", instance=~\"$target\"}[1d])) * 0 - 1), \"dashboard\", \"homelab-host-$1\", \"instance\", \"(.*)\"), \"dashboard\", \"homelab-router\", \"instance\", \"hubble\"), \"dashboard\", \"Pi-hole-Exporter\", \"instance\", \"pihole-.*\")",
+          "expr": "label_replace(label_replace(label_replace(max by (instance, module) (probe_success{job=\"blackbox\", module=~\"$module\", instance=~\"$target\"}) or on (instance, module) (max by (instance, module) (last_over_time(probe_success{job=\"blackbox\", module=~\"$module\", instance=~\"$target\"}[1d])) * 0 - 1), \"dashboard\", \"homelab-host-$1\", \"instance\", \"(.*)\"), \"dashboard\", \"homelab-router\", \"instance\", \"hubble\"), \"dashboard\", \"homelab-pihole\", \"instance\", \"pihole-.*\")",
           "format": "table",
           "instant": true,
           "range": false
         },
         {
           "refId": "B",
-          "expr": "label_replace(label_replace(label_replace(max by (instance, module) (avg_over_time(probe_success{job=\"blackbox\", module=~\"$module\", instance=~\"$target\"}[24h])), \"dashboard\", \"homelab-host-$1\", \"instance\", \"(.*)\"), \"dashboard\", \"homelab-router\", \"instance\", \"hubble\"), \"dashboard\", \"Pi-hole-Exporter\", \"instance\", \"pihole-.*\")",
+          "expr": "label_replace(label_replace(label_replace(max by (instance, module) (avg_over_time(probe_success{job=\"blackbox\", module=~\"$module\", instance=~\"$target\"}[24h])), \"dashboard\", \"homelab-host-$1\", \"instance\", \"(.*)\"), \"dashboard\", \"homelab-router\", \"instance\", \"hubble\"), \"dashboard\", \"homelab-pihole\", \"instance\", \"pihole-.*\")",
           "format": "table",
           "instant": true,
           "range": false
         },
         {
           "refId": "C",
-          "expr": "label_replace(label_replace(label_replace(max by (instance, module) (probe_duration_seconds{job=\"blackbox\", module=~\"$module\", instance=~\"$target\"}), \"dashboard\", \"homelab-host-$1\", \"instance\", \"(.*)\"), \"dashboard\", \"homelab-router\", \"instance\", \"hubble\"), \"dashboard\", \"Pi-hole-Exporter\", \"instance\", \"pihole-.*\")",
+          "expr": "label_replace(label_replace(label_replace(max by (instance, module) (probe_duration_seconds{job=\"blackbox\", module=~\"$module\", instance=~\"$target\"}), \"dashboard\", \"homelab-host-$1\", \"instance\", \"(.*)\"), \"dashboard\", \"homelab-router\", \"instance\", \"hubble\"), \"dashboard\", \"homelab-pihole\", \"instance\", \"pihole-.*\")",
           "format": "table",
           "instant": true,
           "range": false
         },
         {
           "refId": "D",
-          "expr": "label_replace(label_replace(label_replace(max by (instance, module) (probe_http_status_code{job=\"blackbox\", module=~\"$module\", instance=~\"$target\"}), \"dashboard\", \"homelab-host-$1\", \"instance\", \"(.*)\"), \"dashboard\", \"homelab-router\", \"instance\", \"hubble\"), \"dashboard\", \"Pi-hole-Exporter\", \"instance\", \"pihole-.*\")",
+          "expr": "label_replace(label_replace(label_replace(max by (instance, module) (probe_http_status_code{job=\"blackbox\", module=~\"$module\", instance=~\"$target\"}), \"dashboard\", \"homelab-host-$1\", \"instance\", \"(.*)\"), \"dashboard\", \"homelab-router\", \"instance\", \"hubble\"), \"dashboard\", \"homelab-pihole\", \"instance\", \"pihole-.*\")",
           "format": "table",
           "instant": true,
           "range": false

@@ -17,7 +17,7 @@
     {
       "type": "link",
       "title": "Pi-hole",
-      "url": "/d/Pi-hole-Exporter",
+      "url": "/d/homelab-pihole",
       "icon": "dashboard",
       "keepTime": true
     },
