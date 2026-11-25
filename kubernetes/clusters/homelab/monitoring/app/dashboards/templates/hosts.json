@@ -3,12 +3,12 @@
   "salsa": {"fans": true, "power": true, "smart": true, "coretemp": true, "rootfs": "/", "logs": "job=\"journal\", host=\"salsa\"", "loglevel": "priority"},
   "samba": {"fans": true, "power": true, "smart": true, "coretemp": true, "rootfs": "/", "logs": "job=\"journal\", host=\"samba\"", "loglevel": "priority"},
   "tango": {"fans": true, "power": true, "smart": true, "coretemp": true, "rootfs": "/", "logs": "job=\"journal\", host=\"tango\"", "loglevel": "priority"},
-  "kosmos": {"fans": false, "power": false, "smart": false, "coretemp": false, "rootfs": "/var", "logs": "job=\"talos\", node=\"kosmos\"", "loglevel": "level"},
-  "vostok": {"fans": false, "power": false, "smart": false, "coretemp": false, "rootfs": "/var", "logs": "job=\"talos\", node=\"vostok\"", "loglevel": "level"},
-  "soyuz": {"fans": false, "power": false, "smart": false, "coretemp": false, "rootfs": "/var", "logs": "job=\"talos\", node=\"soyuz\"", "loglevel": "level"},
-  "zond": {"fans": false, "power": false, "smart": false, "coretemp": false, "rootfs": "/var", "logs": "job=\"talos\", node=\"zond\"", "loglevel": "level"},
-  "salyut": {"fans": false, "power": false, "smart": false, "coretemp": false, "rootfs": "/var", "logs": "job=\"talos\", node=\"salyut\"", "loglevel": "level"},
-  "mir": {"fans": false, "power": false, "smart": false, "coretemp": false, "rootfs": "/var", "logs": "job=\"talos\", node=\"mir\"", "loglevel": "level"},
-  "voskhod": {"fans": false, "power": false, "smart": false, "coretemp": false, "rootfs": "/var", "logs": "job=\"talos\", node=\"voskhod\"", "loglevel": "level"},
-  "buran": {"fans": false, "power": false, "smart": false, "coretemp": false, "rootfs": "/var", "logs": "job=\"talos\", node=\"buran\"", "loglevel": "level"}
+  "kosmos": {"fans": false, "power": false, "smart": true, "coretemp": false, "rootfs": "/var", "logs": "job=\"talos\", node=\"kosmos\"", "loglevel": "level"},
+  "vostok": {"fans": false, "power": false, "smart": true, "coretemp": false, "rootfs": "/var", "logs": "job=\"talos\", node=\"vostok\"", "loglevel": "level"},
+  "soyuz": {"fans": false, "power": false, "smart": true, "coretemp": false, "rootfs": "/var", "logs": "job=\"talos\", node=\"soyuz\"", "loglevel": "level"},
+  "zond": {"fans": false, "power": false, "smart": true, "coretemp": false, "rootfs": "/var", "logs": "job=\"talos\", node=\"zond\"", "loglevel": "level"},
+  "salyut": {"fans": false, "power": false, "smart": true, "coretemp": false, "rootfs": "/var", "logs": "job=\"talos\", node=\"salyut\"", "loglevel": "level"},
+  "mir": {"fans": false, "power": false, "smart": true, "coretemp": false, "rootfs": "/var", "logs": "job=\"talos\", node=\"mir\"", "loglevel": "level"},
+  "voskhod": {"fans": false, "power": false, "smart": true, "coretemp": false, "rootfs": "/var", "logs": "job=\"talos\", node=\"voskhod\"", "loglevel": "level"},
+  "buran": {"fans": false, "power": false, "smart": true, "coretemp": false, "rootfs": "/var", "logs": "job=\"talos\", node=\"buran\"", "loglevel": "level"}
 }
