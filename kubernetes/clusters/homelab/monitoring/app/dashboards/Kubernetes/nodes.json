@@ -644,7 +644,7 @@
         },
         {
           "refId": "K",
-          "expr": "round(sum by (node) (increase(node_vmstat_oom_kill{job=\"node-exporter\", node=~\"$node\"}[24h])))",
+          "expr": "round(sum by (node) (increase(node_vmstat_oom_kill{job=\"node-exporter\", node=~\"$node\"}[24h]))) or 0 * max by (node) (label_replace(kube_node_info{exported_node=~\"$node\"}, \"node\", \"$1\", \"exported_node\", \"(.*)\"))",
           "format": "table",
           "instant": true,
           "range": false
@@ -1698,7 +1698,7 @@
     },
     {
       "type": "timeseries",
-      "title": "Pressure conditions",
+      "title": "Node conditions",
       "description": "Each node condition while it is true: memory, disk or PID pressure, or network unavailable. Reads None while no node reports one.",
       "datasource": {
         "type": "prometheus",

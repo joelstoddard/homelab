@@ -893,7 +893,7 @@
     {
       "type": "table",
       "title": "Services, worst first",
-      "description": "One row per Traefik service over the dashboard's time range, sorted by 5xx share, then p95 latency. The name is the Kubernetes service with Traefik's provider suffix cut; CRD routes carry a hash. Latency is blank for a service with no HTTP requests in the range. Click a service to show only it below.",
+      "description": "One row per Traefik service over the dashboard's time range, sorted by 5xx share, then p95 latency. The name is the Kubernetes service with Traefik's provider suffix cut; CRD routes carry a hash. p50 and p95 are interpolated between histogram buckets (5 ms to 60 s), so they are estimates. Latency is blank for a service with no HTTP requests in the range. Click a service to show only it below.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"

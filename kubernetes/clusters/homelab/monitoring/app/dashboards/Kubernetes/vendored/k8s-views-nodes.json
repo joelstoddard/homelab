@@ -3980,7 +3980,7 @@
   },
   "timepicker": {},
   "timezone": "",
-  "title": "Nodes",
+  "title": "Nodes (vendored)",
   "uid": "k8s_views_nodes",
   "version": 40,
   "weekStart": "",

@@ -464,7 +464,7 @@
     {
       "type": "stat",
       "title": "Memory used",
-      "description": "Memory the four NUCs use, as a share of their total. The NUCs run above 80 % by design: guests are overcommitted onto zram and ballooning (docs/design/zram-swap.md).",
+      "description": "Memory the four NUCs use, as a share of their total. The NUCs run above 80 % by design: guests are overcommitted onto zram and ballooning (docs/design/zram-swap.md). Memory pressure and zram swap are read on the per-host dashboards (the Hosts link), since the NUCs sit at 85 to 92 % by design (docs/design/zram-swap.md).",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -601,7 +601,7 @@
     {
       "type": "table",
       "title": "Nodes, busiest first",
-      "description": "One row per NUC: offline first, then the fullest memory. Guest memory is what the running guests are configured with, against the node's memory; above 100 % the node relies on ballooning and zram, by design (docs/design/zram-swap.md). Storage is the node's fullest pool. Click a node to open its host dashboard.",
+      "description": "One row per NUC: offline first, then the fullest memory. Guest memory is what the running guests are configured with, against the node's memory; above 100 % the node relies on ballooning and zram, by design (docs/design/zram-swap.md). Storage is the node's fullest pool. Click a node to open its host dashboard. Memory pressure and zram swap are read on the per-host dashboards (the Hosts link), since the NUCs sit at 85 to 92 % by design (docs/design/zram-swap.md).",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"

@@ -51,7 +51,7 @@
     {
       "type": "stat",
       "title": "Rack draw (measured + estimated)",
-      "description": "The NUCs' measured platform power (RAPL psys) plus the Pis' and Voyager's estimated draw. It mixes measured terms, estimates and one upper bound (Voyager's CPU), and leaves out what is not measured: Hubble, Voyager's board, memory, fans, HBA and power supply, and the Pis' USB drives are not measured and not included. It is neither a floor nor a ceiling on the real draw. Estimated: a published figure scaled by load, not a reading. Voyager's CPU term idles at a datasheet maximum, so it is an upper bound. docs/design/observability.md, \"Power estimates\", lists each figure and its source.",
+      "description": "The NUCs' measured platform power (RAPL psys) plus the Pis' and Voyager's estimated draw. It mixes measured terms, estimates and one upper bound (Voyager's CPU), and leaves out what is not measured: Hubble, Voyager's board, fans, HBA and power supply, and the Pis' USB drives are not measured and not included. It is neither a floor nor a ceiling on the real draw. Estimated: a published figure scaled by load, not a reading. Voyager's CPU term idles at a datasheet maximum, so it is an upper bound. docs/design/observability.md, \"Power estimates\", lists each figure and its source.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"

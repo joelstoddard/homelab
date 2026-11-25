@@ -42,6 +42,16 @@ class Folders(unittest.TestCase):
                 title = json.load(f).get("title", "")
             self.assertFalse(title.startswith("Alloy / "), f"{os.path.relpath(path, HERE)}: {title}")
 
+    def test_every_title_is_unique(self):
+        # Grafana lists dashboards by title; a vendored copy with its replacement's title is indistinguishable.
+        seen = {}
+        for path in FILES:
+            with open(path) as f:
+                title = json.load(f).get("title", "")
+            seen.setdefault(title, []).append(os.path.relpath(path, HERE))
+        duplicates = {t: p for t, p in seen.items() if len(p) > 1}
+        self.assertEqual(duplicates, {})
+
 
 class Layout(unittest.TestCase):
     def test_every_panel_position_is_whole_numbers(self):

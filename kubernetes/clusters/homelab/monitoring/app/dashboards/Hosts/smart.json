@@ -880,7 +880,7 @@
     {
       "type": "timeseries",
       "title": "Wear per drive, 30 days",
-      "description": "Each drive's Wear, as in the table: endurance used for an SSD, power-on hours against a 5-year life for a hard disk. Click a line to open the host.",
+      "description": "Each drive's Wear, as in the table: endurance used for an SSD, power-on hours against a 5-year (43,800 h) life for a hard disk. Click a line to open the host.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
