@@ -1504,8 +1504,201 @@
       "id": 24,
       "gridPos": {
         "h": 8,
-        "w": 24,
+        "w": 12,
         "x": 0,
+        "y": 61
+      }
+    },
+    {
+      "type": "table",
+      "title": "Physical hosts",
+      "description": "Longhorn's zone is the physical host: a VM's NUC (from Proxmox) or the Pi itself. Hard zone anti-affinity allows one replica of a volume per host, so Replicas and Volumes match; Extra copies above 0 means a host holds two replicas of one volume. Click a host to open it.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (host) ((max by (exported_node) (longhorn_node_storage_capacity_bytes) * 0 + 1) * on (exported_node) group_left (host) (max by (exported_node, host) (label_replace(label_replace(pve_guest_info{name=~\"k8s-.*\"}, \"exported_node\", \"$1\", \"name\", \"(.+)\"), \"host\", \"$1\", \"node\", \"(.+)\")) or (max by (exported_node, host) (label_replace(longhorn_node_storage_capacity_bytes, \"host\", \"$1\", \"exported_node\", \"(.+)\")) * 0 + 1 unless on (exported_node) max by (exported_node, host) (label_replace(label_replace(pve_guest_info{name=~\"k8s-.*\"}, \"exported_node\", \"$1\", \"name\", \"(.+)\"), \"host\", \"$1\", \"node\", \"(.+)\")))))",
+          "format": "table",
+          "instant": true,
+          "range": false
+        },
+        {
+          "refId": "B",
+          "expr": "sum by (host) ((count by (exported_node) (longhorn_replica_info)) * on (exported_node) group_left (host) (max by (exported_node, host) (label_replace(label_replace(pve_guest_info{name=~\"k8s-.*\"}, \"exported_node\", \"$1\", \"name\", \"(.+)\"), \"host\", \"$1\", \"node\", \"(.+)\")) or (max by (exported_node, host) (label_replace(longhorn_node_storage_capacity_bytes, \"host\", \"$1\", \"exported_node\", \"(.+)\")) * 0 + 1 unless on (exported_node) max by (exported_node, host) (label_replace(label_replace(pve_guest_info{name=~\"k8s-.*\"}, \"exported_node\", \"$1\", \"name\", \"(.+)\"), \"host\", \"$1\", \"node\", \"(.+)\"))))) or 0 * sum by (host) ((max by (exported_node) (longhorn_node_storage_capacity_bytes) * 0 + 1) * on (exported_node) group_left (host) (max by (exported_node, host) (label_replace(label_replace(pve_guest_info{name=~\"k8s-.*\"}, \"exported_node\", \"$1\", \"name\", \"(.+)\"), \"host\", \"$1\", \"node\", \"(.+)\")) or (max by (exported_node, host) (label_replace(longhorn_node_storage_capacity_bytes, \"host\", \"$1\", \"exported_node\", \"(.+)\")) * 0 + 1 unless on (exported_node) max by (exported_node, host) (label_replace(label_replace(pve_guest_info{name=~\"k8s-.*\"}, \"exported_node\", \"$1\", \"name\", \"(.+)\"), \"host\", \"$1\", \"node\", \"(.+)\")))))",
+          "format": "table",
+          "instant": true,
+          "range": false
+        },
+        {
+          "refId": "C",
+          "expr": "count by (host) (count by (host, volume) (longhorn_replica_info * on (exported_node) group_left (host) (max by (exported_node, host) (label_replace(label_replace(pve_guest_info{name=~\"k8s-.*\"}, \"exported_node\", \"$1\", \"name\", \"(.+)\"), \"host\", \"$1\", \"node\", \"(.+)\")) or (max by (exported_node, host) (label_replace(longhorn_node_storage_capacity_bytes, \"host\", \"$1\", \"exported_node\", \"(.+)\")) * 0 + 1 unless on (exported_node) max by (exported_node, host) (label_replace(label_replace(pve_guest_info{name=~\"k8s-.*\"}, \"exported_node\", \"$1\", \"name\", \"(.+)\"), \"host\", \"$1\", \"node\", \"(.+)\")))))) or 0 * sum by (host) ((max by (exported_node) (longhorn_node_storage_capacity_bytes) * 0 + 1) * on (exported_node) group_left (host) (max by (exported_node, host) (label_replace(label_replace(pve_guest_info{name=~\"k8s-.*\"}, \"exported_node\", \"$1\", \"name\", \"(.+)\"), \"host\", \"$1\", \"node\", \"(.+)\")) or (max by (exported_node, host) (label_replace(longhorn_node_storage_capacity_bytes, \"host\", \"$1\", \"exported_node\", \"(.+)\")) * 0 + 1 unless on (exported_node) max by (exported_node, host) (label_replace(label_replace(pve_guest_info{name=~\"k8s-.*\"}, \"exported_node\", \"$1\", \"name\", \"(.+)\"), \"host\", \"$1\", \"node\", \"(.+)\")))))",
+          "format": "table",
+          "instant": true,
+          "range": false
+        },
+        {
+          "refId": "D",
+          "expr": "sum by (host) ((count by (exported_node) (longhorn_replica_info)) * on (exported_node) group_left (host) (max by (exported_node, host) (label_replace(label_replace(pve_guest_info{name=~\"k8s-.*\"}, \"exported_node\", \"$1\", \"name\", \"(.+)\"), \"host\", \"$1\", \"node\", \"(.+)\")) or (max by (exported_node, host) (label_replace(longhorn_node_storage_capacity_bytes, \"host\", \"$1\", \"exported_node\", \"(.+)\")) * 0 + 1 unless on (exported_node) max by (exported_node, host) (label_replace(label_replace(pve_guest_info{name=~\"k8s-.*\"}, \"exported_node\", \"$1\", \"name\", \"(.+)\"), \"host\", \"$1\", \"node\", \"(.+)\"))))) - count by (host) (count by (host, volume) (longhorn_replica_info * on (exported_node) group_left (host) (max by (exported_node, host) (label_replace(label_replace(pve_guest_info{name=~\"k8s-.*\"}, \"exported_node\", \"$1\", \"name\", \"(.+)\"), \"host\", \"$1\", \"node\", \"(.+)\")) or (max by (exported_node, host) (label_replace(longhorn_node_storage_capacity_bytes, \"host\", \"$1\", \"exported_node\", \"(.+)\")) * 0 + 1 unless on (exported_node) max by (exported_node, host) (label_replace(label_replace(pve_guest_info{name=~\"k8s-.*\"}, \"exported_node\", \"$1\", \"name\", \"(.+)\"), \"host\", \"$1\", \"node\", \"(.+)\")))))) or 0 * sum by (host) ((max by (exported_node) (longhorn_node_storage_capacity_bytes) * 0 + 1) * on (exported_node) group_left (host) (max by (exported_node, host) (label_replace(label_replace(pve_guest_info{name=~\"k8s-.*\"}, \"exported_node\", \"$1\", \"name\", \"(.+)\"), \"host\", \"$1\", \"node\", \"(.+)\")) or (max by (exported_node, host) (label_replace(longhorn_node_storage_capacity_bytes, \"host\", \"$1\", \"exported_node\", \"(.+)\")) * 0 + 1 unless on (exported_node) max by (exported_node, host) (label_replace(label_replace(pve_guest_info{name=~\"k8s-.*\"}, \"exported_node\", \"$1\", \"name\", \"(.+)\"), \"host\", \"$1\", \"node\", \"(.+)\")))))",
+          "format": "table",
+          "instant": true,
+          "range": false
+        },
+        {
+          "refId": "E",
+          "expr": "sum by (host) ((max by (exported_node) (longhorn_node_storage_scheduled_bytes)) * on (exported_node) group_left (host) (max by (exported_node, host) (label_replace(label_replace(pve_guest_info{name=~\"k8s-.*\"}, \"exported_node\", \"$1\", \"name\", \"(.+)\"), \"host\", \"$1\", \"node\", \"(.+)\")) or (max by (exported_node, host) (label_replace(longhorn_node_storage_capacity_bytes, \"host\", \"$1\", \"exported_node\", \"(.+)\")) * 0 + 1 unless on (exported_node) max by (exported_node, host) (label_replace(label_replace(pve_guest_info{name=~\"k8s-.*\"}, \"exported_node\", \"$1\", \"name\", \"(.+)\"), \"host\", \"$1\", \"node\", \"(.+)\")))))",
+          "format": "table",
+          "instant": true,
+          "range": false
+        },
+        {
+          "refId": "F",
+          "expr": "sum by (host) ((max by (exported_node) (longhorn_node_storage_usage_bytes)) * on (exported_node) group_left (host) (max by (exported_node, host) (label_replace(label_replace(pve_guest_info{name=~\"k8s-.*\"}, \"exported_node\", \"$1\", \"name\", \"(.+)\"), \"host\", \"$1\", \"node\", \"(.+)\")) or (max by (exported_node, host) (label_replace(longhorn_node_storage_capacity_bytes, \"host\", \"$1\", \"exported_node\", \"(.+)\")) * 0 + 1 unless on (exported_node) max by (exported_node, host) (label_replace(label_replace(pve_guest_info{name=~\"k8s-.*\"}, \"exported_node\", \"$1\", \"name\", \"(.+)\"), \"host\", \"$1\", \"node\", \"(.+)\")))))",
+          "format": "table",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "transformations": [
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "formatString",
+          "options": {
+            "stringField": "host",
+            "outputFormat": "Lower Case"
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true
+            },
+            "indexByName": {
+              "host": 0,
+              "Value #A": 1,
+              "Value #B": 2,
+              "Value #C": 3,
+              "Value #D": 4,
+              "Value #E": 5,
+              "Value #F": 6
+            },
+            "renameByName": {
+              "host": "Host",
+              "Value #A": "Nodes",
+              "Value #B": "Replicas",
+              "Value #C": "Volumes",
+              "Value #D": "Extra copies",
+              "Value #E": "Scheduled",
+              "Value #F": "Used"
+            }
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "filterable": true
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Extra copies"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "red",
+                      "value": 1
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Scheduled"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "bytes"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Used"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "bytes"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Host"
+            },
+            "properties": [
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "Open ${__value.raw}",
+                    "url": "/d/homelab-host-${__value.raw}?${__url_time_range}"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "sortBy": [
+          {
+            "displayName": "Replicas",
+            "desc": true
+          }
+        ]
+      },
+      "id": 25,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
         "y": 61
       }
     },
@@ -1514,7 +1707,7 @@
       "title": "Nodes and disks",
       "collapsed": false,
       "panels": [],
-      "id": 25,
+      "id": 26,
       "gridPos": {
         "h": 1,
         "w": 24,
@@ -1533,63 +1726,63 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "label_replace(label_replace(max by (exported_node) (longhorn_node_status{condition=\"ready\"}), \"dashboard\", \"k8s_views_nodes?var-node=$1\", \"exported_node\", \"(.+)\"), \"dashboard\", \"homelab-host-$1\", \"exported_node\", \"([^k].*|k[^8].*)\")",
+          "expr": "label_replace(label_replace(max by (exported_node) (longhorn_node_status{condition=\"ready\"}), \"dashboard\", \"k8s_views_nodes?var-node=$1&\", \"exported_node\", \"(.+)\"), \"dashboard\", \"homelab-host-$1?\", \"exported_node\", \"([^k].*|k[^8].*)\")",
           "format": "table",
           "instant": true,
           "range": false
         },
         {
           "refId": "B",
-          "expr": "label_replace(label_replace(max by (exported_node) (longhorn_node_status{condition=\"schedulable\"}), \"dashboard\", \"k8s_views_nodes?var-node=$1\", \"exported_node\", \"(.+)\"), \"dashboard\", \"homelab-host-$1\", \"exported_node\", \"([^k].*|k[^8].*)\")",
+          "expr": "label_replace(label_replace(max by (exported_node) (longhorn_node_status{condition=\"schedulable\"}), \"dashboard\", \"k8s_views_nodes?var-node=$1&\", \"exported_node\", \"(.+)\"), \"dashboard\", \"homelab-host-$1?\", \"exported_node\", \"([^k].*|k[^8].*)\")",
           "format": "table",
           "instant": true,
           "range": false
         },
         {
           "refId": "C",
-          "expr": "label_replace(label_replace(max by (exported_node) (longhorn_node_status{condition=\"allowScheduling\"}), \"dashboard\", \"k8s_views_nodes?var-node=$1\", \"exported_node\", \"(.+)\"), \"dashboard\", \"homelab-host-$1\", \"exported_node\", \"([^k].*|k[^8].*)\")",
+          "expr": "label_replace(label_replace(max by (exported_node) (longhorn_node_status{condition=\"allowScheduling\"}), \"dashboard\", \"k8s_views_nodes?var-node=$1&\", \"exported_node\", \"(.+)\"), \"dashboard\", \"homelab-host-$1?\", \"exported_node\", \"([^k].*|k[^8].*)\")",
           "format": "table",
           "instant": true,
           "range": false
         },
         {
           "refId": "D",
-          "expr": "label_replace(label_replace(max by (exported_node) (longhorn_node_storage_usage_bytes) / max by (exported_node) (longhorn_node_storage_capacity_bytes), \"dashboard\", \"k8s_views_nodes?var-node=$1\", \"exported_node\", \"(.+)\"), \"dashboard\", \"homelab-host-$1\", \"exported_node\", \"([^k].*|k[^8].*)\")",
+          "expr": "label_replace(label_replace(max by (exported_node) (longhorn_node_storage_usage_bytes) / max by (exported_node) (longhorn_node_storage_capacity_bytes), \"dashboard\", \"k8s_views_nodes?var-node=$1&\", \"exported_node\", \"(.+)\"), \"dashboard\", \"homelab-host-$1?\", \"exported_node\", \"([^k].*|k[^8].*)\")",
           "format": "table",
           "instant": true,
           "range": false
         },
         {
           "refId": "E",
-          "expr": "label_replace(label_replace(max by (exported_node) (longhorn_node_storage_usage_bytes), \"dashboard\", \"k8s_views_nodes?var-node=$1\", \"exported_node\", \"(.+)\"), \"dashboard\", \"homelab-host-$1\", \"exported_node\", \"([^k].*|k[^8].*)\")",
+          "expr": "label_replace(label_replace(max by (exported_node) (longhorn_node_storage_usage_bytes), \"dashboard\", \"k8s_views_nodes?var-node=$1&\", \"exported_node\", \"(.+)\"), \"dashboard\", \"homelab-host-$1?\", \"exported_node\", \"([^k].*|k[^8].*)\")",
           "format": "table",
           "instant": true,
           "range": false
         },
         {
           "refId": "F",
-          "expr": "label_replace(label_replace(max by (exported_node) (longhorn_node_storage_scheduled_bytes), \"dashboard\", \"k8s_views_nodes?var-node=$1\", \"exported_node\", \"(.+)\"), \"dashboard\", \"homelab-host-$1\", \"exported_node\", \"([^k].*|k[^8].*)\")",
+          "expr": "label_replace(label_replace(max by (exported_node) (longhorn_node_storage_scheduled_bytes), \"dashboard\", \"k8s_views_nodes?var-node=$1&\", \"exported_node\", \"(.+)\"), \"dashboard\", \"homelab-host-$1?\", \"exported_node\", \"([^k].*|k[^8].*)\")",
           "format": "table",
           "instant": true,
           "range": false
         },
         {
           "refId": "G",
-          "expr": "label_replace(label_replace(max by (exported_node) (longhorn_node_storage_reservation_bytes), \"dashboard\", \"k8s_views_nodes?var-node=$1\", \"exported_node\", \"(.+)\"), \"dashboard\", \"homelab-host-$1\", \"exported_node\", \"([^k].*|k[^8].*)\")",
+          "expr": "label_replace(label_replace(max by (exported_node) (longhorn_node_storage_reservation_bytes), \"dashboard\", \"k8s_views_nodes?var-node=$1&\", \"exported_node\", \"(.+)\"), \"dashboard\", \"homelab-host-$1?\", \"exported_node\", \"([^k].*|k[^8].*)\")",
           "format": "table",
           "instant": true,
           "range": false
         },
         {
           "refId": "H",
-          "expr": "label_replace(label_replace(max by (exported_node) (longhorn_node_storage_capacity_bytes), \"dashboard\", \"k8s_views_nodes?var-node=$1\", \"exported_node\", \"(.+)\"), \"dashboard\", \"homelab-host-$1\", \"exported_node\", \"([^k].*|k[^8].*)\")",
+          "expr": "label_replace(label_replace(max by (exported_node) (longhorn_node_storage_capacity_bytes), \"dashboard\", \"k8s_views_nodes?var-node=$1&\", \"exported_node\", \"(.+)\"), \"dashboard\", \"homelab-host-$1?\", \"exported_node\", \"([^k].*|k[^8].*)\")",
           "format": "table",
           "instant": true,
           "range": false
         },
         {
           "refId": "I",
-          "expr": "label_replace(label_replace(count by (exported_node) (longhorn_replica_info) or 0 * max by (exported_node) (longhorn_node_storage_capacity_bytes), \"dashboard\", \"k8s_views_nodes?var-node=$1\", \"exported_node\", \"(.+)\"), \"dashboard\", \"homelab-host-$1\", \"exported_node\", \"([^k].*|k[^8].*)\")",
+          "expr": "label_replace(label_replace(count by (exported_node) (longhorn_replica_info) or 0 * max by (exported_node) (longhorn_node_storage_capacity_bytes), \"dashboard\", \"k8s_views_nodes?var-node=$1&\", \"exported_node\", \"(.+)\"), \"dashboard\", \"homelab-host-$1?\", \"exported_node\", \"([^k].*|k[^8].*)\")",
           "format": "table",
           "instant": true,
           "range": false
@@ -1860,7 +2053,7 @@
                 "value": [
                   {
                     "title": "Open ${__value.raw}",
-                    "url": "/d/${__data.fields.dashboard}"
+                    "url": "/d/${__data.fields.dashboard}${__url_time_range}"
                   }
                 ]
               }
@@ -1878,7 +2071,7 @@
           }
         ]
       },
-      "id": 26,
+      "id": 27,
       "gridPos": {
         "h": 12,
         "w": 24,
@@ -1927,7 +2120,7 @@
           "sort": "desc"
         }
       },
-      "id": 27,
+      "id": 28,
       "gridPos": {
         "h": 8,
         "w": 12,
@@ -1976,7 +2169,7 @@
           "sort": "desc"
         }
       },
-      "id": 28,
+      "id": 29,
       "gridPos": {
         "h": 8,
         "w": 12,
