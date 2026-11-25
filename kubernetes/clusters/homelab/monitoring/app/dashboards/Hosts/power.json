@@ -1,0 +1,682 @@
+{
+  "id": null,
+  "uid": "homelab-power",
+  "title": "Power",
+  "description": "The rack's draw, measured where a sensor reports it (the NUCs' RAPL) and estimated from published figures elsewhere, with every gap listed. docs/design/host-monitoring.md.",
+  "tags": [
+    "overview"
+  ],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "time": {
+    "from": "now-24h",
+    "to": "now"
+  },
+  "refresh": "5m",
+  "links": [
+    {
+      "type": "link",
+      "title": "Hosts overview",
+      "url": "/d/homelab-hosts-overview",
+      "icon": "dashboard"
+    },
+    {
+      "type": "dashboards",
+      "title": "Hosts",
+      "tags": [
+        "hosts"
+      ],
+      "asDropdown": true,
+      "includeVars": false,
+      "keepTime": true
+    }
+  ],
+  "templating": {
+    "list": []
+  },
+  "panels": [
+    {
+      "type": "row",
+      "title": "Summary",
+      "collapsed": false,
+      "id": 1,
+      "panels": [],
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Rack draw (measured + estimated)",
+      "description": "The NUCs' measured platform power (RAPL psys) plus the Pis' and Voyager's estimated draw. It mixes measured terms, estimates and one upper bound (Voyager's CPU), and leaves out what is not measured: Hubble, Voyager's board, memory, fans, HBA and power supply, and the Pis' USB drives are not measured and not included. It is neither a floor nor a ceiling on the real draw. Estimated: a published figure scaled by load, not a reading. Voyager's CPU term idles at a datasheet maximum, so it is an upper bound. docs/design/observability.md, \"Power estimates\", lists each figure and its source.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(sum by (instance) (rate(node_rapl_psys_joules_total{job=\"node-exporter\"}[$__rate_interval]))) + sum(2.7 + (6.4 - 2.7) * (1 - avg by (instance) (rate(node_cpu_seconds_total{job=\"node-exporter\", mode=\"idle\"}[$__rate_interval]) * on (instance) group_left () node_uname_info{job=\"node-exporter\", machine=\"aarch64\"}))) + sum((26 + (88 - 26) * (1 - avg_over_time(servers_Voyager_local_aggregation_cpu_average_cpu_idle[$__rate_interval]) / on (instance) avg_over_time(sum by (instance) ({__name__=~\"servers_Voyager_local_aggregation_cpu_average_cpu_.+\"})[$__rate_interval:]))) + on (instance) sum by (instance) (3.9 + (5.1 - 3.9) * clamp_max(max by (instance, device) (avg_over_time(label_replace({__name__=~\"servers_Voyager_local_disk_.+_disk_io_time_io_time\"}, \"device\", \"$1\", \"__name__\", \"servers_Voyager_local_disk_(.+)_disk_io_time_io_time\")[$__rate_interval:])) or on (instance, device) max by (instance, device) (label_replace({__name__=~\"servers_Voyager_local_disktemp_.+_temperature\"}, \"device\", \"$1\", \"__name__\", \"servers_Voyager_local_disktemp_(.+)_temperature\")) * 0, 1)) + on (instance) max by (instance) (servers_Voyager_local_memory_memory_wired) * 0 + 10)",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "watt",
+          "decimals": 0,
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          },
+          "noValue": "Incomplete"
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "id": 2,
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 0,
+        "y": 1
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Measured share",
+      "description": "The NUCs' measured RAPL psys as a share of the rack draw beside it; the rest is estimated.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(sum by (instance) (rate(node_rapl_psys_joules_total{job=\"node-exporter\"}[$__rate_interval]))) / (sum(sum by (instance) (rate(node_rapl_psys_joules_total{job=\"node-exporter\"}[$__rate_interval]))) + sum(2.7 + (6.4 - 2.7) * (1 - avg by (instance) (rate(node_cpu_seconds_total{job=\"node-exporter\", mode=\"idle\"}[$__rate_interval]) * on (instance) group_left () node_uname_info{job=\"node-exporter\", machine=\"aarch64\"}))) + sum((26 + (88 - 26) * (1 - avg_over_time(servers_Voyager_local_aggregation_cpu_average_cpu_idle[$__rate_interval]) / on (instance) avg_over_time(sum by (instance) ({__name__=~\"servers_Voyager_local_aggregation_cpu_average_cpu_.+\"})[$__rate_interval:]))) + on (instance) sum by (instance) (3.9 + (5.1 - 3.9) * clamp_max(max by (instance, device) (avg_over_time(label_replace({__name__=~\"servers_Voyager_local_disk_.+_disk_io_time_io_time\"}, \"device\", \"$1\", \"__name__\", \"servers_Voyager_local_disk_(.+)_disk_io_time_io_time\")[$__rate_interval:])) or on (instance, device) max by (instance, device) (label_replace({__name__=~\"servers_Voyager_local_disktemp_.+_temperature\"}, \"device\", \"$1\", \"__name__\", \"servers_Voyager_local_disktemp_(.+)_temperature\")) * 0, 1)) + on (instance) max by (instance) (servers_Voyager_local_memory_memory_wired) * 0 + 10))",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "decimals": 0,
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "id": 3,
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 4,
+        "y": 1
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Energy, last 24 h (measured + estimated)",
+      "description": "The rack draw averaged over the last 24 hours, in kilowatt-hours. Ignores the dashboard's time range.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "avg_over_time((sum(sum by (instance) (rate(node_rapl_psys_joules_total{job=\"node-exporter\"}[5m]))) + sum(2.7 + (6.4 - 2.7) * (1 - avg by (instance) (rate(node_cpu_seconds_total{job=\"node-exporter\", mode=\"idle\"}[5m]) * on (instance) group_left () node_uname_info{job=\"node-exporter\", machine=\"aarch64\"}))) + sum((26 + (88 - 26) * (1 - avg_over_time(servers_Voyager_local_aggregation_cpu_average_cpu_idle[5m]) / on (instance) avg_over_time(sum by (instance) ({__name__=~\"servers_Voyager_local_aggregation_cpu_average_cpu_.+\"})[5m:]))) + on (instance) sum by (instance) (3.9 + (5.1 - 3.9) * clamp_max(max by (instance, device) (avg_over_time(label_replace({__name__=~\"servers_Voyager_local_disk_.+_disk_io_time_io_time\"}, \"device\", \"$1\", \"__name__\", \"servers_Voyager_local_disk_(.+)_disk_io_time_io_time\")[5m:])) or on (instance, device) max by (instance, device) (label_replace({__name__=~\"servers_Voyager_local_disktemp_.+_temperature\"}, \"device\", \"$1\", \"__name__\", \"servers_Voyager_local_disktemp_(.+)_temperature\")) * 0, 1)) + on (instance) max by (instance) (servers_Voyager_local_memory_memory_wired) * 0 + 10))[24h:5m]) * 24 / 1000",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "kwatth",
+          "decimals": 2,
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "id": 4,
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 8,
+        "y": 1
+      }
+    },
+    {
+      "type": "stat",
+      "title": "NUCs (measured)",
+      "description": "Sum of the four NUCs' RAPL psys, the platform power each board reports.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(sum by (instance) (rate(node_rapl_psys_joules_total{job=\"node-exporter\"}[$__rate_interval])))",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "watt",
+          "decimals": 0,
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "id": 5,
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 12,
+        "y": 1
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Pis and Voyager (estimated)",
+      "description": "The eight Pis' and Voyager's estimated draw. Estimated: a published figure scaled by load, not a reading. Voyager's CPU term idles at a datasheet maximum, so it is an upper bound. docs/design/observability.md, \"Power estimates\", lists each figure and its source.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(2.7 + (6.4 - 2.7) * (1 - avg by (instance) (rate(node_cpu_seconds_total{job=\"node-exporter\", mode=\"idle\"}[$__rate_interval]) * on (instance) group_left () node_uname_info{job=\"node-exporter\", machine=\"aarch64\"}))) + sum((26 + (88 - 26) * (1 - avg_over_time(servers_Voyager_local_aggregation_cpu_average_cpu_idle[$__rate_interval]) / on (instance) avg_over_time(sum by (instance) ({__name__=~\"servers_Voyager_local_aggregation_cpu_average_cpu_.+\"})[$__rate_interval:]))) + on (instance) sum by (instance) (3.9 + (5.1 - 3.9) * clamp_max(max by (instance, device) (avg_over_time(label_replace({__name__=~\"servers_Voyager_local_disk_.+_disk_io_time_io_time\"}, \"device\", \"$1\", \"__name__\", \"servers_Voyager_local_disk_(.+)_disk_io_time_io_time\")[$__rate_interval:])) or on (instance, device) max by (instance, device) (label_replace({__name__=~\"servers_Voyager_local_disktemp_.+_temperature\"}, \"device\", \"$1\", \"__name__\", \"servers_Voyager_local_disktemp_(.+)_temperature\")) * 0, 1)) + on (instance) max by (instance) (servers_Voyager_local_memory_memory_wired) * 0 + 10)",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "watt",
+          "decimals": 0,
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "id": 6,
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 16,
+        "y": 1
+      }
+    },
+    {
+      "type": "text",
+      "title": "Hubble",
+      "description": "The router reports no power. ASUS rates its adapter at 19.5 V, 2.31 A (45 W): an upper bound, not a reading.",
+      "options": {
+        "mode": "markdown",
+        "content": "## Not measured\n\nAdapter rated 45 W at most."
+      },
+      "id": 7,
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 20,
+        "y": 1
+      }
+    },
+    {
+      "type": "row",
+      "title": "Hosts",
+      "collapsed": false,
+      "id": 8,
+      "panels": [],
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 5
+      }
+    },
+    {
+      "type": "table",
+      "title": "Every host",
+      "description": "Each host's draw, largest first, and where it goes. NUCs are measured: CPU package and platform other (psys minus package: memory, NVMe drive, chipset, network) add up to the board's psys. Pis and Voyager are estimated: a Pi's whole board from its CPU use; Voyager's CPU from its CPU use and each disk from its busy time (its CPU idles at a datasheet maximum, so that column is an upper bound), and its memory is a fixed figure. Hubble is not measured. A blank cell is a part the host does not have or that is not measured.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "label_replace(label_replace(sum by (instance) (rate(node_rapl_psys_joules_total{job=\"node-exporter\"}[$__rate_interval])), \"basis\", \"measured\", \"\", \"\") or label_replace(2.7 + (6.4 - 2.7) * (1 - avg by (instance) (rate(node_cpu_seconds_total{job=\"node-exporter\", mode=\"idle\"}[$__rate_interval]) * on (instance) group_left () node_uname_info{job=\"node-exporter\", machine=\"aarch64\"})), \"basis\", \"estimated\", \"\", \"\") or label_replace(sum by (instance) ((26 + (88 - 26) * (1 - avg_over_time(servers_Voyager_local_aggregation_cpu_average_cpu_idle[$__rate_interval]) / on (instance) avg_over_time(sum by (instance) ({__name__=~\"servers_Voyager_local_aggregation_cpu_average_cpu_.+\"})[$__rate_interval:]))) + on (instance) sum by (instance) (3.9 + (5.1 - 3.9) * clamp_max(max by (instance, device) (avg_over_time(label_replace({__name__=~\"servers_Voyager_local_disk_.+_disk_io_time_io_time\"}, \"device\", \"$1\", \"__name__\", \"servers_Voyager_local_disk_(.+)_disk_io_time_io_time\")[$__rate_interval:])) or on (instance, device) max by (instance, device) (label_replace({__name__=~\"servers_Voyager_local_disktemp_.+_temperature\"}, \"device\", \"$1\", \"__name__\", \"servers_Voyager_local_disktemp_(.+)_temperature\")) * 0, 1)) + on (instance) max by (instance) (servers_Voyager_local_memory_memory_wired) * 0 + 10), \"basis\", \"estimated\", \"\", \"\"), \"dashboard\", \"homelab-host-$1\", \"instance\", \"(.+)\")",
+          "format": "table",
+          "instant": true
+        },
+        {
+          "refId": "B",
+          "expr": "label_replace(label_replace(sum by (instance) (rate(node_rapl_package_joules_total{job=\"node-exporter\"}[$__rate_interval])), \"basis\", \"measured\", \"\", \"\"), \"dashboard\", \"homelab-host-$1\", \"instance\", \"(.+)\")",
+          "format": "table",
+          "instant": true
+        },
+        {
+          "refId": "C",
+          "expr": "label_replace(label_replace(sum by (instance) (rate(node_rapl_psys_joules_total{job=\"node-exporter\"}[$__rate_interval])) - sum by (instance) (rate(node_rapl_package_joules_total{job=\"node-exporter\"}[$__rate_interval])), \"basis\", \"measured\", \"\", \"\"), \"dashboard\", \"homelab-host-$1\", \"instance\", \"(.+)\")",
+          "format": "table",
+          "instant": true
+        },
+        {
+          "refId": "D",
+          "expr": "label_replace(label_replace(2.7 + (6.4 - 2.7) * (1 - avg by (instance) (rate(node_cpu_seconds_total{job=\"node-exporter\", mode=\"idle\"}[$__rate_interval]) * on (instance) group_left () node_uname_info{job=\"node-exporter\", machine=\"aarch64\"})), \"basis\", \"estimated\", \"\", \"\"), \"dashboard\", \"homelab-host-$1\", \"instance\", \"(.+)\")",
+          "format": "table",
+          "instant": true
+        },
+        {
+          "refId": "E",
+          "expr": "label_replace(label_replace(sum by (instance) (26 + (88 - 26) * (1 - avg_over_time(servers_Voyager_local_aggregation_cpu_average_cpu_idle[$__rate_interval]) / on (instance) avg_over_time(sum by (instance) ({__name__=~\"servers_Voyager_local_aggregation_cpu_average_cpu_.+\"})[$__rate_interval:]))), \"basis\", \"estimated\", \"\", \"\"), \"dashboard\", \"homelab-host-$1\", \"instance\", \"(.+)\")",
+          "format": "table",
+          "instant": true
+        },
+        {
+          "refId": "G",
+          "expr": "label_replace(label_replace(max by (instance) (servers_Voyager_local_memory_memory_wired) * 0 + 10, \"basis\", \"estimated\", \"\", \"\"), \"dashboard\", \"homelab-host-$1\", \"instance\", \"(.+)\")",
+          "format": "table",
+          "instant": true
+        },
+        {
+          "refId": "F",
+          "expr": "label_replace(label_replace(sum by (instance) (3.9 + (5.1 - 3.9) * clamp_max(max by (instance, device) (avg_over_time(label_replace({__name__=~\"servers_Voyager_local_disk_.+_disk_io_time_io_time\"}, \"device\", \"$1\", \"__name__\", \"servers_Voyager_local_disk_(.+)_disk_io_time_io_time\")[$__rate_interval:])) or on (instance, device) max by (instance, device) (label_replace({__name__=~\"servers_Voyager_local_disktemp_.+_temperature\"}, \"device\", \"$1\", \"__name__\", \"servers_Voyager_local_disktemp_(.+)_temperature\")) * 0, 1)), \"basis\", \"estimated\", \"\", \"\"), \"dashboard\", \"homelab-host-$1\", \"instance\", \"(.+)\")",
+          "format": "table",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "watt",
+          "decimals": 1,
+          "noValue": "—",
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "gauge",
+              "mode": "basic",
+              "valueDisplayMode": "text"
+            }
+          },
+          "min": 0,
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Host"
+            },
+            "properties": [
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "Open ${__value.raw}",
+                    "url": "/d/${__data.fields.dashboard}"
+                  }
+                ]
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "auto"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Basis"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "auto"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Total"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "auto"
+                }
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "dashboard"
+            },
+            "properties": [
+              {
+                "id": "custom.hidden",
+                "value": true
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "sortBy": [
+          {
+            "displayName": "Total",
+            "desc": true
+          }
+        ]
+      },
+      "transformations": [
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true
+            },
+            "indexByName": {
+              "instance": 0,
+              "basis": 1,
+              "Value #A": 2,
+              "Value #B": 3,
+              "Value #C": 4,
+              "Value #D": 5,
+              "Value #E": 6,
+              "Value #G": 7,
+              "Value #F": 8,
+              "dashboard": 9
+            },
+            "renameByName": {
+              "instance": "Host",
+              "basis": "Basis",
+              "Value #A": "Total",
+              "Value #B": "CPU package (measured)",
+              "Value #C": "Platform other (measured)",
+              "Value #D": "Board (estimated)",
+              "Value #E": "CPU (estimated, upper bound)",
+              "Value #G": "Memory (estimated)",
+              "Value #F": "Drives (estimated)"
+            }
+          }
+        }
+      ],
+      "id": 9,
+      "gridPos": {
+        "h": 14,
+        "w": 16,
+        "x": 0,
+        "y": 6
+      }
+    },
+    {
+      "type": "text",
+      "title": "Not measured",
+      "description": "Draw that no sensor reports and no sourced figure estimates. The rack draw leaves it out.",
+      "options": {
+        "mode": "markdown",
+        "content": "Not measured, so not in the rack draw:\n\n1. **Wall input**: no smart plug or metered PDU, so power supply losses are unknown, the NUCs' bricks included.\n2. **Hubble**: the router reports no power; its adapter is rated 45 W, an upper bound.\n3. **Voyager board, chipset, fans, HBA and power supply**: no BMC, no sourced figure.\n4. **Pi USB drives**: the Crucial P3 behind an RTL9210 bridge, at most 5 W each (its rated maximum); Crucial publishes no idle or active figure. The Pi estimate is the bare board.\n5. **NUC NVMe drives on their own**: inside platform other, not separated. The WD Blue SN580s are rated 4 W at most; the XPG GAMMIX S20 has no published figure.\n6. **GPU**: none present."
+      },
+      "id": 10,
+      "gridPos": {
+        "h": 14,
+        "w": 8,
+        "x": 16,
+        "y": 6
+      }
+    },
+    {
+      "type": "row",
+      "title": "Over time",
+      "collapsed": false,
+      "id": 11,
+      "panels": [],
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 20
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Draw by host (measured + estimated)",
+      "description": "Each host's draw, stacked, so the top line is the rack draw. The legend says which hosts are measured and which estimated. Click a line to open the host.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "label_replace(label_replace(sum by (instance) (rate(node_rapl_psys_joules_total{job=\"node-exporter\"}[$__rate_interval])), \"basis\", \"measured\", \"\", \"\") or label_replace(2.7 + (6.4 - 2.7) * (1 - avg by (instance) (rate(node_cpu_seconds_total{job=\"node-exporter\", mode=\"idle\"}[$__rate_interval]) * on (instance) group_left () node_uname_info{job=\"node-exporter\", machine=\"aarch64\"})), \"basis\", \"estimated\", \"\", \"\") or label_replace(sum by (instance) ((26 + (88 - 26) * (1 - avg_over_time(servers_Voyager_local_aggregation_cpu_average_cpu_idle[$__rate_interval]) / on (instance) avg_over_time(sum by (instance) ({__name__=~\"servers_Voyager_local_aggregation_cpu_average_cpu_.+\"})[$__rate_interval:]))) + on (instance) sum by (instance) (3.9 + (5.1 - 3.9) * clamp_max(max by (instance, device) (avg_over_time(label_replace({__name__=~\"servers_Voyager_local_disk_.+_disk_io_time_io_time\"}, \"device\", \"$1\", \"__name__\", \"servers_Voyager_local_disk_(.+)_disk_io_time_io_time\")[$__rate_interval:])) or on (instance, device) max by (instance, device) (label_replace({__name__=~\"servers_Voyager_local_disktemp_.+_temperature\"}, \"device\", \"$1\", \"__name__\", \"servers_Voyager_local_disktemp_(.+)_temperature\")) * 0, 1)) + on (instance) max by (instance) (servers_Voyager_local_memory_memory_wired) * 0 + 10), \"basis\", \"estimated\", \"\", \"\"), \"dashboard\", \"homelab-host-$1\", \"instance\", \"(.+)\")",
+          "legendFormat": "{{instance}} ({{basis}})"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "watt",
+          "decimals": 1,
+          "min": 0,
+          "links": [
+            {
+              "title": "Open ${__field.labels.instance}",
+              "url": "/d/${__field.labels.dashboard}"
+            }
+          ],
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 60,
+            "showPoints": "never",
+            "stacking": {
+              "mode": "normal"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "mean",
+            "max"
+          ],
+          "sortBy": "Mean",
+          "sortDesc": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "id": 12,
+      "gridPos": {
+        "h": 12,
+        "w": 24,
+        "x": 0,
+        "y": 21
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Draw by component (measured + estimated)",
+      "description": "Where the rack's draw goes, stacked: NUC CPU packages and the rest of the NUC platform (measured), Pi boards, Voyager's CPU and drives (estimated).",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (component) (label_replace(sum by (instance) (rate(node_rapl_package_joules_total{job=\"node-exporter\"}[$__rate_interval])), \"component\", \"NUC CPU package (measured)\", \"\", \"\"))",
+          "legendFormat": "{{component}}"
+        },
+        {
+          "refId": "B",
+          "expr": "sum by (component) (label_replace(sum by (instance) (rate(node_rapl_psys_joules_total{job=\"node-exporter\"}[$__rate_interval])) - sum by (instance) (rate(node_rapl_package_joules_total{job=\"node-exporter\"}[$__rate_interval])), \"component\", \"NUC platform other (measured)\", \"\", \"\"))",
+          "legendFormat": "{{component}}"
+        },
+        {
+          "refId": "C",
+          "expr": "sum by (component) (label_replace(2.7 + (6.4 - 2.7) * (1 - avg by (instance) (rate(node_cpu_seconds_total{job=\"node-exporter\", mode=\"idle\"}[$__rate_interval]) * on (instance) group_left () node_uname_info{job=\"node-exporter\", machine=\"aarch64\"})), \"component\", \"Pi board (estimated)\", \"\", \"\"))",
+          "legendFormat": "{{component}}"
+        },
+        {
+          "refId": "D",
+          "expr": "sum by (component) (label_replace(26 + (88 - 26) * (1 - avg_over_time(servers_Voyager_local_aggregation_cpu_average_cpu_idle[$__rate_interval]) / on (instance) avg_over_time(sum by (instance) ({__name__=~\"servers_Voyager_local_aggregation_cpu_average_cpu_.+\"})[$__rate_interval:])), \"component\", \"Voyager CPU (estimated, upper bound)\", \"\", \"\"))",
+          "legendFormat": "{{component}}"
+        },
+        {
+          "refId": "E",
+          "expr": "sum by (component) (label_replace(max by (instance) (servers_Voyager_local_memory_memory_wired) * 0 + 10, \"component\", \"Voyager memory (estimated)\", \"\", \"\"))",
+          "legendFormat": "{{component}}"
+        },
+        {
+          "refId": "F",
+          "expr": "sum by (component) (label_replace(sum by (instance) (3.9 + (5.1 - 3.9) * clamp_max(max by (instance, device) (avg_over_time(label_replace({__name__=~\"servers_Voyager_local_disk_.+_disk_io_time_io_time\"}, \"device\", \"$1\", \"__name__\", \"servers_Voyager_local_disk_(.+)_disk_io_time_io_time\")[$__rate_interval:])) or on (instance, device) max by (instance, device) (label_replace({__name__=~\"servers_Voyager_local_disktemp_.+_temperature\"}, \"device\", \"$1\", \"__name__\", \"servers_Voyager_local_disktemp_(.+)_temperature\")) * 0, 1)), \"component\", \"Voyager drives (estimated)\", \"\", \"\"))",
+          "legendFormat": "{{component}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "watt",
+          "decimals": 1,
+          "min": 0,
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 60,
+            "showPoints": "never",
+            "stacking": {
+              "mode": "normal"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "mean",
+            "max"
+          ],
+          "sortBy": "Mean",
+          "sortDesc": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "id": 13,
+      "gridPos": {
+        "h": 12,
+        "w": 24,
+        "x": 0,
+        "y": 33
+      }
+    }
+  ]
+}

@@ -130,6 +130,9 @@ configMapGenerator:
   - name: dashboard-hosts-smart
     files: [Hosts/smart.json]
     options: {annotations: {grafana_folder: Hosts}}
+  - name: dashboard-hosts-power
+    files: [Hosts/power.json]
+    options: {annotations: {grafana_folder: Hosts}}
   - name: dashboard-searxng
     files: [Services/searxng.json]
     options: {annotations: {grafana_folder: Services}}

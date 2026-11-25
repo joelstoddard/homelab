@@ -56,5 +56,17 @@ class Layout(unittest.TestCase):
                     self.assertIsInstance(value, int, f"{os.path.relpath(path, HERE)} panel {p.get('id')} gridPos.{key}={value!r}")
 
 
+class Power(unittest.TestCase):
+    def test_power_never_deltas_raw_joules(self):
+        # RAPL energy counters wrap; delta() reads them as a gauge and goes negative at the wrap.
+        # Watts come from rate() alone, so every RAPL formula has one form.
+        with open(os.path.join(HERE, "Hosts", "power.json")) as f:
+            dashboard = json.load(f)
+        exprs = [t["expr"] for p in panels(dashboard["panels"]) for t in p.get("targets", []) if "expr" in t]
+        self.assertTrue(any("node_rapl" in e for e in exprs))
+        for e in exprs:
+            self.assertNotRegex(e, r"(delta|increase)\(node_rapl")
+
+
 if __name__ == "__main__":
     unittest.main()

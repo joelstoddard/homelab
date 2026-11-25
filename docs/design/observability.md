@@ -343,6 +343,37 @@ defaults that hide the control-plane components.
     the last hour only, because the same match over 14 days of every
     namespace takes ~27 s in Loki.
 
+## Power estimates
+
+`Hosts/power.json` measures what reports power and estimates the rest from
+published figures. Only the NUCs measure: RAPL `psys`, the platform power the
+board reports, split into CPU `package` and platform other (`psys` minus
+`package`). RAPL counters are only ever `rate()`d (`test_dashboards.py`).
+Each estimate runs linearly from its idle figure to its full-load figure by
+load:
+
+| Part | Idle | Full load | Load | Source |
+| --- | --- | --- | --- | --- |
+| Raspberry Pi 4 board | 2.7 W | 6.4 W | CPU use | Measured at the USB-C input with nothing on USB, `stress --cpu 4` for full load: https://www.pidramble.com/wiki/benchmarks/power-consumption |
+| Voyager CPU, Core i5-4690K (upper bound) | 26 W | 88 W | CPU use | 88 W TDP: https://www.intel.com/content/www/us/en/products/sku/80811/intel-core-i54690k-processor-6m-cache-up-to-3-90-ghz/specifications.html. 26 W is the Package C1E maximum for Haswell desktop quad-cores, Intel datasheet 328897-010, Table 21: https://cdrdv2-public.intel.com/328897/4th-gen-core-family-desktop-vol-1-datasheet.pdf. C1E because FreeBSD's default lowest C-state is C1: https://github.com/freebsd/freebsd-src/blob/releng/13.1/libexec/rc/rc.conf. A maximum, so an upper bound: a whole i7-4770K desktop idled at 23.7–24.1 W at the wall with C6/C7 off: https://legitreviews.com/what-enabling-c6c7-low-power-states-do-on-the-core-i7-4770k-haswell-cpu_2217/3 |
+| Voyager disk, each of ada0 and da0–da3 | 3.9 W | 5.1 W | Busy time | Generic 3.5" 7200 rpm figure, Seagate BarraCuda ST2000DM008 (idle average, operating typical): https://seagate.com/content/dam/seagate/migrated-assets/www-content/datasheets/pdfs/3-5-barracudaDS1900-14-2007US-en_CA.pdf. Busy is collectd's `disk_io_time_io_time`, whole busy seconds per second on FreeBSD: https://github.com/collectd/collectd/blob/collectd-5.12/src/disk.c |
+| Voyager memory | 10 W | 10 W | — | Crucial's deliberately high 5 W per consumer module: https://www.crucial.com/support/articles-faq-memory/how-much-power-does-memory-use. Two modules, the fewest 8 GB DDR3 modules that hold the 16 GB collectd's memory queues total; four smaller modules would double it |
+
+Not measured, and left out of the rack draw, with an upper bound where one
+is published:
+
+1. Wall input: no smart plug or metered PDU, so power supply losses are unknown.
+2. Hubble: ASUS publishes only the adapter rating, 19.5 V 2.31 A (45 W): https://www.asus.com/Networking-IoT-Servers/WiFi-Routers/ASUS-Gaming-Routers/RT-AX86U-Pro/techspec/
+3. Voyager's board, chipset, fans, HBA and power supply: no BMC and no sourced figure.
+4. The Pis' Crucial P3 (CT500P3SSD8) behind RTL9210 bridges: at most 5 W each, https://smarthdd.com/database/CT500P3SSD8/P9CR313; Crucial publishes no idle or active figure.
+5. The NUC NVMe drives on their own, inside platform other: the WD Blue SN580 500GB is rated 4 W at most, https://smarthdd.com/database/WD-Blue-SN580-500GB/281010WD; no figure for the XPG GAMMIX S20.
+6. GPU: none present.
+
+The rack draw therefore mixes measured terms, estimates and an upper bound,
+and leaves parts out: it is neither a floor nor a ceiling. Grafana has no
+shared query, so each estimate is repeated in every panel that shows it and
+the copies must stay identical.
+
 ## Label conventions
 
 `job`: `kubelet` (kubelet and cAdvisor, split by `metrics_path`),
