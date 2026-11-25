@@ -140,6 +140,19 @@ defaults that hide the control-plane components.
 - **Events from a separate Alloy.** `loki.source.kubernetes_events` must run
   once, or every instance emits every event, so a one-replica `alloy-events`
   Deployment runs it alone.
+- **SMART on the Pis from a DaemonSet.** The NUCs run `smartctl_exporter` on
+  the host (`ansible/roles/alloy`); Talos has no host packages, so
+  `alloy/app/smartctl-exporter.yaml` runs the upstream image on every arm64
+  node, kosmos included. Each Pi boots from an NVMe drive behind a Realtek
+  RTL9210 USB bridge at `/dev/sda`, and only smartctl's `-d sntrealtek`
+  passes NVMe admin commands through it: `-d sat` reads the identity but no
+  health log, and `auto` resolves to `sntrealtek`. SMART passthrough needs
+  root on a privileged container with the host's `/dev`, which the
+  `privileged` namespace admits. It is scraped by pod annotation, with
+  `job="smartctl"` from its `app.kubernetes.io/name`; relabel rules in
+  `cluster.alloy` set `instance` to the node and drop `namespace`, `pod` and
+  `node`, so the Pis' series carry the NUCs' label set and a replaced pod
+  continues them.
 - **Talos machine logs from a separate Alloy.** Kubelet, containerd, etcd,
   machined and kernel logs live outside `/var/log/pods`, and Talos ships them
   only as JSON lines over TCP or UDP. The talos role's node patch points

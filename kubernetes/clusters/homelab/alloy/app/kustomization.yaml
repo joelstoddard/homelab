@@ -7,6 +7,7 @@ resources:
   - alloy/helmrelease.yaml
   - alloy-cluster/helmrelease.yaml
   - alloy-events/helmrelease.yaml
+  - smartctl-exporter.yaml
   - config
 configMapGenerator:
   - name: alloy-values

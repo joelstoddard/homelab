@@ -127,6 +127,36 @@ discovery.relabel "annotated_pods" {
 		replacement   = "$1$2$3"
 		target_label  = "job"
 	}
+
+	// The Pis' smartctl exporter reports the node's disk, so it takes the
+	// NUCs' smartctl label set: instance = host name, and no pod labels, so a
+	// replaced pod continues the same series.
+	rule {
+		source_labels = ["job", "node"]
+		regex         = "smartctl;(.+)"
+		target_label  = "instance"
+	}
+
+	rule {
+		source_labels = ["job"]
+		regex         = "smartctl"
+		target_label  = "namespace"
+		replacement   = ""
+	}
+
+	rule {
+		source_labels = ["job"]
+		regex         = "smartctl"
+		target_label  = "pod"
+		replacement   = ""
+	}
+
+	rule {
+		source_labels = ["job"]
+		regex         = "smartctl"
+		target_label  = "node"
+		replacement   = ""
+	}
 }
 
 prometheus.scrape "annotated_pods" {
