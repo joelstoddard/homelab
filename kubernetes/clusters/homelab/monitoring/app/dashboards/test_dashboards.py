@@ -4,14 +4,43 @@ import json
 import os
 import unittest
 
+import yaml
+
 HERE = os.path.dirname(os.path.abspath(__file__))
-FILES = sorted(glob.glob(os.path.join(HERE, "*", "*.json")))
+FILES = sorted(
+    f for f in glob.glob(os.path.join(HERE, "**", "*.json"), recursive=True)
+    if os.path.relpath(f, HERE).split(os.sep)[0] != "templates"
+)
 
 
 def panels(nodes):
     for p in nodes:
         yield p
         yield from panels(p.get("panels", []))
+
+
+class Folders(unittest.TestCase):
+    def test_every_file_has_one_generator_in_its_folder(self):
+        # The sidecar builds folders from the annotation, so a file in another directory than its
+        # annotation would land in a folder the tree does not show.
+        with open(os.path.join(HERE, "kustomization.yaml")) as f:
+            generators = yaml.safe_load(f)["configMapGenerator"]
+        folders = {}
+        for g in generators:
+            for entry in g["files"]:
+                path = entry.split("=")[-1]
+                folders.setdefault(path, []).append(g["options"]["annotations"]["grafana_folder"])
+        for path in FILES:
+            rel = os.path.relpath(path, HERE)
+            self.assertEqual(folders.get(rel), [os.path.dirname(rel)], rel)
+        self.assertEqual(set(folders), {os.path.relpath(p, HERE) for p in FILES})
+
+    def test_no_alloy_title_prefix(self):
+        # The Alloy folder names the product; the prefix repeats it in every title.
+        for path in FILES:
+            with open(path) as f:
+                title = json.load(f).get("title", "")
+            self.assertFalse(title.startswith("Alloy / "), f"{os.path.relpath(path, HERE)}: {title}")
 
 
 class Layout(unittest.TestCase):

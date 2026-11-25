@@ -94,7 +94,7 @@ defaults that hide the control-plane components.
   transcodes) stays and sets `noValue: "None"`. A vendored panel that
   reads kube-state-metrics' `namespace`, `pod` or `node` reads the
   collector, not the object: use the `exported_` labels.
-- **Alloy mixin dashboards.** `Kubernetes/alloy-resources.json`,
+- **Alloy mixin dashboards.** `Kubernetes/Alloy/alloy-resources.json`,
   `alloy-controller.json`, `alloy-prometheus-remote-write.json` and
   `alloy-loki.json` are the alloy-mixin's own rendered JSON,
   committed upstream under `operations/alloy-mixin/rendered/dashboards/`,
@@ -103,7 +103,7 @@ defaults that hide the control-plane components.
   every Alloy bump, from `monitoring/app/dashboards/`, one command per file:
 
   ```sh
-  python3 vendor.py Kubernetes/alloy-resources.json --drop-var cluster \
+  python3 vendor.py Kubernetes/Alloy/alloy-resources.json --drop-var cluster \
     --url https://raw.githubusercontent.com/grafana/alloy/<tag>/operations/alloy-mixin/rendered/dashboards/alloy-resources.json
   ```
 
@@ -226,7 +226,7 @@ defaults that hide the control-plane components.
     quantiles are lost. Alloy's controller histograms
     (`alloy_component_evaluation_seconds_bucket`,
     `alloy_component_dependencies_wait_seconds_bucket`, ~1,200 series
-    across 23 Alloys) are kept: the Alloy / Controller dashboard reads them.
+    across 23 Alloys) are kept: the Controller dashboard (Kubernetes/Alloy folder) reads them.
   - `kubernetes_feature_enabled` on every Kubernetes component.
   - apiserver per-resource watch-cache and list bookkeeping
     (`apiserver_watch_cache_*`, `apiserver_cache_list_*`,
