@@ -31,7 +31,7 @@
     {
       "type": "link",
       "title": "Nodes",
-      "url": "/d/k8s_views_nodes",
+      "url": "/d/homelab-nodes",
       "icon": "dashboard",
       "keepTime": true
     },
@@ -1067,7 +1067,7 @@
                 "value": [
                   {
                     "title": "Open node",
-                    "url": "/d/k8s_views_nodes?var-node=${__data.fields.node}&${__url_time_range}"
+                    "url": "/d/homelab-nodes?var-node=${__data.fields.node}&${__url_time_range}"
                   }
                 ]
               }
@@ -1361,7 +1361,7 @@
           "links": [
             {
               "title": "Open node",
-              "url": "/d/k8s_views_nodes?var-node=${__field.labels.node}&${__url_time_range}"
+              "url": "/d/homelab-nodes?var-node=${__field.labels.node}&${__url_time_range}"
             }
           ]
         },
@@ -1809,7 +1809,7 @@
           "links": [
             {
               "title": "Open node",
-              "url": "/d/k8s_views_nodes?var-node=${__field.labels.node}&${__url_time_range}"
+              "url": "/d/homelab-nodes?var-node=${__field.labels.node}&${__url_time_range}"
             }
           ]
         },

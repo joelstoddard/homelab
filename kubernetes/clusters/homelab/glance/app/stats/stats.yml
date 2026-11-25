@@ -24,13 +24,13 @@
     {{ $lh := $longhorn.JSON.Int "data.result.0.value.1" }}
     {{ $tn := $truenas.JSON.Int "data.result.0.value.1" }}
     <div class="flex justify-between text-center margin-bottom-15">
-      <a href="{{ $g }}k8s_views_nodes"><div class="color-highlight size-h3">{{ $ready.JSON.String "data.result.0.value.1" }}<span class="color-subdue size-h5">/{{ $nodes.JSON.String "data.result.0.value.1" }}</span></div><div class="size-h6">NODES</div></a>
+      <a href="{{ $g }}homelab-nodes"><div class="color-highlight size-h3">{{ $ready.JSON.String "data.result.0.value.1" }}<span class="color-subdue size-h5">/{{ $nodes.JSON.String "data.result.0.value.1" }}</span></div><div class="size-h6">NODES</div></a>
       <a href="{{ $g }}k8s_views_pods"><div class="color-highlight size-h3">{{ $pods.JSON.String "data.result.0.value.1" }}</div><div class="size-h6">PODS</div></a>
       <a href="{{ .Options.StringOr "grafana" "" }}"><div class="size-h3 {{ if eq $d 0 }}color-positive{{ else }}color-negative{{ end }}">{{ $d }}</div><div class="size-h6">TARGETS DOWN</div></a>
     </div>
     <div class="flex flex-column gap-10">
-      <a href="{{ $g }}k8s_views_nodes" class="block"><div class="flex justify-between size-h6"><span>CPU</span><span class="color-highlight">{{ $cpu.JSON.String "data.result.0.value.1" }}%</span></div><div class="progress-bar"><div class="progress-value" style="--percent: {{ $cpu.JSON.String "data.result.0.value.1" }}"></div></div></a>
-      <a href="{{ $g }}k8s_views_nodes" class="block"><div class="flex justify-between size-h6"><span>MEMORY</span><span class="{{ if ge $m 90 }}color-negative{{ else }}color-highlight{{ end }}">{{ $m }}%</span></div><div class="progress-bar"><div class="progress-value" style="--percent: {{ $m }}{{ if ge $m 90 }}; background: var(--color-negative){{ end }}"></div></div></a>
+      <a href="{{ $g }}homelab-nodes" class="block"><div class="flex justify-between size-h6"><span>CPU</span><span class="color-highlight">{{ $cpu.JSON.String "data.result.0.value.1" }}%</span></div><div class="progress-bar"><div class="progress-value" style="--percent: {{ $cpu.JSON.String "data.result.0.value.1" }}"></div></div></a>
+      <a href="{{ $g }}homelab-nodes" class="block"><div class="flex justify-between size-h6"><span>MEMORY</span><span class="{{ if ge $m 90 }}color-negative{{ else }}color-highlight{{ end }}">{{ $m }}%</span></div><div class="progress-bar"><div class="progress-value" style="--percent: {{ $m }}{{ if ge $m 90 }}; background: var(--color-negative){{ end }}"></div></div></a>
     </div>
     <div class="size-h5 color-highlight margin-top-20 margin-bottom-10" style="border-top: 1px solid var(--color-separator); padding-top: 1.5rem">STORAGE</div>
     <div class="flex flex-column gap-10">

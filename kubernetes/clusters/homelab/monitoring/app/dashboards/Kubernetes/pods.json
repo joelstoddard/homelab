@@ -25,7 +25,7 @@
     {
       "type": "link",
       "title": "Nodes",
-      "url": "/d/k8s_views_nodes",
+      "url": "/d/homelab-nodes",
       "icon": "dashboard",
       "keepTime": true,
       "includeVars": false

@@ -1726,63 +1726,63 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "label_replace(label_replace(max by (exported_node) (longhorn_node_status{condition=\"ready\"}), \"dashboard\", \"k8s_views_nodes?var-node=$1&\", \"exported_node\", \"(.+)\"), \"dashboard\", \"homelab-host-$1?\", \"exported_node\", \"([^k].*|k[^8].*)\")",
+          "expr": "label_replace(label_replace(max by (exported_node) (longhorn_node_status{condition=\"ready\"}), \"dashboard\", \"homelab-nodes?var-node=$1&\", \"exported_node\", \"(.+)\"), \"dashboard\", \"homelab-host-$1?\", \"exported_node\", \"([^k].*|k[^8].*)\")",
           "format": "table",
           "instant": true,
           "range": false
         },
         {
           "refId": "B",
-          "expr": "label_replace(label_replace(max by (exported_node) (longhorn_node_status{condition=\"schedulable\"}), \"dashboard\", \"k8s_views_nodes?var-node=$1&\", \"exported_node\", \"(.+)\"), \"dashboard\", \"homelab-host-$1?\", \"exported_node\", \"([^k].*|k[^8].*)\")",
+          "expr": "label_replace(label_replace(max by (exported_node) (longhorn_node_status{condition=\"schedulable\"}), \"dashboard\", \"homelab-nodes?var-node=$1&\", \"exported_node\", \"(.+)\"), \"dashboard\", \"homelab-host-$1?\", \"exported_node\", \"([^k].*|k[^8].*)\")",
           "format": "table",
           "instant": true,
           "range": false
         },
         {
           "refId": "C",
-          "expr": "label_replace(label_replace(max by (exported_node) (longhorn_node_status{condition=\"allowScheduling\"}), \"dashboard\", \"k8s_views_nodes?var-node=$1&\", \"exported_node\", \"(.+)\"), \"dashboard\", \"homelab-host-$1?\", \"exported_node\", \"([^k].*|k[^8].*)\")",
+          "expr": "label_replace(label_replace(max by (exported_node) (longhorn_node_status{condition=\"allowScheduling\"}), \"dashboard\", \"homelab-nodes?var-node=$1&\", \"exported_node\", \"(.+)\"), \"dashboard\", \"homelab-host-$1?\", \"exported_node\", \"([^k].*|k[^8].*)\")",
           "format": "table",
           "instant": true,
           "range": false
         },
         {
           "refId": "D",
-          "expr": "label_replace(label_replace(max by (exported_node) (longhorn_node_storage_usage_bytes) / max by (exported_node) (longhorn_node_storage_capacity_bytes), \"dashboard\", \"k8s_views_nodes?var-node=$1&\", \"exported_node\", \"(.+)\"), \"dashboard\", \"homelab-host-$1?\", \"exported_node\", \"([^k].*|k[^8].*)\")",
+          "expr": "label_replace(label_replace(max by (exported_node) (longhorn_node_storage_usage_bytes) / max by (exported_node) (longhorn_node_storage_capacity_bytes), \"dashboard\", \"homelab-nodes?var-node=$1&\", \"exported_node\", \"(.+)\"), \"dashboard\", \"homelab-host-$1?\", \"exported_node\", \"([^k].*|k[^8].*)\")",
           "format": "table",
           "instant": true,
           "range": false
         },
         {
           "refId": "E",
-          "expr": "label_replace(label_replace(max by (exported_node) (longhorn_node_storage_usage_bytes), \"dashboard\", \"k8s_views_nodes?var-node=$1&\", \"exported_node\", \"(.+)\"), \"dashboard\", \"homelab-host-$1?\", \"exported_node\", \"([^k].*|k[^8].*)\")",
+          "expr": "label_replace(label_replace(max by (exported_node) (longhorn_node_storage_usage_bytes), \"dashboard\", \"homelab-nodes?var-node=$1&\", \"exported_node\", \"(.+)\"), \"dashboard\", \"homelab-host-$1?\", \"exported_node\", \"([^k].*|k[^8].*)\")",
           "format": "table",
           "instant": true,
           "range": false
         },
         {
           "refId": "F",
-          "expr": "label_replace(label_replace(max by (exported_node) (longhorn_node_storage_scheduled_bytes), \"dashboard\", \"k8s_views_nodes?var-node=$1&\", \"exported_node\", \"(.+)\"), \"dashboard\", \"homelab-host-$1?\", \"exported_node\", \"([^k].*|k[^8].*)\")",
+          "expr": "label_replace(label_replace(max by (exported_node) (longhorn_node_storage_scheduled_bytes), \"dashboard\", \"homelab-nodes?var-node=$1&\", \"exported_node\", \"(.+)\"), \"dashboard\", \"homelab-host-$1?\", \"exported_node\", \"([^k].*|k[^8].*)\")",
           "format": "table",
           "instant": true,
           "range": false
         },
         {
           "refId": "G",
-          "expr": "label_replace(label_replace(max by (exported_node) (longhorn_node_storage_reservation_bytes), \"dashboard\", \"k8s_views_nodes?var-node=$1&\", \"exported_node\", \"(.+)\"), \"dashboard\", \"homelab-host-$1?\", \"exported_node\", \"([^k].*|k[^8].*)\")",
+          "expr": "label_replace(label_replace(max by (exported_node) (longhorn_node_storage_reservation_bytes), \"dashboard\", \"homelab-nodes?var-node=$1&\", \"exported_node\", \"(.+)\"), \"dashboard\", \"homelab-host-$1?\", \"exported_node\", \"([^k].*|k[^8].*)\")",
           "format": "table",
           "instant": true,
           "range": false
         },
         {
           "refId": "H",
-          "expr": "label_replace(label_replace(max by (exported_node) (longhorn_node_storage_capacity_bytes), \"dashboard\", \"k8s_views_nodes?var-node=$1&\", \"exported_node\", \"(.+)\"), \"dashboard\", \"homelab-host-$1?\", \"exported_node\", \"([^k].*|k[^8].*)\")",
+          "expr": "label_replace(label_replace(max by (exported_node) (longhorn_node_storage_capacity_bytes), \"dashboard\", \"homelab-nodes?var-node=$1&\", \"exported_node\", \"(.+)\"), \"dashboard\", \"homelab-host-$1?\", \"exported_node\", \"([^k].*|k[^8].*)\")",
           "format": "table",
           "instant": true,
           "range": false
         },
         {
           "refId": "I",
-          "expr": "label_replace(label_replace(count by (exported_node) (longhorn_replica_info) or 0 * max by (exported_node) (longhorn_node_storage_capacity_bytes), \"dashboard\", \"k8s_views_nodes?var-node=$1&\", \"exported_node\", \"(.+)\"), \"dashboard\", \"homelab-host-$1?\", \"exported_node\", \"([^k].*|k[^8].*)\")",
+          "expr": "label_replace(label_replace(count by (exported_node) (longhorn_replica_info) or 0 * max by (exported_node) (longhorn_node_storage_capacity_bytes), \"dashboard\", \"homelab-nodes?var-node=$1&\", \"exported_node\", \"(.+)\"), \"dashboard\", \"homelab-host-$1?\", \"exported_node\", \"([^k].*|k[^8].*)\")",
           "format": "table",
           "instant": true,
           "range": false

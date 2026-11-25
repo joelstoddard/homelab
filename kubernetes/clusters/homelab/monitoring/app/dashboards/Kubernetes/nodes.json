@@ -1,0 +1,2553 @@
+{
+  "id": null,
+  "uid": "homelab-nodes",
+  "title": "Nodes",
+  "description": "Every cluster node at once, ranked worst first; click a node, or pick one in the dropdown, to see it alone and pod by pod. Replaces the vendored Kubernetes / Views / Nodes (grafana.com 15759), which showed one node at a time and filtered on a `cluster` label no series carries. docs/design/observability.md.",
+  "tags": [
+    "kubernetes"
+  ],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "refresh": "1m",
+  "links": [
+    {
+      "type": "link",
+      "title": "Kubernetes overview",
+      "url": "/d/homelab-kubernetes-overview",
+      "icon": "dashboard",
+      "keepTime": true
+    },
+    {
+      "type": "link",
+      "title": "Pods",
+      "url": "/d/k8s_views_pods",
+      "icon": "dashboard",
+      "keepTime": true
+    },
+    {
+      "type": "link",
+      "title": "Hosts overview",
+      "url": "/d/homelab-hosts-overview",
+      "icon": "dashboard",
+      "keepTime": true
+    }
+  ],
+  "templating": {
+    "list": [
+      {
+        "name": "node",
+        "label": "Node",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "query": {
+          "query": "label_values(kube_node_info, exported_node)",
+          "refId": "node"
+        },
+        "definition": "label_values(kube_node_info, exported_node)",
+        "refresh": 2,
+        "sort": 1,
+        "multi": true,
+        "includeAll": true,
+        "allValue": ".+",
+        "current": {
+          "selected": true,
+          "text": [
+            "All"
+          ],
+          "value": [
+            "$__all"
+          ]
+        }
+      },
+      {
+        "name": "group",
+        "type": "query",
+        "hide": 2,
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "query": {
+          "query": "query_result(label_replace(count(kube_node_info{exported_node=~\"$node\"}) == 1, \"group\", \"pod\", \"\", \"\") or on () label_replace(vector(0), \"group\", \"node\", \"\", \"\"))",
+          "refId": "group"
+        },
+        "definition": "query_result(label_replace(count(kube_node_info{exported_node=~\"$node\"}) == 1, \"group\", \"pod\", \"\", \"\") or on () label_replace(vector(0), \"group\", \"node\", \"\", \"\"))",
+        "regex": "/group=\"(\\w+)\"/",
+        "refresh": 2
+      }
+    ]
+  },
+  "panels": [
+    {
+      "type": "row",
+      "title": "Summary",
+      "collapsed": false,
+      "panels": [],
+      "id": 1,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Nodes",
+      "description": "Nodes selected.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "count(kube_node_info{exported_node=~\"$node\"})",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "id": 2,
+      "gridPos": {
+        "h": 4,
+        "w": 3,
+        "x": 0,
+        "y": 1
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Not ready",
+      "description": "Nodes whose Ready condition is false or unknown.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "count(kube_node_status_condition{exported_node=~\"$node\", condition=\"Ready\", status=\"true\"} == 0) or vector(0)",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "id": 3,
+      "gridPos": {
+        "h": 4,
+        "w": 3,
+        "x": 3,
+        "y": 1
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Under pressure",
+      "description": "Nodes reporting memory, disk or PID pressure.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "count(sum by (exported_node) (kube_node_status_condition{exported_node=~\"$node\", condition=~\".+Pressure\", status=\"true\"}) > 0) or vector(0)",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "id": 4,
+      "gridPos": {
+        "h": 4,
+        "w": 3,
+        "x": 6,
+        "y": 1
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Cordoned",
+      "description": "Nodes marked unschedulable.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(kube_node_spec_unschedulable{exported_node=~\"$node\"})",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "id": 5,
+      "gridPos": {
+        "h": 4,
+        "w": 3,
+        "x": 9,
+        "y": 1
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Pods running",
+      "description": "Pods in phase Running on the selected nodes.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "count(kube_pod_info{exported_node=~\"$node\"} * on (exported_namespace, exported_pod) group_left () (kube_pod_status_phase{phase=\"Running\"} == 1)) or vector(0)",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "id": 6,
+      "gridPos": {
+        "h": 4,
+        "w": 3,
+        "x": 12,
+        "y": 1
+      }
+    },
+    {
+      "type": "stat",
+      "title": "CPU used",
+      "description": "CPU the selected nodes use (node-exporter, idle, iowait and steal excluded) as a share of what they can allocate to pods.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(sum by (node) (rate(node_cpu_seconds_total{job=\"node-exporter\", node=~\"$node\", mode!~\"idle|iowait|steal\"}[$__rate_interval]))) / sum(max by (node) (label_replace(kube_node_status_allocatable{exported_node=~\"$node\", resource=\"cpu\"}, \"node\", \"$1\", \"exported_node\", \"(.*)\")))",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 0.7
+              },
+              {
+                "color": "red",
+                "value": 0.9
+              }
+            ]
+          },
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "id": 7,
+      "gridPos": {
+        "h": 4,
+        "w": 3,
+        "x": 15,
+        "y": 1
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Memory used",
+      "description": "Memory in use (total less available) as a share of what the selected nodes can allocate to pods.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(sum by (node) (node_memory_MemTotal_bytes{job=\"node-exporter\", node=~\"$node\"} - node_memory_MemAvailable_bytes{job=\"node-exporter\", node=~\"$node\"})) / sum(max by (node) (label_replace(kube_node_status_allocatable{exported_node=~\"$node\", resource=\"memory\"}, \"node\", \"$1\", \"exported_node\", \"(.*)\")))",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 0.8
+              },
+              {
+                "color": "red",
+                "value": 0.95
+              }
+            ]
+          },
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "id": 8,
+      "gridPos": {
+        "h": 4,
+        "w": 3,
+        "x": 18,
+        "y": 1
+      }
+    },
+    {
+      "type": "stat",
+      "title": "OOM kills, 24 h",
+      "description": "Kernel OOM kills on the selected nodes in the last 24 hours, any process.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "round(sum(increase(node_vmstat_oom_kill{job=\"node-exporter\", node=~\"$node\"}[24h]))) or vector(0)",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "id": 9,
+      "gridPos": {
+        "h": 4,
+        "w": 3,
+        "x": 21,
+        "y": 1
+      }
+    },
+    {
+      "type": "table",
+      "title": "Nodes, worst first",
+      "description": "One row per selected node: not ready first, then the most pressure conditions, then the fullest memory. Used and requested are shares of what the node can allocate to pods. The physical host is the NUC a VM runs on (from Proxmox) or the Pi itself. Click a node to see it alone, or its host to open the host's dashboard.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "id": 10,
+      "gridPos": {
+        "h": 22,
+        "w": 24,
+        "x": 0,
+        "y": 5
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max by (node, host) (label_replace(label_replace(pve_guest_info{name=~\"k8s-.*\", name=~\"$node\"}, \"host\", \"$1\", \"node\", \"(.+)\"), \"node\", \"$1\", \"name\", \"(.+)\")) or max by (node, host) (label_replace(label_replace(kube_node_info{exported_node=~\"$node\"}, \"node\", \"$1\", \"exported_node\", \"(.*)\"), \"host\", \"$1\", \"exported_node\", \"(.+)\")) unless on (node) max by (node, host) (label_replace(label_replace(pve_guest_info{name=~\"k8s-.*\", name=~\"$node\"}, \"host\", \"$1\", \"node\", \"(.+)\"), \"node\", \"$1\", \"name\", \"(.+)\"))",
+          "format": "table",
+          "instant": true,
+          "range": false
+        },
+        {
+          "refId": "B",
+          "expr": "max by (node) (label_replace(kube_node_role{exported_node=~\"$node\", role=\"control-plane\"}, \"node\", \"$1\", \"exported_node\", \"(.*)\")) or on (node) 0 * max by (node) (label_replace(kube_node_info{exported_node=~\"$node\"}, \"node\", \"$1\", \"exported_node\", \"(.*)\"))",
+          "format": "table",
+          "instant": true,
+          "range": false
+        },
+        {
+          "refId": "C",
+          "expr": "max by (node) (label_replace(kube_node_status_condition{exported_node=~\"$node\", condition=\"Ready\", status=\"true\"}, \"node\", \"$1\", \"exported_node\", \"(.*)\"))",
+          "format": "table",
+          "instant": true,
+          "range": false
+        },
+        {
+          "refId": "D",
+          "expr": "max by (node) (label_replace(kube_node_spec_unschedulable{exported_node=~\"$node\"}, \"node\", \"$1\", \"exported_node\", \"(.*)\"))",
+          "format": "table",
+          "instant": true,
+          "range": false
+        },
+        {
+          "refId": "E",
+          "expr": "sum by (node) (label_replace(kube_node_status_condition{exported_node=~\"$node\", condition=~\".+Pressure\", status=\"true\"}, \"node\", \"$1\", \"exported_node\", \"(.*)\"))",
+          "format": "table",
+          "instant": true,
+          "range": false
+        },
+        {
+          "refId": "F",
+          "expr": "sum by (node) (rate(node_cpu_seconds_total{job=\"node-exporter\", node=~\"$node\", mode!~\"idle|iowait|steal\"}[$__rate_interval])) / max by (node) (label_replace(kube_node_status_allocatable{exported_node=~\"$node\", resource=\"cpu\"}, \"node\", \"$1\", \"exported_node\", \"(.*)\"))",
+          "format": "table",
+          "instant": true,
+          "range": false
+        },
+        {
+          "refId": "G",
+          "expr": "sum by (node) (label_replace(kube_pod_container_resource_requests{exported_node=~\"$node\", resource=\"cpu\"} * on (exported_namespace, exported_pod) group_left () (kube_pod_status_phase{phase=~\"Running|Pending\"} == 1), \"node\", \"$1\", \"exported_node\", \"(.*)\")) / max by (node) (label_replace(kube_node_status_allocatable{exported_node=~\"$node\", resource=\"cpu\"}, \"node\", \"$1\", \"exported_node\", \"(.*)\")) or 0 * max by (node) (label_replace(kube_node_info{exported_node=~\"$node\"}, \"node\", \"$1\", \"exported_node\", \"(.*)\"))",
+          "format": "table",
+          "instant": true,
+          "range": false
+        },
+        {
+          "refId": "H",
+          "expr": "sum by (node) (node_memory_MemTotal_bytes{job=\"node-exporter\", node=~\"$node\"} - node_memory_MemAvailable_bytes{job=\"node-exporter\", node=~\"$node\"}) / max by (node) (label_replace(kube_node_status_allocatable{exported_node=~\"$node\", resource=\"memory\"}, \"node\", \"$1\", \"exported_node\", \"(.*)\"))",
+          "format": "table",
+          "instant": true,
+          "range": false
+        },
+        {
+          "refId": "I",
+          "expr": "sum by (node) (label_replace(kube_pod_container_resource_requests{exported_node=~\"$node\", resource=\"memory\"} * on (exported_namespace, exported_pod) group_left () (kube_pod_status_phase{phase=~\"Running|Pending\"} == 1), \"node\", \"$1\", \"exported_node\", \"(.*)\")) / max by (node) (label_replace(kube_node_status_allocatable{exported_node=~\"$node\", resource=\"memory\"}, \"node\", \"$1\", \"exported_node\", \"(.*)\")) or 0 * max by (node) (label_replace(kube_node_info{exported_node=~\"$node\"}, \"node\", \"$1\", \"exported_node\", \"(.*)\"))",
+          "format": "table",
+          "instant": true,
+          "range": false
+        },
+        {
+          "refId": "J",
+          "expr": "count by (node) (label_replace(kube_pod_info{exported_node=~\"$node\"} * on (exported_namespace, exported_pod) group_left () (kube_pod_status_phase{phase=\"Running\"} == 1), \"node\", \"$1\", \"exported_node\", \"(.*)\")) or 0 * max by (node) (label_replace(kube_node_info{exported_node=~\"$node\"}, \"node\", \"$1\", \"exported_node\", \"(.*)\"))",
+          "format": "table",
+          "instant": true,
+          "range": false
+        },
+        {
+          "refId": "K",
+          "expr": "round(sum by (node) (increase(node_vmstat_oom_kill{job=\"node-exporter\", node=~\"$node\"}[24h])))",
+          "format": "table",
+          "instant": true,
+          "range": false
+        },
+        {
+          "refId": "L",
+          "expr": "max by (node) (node_time_seconds{job=\"node-exporter\", node=~\"$node\"} - node_boot_time_seconds{job=\"node-exporter\", node=~\"$node\"})",
+          "format": "table",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "transformations": [
+        {
+          "id": "joinByField",
+          "options": {
+            "byField": "node",
+            "mode": "outerTabular"
+          }
+        },
+        {
+          "id": "formatString",
+          "options": {
+            "stringField": "host",
+            "outputFormat": "Lower Case"
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Value #A": true,
+              "Time": true,
+              "Time 1": true,
+              "Time 2": true,
+              "Time 3": true,
+              "Time 4": true,
+              "Time 5": true,
+              "Time 6": true,
+              "Time 7": true,
+              "Time 8": true,
+              "Time 9": true,
+              "Time 10": true,
+              "Time 11": true,
+              "Time 12": true
+            },
+            "indexByName": {
+              "node": 0,
+              "host": 1,
+              "Value #B": 2,
+              "Value #C": 3,
+              "Value #D": 4,
+              "Value #E": 5,
+              "Value #F": 6,
+              "Value #G": 7,
+              "Value #H": 8,
+              "Value #I": 9,
+              "Value #J": 10,
+              "Value #K": 11,
+              "Value #L": 12
+            },
+            "renameByName": {
+              "node": "Node",
+              "host": "Physical host",
+              "Value #B": "Role",
+              "Value #C": "Ready",
+              "Value #D": "Scheduling",
+              "Value #E": "Pressure",
+              "Value #F": "CPU used",
+              "Value #G": "CPU requested",
+              "Value #H": "Memory used",
+              "Value #I": "Memory requested",
+              "Value #J": "Pods running",
+              "Value #K": "OOM kills, 24 h",
+              "Value #L": "Uptime"
+            }
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "filterable": true
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Node"
+            },
+            "properties": [
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "Open node",
+                    "url": "/d/homelab-nodes?var-node=${__data.fields.node}&${__url_time_range}"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Physical host"
+            },
+            "properties": [
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "Open ${__value.raw}",
+                    "url": "/d/homelab-host-${__value.raw}?${__url_time_range}"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Role"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "1": {
+                        "text": "control plane"
+                      },
+                      "0": {
+                        "text": "worker"
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Ready"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "1": {
+                        "text": "Ready",
+                        "color": "green"
+                      },
+                      "0": {
+                        "text": "Not ready",
+                        "color": "red"
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Scheduling"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "0": {
+                        "text": "Schedulable",
+                        "color": "green"
+                      },
+                      "1": {
+                        "text": "Cordoned",
+                        "color": "orange"
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Pressure"
+            },
+            "properties": [
+              {
+                "id": "decimals",
+                "value": 0
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "0": {
+                        "text": "None"
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "red",
+                      "value": 1
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "CPU used"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percentunit"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "orange",
+                      "value": 0.7
+                    },
+                    {
+                      "color": "red",
+                      "value": 0.9
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "CPU requested"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percentunit"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "orange",
+                      "value": 0.8
+                    },
+                    {
+                      "color": "red",
+                      "value": 0.95
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Memory used"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percentunit"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "orange",
+                      "value": 0.8
+                    },
+                    {
+                      "color": "red",
+                      "value": 0.95
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Memory requested"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percentunit"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "orange",
+                      "value": 0.8
+                    },
+                    {
+                      "color": "red",
+                      "value": 0.95
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Pods running"
+            },
+            "properties": [
+              {
+                "id": "decimals",
+                "value": 0
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "OOM kills, 24 h"
+            },
+            "properties": [
+              {
+                "id": "decimals",
+                "value": 0
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "red",
+                      "value": 1
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Uptime"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "s"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "sortBy": [
+          {
+            "displayName": "Ready",
+            "desc": false
+          },
+          {
+            "displayName": "Pressure",
+            "desc": true
+          },
+          {
+            "displayName": "Memory used",
+            "desc": true
+          }
+        ]
+      }
+    },
+    {
+      "type": "row",
+      "title": "CPU and memory",
+      "collapsed": false,
+      "panels": [],
+      "id": 11,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 27
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "CPU used",
+      "description": "CPU each node uses as a share of what it can allocate to pods.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (node) (rate(node_cpu_seconds_total{job=\"node-exporter\", node=~\"$node\", mode!~\"idle|iowait|steal\"}[$__rate_interval])) / max by (node) (label_replace(kube_node_status_allocatable{exported_node=~\"$node\", resource=\"cpu\"}, \"node\", \"$1\", \"exported_node\", \"(.*)\"))",
+          "legendFormat": "{{node}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "never"
+          },
+          "min": 0,
+          "links": [
+            {
+              "title": "Open node",
+              "url": "/d/homelab-nodes?var-node=${__field.labels.node}&${__url_time_range}"
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "mean",
+            "max"
+          ],
+          "sortBy": "Max",
+          "sortDesc": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "id": 12,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 28
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Memory used",
+      "description": "Memory each node has in use (total less available) as a share of what it can allocate to pods.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (node) (node_memory_MemTotal_bytes{job=\"node-exporter\", node=~\"$node\"} - node_memory_MemAvailable_bytes{job=\"node-exporter\", node=~\"$node\"}) / max by (node) (label_replace(kube_node_status_allocatable{exported_node=~\"$node\", resource=\"memory\"}, \"node\", \"$1\", \"exported_node\", \"(.*)\"))",
+          "legendFormat": "{{node}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "never"
+          },
+          "min": 0,
+          "links": [
+            {
+              "title": "Open node",
+              "url": "/d/homelab-nodes?var-node=${__field.labels.node}&${__url_time_range}"
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "mean",
+            "max"
+          ],
+          "sortBy": "Max",
+          "sortDesc": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "id": 13,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 28
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Container CPU",
+      "description": "Cores the containers use, per node, or per pod when one node is chosen.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (node, $group) (rate(container_cpu_usage_seconds_total{node=~\"$node\", container!=\"\", container!=\"POD\"}[$__rate_interval]))",
+          "legendFormat": "{{$group}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "cores",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "never"
+          },
+          "min": 0,
+          "links": [
+            {
+              "title": "Open node",
+              "url": "/d/homelab-nodes?var-node=${__field.labels.node}&${__url_time_range}"
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "mean",
+            "max"
+          ],
+          "sortBy": "Max",
+          "sortDesc": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "id": 14,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 36
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Container memory",
+      "description": "Container working set, per node, or per pod when one node is chosen.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (node, $group) (container_memory_working_set_bytes{node=~\"$node\", container!=\"\", container!=\"POD\"})",
+          "legendFormat": "{{$group}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "never"
+          },
+          "min": 0,
+          "links": [
+            {
+              "title": "Open node",
+              "url": "/d/homelab-nodes?var-node=${__field.labels.node}&${__url_time_range}"
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "mean",
+            "max"
+          ],
+          "sortBy": "Max",
+          "sortDesc": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "id": 15,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 36
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Load per core",
+      "description": "Five-minute load average over the node's core count. Above 1 means runnable work is queueing.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max by (node) (node_load5{job=\"node-exporter\", node=~\"$node\"}) / count by (node) (node_cpu_seconds_total{job=\"node-exporter\", node=~\"$node\", mode=\"idle\"})",
+          "legendFormat": "{{node}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "never"
+          },
+          "min": 0,
+          "links": [
+            {
+              "title": "Open node",
+              "url": "/d/homelab-nodes?var-node=${__field.labels.node}&${__url_time_range}"
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "mean",
+            "max"
+          ],
+          "sortBy": "Max",
+          "sortDesc": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "id": 16,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 44
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "OOM kills",
+      "description": "Kernel OOM kills per interval, any process on the node. Reads None while nothing is killed.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (node) (increase(node_vmstat_oom_kill{job=\"node-exporter\", node=~\"$node\"}[$__rate_interval])) > 0",
+          "legendFormat": "{{node}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 80,
+            "showPoints": "never",
+            "drawStyle": "bars"
+          },
+          "min": 0,
+          "noValue": "None",
+          "links": [
+            {
+              "title": "Open node",
+              "url": "/d/homelab-nodes?var-node=${__field.labels.node}&${__url_time_range}"
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "mean",
+            "max"
+          ],
+          "sortBy": "Max",
+          "sortDesc": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "id": 17,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 44
+      }
+    },
+    {
+      "type": "row",
+      "title": "Pressure",
+      "collapsed": false,
+      "panels": [],
+      "id": 18,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 52
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "CPU stall",
+      "description": "Share of time at least one task waits on CPU (PSI \"some\").",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (node) (rate(node_pressure_cpu_waiting_seconds_total{job=\"node-exporter\", node=~\"$node\"}[$__rate_interval]))",
+          "legendFormat": "{{node}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "never"
+          },
+          "min": 0,
+          "links": [
+            {
+              "title": "Open node",
+              "url": "/d/homelab-nodes?var-node=${__field.labels.node}&${__url_time_range}"
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "mean",
+            "max"
+          ],
+          "sortBy": "Max",
+          "sortDesc": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "id": 19,
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 53
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Memory stall",
+      "description": "Share of time at least one task waits on memory (PSI \"some\").",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (node) (rate(node_pressure_memory_waiting_seconds_total{job=\"node-exporter\", node=~\"$node\"}[$__rate_interval]))",
+          "legendFormat": "{{node}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "never"
+          },
+          "min": 0,
+          "links": [
+            {
+              "title": "Open node",
+              "url": "/d/homelab-nodes?var-node=${__field.labels.node}&${__url_time_range}"
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "mean",
+            "max"
+          ],
+          "sortBy": "Max",
+          "sortDesc": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "id": 20,
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 53
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "IO stall",
+      "description": "Share of time at least one task waits on IO (PSI \"some\").",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (node) (rate(node_pressure_io_waiting_seconds_total{job=\"node-exporter\", node=~\"$node\"}[$__rate_interval]))",
+          "legendFormat": "{{node}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "never"
+          },
+          "min": 0,
+          "links": [
+            {
+              "title": "Open node",
+              "url": "/d/homelab-nodes?var-node=${__field.labels.node}&${__url_time_range}"
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "mean",
+            "max"
+          ],
+          "sortBy": "Max",
+          "sortDesc": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "id": 21,
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 53
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Pressure conditions",
+      "description": "Each node condition while it is true: memory, disk or PID pressure, or network unavailable. Reads None while no node reports one.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max by (node, condition) (label_replace(kube_node_status_condition{exported_node=~\"$node\", condition=~\".+Pressure|NetworkUnavailable\", status=\"true\"}, \"node\", \"$1\", \"exported_node\", \"(.*)\")) == 1",
+          "legendFormat": "{{node}} {{condition}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "never"
+          },
+          "min": 0,
+          "noValue": "None",
+          "links": [
+            {
+              "title": "Open node",
+              "url": "/d/homelab-nodes?var-node=${__field.labels.node}&${__url_time_range}"
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "mean",
+            "max"
+          ],
+          "sortBy": "Max",
+          "sortDesc": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "id": 22,
+      "gridPos": {
+        "h": 6,
+        "w": 12,
+        "x": 0,
+        "y": 61
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Nodes not ready",
+      "description": "Each node while its Ready condition is not true. Reads None while every node is Ready.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max by (node) (label_replace(kube_node_status_condition{exported_node=~\"$node\", condition=\"Ready\", status=\"true\"}, \"node\", \"$1\", \"exported_node\", \"(.*)\")) == 0",
+          "legendFormat": "{{node}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "never"
+          },
+          "min": 0,
+          "noValue": "None",
+          "links": [
+            {
+              "title": "Open node",
+              "url": "/d/homelab-nodes?var-node=${__field.labels.node}&${__url_time_range}"
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "mean",
+            "max"
+          ],
+          "sortBy": "Max",
+          "sortDesc": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "id": 23,
+      "gridPos": {
+        "h": 6,
+        "w": 12,
+        "x": 12,
+        "y": 61
+      }
+    },
+    {
+      "type": "row",
+      "title": "Pods",
+      "collapsed": false,
+      "panels": [],
+      "id": 24,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 67
+      }
+    },
+    {
+      "type": "table",
+      "title": "Pods on the selected nodes",
+      "description": "Every pod scheduled on the selected nodes, most restarts first, then the most memory. Click a pod, namespace or node to open it.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "id": 25,
+      "gridPos": {
+        "h": 14,
+        "w": 24,
+        "x": 0,
+        "y": 68
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max by (node, namespace, pod) (label_replace(label_replace(label_replace(kube_pod_info{exported_node=~\"$node\"}, \"node\", \"$1\", \"exported_node\", \"(.*)\"), \"namespace\", \"$1\", \"exported_namespace\", \"(.*)\"), \"pod\", \"$1\", \"exported_pod\", \"(.*)\"))",
+          "format": "table",
+          "instant": true,
+          "range": false
+        },
+        {
+          "refId": "B",
+          "expr": "(sum by (node, namespace, pod) (rate(container_cpu_usage_seconds_total{node=~\"$node\", container!=\"\", container!=\"POD\"}[$__rate_interval])) and on (node, namespace, pod) max by (node, namespace, pod) (label_replace(label_replace(label_replace(kube_pod_info{exported_node=~\"$node\"}, \"node\", \"$1\", \"exported_node\", \"(.*)\"), \"namespace\", \"$1\", \"exported_namespace\", \"(.*)\"), \"pod\", \"$1\", \"exported_pod\", \"(.*)\"))) or 0 * max by (node, namespace, pod) (label_replace(label_replace(label_replace(kube_pod_info{exported_node=~\"$node\"}, \"node\", \"$1\", \"exported_node\", \"(.*)\"), \"namespace\", \"$1\", \"exported_namespace\", \"(.*)\"), \"pod\", \"$1\", \"exported_pod\", \"(.*)\"))",
+          "format": "table",
+          "instant": true,
+          "range": false
+        },
+        {
+          "refId": "C",
+          "expr": "(sum by (node, namespace, pod) (container_memory_working_set_bytes{node=~\"$node\", container!=\"\", container!=\"POD\"}) and on (node, namespace, pod) max by (node, namespace, pod) (label_replace(label_replace(label_replace(kube_pod_info{exported_node=~\"$node\"}, \"node\", \"$1\", \"exported_node\", \"(.*)\"), \"namespace\", \"$1\", \"exported_namespace\", \"(.*)\"), \"pod\", \"$1\", \"exported_pod\", \"(.*)\"))) or 0 * max by (node, namespace, pod) (label_replace(label_replace(label_replace(kube_pod_info{exported_node=~\"$node\"}, \"node\", \"$1\", \"exported_node\", \"(.*)\"), \"namespace\", \"$1\", \"exported_namespace\", \"(.*)\"), \"pod\", \"$1\", \"exported_pod\", \"(.*)\"))",
+          "format": "table",
+          "instant": true,
+          "range": false
+        },
+        {
+          "refId": "D",
+          "expr": "round(sum by (node, namespace, pod) (label_replace(label_replace(label_replace(increase(kube_pod_container_status_restarts_total[24h]) * on (exported_namespace, exported_pod) group_left (exported_node) kube_pod_info{exported_node=~\"$node\"}, \"node\", \"$1\", \"exported_node\", \"(.*)\"), \"namespace\", \"$1\", \"exported_namespace\", \"(.*)\"), \"pod\", \"$1\", \"exported_pod\", \"(.*)\"))) or 0 * max by (node, namespace, pod) (label_replace(label_replace(label_replace(kube_pod_info{exported_node=~\"$node\"}, \"node\", \"$1\", \"exported_node\", \"(.*)\"), \"namespace\", \"$1\", \"exported_namespace\", \"(.*)\"), \"pod\", \"$1\", \"exported_pod\", \"(.*)\"))",
+          "format": "table",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "transformations": [
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "Value #A": true
+            },
+            "indexByName": {
+              "node": 0,
+              "namespace": 1,
+              "pod": 2,
+              "Value #B": 3,
+              "Value #C": 4,
+              "Value #D": 5
+            },
+            "renameByName": {
+              "node": "Node",
+              "namespace": "Namespace",
+              "pod": "Pod",
+              "Value #B": "CPU",
+              "Value #C": "Memory",
+              "Value #D": "Restarts, 24 h"
+            }
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "filterable": true
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Node"
+            },
+            "properties": [
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "Open node",
+                    "url": "/d/homelab-nodes?var-node=${__data.fields.node}&${__url_time_range}"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Namespace"
+            },
+            "properties": [
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "Open namespace",
+                    "url": "/d/k8s_views_ns?var-namespace=${__data.fields.namespace}&${__url_time_range}"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Pod"
+            },
+            "properties": [
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "Open pod",
+                    "url": "/d/k8s_views_pods?var-namespace=${__data.fields.namespace}&var-pod=${__data.fields.pod}&${__url_time_range}"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "CPU"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "cores"
+              },
+              {
+                "id": "decimals",
+                "value": 2
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Memory"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "bytes"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Restarts, 24 h"
+            },
+            "properties": [
+              {
+                "id": "decimals",
+                "value": 0
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "orange",
+                      "value": 1
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "sortBy": [
+          {
+            "displayName": "Restarts, 24 h",
+            "desc": true
+          },
+          {
+            "displayName": "Memory",
+            "desc": true
+          }
+        ]
+      }
+    },
+    {
+      "type": "row",
+      "title": "Network",
+      "collapsed": false,
+      "panels": [],
+      "id": 26,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 82
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Network",
+      "description": "Bits per second each node sends (above zero) and receives (below zero) on its physical interface.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "8 * sum by (node) (rate(node_network_transmit_bytes_total{job=\"node-exporter\", node=~\"$node\", device=~\"en.*|eth.*\"}[$__rate_interval]))",
+          "legendFormat": "{{node}} sent"
+        },
+        {
+          "refId": "B",
+          "expr": "8 * sum by (node) (rate(node_network_receive_bytes_total{job=\"node-exporter\", node=~\"$node\", device=~\"en.*|eth.*\"}[$__rate_interval]))",
+          "legendFormat": "{{node}} received"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bps",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "never"
+          },
+          "links": [
+            {
+              "title": "Open node",
+              "url": "/d/homelab-nodes?var-node=${__field.labels.node}&${__url_time_range}"
+            }
+          ]
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byFrameRefID",
+              "options": "B"
+            },
+            "properties": [
+              {
+                "id": "custom.transform",
+                "value": "negative-Y"
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "mean",
+            "max"
+          ],
+          "sortBy": "Max",
+          "sortDesc": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "id": 27,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 83
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Errors and drops",
+      "description": "Packets per second the physical interface fails or drops, both directions. Reads None while there are none.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (node) (rate(node_network_receive_errs_total{job=\"node-exporter\", node=~\"$node\", device=~\"en.*|eth.*\"}[$__rate_interval]) + rate(node_network_transmit_errs_total{job=\"node-exporter\", node=~\"$node\", device=~\"en.*|eth.*\"}[$__rate_interval])) > 0",
+          "legendFormat": "{{node}} errors"
+        },
+        {
+          "refId": "B",
+          "expr": "sum by (node) (rate(node_network_receive_drop_total{job=\"node-exporter\", node=~\"$node\", device=~\"en.*|eth.*\"}[$__rate_interval]) + rate(node_network_transmit_drop_total{job=\"node-exporter\", node=~\"$node\", device=~\"en.*|eth.*\"}[$__rate_interval])) > 0",
+          "legendFormat": "{{node}} drops"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "pps",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "never"
+          },
+          "min": 0,
+          "noValue": "None",
+          "links": [
+            {
+              "title": "Open node",
+              "url": "/d/homelab-nodes?var-node=${__field.labels.node}&${__url_time_range}"
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "mean",
+            "max"
+          ],
+          "sortBy": "Max",
+          "sortDesc": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "id": 28,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 83
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "TCP connections",
+      "description": "Established TCP connections on each node.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max by (node) (node_netstat_Tcp_CurrEstab{job=\"node-exporter\", node=~\"$node\"})",
+          "legendFormat": "{{node}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "never"
+          },
+          "min": 0,
+          "links": [
+            {
+              "title": "Open node",
+              "url": "/d/homelab-nodes?var-node=${__field.labels.node}&${__url_time_range}"
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "mean",
+            "max"
+          ],
+          "sortBy": "Max",
+          "sortDesc": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "id": 29,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 91
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Conntrack table used",
+      "description": "Connection-tracking entries as a share of the table's limit. A full table drops new connections.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max by (node) (node_nf_conntrack_entries{job=\"node-exporter\", node=~\"$node\"} / node_nf_conntrack_entries_limit{job=\"node-exporter\", node=~\"$node\"})",
+          "legendFormat": "{{node}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "never"
+          },
+          "min": 0,
+          "links": [
+            {
+              "title": "Open node",
+              "url": "/d/homelab-nodes?var-node=${__field.labels.node}&${__url_time_range}"
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "mean",
+            "max"
+          ],
+          "sortBy": "Max",
+          "sortDesc": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "id": 30,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 91
+      }
+    },
+    {
+      "type": "row",
+      "title": "Storage",
+      "collapsed": false,
+      "panels": [],
+      "id": 31,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 99
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "EPHEMERAL used",
+      "description": "Share of each node's EPHEMERAL partition (/var) in use: container images, logs, emptyDirs and Longhorn replicas.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "1 - max by (node) (node_filesystem_avail_bytes{job=\"node-exporter\", node=~\"$node\", mountpoint=\"/var\"}) / max by (node) (node_filesystem_size_bytes{job=\"node-exporter\", node=~\"$node\", mountpoint=\"/var\"})",
+          "legendFormat": "{{node}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "never"
+          },
+          "min": 0,
+          "links": [
+            {
+              "title": "Open node",
+              "url": "/d/homelab-nodes?var-node=${__field.labels.node}&${__url_time_range}"
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "mean",
+            "max"
+          ],
+          "sortBy": "Max",
+          "sortDesc": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "id": 32,
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 100
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "System disk",
+      "description": "Bytes per second written to (above zero) and read from (below zero) the node's own disk, `sda`. Longhorn volumes attached over iSCSI are other devices and are left out.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (node) (rate(node_disk_written_bytes_total{job=\"node-exporter\", node=~\"$node\", device=\"sda\"}[$__rate_interval]))",
+          "legendFormat": "{{node}} written"
+        },
+        {
+          "refId": "B",
+          "expr": "sum by (node) (rate(node_disk_read_bytes_total{job=\"node-exporter\", node=~\"$node\", device=\"sda\"}[$__rate_interval]))",
+          "legendFormat": "{{node}} read"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "Bps",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "never"
+          },
+          "links": [
+            {
+              "title": "Open node",
+              "url": "/d/homelab-nodes?var-node=${__field.labels.node}&${__url_time_range}"
+            }
+          ]
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byFrameRefID",
+              "options": "B"
+            },
+            "properties": [
+              {
+                "id": "custom.transform",
+                "value": "negative-Y"
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "mean",
+            "max"
+          ],
+          "sortBy": "Max",
+          "sortDesc": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "id": 33,
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 100
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Volumes used",
+      "description": "Share of each persistent volume claim mounted on the selected nodes in use (kubelet volume stats).",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max by (node, namespace, persistentvolumeclaim) (kubelet_volume_stats_used_bytes{node=~\"$node\"}) / max by (node, namespace, persistentvolumeclaim) (kubelet_volume_stats_capacity_bytes{node=~\"$node\"})",
+          "legendFormat": "{{namespace}}/{{persistentvolumeclaim}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "never"
+          },
+          "min": 0,
+          "noValue": "No volumes",
+          "links": [
+            {
+              "title": "Open node",
+              "url": "/d/homelab-nodes?var-node=${__field.labels.node}&${__url_time_range}"
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "mean",
+            "max"
+          ],
+          "sortBy": "Max",
+          "sortDesc": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "id": 34,
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 100
+      }
+    },
+    {
+      "type": "row",
+      "title": "Logs",
+      "collapsed": false,
+      "panels": [],
+      "id": 35,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 108
+      }
+    },
+    {
+      "type": "logs",
+      "title": "Machine logs",
+      "description": "Talos machine and kernel logs of the selected nodes (`job=\"talos\"`).",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "{job=\"talos\", node=~\"$node\"}"
+        }
+      ],
+      "options": {
+        "showTime": true,
+        "wrapLogMessage": true,
+        "sortOrder": "Descending",
+        "enableLogDetails": true
+      },
+      "id": 36,
+      "gridPos": {
+        "h": 12,
+        "w": 24,
+        "x": 0,
+        "y": 109
+      }
+    }
+  ]
+}

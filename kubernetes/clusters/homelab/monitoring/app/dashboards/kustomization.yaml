@@ -22,6 +22,9 @@ configMapGenerator:
   - name: dashboard-k8s-views-nodes
     files: [Kubernetes/vendored/k8s-views-nodes.json]
     options: {annotations: {grafana_folder: Kubernetes/vendored}}
+  - name: dashboard-nodes
+    files: [Kubernetes/nodes.json]
+    options: {annotations: {grafana_folder: Kubernetes}}
   - name: dashboard-pods
     files: [Kubernetes/pods.json]
     options: {annotations: {grafana_folder: Kubernetes}}
