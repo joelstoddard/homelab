@@ -253,7 +253,7 @@
     {
       "type": "stat",
       "title": "Latency p50",
-      "description": "HTTP request duration across every entrypoint, WebSockets excluded (their duration is the connection's lifetime). Traefik's buckets stop at 0.1, 0.3, 1.2 and 5 s, so the value is interpolated between them.",
+      "description": "HTTP request duration across every entrypoint, WebSockets excluded (their duration is the connection's lifetime). Traefik's buckets run from 5 ms to 60 s (0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60), so the value is interpolated within one bucket.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -317,7 +317,7 @@
     {
       "type": "stat",
       "title": "Latency p95",
-      "description": "HTTP request duration across every entrypoint, WebSockets excluded (their duration is the connection's lifetime). Traefik's buckets stop at 0.1, 0.3, 1.2 and 5 s, so the value is interpolated between them.",
+      "description": "HTTP request duration across every entrypoint, WebSockets excluded (their duration is the connection's lifetime). Traefik's buckets run from 5 ms to 60 s (0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60), so the value is interpolated within one bucket.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -673,7 +673,7 @@
     {
       "type": "timeseries",
       "title": "Latency by entrypoint",
-      "description": "p50 and p95 HTTP request duration per entrypoint, WebSockets excluded. Interpolated between Traefik's 0.1, 0.3, 1.2 and 5 s buckets.",
+      "description": "p50 and p95 HTTP request duration per entrypoint, WebSockets excluded. Interpolated within Traefik's buckets, which run from 5 ms to 60 s.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -1381,7 +1381,7 @@
     {
       "type": "timeseries",
       "title": "Latency p50 by service",
-      "description": "p50 HTTP request duration per selected service, WebSockets excluded. Interpolated between Traefik's 0.1, 0.3, 1.2 and 5 s buckets.",
+      "description": "p50 HTTP request duration per selected service, WebSockets excluded. Interpolated within Traefik's buckets, which run from 5 ms to 60 s.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -1431,7 +1431,7 @@
     {
       "type": "timeseries",
       "title": "Latency p95 by service",
-      "description": "p95 HTTP request duration per selected service, WebSockets excluded. Interpolated between Traefik's 0.1, 0.3, 1.2 and 5 s buckets.",
+      "description": "p95 HTTP request duration per selected service, WebSockets excluded. Interpolated within Traefik's buckets, which run from 5 ms to 60 s.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"

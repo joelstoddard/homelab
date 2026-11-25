@@ -88,3 +88,7 @@ metrics:
     addEntryPointsLabels: true
     addRoutersLabels: true
     addServicesLabels: true
+    # The chart's 0.1/0.3/1.2/5 s default makes every quantile a coarse
+    # interpolation. 5 ms to 60 s spans static replies to the 1h-upload
+    # routes' slowest API calls; 13 bounds cost about 2.5k service series.
+    buckets: "0.005,0.01,0.025,0.05,0.1,0.25,0.5,1,2.5,5,10,30,60"
