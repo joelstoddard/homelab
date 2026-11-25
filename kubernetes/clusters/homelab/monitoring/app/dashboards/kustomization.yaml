@@ -76,6 +76,9 @@ configMapGenerator:
   - name: dashboard-blackbox
     files: [Network/vendored/blackbox.json]
     options: {annotations: {grafana_folder: Network/vendored}}
+  - name: dashboard-blackbox-probes
+    files: [Network/blackbox.json]
+    options: {annotations: {grafana_folder: Network}}
   - name: dashboard-netbox
     files: [Hosts/netbox.json]
     options: {annotations: {grafana_folder: Hosts}}
