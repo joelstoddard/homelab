@@ -22,7 +22,7 @@ the constraints of the stack apply throughout: a public repo (no address or doma
 | rumba, tango, salsa, samba | Debian 13 + Proxmox VE, Ansible group `proxmox` | yes | Alloy pushes node metrics, SMART and journald; `pve-exporter` polls the PVE API |
 | pihole-01, pihole-02 | The DNS chain's Pi-hole pair, Debian 13 LXCs (`docs/design/dns-chain.md`) | no — they resolve through Quad9, which cannot answer the ingest hostnames | `pihole-exporter` polls each v6 API; blackbox `dns_lookup`, `dns_wildcard` and `dns_lancache` probe each instance and the VIP |
 | bind9-01, bind9-02, lancache-01, lancache-02 | The DNS chain's BIND links, Debian 13 LXCs (`docs/design/dns-chain.md`) | no — same resolver constraint as the Pi-holes | `prometheus-bind-exporter` on each container, scraped by the gateway |
-| voyager | TrueNAS CORE (FreeBSD) | no — the base system stays stock, there are no Apps | Reporting → remote Graphite; System → Advanced → remote syslog |
+| voyager | TrueNAS CORE (FreeBSD) | no — the base system stays stock, there are no Apps; one static binary on the pool serves SMART | Reporting → remote Graphite; System → Advanced → remote syslog; `smartctl_exporter` scraped by the gateway |
 | hubble | ASUS router, stock firmware | no — nothing is installable | blackbox probes from the cluster; its own remote syslog; Home Assistant's ASUSWRT integration polls its web API for CPU, memory, temperature and WAN counters |
 
 ## Design
@@ -295,11 +295,61 @@ the constraints of the stack apply throughout: a public repo (no address or doma
   the same address. Nothing in this repo can assert them, which is why the
   address is pinned — a moved `INGEST_LB_IP` means two UIs to revisit.
 
+## SMART on Voyager
+
+CORE's collectd stream carries no SMART data, so `smartctl_exporter` v0.15.0
+runs on Voyager as one static binary kept on the pool, outside the base
+system, started by a Post Init script (`scripts/truenas/smartctl-exporter.sh`).
+It reads the disks as root and uses CORE's own `/usr/local/sbin/smartctl`
+(smartmontools' FreeBSD install path; CORE bundles smartmontools for its
+S.M.A.R.T. service). Nothing on CORE blocks 9633 unless a firewall was added,
+and `alloy-gateway` must reach it. Port 9633 serves SMART data
+unauthenticated on the LAN. Install by hand, as root on Voyager
+(System → Shell, or SSH):
+
+1. Confirm `ls /usr/local/sbin/smartctl` finds the file; if not, point
+   `--smartctl.path` in the script at the path `which smartctl` prints.
+2. Stage the release and check it against the release's `sha256sums.txt`:
+
+   ```sh
+   mkdir -p /mnt/Voyager/scripts && cd /mnt/Voyager/scripts
+   fetch -o smartctl_exporter.tar.gz https://github.com/prometheus-community/smartctl_exporter/releases/download/v0.15.0/smartctl_exporter-0.15.0.freebsd-amd64.tar.gz
+   sha256 -q smartctl_exporter.tar.gz
+   ```
+
+   The output must be `cbb8d5eb75bbd3deb6485e1f342d765ff76a26db458e196ce198368a72770d58`.
+   If not, delete the file and stop.
+3. Unpack the binary beside the script:
+
+   ```sh
+   tar -xzf smartctl_exporter.tar.gz --strip-components=1 smartctl_exporter-0.15.0.freebsd-amd64/smartctl_exporter
+   rm smartctl_exporter.tar.gz
+   ```
+
+4. From the repo root on the workstation, copy the script over and make it
+   executable. Another directory works if `EXPORTER` in the script is
+   changed to match.
+
+   ```sh
+   scp scripts/truenas/smartctl-exporter.sh root@voyager:/mnt/Voyager/scripts/
+   ssh root@voyager chmod +x /mnt/Voyager/scripts/smartctl-exporter.sh
+   ```
+
+5. System → Tasks → Init/Shutdown Scripts → Add: Type `Script`, Script
+   `/mnt/Voyager/scripts/smartctl-exporter.sh`, When `Post Init`, Enabled.
+6. Start it now without a reboot: `/mnt/Voyager/scripts/smartctl-exporter.sh`.
+7. Verify: `fetch -qo - http://localhost:9633/metrics | grep smartctl_device`
+   lists every disk (ada0, da0-da3). Then `smartctl_device{instance="voyager"}`
+   in Grafana shows the same.
+
+An HBA that hides SMART passes through as SCSI: a disk missing from step 7
+is a `smartctl --scan` question, not a gateway one.
+
 ## Label conventions
 
 Metrics `job`: `node-exporter` (the four agent hosts, `instance` = host
-name), `smartctl` (the same four, `instance` = host name, `device` = the
-kernel's name for the drive), `pve` (`instance` = NUC name; the exporter's own `id` and `node`
+name), `smartctl` (the same four plus `voyager`, `instance` = host name,
+`device` = the kernel's name for the drive), `pve` (`instance` = NUC name; the exporter's own `id` and `node`
 labels carry the guests), `pihole` (`instance` = `pihole`, `hostname` =
 `pihole-01` or `pihole-02`), `bind` (`instance` = `bind9-01`, `bind9-02`,
 `lancache-01` or `lancache-02`), `truenas` (`instance` = `voyager`),
@@ -378,8 +428,10 @@ measured: the window holds no outage.
   so this buys a second agent's worth of configuration on every host.
 - **Nothing on the hosts at all.** Loses journald, per-process and filesystem
   detail.
-- **Installing on the router or on TrueNAS CORE.** Out of scope by decision:
-  stock firmware, and a base system not meant to carry packages.
+- **Installing an agent on the router or on TrueNAS CORE.** Out of scope by
+  decision: stock firmware, and a base system not meant to carry packages.
+  The one exception is `smartctl_exporter` on TrueNAS, a binary on the pool
+  that touches no base-system file.
 - **Static targets in the DaemonSet.** Would put `postBuild` substitution on
   the `alloy` layer, which deliberately has none: its River is full of `$1`.
   The gateway keeps all off-cluster wiring in one layer instead.
