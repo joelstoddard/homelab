@@ -1,0 +1,14 @@
+# The message cache and the auth database; both are SQLite, so a Longhorn RWO
+# volume, never NFS.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: ntfy-data
+  labels:
+    app.kubernetes.io/name: ntfy
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
