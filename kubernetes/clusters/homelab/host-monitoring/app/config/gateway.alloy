@@ -192,6 +192,33 @@ prometheus.scrape "bind" {
 	scrape_timeout  = "15s"
 }
 
+// ------------------------------------------------------------- smartctl --
+
+// smartctl_exporter runs on TrueNAS CORE, so the target is the exporter itself.
+// It polls every 60 s and skips disks in standby, so a scrape never spins up a disk.
+discovery.relabel "smartctl" {
+	targets = discovery.file.hosts.targets
+
+	rule {
+		source_labels = ["group"]
+		regex         = "smartctl"
+		action        = "keep"
+	}
+
+	rule {
+		regex  = "group"
+		action = "labeldrop"
+	}
+}
+
+prometheus.scrape "smartctl" {
+	targets         = discovery.relabel.smartctl.output
+	forward_to      = [prometheus.remote_write.prometheus.receiver]
+	job_name        = "smartctl"
+	scrape_interval = "60s"
+	scrape_timeout  = "30s"
+}
+
 // ------------------------------------------------- pihole, truenas (graphite) --
 
 prometheus.scrape "pihole" {

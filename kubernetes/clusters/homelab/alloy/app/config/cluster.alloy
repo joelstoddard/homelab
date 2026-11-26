@@ -127,6 +127,35 @@ discovery.relabel "annotated_pods" {
 		replacement   = "$1$2$3"
 		target_label  = "job"
 	}
+
+	// The Pi exporter reports the node's disk, so its series take the NUC label set.
+	// Without pod labels, a replaced pod continues the same series.
+	rule {
+		source_labels = ["job", "node"]
+		regex         = "smartctl;(.+)"
+		target_label  = "instance"
+	}
+
+	rule {
+		source_labels = ["job"]
+		regex         = "smartctl"
+		target_label  = "namespace"
+		replacement   = ""
+	}
+
+	rule {
+		source_labels = ["job"]
+		regex         = "smartctl"
+		target_label  = "pod"
+		replacement   = ""
+	}
+
+	rule {
+		source_labels = ["job"]
+		regex         = "smartctl"
+		target_label  = "node"
+		replacement   = ""
+	}
 }
 
 prometheus.scrape "annotated_pods" {
@@ -138,7 +167,7 @@ prometheus.scrape "annotated_pods" {
 
 // Unread internals of Cilium, Alloy, Prometheus, Loki, Grafana, Flux and
 // Traefik: histogram buckets (_sum and _count stay) and per-target bookkeeping.
-// Alloy's alloy_component_* buckets stay: the Alloy / Controller dashboard reads them.
+// Alloy's alloy_component_* buckets stay: the Controller dashboard (Kubernetes/Alloy) reads them.
 prometheus.relabel "annotated_pods" {
 	forward_to = [prometheus.remote_write.prometheus.receiver]
 
@@ -560,6 +589,61 @@ prometheus.relabel "etcd" {
 		regex         = "grpc_server_handled_total|etcd_debugging_.*"
 		action        = "drop"
 	}
+}
+
+// ------------------------------------------------- cluster-wide: Pi probes --
+
+// The Pi nodes' Talos API, probed from the blackbox exporter in host-monitoring.
+// Discovering the arm64 nodes keeps their addresses out of git and picks up a
+// new Pi without an edit (docs/design/host-monitoring.md).
+discovery.kubernetes "nodes" {
+	role = "node"
+}
+
+discovery.relabel "pi_probes" {
+	targets = discovery.kubernetes.nodes.targets
+
+	rule {
+		source_labels = ["__meta_kubernetes_node_label_kubernetes_io_arch"]
+		regex         = "arm64"
+		action        = "keep"
+	}
+
+	rule {
+		source_labels = ["__meta_kubernetes_node_address_InternalIP"]
+		regex         = "(.+)"
+		replacement   = "$1:50000"
+		target_label  = "__param_target"
+	}
+
+	rule {
+		target_label = "__param_module"
+		replacement  = "tcp_connect"
+	}
+
+	rule {
+		target_label = "module"
+		replacement  = "tcp_connect"
+	}
+
+	rule {
+		source_labels = ["__meta_kubernetes_node_name"]
+		target_label  = "instance"
+	}
+
+	rule {
+		target_label = "__address__"
+		replacement  = "blackbox-exporter.host-monitoring.svc:9115"
+	}
+}
+
+prometheus.scrape "pi_probes" {
+	targets         = discovery.relabel.pi_probes.output
+	forward_to      = [prometheus.remote_write.prometheus.receiver]
+	job_name        = "blackbox"
+	metrics_path    = "/probe"
+	scrape_interval = "60s"
+	scrape_timeout  = "15s"
 }
 
 // --------------------------------------------------- cluster-wide: SearXNG --

@@ -3513,7 +3513,7 @@
   },
   "timepicker": {},
   "timezone": "",
-  "title": "Kubernetes overview",
+  "title": "Kubernetes overview (vendored)",
   "uid": "k8s_views_global",
   "version": 43,
   "weekStart": "",
