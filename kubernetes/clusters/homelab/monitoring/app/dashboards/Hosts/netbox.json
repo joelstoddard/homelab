@@ -61,6 +61,7 @@
      ],
      "transformations": [
        {"id": "joinByField", "options": {"byField": "host", "mode": "outerTabular"}},
+       {"id": "renameByRegex", "options": {"regex": "^(.+) netbox_[a-z_]+$", "renamePattern": "$1"}},
        {"id": "calculateField", "options": {"mode": "binary", "alias": "Memory drift MiB", "binary": {"left": {"matcher": {"id": "byName", "options": "Value #B"}}, "operator": "-", "right": {"matcher": {"id": "byName", "options": "memory"}}}}},
        {"id": "calculateField", "options": {"mode": "binary", "alias": "vCPU drift", "binary": {"left": {"matcher": {"id": "byName", "options": "Value #C"}}, "operator": "-", "right": {"matcher": {"id": "byName", "options": "vcpus"}}}}},
        {"id": "organize", "options": {

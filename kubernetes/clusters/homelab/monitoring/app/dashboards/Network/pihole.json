@@ -1491,6 +1491,13 @@
           }
         },
         {
+          "id": "renameByRegex",
+          "options": {
+            "regex": "^(.+) netbox_[a-z_]+$",
+            "renamePattern": "$1"
+          }
+        },
+        {
           "id": "organize",
           "options": {
             "excludeByName": {
