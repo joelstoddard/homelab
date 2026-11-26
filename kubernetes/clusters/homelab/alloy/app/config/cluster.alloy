@@ -128,9 +128,8 @@ discovery.relabel "annotated_pods" {
 		target_label  = "job"
 	}
 
-	// The Pis' smartctl exporter reports the node's disk, so it takes the
-	// NUCs' smartctl label set: instance = host name, and no pod labels, so a
-	// replaced pod continues the same series.
+	// The Pi exporter reports the node's disk, so its series take the NUC label set.
+	// Without pod labels, a replaced pod continues the same series.
 	rule {
 		source_labels = ["job", "node"]
 		regex         = "smartctl;(.+)"

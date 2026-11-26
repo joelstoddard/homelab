@@ -194,10 +194,8 @@ prometheus.scrape "bind" {
 
 // ------------------------------------------------------------- smartctl --
 
-// smartctl_exporter runs on TrueNAS CORE from a Post Init script, so the
-// target is the exporter itself. It polls in the background (default 60 s)
-// and skips disks in standby (--smartctl.powermode-check), so a scrape never
-// spins up a disk.
+// smartctl_exporter runs on TrueNAS CORE, so the target is the exporter itself.
+// It polls every 60 s and skips disks in standby, so a scrape never spins up a disk.
 discovery.relabel "smartctl" {
 	targets = discovery.file.hosts.targets
 
