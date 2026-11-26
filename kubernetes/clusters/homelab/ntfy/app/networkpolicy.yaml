@@ -38,7 +38,7 @@ spec:
           rules:
             dns:
               - matchName: ntfy.sh
-              - matchPattern: "*.cluster.local"
+              - matchPattern: "**.cluster.local"
     - toFQDNs:
         - matchName: ntfy.sh
       toPorts:
