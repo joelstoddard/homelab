@@ -1,0 +1,166 @@
+apiVersion: 1
+groups:
+  - orgId: 1
+    name: nodes
+    folder: Infrastructure
+    interval: 1m
+    rules:
+      - uid: infra-node-not-ready
+        title: Node not Ready
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            relativeTimeRange: {from: 600, to: 0}
+            model:
+              refId: A
+              instant: true
+              expr: 'kube_node_status_condition{condition="Ready",status="true"}'
+          - refId: B
+            datasourceUid: __expr__
+            model: {refId: B, type: reduce, expression: A, reducer: last}
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: B
+              conditions: [{evaluator: {type: lt, params: [1]}}]
+        noDataState: OK
+        execErrState: Error
+        for: 10m
+        annotations:
+          summary: 'Node {{ $labels.node }} has not been Ready for 10m'
+      - uid: infra-node-cpu-high
+        title: Node CPU high
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            relativeTimeRange: {from: 600, to: 0}
+            model:
+              refId: A
+              instant: true
+              expr: '1 - avg by (instance) (rate(node_cpu_seconds_total{mode="idle"}[5m]))'
+          - refId: B
+            datasourceUid: __expr__
+            model: {refId: B, type: reduce, expression: A, reducer: last}
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: B
+              conditions: [{evaluator: {type: gt, params: [0.9]}}]
+        noDataState: OK
+        execErrState: Error
+        for: 30m
+        annotations:
+          summary: '{{ $labels.instance }} CPU is {{ humanizePercentage $values.B.Value }} busy'
+      # Hosts with swap (the zram NUCs) run near-zero MemAvailable by design
+      # (docs/design/zram-swap.md); infra-zram-high watches them instead.
+      - uid: infra-node-memory-high
+        title: Node memory high
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            relativeTimeRange: {from: 600, to: 0}
+            model:
+              refId: A
+              instant: true
+              expr: '(1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes) unless on (instance) (node_memory_SwapTotal_bytes > 0)'
+          - refId: B
+            datasourceUid: __expr__
+            model: {refId: B, type: reduce, expression: A, reducer: last}
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: B
+              conditions: [{evaluator: {type: gt, params: [0.9]}}]
+        noDataState: OK
+        execErrState: Error
+        for: 15m
+        annotations:
+          summary: '{{ $labels.instance }} memory is {{ humanizePercentage $values.B.Value }} used'
+      - uid: infra-zram-high
+        title: Host zram filling
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            relativeTimeRange: {from: 600, to: 0}
+            model:
+              refId: A
+              instant: true
+              expr: '(1 - node_memory_SwapFree_bytes / node_memory_SwapTotal_bytes) and on (instance) (node_memory_SwapTotal_bytes > 0)'
+          - refId: B
+            datasourceUid: __expr__
+            model: {refId: B, type: reduce, expression: A, reducer: last}
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: B
+              conditions: [{evaluator: {type: gt, params: [0.5]}}]
+        noDataState: OK
+        execErrState: Error
+        for: 15m
+        annotations:
+          summary: '{{ $labels.instance }} zram swap is {{ humanizePercentage $values.B.Value }} full'
+      - uid: infra-host-oom-kill
+        title: Kernel OOM kill
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            relativeTimeRange: {from: 600, to: 0}
+            model:
+              refId: A
+              instant: true
+              expr: 'increase(node_vmstat_oom_kill[15m])'
+          - refId: B
+            datasourceUid: __expr__
+            model: {refId: B, type: reduce, expression: A, reducer: last}
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: B
+              conditions: [{evaluator: {type: gt, params: [0]}}]
+        noDataState: OK
+        execErrState: Error
+        for: 0m
+        annotations:
+          summary: 'The kernel on {{ $labels.instance }} OOM-killed a process'
+      # Completed pods keep their KSM request series but hold nothing on the node.
+      - uid: infra-node-requests-high
+        title: Node requests near allocatable
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            relativeTimeRange: {from: 600, to: 0}
+            model:
+              refId: A
+              instant: true
+              expr: 'sum by (node, resource) (kube_pod_container_resource_requests{resource=~"cpu|memory"} and on (namespace, pod) (kube_pod_status_phase{phase=~"Pending|Running"} == 1)) / on (node, resource) sum by (node, resource) (kube_node_status_allocatable{resource=~"cpu|memory"})'
+          - refId: B
+            datasourceUid: __expr__
+            model: {refId: B, type: reduce, expression: A, reducer: last}
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: B
+              conditions: [{evaluator: {type: gt, params: [0.8]}}]
+        noDataState: OK
+        execErrState: Error
+        for: 30m
+        annotations:
+          summary: '{{ $labels.node }} has {{ humanizePercentage $values.B.Value }} of its {{ $labels.resource }} requested'

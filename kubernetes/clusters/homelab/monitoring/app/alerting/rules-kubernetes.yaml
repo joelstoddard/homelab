@@ -1,0 +1,114 @@
+apiVersion: 1
+groups:
+  - orgId: 1
+    name: kubernetes
+    folder: Infrastructure
+    interval: 1m
+    rules:
+      - uid: infra-container-restarts
+        title: Pod restarting
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            relativeTimeRange: {from: 600, to: 0}
+            model:
+              refId: A
+              instant: true
+              expr: 'sum by (namespace, pod) (increase(kube_pod_container_status_restarts_total[1h]))'
+          - refId: B
+            datasourceUid: __expr__
+            model: {refId: B, type: reduce, expression: A, reducer: last}
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: B
+              conditions: [{evaluator: {type: gt, params: [3]}}]
+        noDataState: OK
+        execErrState: Error
+        for: 0m
+        annotations:
+          summary: '{{ $labels.namespace }}/{{ $labels.pod }} restarted {{ humanize $values.B.Value }} times in 1h'
+      # container!="" drops the pod and root cgroups, which repeat the container's count without its name.
+      - uid: infra-pod-oom-killed
+        title: Container OOM-killed
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            relativeTimeRange: {from: 600, to: 0}
+            model:
+              refId: A
+              instant: true
+              expr: 'sum by (namespace, pod, container) (increase(container_oom_events_total{container!=""}[15m]))'
+          - refId: B
+            datasourceUid: __expr__
+            model: {refId: B, type: reduce, expression: A, reducer: last}
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: B
+              conditions: [{evaluator: {type: gt, params: [0]}}]
+        noDataState: OK
+        execErrState: Error
+        for: 0m
+        annotations:
+          summary: '{{ $labels.namespace }}/{{ $labels.pod }} container {{ $labels.container }} was OOM-killed'
+      - uid: infra-etcd-rss
+        title: etcd memory high
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            relativeTimeRange: {from: 600, to: 0}
+            model:
+              refId: A
+              instant: true
+              expr: 'process_resident_memory_bytes{job="etcd"}'
+          - refId: B
+            datasourceUid: __expr__
+            model: {refId: B, type: reduce, expression: A, reducer: last}
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: B
+              conditions: [{evaluator: {type: gt, params: [1000000000]}}]
+        noDataState: OK
+        execErrState: Error
+        for: 15m
+        annotations:
+          summary: 'etcd on {{ $labels.node }} is using {{ humanize1024 $values.B.Value }}B resident'
+      # From kube-state-metrics' custom resource state (prometheus/values.yaml); max drops the
+      # scrape-side labels so a KSM pod move keeps one series per object.
+      - uid: infra-flux-not-ready
+        title: Flux object not Ready
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            relativeTimeRange: {from: 600, to: 0}
+            model:
+              refId: A
+              instant: true
+              expr: 'max by (customresource_kind, exported_namespace, name) (gotk_resource_info{ready="False", suspended!="true"})'
+          - refId: B
+            datasourceUid: __expr__
+            model: {refId: B, type: reduce, expression: A, reducer: last}
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: B
+              conditions: [{evaluator: {type: gt, params: [0]}}]
+        noDataState: OK
+        execErrState: Error
+        for: 30m
+        annotations:
+          summary: 'Flux {{ $labels.customresource_kind }} {{ $labels.exported_namespace }}/{{ $labels.name }} has not been Ready for 30m: flux get all -A'

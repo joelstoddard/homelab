@@ -13,6 +13,7 @@ resources:
   - ingest/ingressroutes.yaml
   - ingest/secret-ingest-auth.sops.yaml
   - dashboards
+  - alerting
 # Each chart's values.yaml -> the ConfigMap its HelmRelease reads via
 # valuesFrom; no hash suffix so the HelmRelease can name it, and the watch
 # label makes helm-controller reconcile on content changes (same pattern as
