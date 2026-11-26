@@ -127,6 +127,12 @@
       allowedVersions: '<1.1.0',
     },
     {
+      description: 'community.general 14 requires ansible-core 2.19, which the rule above holds back',
+      matchManagers: ['ansible-galaxy'],
+      matchPackageNames: ['community.general'],
+      allowedVersions: '<14.0.0',
+    },
+    {
       description: 'passlib 1.9.5 on PyPI comes from the libpass fork with no announced name transfer; hold until the transfer is confirmed (docs/design/renovate.md)',
       matchManagers: ['pip_requirements'],
       matchPackageNames: ['passlib'],

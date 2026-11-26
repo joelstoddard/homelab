@@ -76,6 +76,8 @@ when something breaks.
   with no version. Every entry in `ansible/collections/requirements.yaml`
   carries the version that runs today. The venv holds `ansible-core` only,
   so `~/.ansible/collections` is the one copy of each collection.
+  `community.general` stays below 14, whose `requires_ansible` is 2.19:
+  it follows the `ansible-core` hold, and the two lift together.
 
 - **A HelmRepository name used in two namespaces needs `metadata.namespace`.**
   Renovate matches a HelmRelease's `sourceRef` by name and namespace, and
