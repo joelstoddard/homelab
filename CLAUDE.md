@@ -382,7 +382,10 @@ are substituted, so `${DOMAIN}` is the only `$` allowed in them; dashboards
 and River sit in nested kustomizations whose ConfigMaps carry
 `kustomize.toolkit.fluxcd.io/substitute: disabled`. Control-plane component
 metrics need the talos role's control-plane patch (`bind-address`,
-`listen-metrics-urls`). See `docs/design/observability.md`.
+`listen-metrics-urls`). Alerting is provisioned from `monitoring/app/alerting/`
+through Grafana's alerts sidecar, contact point `ntfy` via the in-cluster
+Service, and kube-state-metrics exports Flux Ready state as `gotk_resource_info`.
+See `docs/design/observability.md`.
 `host-monitoring/` (`dependsOn: monitoring, cilium-lb, cluster-secrets`,
 substituted) is the fleet outside the cluster: `pve-exporter`,
 `pihole-exporter` and `blackbox-exporter` poll and probe Proxmox, Pi-hole and

@@ -49,7 +49,10 @@ defaults that hide the control-plane components.
   leaves the cluster-wide series with a gap under a minute; losing the node
   takes 1-2 minutes (unreachable after ~40 s, a 30 s toleration, then the
   reschedule). Every cluster-wide job is absent together for that gap, so
-  the Services overview goes blank and, with no alerting, nothing flags it;
+  the Services overview goes blank. No alert fires for a gap that short:
+  `up` goes stale, not 0, so `infra-target-down` sees no data. If
+  `alloy-cluster` stays down, `infra-ingestion-stopped` fires after 10 m,
+  because `up{job="prometheus"}` is one of its scrapes;
   node metrics and logs come from the DaemonSet and are unaffected. `Recreate`, not a
   rolling update, so a chart upgrade never runs two scrapers against the
   same targets. The release creates no Service: its own metrics are scraped
@@ -347,6 +350,57 @@ defaults that hide the control-plane components.
     the last hour only, because the same match over 14 days of every
     namespace takes ~27 s in Loki.
 
+## Alerting
+
+Grafana unified alerting evaluates 23 rules against the `prometheus`
+datasource and sends them to ntfy (`ntfy.md`). Everything is provisioned from
+git, `monitoring/app/alerting/`, through the chart's alerts sidecar
+(`sidecar.alerts`, label `grafana_alert: "1"`, `resource: both`):
+
+- The rules (one ConfigMap per group) and the notification policy are
+  ConfigMaps from a `configMapGenerator`, with Flux substitution disabled:
+  the annotations are Go templates full of `{{ $labels.x }}`, which envsubst
+  would blank.
+- The contact point is a SOPS Secret carrying the same label and its own
+  substitute-disabled annotation, because `generatorOptions` do not reach a
+  hand-written resource.
+- Contact point `ntfy` is a webhook to the in-cluster
+  `http://ntfy.ntfy.svc/homelab-alerts?template=grafana` (ntfy's built-in
+  Grafana template) as user `grafana`, so Grafana to ntfy depends on neither
+  Traefik nor the DNS chain.
+- The policy is one root route to `ntfy`, grouped by `alertname`, repeating
+  every 4 h. Provisioning replaces the whole tree, so every route lives in
+  `policy.yaml`.
+
+Alert state lives in Grafana's database on the `emptyDir`. A container
+restart keeps it; a pod replacement loses it, so firing alerts re-notify
+and `for:` timers restart. Accepted.
+
+Rule groups, one file each:
+
+- `monitoring`: scrape targets down for 15 m, metric ingestion stopped,
+  Prometheus deleting by size, Alloy remote-write failures, Alloy dropping
+  log entries. `infra-ingestion-stopped` alerts on NoData, because a full
+  disk stops every writer at once and leaves nothing to compare.
+- `kubernetes`: pod restarts, container OOM kills, etcd memory, and Flux
+  objects not Ready. Flux failures are read from kube-state-metrics' custom
+  resource state (`gotk_resource_info{ready="False"}` for 30 m): Flux counts a
+  failed reconcile as `requeue_after`, never as a reconcile error, so
+  `controller_runtime_reconcile_errors_total` does not move.
+- `nodes`: node not Ready, CPU, memory, host zram, kernel OOM kills, and
+  requests near allocatable. The NUCs run near 90 % memory by design with
+  zram, so `node_memory_SwapTotal_bytes > 0` excludes swap hosts from
+  node-memory-high; `infra-zram-high` (swap use over 50 %) and the host
+  OOM-kill rule cover them (`zram-swap.md`).
+- `storage`: volumes nearly full, degraded Longhorn volumes, failing SMART.
+- `services`: certificate expiry, container memory and CPU near limit, and
+  Traefik latency, p95 over 2 s and p50 over 0.5 s, excluding long-lived
+  connections. The latency thresholds are defaults to tune.
+
+Counter rules (`increase()`) use `for: 0m`: a window equal to `for:` can
+never fire on a one-off step. `test_alerting.py` enforces `for` shorter than
+every counter window.
+
 ## Power estimates
 
 `Hosts/power.json` measures what reports power and estimates the rest from
@@ -417,8 +471,9 @@ Storage and Security dashboards read.
   (kube-state-metrics, apiserver, etcd, Cilium, Flux, Longhorn) goes absent
   from `up` together until the new pod's first scrape. A reschedule takes
   under a minute; node loss 1-2 minutes (unreachable after ~40 s plus the
-  30 s toleration). The Services overview goes blank and, with no alerting,
-  nothing flags it; the DaemonSet's kubelet, cAdvisor, node and log
+  30 s toleration). The Services overview goes blank. `infra-target-down`
+  stays silent, because stale `up` is no data, not 0; an outage longer than
+  10 m fires `infra-ingestion-stopped`. The DaemonSet's kubelet, cAdvisor, node and log
   collection carry on.
 - Volume fills: `retentionSize` sits below the PVC; Loki's compactor
   enforces time; Longhorn volumes expand online.
@@ -655,8 +710,10 @@ grows while Prometheus is unreachable, so neither moves.
   in the measured rollout). Only the first connection after the config is
   applied sends the node's buffer since boot. Audit records are not
   collected at all.
-- No alerting. Grafana unified alerting is available later without new
-  components.
+- No dead man's switch: a dead Grafana, ntfy or cluster sends nothing. Deferred:
+  a heartbeat between clusters needs ntfy on skylab.
+- The phone's fetch from ntfy goes through the DNS chain and Traefik, so
+  those being down delays a notification Grafana has already sent.
 - Prometheus and Alloy UIs are not exposed; `kubectl port-forward`.
 - Loki is not HA and has no object store.
 - Off-cluster hosts (Proxmox, TrueNAS, Pi-hole, router) are covered by
