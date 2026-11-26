@@ -65,3 +65,11 @@ spec:
   basicAuth:
     secret: it-tools-auth-users
     removeHeader: true
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: bentopdf-auth
+spec:
+  basicAuth:
+    secret: bentopdf-auth-users
