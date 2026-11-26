@@ -143,7 +143,7 @@ fi
 # kubernetes.core >= 6.5.0 (ansible/collections/requirements.yaml). The tarball
 # nests the binary under linux-<arch>/.
 # renovate: datasource=github-releases depName=helm/helm
-HELM_VERSION="v4.2.4"
+HELM_VERSION="v4.3.2"
 if have_version "$HELM_VERSION" helm version; then
     echo ">> helm ${HELM_VERSION} already installed"
 else
