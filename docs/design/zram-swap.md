@@ -89,6 +89,19 @@ is Proxmox-specific.
   and already part of systemd.
 - **zstd compression.** A better ratio, but the extra decompression latency
   lands directly on the critical path of a guest page fault.
+- **zswap in front of a disk swapfile.** zswap's one gain over zram is
+  writing cold pages out to disk when its pool fills. Over 7 days in
+  November 2026 the zram device peaked at 1.6 GB of 16 GB, with host memory
+  PSI under 0.03 %, so the pool never comes near full. The cost is the disk
+  swapfile rejected above, plus writeback I/O with no pressure behind it.
+  Revisit when the compressed share nears the 3 × 6 GB row of the
+  overcommit table: there zram fills with cold pages it can never evict.
+- **Swap on the Talos agents.** Talos offers only zswap over a
+  `SwapVolumeConfig` partition. The agents' EPHEMERAL spans the whole disk,
+  so making room means wiping all eight and rebuilding their Longhorn
+  replicas. Guest swap would also land on the same NUC SSD, behind the
+  balloon and host zram, and host zram would recompress the guest's already
+  compressed pool. Under kubelet `LimitedSwap` only Burstable pods swap.
 - **More host RAM, and right-sized VMs.** Both correct. The VMs were sized
   afterwards; more host RAM is a purchase rather than a task, and remains the
   only way to fit another guest. zram is what runs until then, and it stays
