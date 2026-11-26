@@ -1089,5 +1089,26 @@
         "y": 26
       }
     }
-  ]
+  ],
+  "annotations": {
+    "list": [
+      {
+        "name": "Changes",
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "iconColor": "purple",
+        "target": {
+          "type": "tags",
+          "tags": [
+            "flux"
+          ],
+          "matchAny": true,
+          "limit": 100
+        }
+      }
+    ]
+  }
 }

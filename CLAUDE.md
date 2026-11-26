@@ -364,7 +364,8 @@ passthrough"), and a missing passthrough gives a valid certificate and a
 Traefik 404. See `docs/design/ingress-tls.md`.
 `monitoring/` (`dependsOn: cilium, longhorn, cluster-secrets,
 traefik-middlewares`, `wait: true`) is Prometheus as a remote-write-only
-TSDB, Loki Monolithic on Longhorn and a stateless Grafana whose dashboards
+TSDB, Loki Monolithic on Longhorn and a Grafana whose config is all from
+git (its 1Gi Longhorn volume holds annotations, not config) and whose dashboards
 are JSON under `monitoring/app/dashboards/<Folder>/` (one ConfigMap per
 file, sidecar-loaded, read-only in the UI; datasource UIDs `prometheus` /
 `loki` are fixed). `alloy/` (`dependsOn: monitoring`, PSA privileged) is

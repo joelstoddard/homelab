@@ -1,6 +1,24 @@
 {
   "annotations": {
-    "list": []
+    "list": [
+      {
+        "name": "Changes",
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "iconColor": "purple",
+        "target": {
+          "type": "tags",
+          "tags": [
+            "flux"
+          ],
+          "matchAny": true,
+          "limit": 100
+        }
+      }
+    ]
   },
   "graphTooltip": 1,
   "links": [

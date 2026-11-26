@@ -76,6 +76,21 @@ class Layout(unittest.TestCase):
                     self.assertIsInstance(value, int, f"{os.path.relpath(path, HERE)} panel {p.get('id')} gridPos.{key}={value!r}")
 
 
+class Changes(unittest.TestCase):
+    def test_every_dashboard_shows_flux_changes(self):
+        # Flux posts organization annotations tagged flux; a dashboard shows them only when it queries the tag.
+        self.assertTrue(FILES)
+        for path in FILES:
+            with open(path) as f:
+                dashboard = json.load(f)
+            changes = [a for a in dashboard.get("annotations", {}).get("list", []) if a.get("name") == "Changes"]
+            self.assertEqual(len(changes), 1, os.path.relpath(path, HERE))
+            self.assertEqual(changes[0]["datasource"], {"type": "grafana", "uid": "-- Grafana --"}, os.path.relpath(path, HERE))
+            self.assertTrue(changes[0]["enable"], os.path.relpath(path, HERE))
+            self.assertEqual(changes[0]["target"]["type"], "tags", os.path.relpath(path, HERE))
+            self.assertIn("flux", changes[0]["target"]["tags"], os.path.relpath(path, HERE))
+
+
 class Power(unittest.TestCase):
     def test_power_never_deltas_raw_joules(self):
         # RAPL energy counters wrap; delta() reads them as a gauge and goes negative at the wrap.

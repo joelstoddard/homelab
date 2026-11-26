@@ -7,7 +7,7 @@
   "schemaVersion": 39,
   "time": {"from": "now-7d", "to": "now"},
   "annotations": {
-    "list": [
+    "list": [{"name": "Changes", "datasource": {"type": "grafana", "uid": "-- Grafana --"}, "enable": true, "iconColor": "purple", "target": {"type": "tags", "tags": ["flux"], "matchAny": true, "limit": 100}}, 
       {"name": "NetBox changes", "enable": true, "iconColor": "purple",
        "datasource": {"type": "netboxlabs-netbox-datasource", "uid": "netbox"},
        "target": {"refId": "Anno", "queryType": "annotations"}}

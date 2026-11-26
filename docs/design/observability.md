@@ -76,12 +76,25 @@ defaults that hide the control-plane components.
   false`, schema v13/TSDB, 30-day compactor retention, gateway, canary,
   test, MinIO and both memcached caches off. Longhorn's three replicas are
   the durability story; the scalable modes need an object store.
-- **Grafana stateless.** No PVC. Datasources provisioned with fixed UIDs
+- **Grafana state: config from git, annotations on a volume.** Git is the
+  only source of Grafana config. Datasources are provisioned with fixed UIDs
   (`prometheus`, `loki`) so vendored JSON can name them; the sidecar loads
   any ConfigMap in any namespace labelled `grafana_dashboard: "1"` into the
-  folder named by its `grafana_folder` annotation, read-only. Iterating on a
-  dashboard: Save As a copy, iterate, Export (sharing-externally off), drop
-  the file in git; the copy dies with the pod.
+  folder named by its `grafana_folder` annotation, read-only
+  (`allowUiUpdates: false`); alerting is provisioned the same way. All of it
+  is re-applied over the database, so a UI edit to it never sticks. The
+  database lives on a 1Gi Longhorn RWO volume (`Recreate` rollout) for one
+  reason: annotations. Flux's change markers (#543) are Grafana-native
+  annotations, and Grafana keeps those only in its database. Everything
+  created new in the UI also persists: a test dashboard, a folder, a user,
+  a service account. That is accepted, not prevented: Grafana has no setting
+  that keeps annotations alone. Iterating on a dashboard: Save As a copy,
+  iterate, Export (sharing-externally off), drop the file in git, then
+  delete the copy by hand. The volume has no backup until #228; losing it
+  loses annotations and UI-made objects, never config. Every dashboard
+  carries a `Changes` annotation query on the `flux` tag, which
+  `test_dashboards.py` enforces, because Flux's annotations belong to no
+  dashboard and show only where a query asks for them.
 - **Six folders, each with an overview.** Dashboards are grouped by what
   they watch: Storage, Services, Kubernetes, Hosts, Network and Security.
   Each folder has a `<Folder> overview` dashboard that links down to the
