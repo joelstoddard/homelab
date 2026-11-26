@@ -13,7 +13,8 @@ spec:
   path: ./kubernetes/clusters/homelab/cilium/app
   prune: true
   wait: true
-  timeout: 5m0s
+  # At least the HelmRelease's timeout, which this layer waits on.
+  timeout: 20m0s
   sourceRef:
     kind: GitRepository
     name: flux-system
