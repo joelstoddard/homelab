@@ -603,8 +603,8 @@
       "title": "Nodes, busiest first",
       "description": "One row per NUC: offline first, then the fullest memory. Guest memory is what the running guests are configured with, against the node's memory; above 100 % the node relies on ballooning and zram, by design (docs/design/zram-swap.md). Storage is the node's fullest pool. Click a node to open its host dashboard. Memory pressure and zram swap are read on the per-host dashboards (the Hosts link), since the NUCs sit at 85 to 92 % by design (docs/design/zram-swap.md).",
       "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
+        "type": "datasource",
+        "uid": "-- Mixed --"
       },
       "id": 11,
       "gridPos": {
@@ -619,63 +619,124 @@
           "expr": "max by (node) (label_replace(max by (id) (pve_up{id=~\"node/.*\"}), \"node\", \"$1\", \"id\", \"node/(.+)\"))",
           "format": "table",
           "instant": true,
-          "range": false
+          "range": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          }
         },
         {
           "refId": "B",
           "expr": "max by (node) (label_replace(max by (id) (pve_cpu_usage_ratio{id=~\"node/.*\"}), \"node\", \"$1\", \"id\", \"node/(.+)\"))",
           "format": "table",
           "instant": true,
-          "range": false
+          "range": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          }
         },
         {
           "refId": "C",
           "expr": "max by (node) (label_replace(max by (id) (pve_cpu_usage_limit{id=~\"node/.*\"}), \"node\", \"$1\", \"id\", \"node/(.+)\"))",
           "format": "table",
           "instant": true,
-          "range": false
+          "range": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          }
         },
         {
           "refId": "D",
           "expr": "max by (node) (label_replace(max by (id) (pve_memory_usage_bytes{id=~\"node/.*\"}), \"node\", \"$1\", \"id\", \"node/(.+)\") / label_replace(max by (id) (pve_memory_size_bytes{id=~\"node/.*\"}), \"node\", \"$1\", \"id\", \"node/(.+)\"))",
           "format": "table",
           "instant": true,
-          "range": false
+          "range": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          }
         },
         {
           "refId": "E",
           "expr": "max by (node) (label_replace(max by (id) (pve_memory_size_bytes{id=~\"node/.*\"}), \"node\", \"$1\", \"id\", \"node/(.+)\"))",
           "format": "table",
           "instant": true,
-          "range": false
+          "range": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          }
         },
         {
           "refId": "F",
           "expr": "sum by (node) ((max by (id) (pve_memory_size_bytes{id=~\"qemu/.*|lxc/.*\"}) and on (id) (max by (id) (pve_up{id=~\"qemu/.*|lxc/.*\"}) == 1)) * on (id) group_left (node) max by (id, node) (pve_guest_info{template=\"0\"})) / max by (node) (label_replace(max by (id) (pve_memory_size_bytes{id=~\"node/.*\"}), \"node\", \"$1\", \"id\", \"node/(.+)\"))",
           "format": "table",
           "instant": true,
-          "range": false
+          "range": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          }
         },
         {
           "refId": "G",
           "expr": "max by (node) (label_replace(max by (id) (pve_disk_usage_bytes{id=~\"storage/.*\"}) / max by (id) (pve_disk_size_bytes{id=~\"storage/.*\"}), \"node\", \"$1\", \"id\", \"storage/([^/]+)/.*\"))",
           "format": "table",
           "instant": true,
-          "range": false
+          "range": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          }
         },
         {
           "refId": "H",
           "expr": "count by (node) (((max by (id) (pve_up{id=~\"qemu/.*|lxc/.*\"}) == 1) * on (id) group_left (node) max by (id, node) (pve_guest_info{template=\"0\"}))) or 0 * max by (node) (label_replace(max by (id) (pve_up{id=~\"node/.*\"}), \"node\", \"$1\", \"id\", \"node/(.+)\"))",
           "format": "table",
           "instant": true,
-          "range": false
+          "range": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          }
         },
         {
           "refId": "I",
           "expr": "max by (node) (label_replace(max by (id) (pve_uptime_seconds{id=~\"node/.*\"}), \"node\", \"$1\", \"id\", \"node/(.+)\"))",
           "format": "table",
           "instant": true,
-          "range": false
+          "range": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          }
+        },
+        {
+          "refId": "NetBoxDevices",
+          "datasource": {
+            "type": "netboxlabs-netbox-datasource",
+            "uid": "netbox"
+          },
+          "queryType": "objects",
+          "objectType": "dcim/devices",
+          "fields": [
+            "name",
+            "role",
+            "device_type",
+            "status",
+            "description",
+            "display_url"
+          ],
+          "joinKeys": [
+            {
+              "source": "name",
+              "output": "node",
+              "transform": "lower"
+            }
+          ],
+          "limit": 500
         }
       ],
       "transformations": [
@@ -684,6 +745,10 @@
           "options": {
             "byField": "node",
             "mode": "outerTabular"
+          },
+          "filter": {
+            "id": "byRefId",
+            "options": "/^(?:A|B|C|D|E|F|G|H|I)$/"
           }
         },
         {
@@ -691,6 +756,20 @@
           "options": {
             "stringField": "node",
             "outputFormat": "Lower Case"
+          }
+        },
+        {
+          "id": "joinByField",
+          "options": {
+            "byField": "node",
+            "mode": "outerTabular"
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
+            "regex": "^(.+) netbox_[a-z_]+$",
+            "renamePattern": "$1"
           }
         },
         {
@@ -711,15 +790,20 @@
             },
             "indexByName": {
               "node": 0,
-              "Value #A": 1,
-              "Value #B": 2,
-              "Value #C": 3,
-              "Value #D": 4,
-              "Value #E": 5,
-              "Value #F": 6,
-              "Value #G": 7,
-              "Value #H": 8,
-              "Value #I": 9
+              "Value #A": 6,
+              "Value #B": 7,
+              "Value #C": 8,
+              "Value #D": 9,
+              "Value #E": 10,
+              "Value #F": 11,
+              "Value #G": 12,
+              "Value #H": 13,
+              "Value #I": 14,
+              "name": 1,
+              "role": 2,
+              "device_type": 3,
+              "status": 4,
+              "description": 5
             },
             "renameByName": {
               "node": "Node",
@@ -731,8 +815,29 @@
               "Value #F": "Guest memory",
               "Value #G": "Storage used",
               "Value #H": "Guests running",
-              "Value #I": "Uptime"
+              "Value #I": "Uptime",
+              "name": "NetBox",
+              "role": "NetBox role",
+              "device_type": "NetBox model",
+              "status": "NetBox status",
+              "description": "NetBox description"
             }
+          }
+        },
+        {
+          "id": "filterByValue",
+          "options": {
+            "type": "exclude",
+            "match": "any",
+            "filters": [
+              {
+                "fieldName": "Status",
+                "config": {
+                  "id": "isNull",
+                  "options": {}
+                }
+              }
+            ]
           }
         }
       ],
@@ -995,6 +1100,30 @@
                 "value": 0
               }
             ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "NetBox"
+            },
+            "properties": [
+              {
+                "id": "noValue",
+                "value": "not in NetBox"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "display_url"
+            },
+            "properties": [
+              {
+                "id": "custom.hidden",
+                "value": true
+              }
+            ]
           }
         ]
       },
@@ -1133,8 +1262,8 @@
       "title": "Guests, worst first",
       "description": "One row per selected VM and container: stopped first, then the fullest memory. CPU used is a share of the guest's own vCPUs; a VM's memory used includes its page cache. Disk used is for containers only; Proxmox cannot see inside a VM's disk. Click a guest to see it alone, its node for the host dashboard, or a Kubernetes VM for its node dashboard.",
       "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
+        "type": "datasource",
+        "uid": "-- Mixed --"
       },
       "id": 15,
       "gridPos": {
@@ -1149,70 +1278,133 @@
           "expr": "max by (id, name, node, type) (pve_guest_info{name=~\"$guest\", template=\"0\"})",
           "format": "table",
           "instant": true,
-          "range": false
+          "range": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          }
         },
         {
           "refId": "B",
           "expr": "(max by (id) (pve_up{id=~\"qemu/.*|lxc/.*\"})) and on (id) max by (id, name, node, type) (pve_guest_info{name=~\"$guest\", template=\"0\"})",
           "format": "table",
           "instant": true,
-          "range": false
+          "range": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          }
         },
         {
           "refId": "C",
           "expr": "(max by (id) (pve_cpu_usage_ratio{id=~\"qemu/.*|lxc/.*\"})) and on (id) max by (id, name, node, type) (pve_guest_info{name=~\"$guest\", template=\"0\"})",
           "format": "table",
           "instant": true,
-          "range": false
+          "range": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          }
         },
         {
           "refId": "D",
           "expr": "(max by (id) (pve_cpu_usage_limit{id=~\"qemu/.*|lxc/.*\"})) and on (id) max by (id, name, node, type) (pve_guest_info{name=~\"$guest\", template=\"0\"})",
           "format": "table",
           "instant": true,
-          "range": false
+          "range": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          }
         },
         {
           "refId": "E",
           "expr": "(max by (id) (pve_memory_usage_bytes{id=~\"qemu/.*|lxc/.*\"}) / max by (id) (pve_memory_size_bytes{id=~\"qemu/.*|lxc/.*\"})) and on (id) max by (id, name, node, type) (pve_guest_info{name=~\"$guest\", template=\"0\"})",
           "format": "table",
           "instant": true,
-          "range": false
+          "range": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          }
         },
         {
           "refId": "F",
           "expr": "(max by (id) (pve_memory_size_bytes{id=~\"qemu/.*|lxc/.*\"})) and on (id) max by (id, name, node, type) (pve_guest_info{name=~\"$guest\", template=\"0\"})",
           "format": "table",
           "instant": true,
-          "range": false
+          "range": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          }
         },
         {
           "refId": "G",
           "expr": "(max by (id) (pve_disk_usage_bytes{id=~\"lxc/.*\"}) / max by (id) (pve_disk_size_bytes{id=~\"lxc/.*\"})) and on (id) max by (id, name, node, type) (pve_guest_info{name=~\"$guest\", template=\"0\"})",
           "format": "table",
           "instant": true,
-          "range": false
+          "range": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          }
         },
         {
           "refId": "H",
           "expr": "(max by (id) (pve_uptime_seconds{id=~\"qemu/.*|lxc/.*\"})) and on (id) max by (id, name, node, type) (pve_guest_info{name=~\"$guest\", template=\"0\"})",
           "format": "table",
           "instant": true,
-          "range": false
+          "range": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          }
         },
         {
           "refId": "I",
           "expr": "(max by (id) (pve_onboot_status)) and on (id) max by (id, name, node, type) (pve_guest_info{name=~\"$guest\", template=\"0\"})",
           "format": "table",
           "instant": true,
-          "range": false
+          "range": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          }
         },
         {
           "refId": "J",
           "expr": "max by (id, k8s) (label_replace(pve_guest_info{name=~\"$guest\", name=~\"k8s-.*\", template=\"0\"}, \"k8s\", \"$1\", \"name\", \"(.*)\"))",
           "format": "table",
           "instant": true,
-          "range": false
+          "range": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          }
+        },
+        {
+          "refId": "NetBoxVMs",
+          "datasource": {
+            "type": "netboxlabs-netbox-datasource",
+            "uid": "netbox"
+          },
+          "queryType": "objects",
+          "objectType": "virtualization/virtual-machines",
+          "fields": [
+            "name",
+            "role",
+            "status",
+            "description"
+          ],
+          "joinKeys": [
+            {
+              "source": "name",
+              "output": "name",
+              "transform": "lower"
+            }
+          ],
+          "limit": 500
         }
       ],
       "transformations": [
@@ -1221,6 +1413,10 @@
           "options": {
             "byField": "id",
             "mode": "outerTabular"
+          },
+          "filter": {
+            "id": "byRefId",
+            "options": "/^(?:A|B|C|D|E|F|G|H|I|J)$/"
           }
         },
         {
@@ -1228,6 +1424,20 @@
           "options": {
             "stringField": "node",
             "outputFormat": "Lower Case"
+          }
+        },
+        {
+          "id": "joinByField",
+          "options": {
+            "byField": "name",
+            "mode": "outerTabular"
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
+            "regex": "^(.+) netbox_[a-z_]+$",
+            "renamePattern": "$1"
           }
         },
         {
@@ -1251,17 +1461,20 @@
             },
             "indexByName": {
               "name": 0,
-              "type": 1,
-              "node": 2,
-              "k8s": 3,
-              "Value #B": 4,
-              "Value #C": 5,
-              "Value #D": 6,
-              "Value #E": 7,
-              "Value #F": 8,
-              "Value #G": 9,
-              "Value #H": 10,
-              "Value #I": 11
+              "type": 4,
+              "node": 5,
+              "k8s": 6,
+              "Value #B": 7,
+              "Value #C": 8,
+              "Value #D": 9,
+              "Value #E": 10,
+              "Value #F": 11,
+              "Value #G": 12,
+              "Value #H": 13,
+              "Value #I": 14,
+              "role": 1,
+              "status": 2,
+              "description": 3
             },
             "renameByName": {
               "name": "Guest",
@@ -1275,8 +1488,27 @@
               "Value #F": "Memory",
               "Value #G": "Disk used",
               "Value #H": "Uptime",
-              "Value #I": "Start at boot"
+              "Value #I": "Start at boot",
+              "role": "NetBox role",
+              "status": "NetBox status",
+              "description": "NetBox description"
             }
+          }
+        },
+        {
+          "id": "filterByValue",
+          "options": {
+            "type": "exclude",
+            "match": "any",
+            "filters": [
+              {
+                "fieldName": "Status",
+                "config": {
+                  "id": "isNull",
+                  "options": {}
+                }
+              }
+            ]
           }
         }
       ],

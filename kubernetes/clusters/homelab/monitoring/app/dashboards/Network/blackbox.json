@@ -465,8 +465,8 @@
       "title": "Every probe, worst first",
       "description": "One row per target and module, failing and silent probes first. Success is the share of attempts that passed over 24 hours. HTTP status is filled for http_2xx probes only. Click a target to open its own dashboard or to show only it here.",
       "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
+        "type": "datasource",
+        "uid": "-- Mixed --"
       },
       "targets": [
         {
@@ -474,34 +474,124 @@
           "expr": "label_replace(label_replace(label_replace(max by (instance, module) (probe_success{job=\"blackbox\", module=~\"$module\", instance=~\"$target\"}) or on (instance, module) (max by (instance, module) (last_over_time(probe_success{job=\"blackbox\", module=~\"$module\", instance=~\"$target\"}[1d])) * 0 - 1), \"dashboard\", \"homelab-host-$1\", \"instance\", \"(.*)\"), \"dashboard\", \"homelab-router\", \"instance\", \"hubble\"), \"dashboard\", \"homelab-pihole\", \"instance\", \"pihole-.*\")",
           "format": "table",
           "instant": true,
-          "range": false
+          "range": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          }
         },
         {
           "refId": "B",
           "expr": "label_replace(label_replace(label_replace(max by (instance, module) (avg_over_time(probe_success{job=\"blackbox\", module=~\"$module\", instance=~\"$target\"}[24h])), \"dashboard\", \"homelab-host-$1\", \"instance\", \"(.*)\"), \"dashboard\", \"homelab-router\", \"instance\", \"hubble\"), \"dashboard\", \"homelab-pihole\", \"instance\", \"pihole-.*\")",
           "format": "table",
           "instant": true,
-          "range": false
+          "range": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          }
         },
         {
           "refId": "C",
           "expr": "label_replace(label_replace(label_replace(max by (instance, module) (probe_duration_seconds{job=\"blackbox\", module=~\"$module\", instance=~\"$target\"}), \"dashboard\", \"homelab-host-$1\", \"instance\", \"(.*)\"), \"dashboard\", \"homelab-router\", \"instance\", \"hubble\"), \"dashboard\", \"homelab-pihole\", \"instance\", \"pihole-.*\")",
           "format": "table",
           "instant": true,
-          "range": false
+          "range": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          }
         },
         {
           "refId": "D",
           "expr": "label_replace(label_replace(label_replace(max by (instance, module) (probe_http_status_code{job=\"blackbox\", module=~\"$module\", instance=~\"$target\"}), \"dashboard\", \"homelab-host-$1\", \"instance\", \"(.*)\"), \"dashboard\", \"homelab-router\", \"instance\", \"hubble\"), \"dashboard\", \"homelab-pihole\", \"instance\", \"pihole-.*\")",
           "format": "table",
           "instant": true,
-          "range": false
+          "range": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          }
+        },
+        {
+          "refId": "NetBoxDevices",
+          "datasource": {
+            "type": "netboxlabs-netbox-datasource",
+            "uid": "netbox"
+          },
+          "queryType": "objects",
+          "objectType": "dcim/devices",
+          "fields": [
+            "name",
+            "role",
+            "status",
+            "description",
+            "display_url"
+          ],
+          "joinKeys": [
+            {
+              "source": "name",
+              "output": "instance",
+              "transform": "lower"
+            }
+          ],
+          "limit": 500
+        },
+        {
+          "refId": "NetBoxVMs",
+          "datasource": {
+            "type": "netboxlabs-netbox-datasource",
+            "uid": "netbox"
+          },
+          "queryType": "objects",
+          "objectType": "virtualization/virtual-machines",
+          "fields": [
+            "name",
+            "role",
+            "status",
+            "description",
+            "display_url"
+          ],
+          "joinKeys": [
+            {
+              "source": "name",
+              "output": "instance",
+              "transform": "lower"
+            }
+          ],
+          "limit": 500
         }
       ],
       "transformations": [
         {
           "id": "merge",
-          "options": {}
+          "options": {},
+          "filter": {
+            "id": "byRefId",
+            "options": "/^(?:A|B|C|D)$/"
+          }
+        },
+        {
+          "id": "merge",
+          "options": {},
+          "filter": {
+            "id": "byRefId",
+            "options": "/^(?:NetBoxDevices|NetBoxVMs)$/"
+          }
+        },
+        {
+          "id": "joinByField",
+          "options": {
+            "byField": "instance",
+            "mode": "outerTabular"
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
+            "regex": "^(.+) netbox_[a-z_]+$",
+            "renamePattern": "$1"
+          }
         },
         {
           "id": "organize",
@@ -511,12 +601,16 @@
             },
             "indexByName": {
               "instance": 0,
-              "module": 1,
-              "Value #A": 2,
-              "Value #B": 3,
-              "Value #C": 4,
-              "Value #D": 5,
-              "dashboard": 6
+              "module": 5,
+              "Value #A": 6,
+              "Value #B": 7,
+              "Value #C": 8,
+              "Value #D": 9,
+              "dashboard": 10,
+              "name": 1,
+              "role": 2,
+              "status": 3,
+              "description": 4
             },
             "renameByName": {
               "instance": "Target",
@@ -524,8 +618,28 @@
               "Value #A": "State",
               "Value #B": "Success, 24 h",
               "Value #C": "Duration",
-              "Value #D": "HTTP status"
+              "Value #D": "HTTP status",
+              "name": "NetBox",
+              "role": "NetBox role",
+              "status": "NetBox status",
+              "description": "NetBox description"
             }
+          }
+        },
+        {
+          "id": "filterByValue",
+          "options": {
+            "type": "exclude",
+            "match": "any",
+            "filters": [
+              {
+                "fieldName": "State",
+                "config": {
+                  "id": "isNull",
+                  "options": {}
+                }
+              }
+            ]
           }
         }
       ],
@@ -672,6 +786,30 @@
                     "url": "/d/homelab-blackbox?var-target=${__value.raw}&${__url_time_range}"
                   }
                 ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "NetBox"
+            },
+            "properties": [
+              {
+                "id": "noValue",
+                "value": "not in NetBox"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "display_url"
+            },
+            "properties": [
+              {
+                "id": "custom.hidden",
+                "value": true
               }
             ]
           }

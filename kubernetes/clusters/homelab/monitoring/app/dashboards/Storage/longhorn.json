@@ -1514,8 +1514,8 @@
       "title": "Physical hosts",
       "description": "Longhorn's zone is the physical host: a VM's NUC (from Proxmox) or the Pi itself. Hard zone anti-affinity allows one replica of a volume per host, so Replicas and Volumes match; Extra copies above 0 means a host holds two replicas of one volume. Click a host to open it.",
       "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
+        "type": "datasource",
+        "uid": "-- Mixed --"
       },
       "targets": [
         {
@@ -1523,54 +1523,119 @@
           "expr": "sum by (host) ((max by (exported_node) (longhorn_node_storage_capacity_bytes) * 0 + 1) * on (exported_node) group_left (host) (max by (exported_node, host) (label_replace(label_replace(pve_guest_info{name=~\"k8s-.*\"}, \"exported_node\", \"$1\", \"name\", \"(.+)\"), \"host\", \"$1\", \"node\", \"(.+)\")) or (max by (exported_node, host) (label_replace(longhorn_node_storage_capacity_bytes, \"host\", \"$1\", \"exported_node\", \"(.+)\")) * 0 + 1 unless on (exported_node) max by (exported_node, host) (label_replace(label_replace(pve_guest_info{name=~\"k8s-.*\"}, \"exported_node\", \"$1\", \"name\", \"(.+)\"), \"host\", \"$1\", \"node\", \"(.+)\")))))",
           "format": "table",
           "instant": true,
-          "range": false
+          "range": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          }
         },
         {
           "refId": "B",
           "expr": "sum by (host) ((count by (exported_node) (longhorn_replica_info)) * on (exported_node) group_left (host) (max by (exported_node, host) (label_replace(label_replace(pve_guest_info{name=~\"k8s-.*\"}, \"exported_node\", \"$1\", \"name\", \"(.+)\"), \"host\", \"$1\", \"node\", \"(.+)\")) or (max by (exported_node, host) (label_replace(longhorn_node_storage_capacity_bytes, \"host\", \"$1\", \"exported_node\", \"(.+)\")) * 0 + 1 unless on (exported_node) max by (exported_node, host) (label_replace(label_replace(pve_guest_info{name=~\"k8s-.*\"}, \"exported_node\", \"$1\", \"name\", \"(.+)\"), \"host\", \"$1\", \"node\", \"(.+)\"))))) or 0 * sum by (host) ((max by (exported_node) (longhorn_node_storage_capacity_bytes) * 0 + 1) * on (exported_node) group_left (host) (max by (exported_node, host) (label_replace(label_replace(pve_guest_info{name=~\"k8s-.*\"}, \"exported_node\", \"$1\", \"name\", \"(.+)\"), \"host\", \"$1\", \"node\", \"(.+)\")) or (max by (exported_node, host) (label_replace(longhorn_node_storage_capacity_bytes, \"host\", \"$1\", \"exported_node\", \"(.+)\")) * 0 + 1 unless on (exported_node) max by (exported_node, host) (label_replace(label_replace(pve_guest_info{name=~\"k8s-.*\"}, \"exported_node\", \"$1\", \"name\", \"(.+)\"), \"host\", \"$1\", \"node\", \"(.+)\")))))",
           "format": "table",
           "instant": true,
-          "range": false
+          "range": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          }
         },
         {
           "refId": "C",
           "expr": "count by (host) (count by (host, volume) (longhorn_replica_info * on (exported_node) group_left (host) (max by (exported_node, host) (label_replace(label_replace(pve_guest_info{name=~\"k8s-.*\"}, \"exported_node\", \"$1\", \"name\", \"(.+)\"), \"host\", \"$1\", \"node\", \"(.+)\")) or (max by (exported_node, host) (label_replace(longhorn_node_storage_capacity_bytes, \"host\", \"$1\", \"exported_node\", \"(.+)\")) * 0 + 1 unless on (exported_node) max by (exported_node, host) (label_replace(label_replace(pve_guest_info{name=~\"k8s-.*\"}, \"exported_node\", \"$1\", \"name\", \"(.+)\"), \"host\", \"$1\", \"node\", \"(.+)\")))))) or 0 * sum by (host) ((max by (exported_node) (longhorn_node_storage_capacity_bytes) * 0 + 1) * on (exported_node) group_left (host) (max by (exported_node, host) (label_replace(label_replace(pve_guest_info{name=~\"k8s-.*\"}, \"exported_node\", \"$1\", \"name\", \"(.+)\"), \"host\", \"$1\", \"node\", \"(.+)\")) or (max by (exported_node, host) (label_replace(longhorn_node_storage_capacity_bytes, \"host\", \"$1\", \"exported_node\", \"(.+)\")) * 0 + 1 unless on (exported_node) max by (exported_node, host) (label_replace(label_replace(pve_guest_info{name=~\"k8s-.*\"}, \"exported_node\", \"$1\", \"name\", \"(.+)\"), \"host\", \"$1\", \"node\", \"(.+)\")))))",
           "format": "table",
           "instant": true,
-          "range": false
+          "range": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          }
         },
         {
           "refId": "D",
           "expr": "sum by (host) ((count by (exported_node) (longhorn_replica_info)) * on (exported_node) group_left (host) (max by (exported_node, host) (label_replace(label_replace(pve_guest_info{name=~\"k8s-.*\"}, \"exported_node\", \"$1\", \"name\", \"(.+)\"), \"host\", \"$1\", \"node\", \"(.+)\")) or (max by (exported_node, host) (label_replace(longhorn_node_storage_capacity_bytes, \"host\", \"$1\", \"exported_node\", \"(.+)\")) * 0 + 1 unless on (exported_node) max by (exported_node, host) (label_replace(label_replace(pve_guest_info{name=~\"k8s-.*\"}, \"exported_node\", \"$1\", \"name\", \"(.+)\"), \"host\", \"$1\", \"node\", \"(.+)\"))))) - count by (host) (count by (host, volume) (longhorn_replica_info * on (exported_node) group_left (host) (max by (exported_node, host) (label_replace(label_replace(pve_guest_info{name=~\"k8s-.*\"}, \"exported_node\", \"$1\", \"name\", \"(.+)\"), \"host\", \"$1\", \"node\", \"(.+)\")) or (max by (exported_node, host) (label_replace(longhorn_node_storage_capacity_bytes, \"host\", \"$1\", \"exported_node\", \"(.+)\")) * 0 + 1 unless on (exported_node) max by (exported_node, host) (label_replace(label_replace(pve_guest_info{name=~\"k8s-.*\"}, \"exported_node\", \"$1\", \"name\", \"(.+)\"), \"host\", \"$1\", \"node\", \"(.+)\")))))) or 0 * sum by (host) ((max by (exported_node) (longhorn_node_storage_capacity_bytes) * 0 + 1) * on (exported_node) group_left (host) (max by (exported_node, host) (label_replace(label_replace(pve_guest_info{name=~\"k8s-.*\"}, \"exported_node\", \"$1\", \"name\", \"(.+)\"), \"host\", \"$1\", \"node\", \"(.+)\")) or (max by (exported_node, host) (label_replace(longhorn_node_storage_capacity_bytes, \"host\", \"$1\", \"exported_node\", \"(.+)\")) * 0 + 1 unless on (exported_node) max by (exported_node, host) (label_replace(label_replace(pve_guest_info{name=~\"k8s-.*\"}, \"exported_node\", \"$1\", \"name\", \"(.+)\"), \"host\", \"$1\", \"node\", \"(.+)\")))))",
           "format": "table",
           "instant": true,
-          "range": false
+          "range": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          }
         },
         {
           "refId": "E",
           "expr": "sum by (host) ((max by (exported_node) (longhorn_node_storage_scheduled_bytes)) * on (exported_node) group_left (host) (max by (exported_node, host) (label_replace(label_replace(pve_guest_info{name=~\"k8s-.*\"}, \"exported_node\", \"$1\", \"name\", \"(.+)\"), \"host\", \"$1\", \"node\", \"(.+)\")) or (max by (exported_node, host) (label_replace(longhorn_node_storage_capacity_bytes, \"host\", \"$1\", \"exported_node\", \"(.+)\")) * 0 + 1 unless on (exported_node) max by (exported_node, host) (label_replace(label_replace(pve_guest_info{name=~\"k8s-.*\"}, \"exported_node\", \"$1\", \"name\", \"(.+)\"), \"host\", \"$1\", \"node\", \"(.+)\")))))",
           "format": "table",
           "instant": true,
-          "range": false
+          "range": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          }
         },
         {
           "refId": "F",
           "expr": "sum by (host) ((max by (exported_node) (longhorn_node_storage_usage_bytes)) * on (exported_node) group_left (host) (max by (exported_node, host) (label_replace(label_replace(pve_guest_info{name=~\"k8s-.*\"}, \"exported_node\", \"$1\", \"name\", \"(.+)\"), \"host\", \"$1\", \"node\", \"(.+)\")) or (max by (exported_node, host) (label_replace(longhorn_node_storage_capacity_bytes, \"host\", \"$1\", \"exported_node\", \"(.+)\")) * 0 + 1 unless on (exported_node) max by (exported_node, host) (label_replace(label_replace(pve_guest_info{name=~\"k8s-.*\"}, \"exported_node\", \"$1\", \"name\", \"(.+)\"), \"host\", \"$1\", \"node\", \"(.+)\")))))",
           "format": "table",
           "instant": true,
-          "range": false
+          "range": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          }
+        },
+        {
+          "refId": "NetBoxDevices",
+          "datasource": {
+            "type": "netboxlabs-netbox-datasource",
+            "uid": "netbox"
+          },
+          "queryType": "objects",
+          "objectType": "dcim/devices",
+          "fields": [
+            "name",
+            "device_type",
+            "status",
+            "display_url"
+          ],
+          "joinKeys": [
+            {
+              "source": "name",
+              "output": "host",
+              "transform": "lower"
+            }
+          ],
+          "limit": 500
         }
       ],
       "transformations": [
         {
           "id": "merge",
-          "options": {}
+          "options": {},
+          "filter": {
+            "id": "byRefId",
+            "options": "/^(?:A|B|C|D|E|F)$/"
+          }
         },
         {
           "id": "formatString",
           "options": {
             "stringField": "host",
             "outputFormat": "Lower Case"
+          }
+        },
+        {
+          "id": "joinByField",
+          "options": {
+            "byField": "host",
+            "mode": "outerTabular"
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
+            "regex": "^(.+) netbox_[a-z_]+$",
+            "renamePattern": "$1"
           }
         },
         {
@@ -1581,12 +1646,15 @@
             },
             "indexByName": {
               "host": 0,
-              "Value #A": 1,
-              "Value #B": 2,
-              "Value #C": 3,
-              "Value #D": 4,
-              "Value #E": 5,
-              "Value #F": 6
+              "Value #A": 4,
+              "Value #B": 5,
+              "Value #C": 6,
+              "Value #D": 7,
+              "Value #E": 8,
+              "Value #F": 9,
+              "name": 1,
+              "device_type": 2,
+              "status": 3
             },
             "renameByName": {
               "host": "Host",
@@ -1595,8 +1663,27 @@
               "Value #C": "Volumes",
               "Value #D": "Extra copies",
               "Value #E": "Scheduled",
-              "Value #F": "Used"
+              "Value #F": "Used",
+              "name": "NetBox",
+              "device_type": "NetBox model",
+              "status": "NetBox status"
             }
+          }
+        },
+        {
+          "id": "filterByValue",
+          "options": {
+            "type": "exclude",
+            "match": "any",
+            "filters": [
+              {
+                "fieldName": "Nodes",
+                "config": {
+                  "id": "isNull",
+                  "options": {}
+                }
+              }
+            ]
           }
         }
       ],
@@ -1681,6 +1768,30 @@
                 ]
               }
             ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "NetBox"
+            },
+            "properties": [
+              {
+                "id": "noValue",
+                "value": "not in NetBox"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "display_url"
+            },
+            "properties": [
+              {
+                "id": "custom.hidden",
+                "value": true
+              }
+            ]
           }
         ]
       },
@@ -1720,8 +1831,8 @@
       "title": "Nodes, fullest first",
       "description": "One row per Longhorn node: each worker contributes its /var/lib/longhorn on EPHEMERAL as one disk. Scheduled is the space promised to replicas placed there (their full capacity), which can pass Used by far. Reserved is Longhorn's 30 % hold-back. Click a node to open it.",
       "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
+        "type": "datasource",
+        "uid": "-- Mixed --"
       },
       "targets": [
         {
@@ -1729,69 +1840,179 @@
           "expr": "label_replace(label_replace(max by (exported_node) (longhorn_node_status{condition=\"ready\"}), \"dashboard\", \"homelab-nodes?var-node=$1&\", \"exported_node\", \"(.+)\"), \"dashboard\", \"homelab-host-$1?\", \"exported_node\", \"([^k].*|k[^8].*)\")",
           "format": "table",
           "instant": true,
-          "range": false
+          "range": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          }
         },
         {
           "refId": "B",
           "expr": "label_replace(label_replace(max by (exported_node) (longhorn_node_status{condition=\"schedulable\"}), \"dashboard\", \"homelab-nodes?var-node=$1&\", \"exported_node\", \"(.+)\"), \"dashboard\", \"homelab-host-$1?\", \"exported_node\", \"([^k].*|k[^8].*)\")",
           "format": "table",
           "instant": true,
-          "range": false
+          "range": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          }
         },
         {
           "refId": "C",
           "expr": "label_replace(label_replace(max by (exported_node) (longhorn_node_status{condition=\"allowScheduling\"}), \"dashboard\", \"homelab-nodes?var-node=$1&\", \"exported_node\", \"(.+)\"), \"dashboard\", \"homelab-host-$1?\", \"exported_node\", \"([^k].*|k[^8].*)\")",
           "format": "table",
           "instant": true,
-          "range": false
+          "range": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          }
         },
         {
           "refId": "D",
           "expr": "label_replace(label_replace(max by (exported_node) (longhorn_node_storage_usage_bytes) / max by (exported_node) (longhorn_node_storage_capacity_bytes), \"dashboard\", \"homelab-nodes?var-node=$1&\", \"exported_node\", \"(.+)\"), \"dashboard\", \"homelab-host-$1?\", \"exported_node\", \"([^k].*|k[^8].*)\")",
           "format": "table",
           "instant": true,
-          "range": false
+          "range": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          }
         },
         {
           "refId": "E",
           "expr": "label_replace(label_replace(max by (exported_node) (longhorn_node_storage_usage_bytes), \"dashboard\", \"homelab-nodes?var-node=$1&\", \"exported_node\", \"(.+)\"), \"dashboard\", \"homelab-host-$1?\", \"exported_node\", \"([^k].*|k[^8].*)\")",
           "format": "table",
           "instant": true,
-          "range": false
+          "range": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          }
         },
         {
           "refId": "F",
           "expr": "label_replace(label_replace(max by (exported_node) (longhorn_node_storage_scheduled_bytes), \"dashboard\", \"homelab-nodes?var-node=$1&\", \"exported_node\", \"(.+)\"), \"dashboard\", \"homelab-host-$1?\", \"exported_node\", \"([^k].*|k[^8].*)\")",
           "format": "table",
           "instant": true,
-          "range": false
+          "range": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          }
         },
         {
           "refId": "G",
           "expr": "label_replace(label_replace(max by (exported_node) (longhorn_node_storage_reservation_bytes), \"dashboard\", \"homelab-nodes?var-node=$1&\", \"exported_node\", \"(.+)\"), \"dashboard\", \"homelab-host-$1?\", \"exported_node\", \"([^k].*|k[^8].*)\")",
           "format": "table",
           "instant": true,
-          "range": false
+          "range": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          }
         },
         {
           "refId": "H",
           "expr": "label_replace(label_replace(max by (exported_node) (longhorn_node_storage_capacity_bytes), \"dashboard\", \"homelab-nodes?var-node=$1&\", \"exported_node\", \"(.+)\"), \"dashboard\", \"homelab-host-$1?\", \"exported_node\", \"([^k].*|k[^8].*)\")",
           "format": "table",
           "instant": true,
-          "range": false
+          "range": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          }
         },
         {
           "refId": "I",
           "expr": "label_replace(label_replace(count by (exported_node) (longhorn_replica_info) or 0 * max by (exported_node) (longhorn_node_storage_capacity_bytes), \"dashboard\", \"homelab-nodes?var-node=$1&\", \"exported_node\", \"(.+)\"), \"dashboard\", \"homelab-host-$1?\", \"exported_node\", \"([^k].*|k[^8].*)\")",
           "format": "table",
           "instant": true,
-          "range": false
+          "range": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          }
+        },
+        {
+          "refId": "NetBoxDevices",
+          "datasource": {
+            "type": "netboxlabs-netbox-datasource",
+            "uid": "netbox"
+          },
+          "queryType": "objects",
+          "objectType": "dcim/devices",
+          "fields": [
+            "name",
+            "role",
+            "status",
+            "description",
+            "display_url"
+          ],
+          "joinKeys": [
+            {
+              "source": "name",
+              "output": "exported_node",
+              "transform": "lower"
+            }
+          ],
+          "limit": 500
+        },
+        {
+          "refId": "NetBoxVMs",
+          "datasource": {
+            "type": "netboxlabs-netbox-datasource",
+            "uid": "netbox"
+          },
+          "queryType": "objects",
+          "objectType": "virtualization/virtual-machines",
+          "fields": [
+            "name",
+            "role",
+            "status",
+            "description",
+            "display_url"
+          ],
+          "joinKeys": [
+            {
+              "source": "name",
+              "output": "exported_node",
+              "transform": "lower"
+            }
+          ],
+          "limit": 500
         }
       ],
       "transformations": [
         {
           "id": "merge",
-          "options": {}
+          "options": {},
+          "filter": {
+            "id": "byRefId",
+            "options": "/^(?:A|B|C|D|E|F|G|H|I)$/"
+          }
+        },
+        {
+          "id": "merge",
+          "options": {},
+          "filter": {
+            "id": "byRefId",
+            "options": "/^(?:NetBoxDevices|NetBoxVMs)$/"
+          }
+        },
+        {
+          "id": "joinByField",
+          "options": {
+            "byField": "exported_node",
+            "mode": "outerTabular"
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
+            "regex": "^(.+) netbox_[a-z_]+$",
+            "renamePattern": "$1"
+          }
         },
         {
           "id": "organize",
@@ -1801,16 +2022,20 @@
             },
             "indexByName": {
               "exported_node": 0,
-              "Value #A": 1,
-              "Value #B": 2,
-              "Value #C": 3,
-              "Value #D": 4,
-              "Value #E": 5,
-              "Value #F": 6,
-              "Value #G": 7,
-              "Value #H": 8,
-              "Value #I": 9,
-              "dashboard": 10
+              "Value #A": 5,
+              "Value #B": 6,
+              "Value #C": 7,
+              "Value #D": 8,
+              "Value #E": 9,
+              "Value #F": 10,
+              "Value #G": 11,
+              "Value #H": 12,
+              "Value #I": 13,
+              "dashboard": 14,
+              "name": 1,
+              "role": 2,
+              "status": 3,
+              "description": 4
             },
             "renameByName": {
               "exported_node": "Node",
@@ -1822,8 +2047,28 @@
               "Value #F": "Scheduled",
               "Value #G": "Reserved",
               "Value #H": "Capacity",
-              "Value #I": "Replicas"
+              "Value #I": "Replicas",
+              "name": "NetBox",
+              "role": "NetBox role",
+              "status": "NetBox status",
+              "description": "NetBox description"
             }
+          }
+        },
+        {
+          "id": "filterByValue",
+          "options": {
+            "type": "exclude",
+            "match": "any",
+            "filters": [
+              {
+                "fieldName": "Capacity",
+                "config": {
+                  "id": "isNull",
+                  "options": {}
+                }
+              }
+            ]
           }
         }
       ],
@@ -2056,6 +2301,30 @@
                     "url": "/d/${__data.fields.dashboard}${__url_time_range}"
                   }
                 ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "NetBox"
+            },
+            "properties": [
+              {
+                "id": "noValue",
+                "value": "not in NetBox"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "display_url"
+            },
+            "properties": [
+              {
+                "id": "custom.hidden",
+                "value": true
               }
             ]
           }

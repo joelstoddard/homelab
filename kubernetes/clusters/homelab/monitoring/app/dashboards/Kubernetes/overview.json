@@ -957,8 +957,8 @@
       "title": "Nodes, worst first",
       "description": "One row per node, not ready first, then busiest CPU. Used and requested are shares of what the node can allocate to pods. Click a node to open it in Nodes.",
       "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
+        "type": "datasource",
+        "uid": "-- Mixed --"
       },
       "targets": [
         {
@@ -966,55 +966,157 @@
           "expr": "max by (node) (label_replace(kube_node_role{role=\"control-plane\"}, \"node\", \"$1\", \"exported_node\", \"(.*)\")) or on (node) 0 * max by (node) (label_replace(kube_node_info, \"node\", \"$1\", \"exported_node\", \"(.*)\"))",
           "format": "table",
           "instant": true,
-          "range": false
+          "range": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          }
         },
         {
           "refId": "B",
           "expr": "max by (node) (label_replace(kube_node_status_condition{condition=\"Ready\", status=\"true\"}, \"node\", \"$1\", \"exported_node\", \"(.*)\"))",
           "format": "table",
           "instant": true,
-          "range": false
+          "range": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          }
         },
         {
           "refId": "C",
           "expr": "sum by (node) (rate(node_cpu_seconds_total{job=\"node-exporter\", node!=\"\", mode!~\"idle|iowait|steal\"}[$__rate_interval])) / max by (node) (label_replace(kube_node_status_allocatable{resource=\"cpu\"}, \"node\", \"$1\", \"exported_node\", \"(.*)\"))",
           "format": "table",
           "instant": true,
-          "range": false
+          "range": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          }
         },
         {
           "refId": "D",
           "expr": "sum by (node) (label_replace(kube_pod_container_resource_requests{resource=\"cpu\"} * on (exported_namespace, exported_pod) group_left () (kube_pod_status_phase{phase=~\"Running|Pending\"} == 1), \"node\", \"$1\", \"exported_node\", \"(.*)\")) / max by (node) (label_replace(kube_node_status_allocatable{resource=\"cpu\"}, \"node\", \"$1\", \"exported_node\", \"(.*)\"))",
           "format": "table",
           "instant": true,
-          "range": false
+          "range": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          }
         },
         {
           "refId": "E",
           "expr": "sum by (node) (node_memory_MemTotal_bytes{job=\"node-exporter\", node!=\"\"} - node_memory_MemAvailable_bytes{job=\"node-exporter\", node!=\"\"}) / max by (node) (label_replace(kube_node_status_allocatable{resource=\"memory\"}, \"node\", \"$1\", \"exported_node\", \"(.*)\"))",
           "format": "table",
           "instant": true,
-          "range": false
+          "range": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          }
         },
         {
           "refId": "F",
           "expr": "sum by (node) (label_replace(kube_pod_container_resource_requests{resource=\"memory\"} * on (exported_namespace, exported_pod) group_left () (kube_pod_status_phase{phase=~\"Running|Pending\"} == 1), \"node\", \"$1\", \"exported_node\", \"(.*)\")) / max by (node) (label_replace(kube_node_status_allocatable{resource=\"memory\"}, \"node\", \"$1\", \"exported_node\", \"(.*)\"))",
           "format": "table",
           "instant": true,
-          "range": false
+          "range": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          }
         },
         {
           "refId": "G",
           "expr": "count by (node) (label_replace(kube_pod_info * on (exported_namespace, exported_pod) group_left () (kube_pod_status_phase{phase=\"Running\"} == 1), \"node\", \"$1\", \"exported_node\", \"(.*)\"))",
           "format": "table",
           "instant": true,
-          "range": false
+          "range": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          }
+        },
+        {
+          "refId": "NetBoxDevices",
+          "datasource": {
+            "type": "netboxlabs-netbox-datasource",
+            "uid": "netbox"
+          },
+          "queryType": "objects",
+          "objectType": "dcim/devices",
+          "fields": [
+            "name",
+            "role",
+            "status",
+            "description",
+            "display_url"
+          ],
+          "joinKeys": [
+            {
+              "source": "name",
+              "output": "node",
+              "transform": "lower"
+            }
+          ],
+          "limit": 500
+        },
+        {
+          "refId": "NetBoxVMs",
+          "datasource": {
+            "type": "netboxlabs-netbox-datasource",
+            "uid": "netbox"
+          },
+          "queryType": "objects",
+          "objectType": "virtualization/virtual-machines",
+          "fields": [
+            "name",
+            "role",
+            "status",
+            "description",
+            "display_url"
+          ],
+          "joinKeys": [
+            {
+              "source": "name",
+              "output": "node",
+              "transform": "lower"
+            }
+          ],
+          "limit": 500
         }
       ],
       "transformations": [
         {
           "id": "merge",
-          "options": {}
+          "options": {},
+          "filter": {
+            "id": "byRefId",
+            "options": "/^(?:A|B|C|D|E|F|G)$/"
+          }
+        },
+        {
+          "id": "merge",
+          "options": {},
+          "filter": {
+            "id": "byRefId",
+            "options": "/^(?:NetBoxDevices|NetBoxVMs)$/"
+          }
+        },
+        {
+          "id": "joinByField",
+          "options": {
+            "byField": "node",
+            "mode": "outerTabular"
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
+            "regex": "^(.+) netbox_[a-z_]+$",
+            "renamePattern": "$1"
+          }
         },
         {
           "id": "organize",
@@ -1024,13 +1126,17 @@
             },
             "indexByName": {
               "node": 0,
-              "Value #A": 1,
-              "Value #B": 2,
-              "Value #C": 3,
-              "Value #D": 4,
-              "Value #E": 5,
-              "Value #F": 6,
-              "Value #G": 7
+              "Value #A": 5,
+              "Value #B": 6,
+              "Value #C": 7,
+              "Value #D": 8,
+              "Value #E": 9,
+              "Value #F": 10,
+              "Value #G": 11,
+              "name": 1,
+              "role": 2,
+              "status": 3,
+              "description": 4
             },
             "renameByName": {
               "node": "Node",
@@ -1040,8 +1146,28 @@
               "Value #D": "CPU requested",
               "Value #E": "Memory used",
               "Value #F": "Memory requested",
-              "Value #G": "Pods running"
+              "Value #G": "Pods running",
+              "name": "NetBox",
+              "role": "NetBox role",
+              "status": "NetBox status",
+              "description": "NetBox description"
             }
+          }
+        },
+        {
+          "id": "filterByValue",
+          "options": {
+            "type": "exclude",
+            "match": "any",
+            "filters": [
+              {
+                "fieldName": "Role",
+                "config": {
+                  "id": "isNull",
+                  "options": {}
+                }
+              }
+            ]
           }
         }
       ],
@@ -1306,6 +1432,30 @@
               {
                 "id": "decimals",
                 "value": 0
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "NetBox"
+            },
+            "properties": [
+              {
+                "id": "noValue",
+                "value": "not in NetBox"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "display_url"
+            },
+            "properties": [
+              {
+                "id": "custom.hidden",
+                "value": true
               }
             ]
           }

@@ -285,12 +285,12 @@
        {"id": "organize", "options": {
          "excludeByName": {"ip": true, "Time": true, "Value": true, "Value #B": true},
          "indexByName": {"host": 0, "device_name": 1, "vm_name": 2, "is_primary_ip": 3, "address_status": 4},
-         "renameByName": {"host": "Kubernetes node", "device_name": "NetBox device", "vm_name": "NetBox VM", "is_primary_ip": "Primary IP", "address_status": "NetBox status"}}}
+         "renameByName": {"host": "Kubernetes node", "device_name": "NetBox device", "vm_name": "NetBox VM", "is_primary_ip": "NetBox primary IP", "address_status": "NetBox status"}}}
      ],
      "fieldConfig": {
        "defaults": {"noValue": "—"},
        "overrides": [
-         {"matcher": {"id": "byName", "options": "Primary IP"},
+         {"matcher": {"id": "byName", "options": "NetBox primary IP"},
           "properties": [
             {"id": "noValue", "value": "not in NetBox"},
             {"id": "mappings", "value": [{"type": "value", "options": {"true": {"text": "yes", "color": "green"}, "false": {"text": "no", "color": "red"}}}]},

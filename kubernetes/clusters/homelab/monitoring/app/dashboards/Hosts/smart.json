@@ -409,69 +409,131 @@
       "title": "Every drive",
       "description": "Every drive on every host, the one to replace first at the top: sorted by Health (Failing, then Errors, then OK), then by Wear, with drives not reporting last. Wear means two things. For an SSD it is the drive's own endurance used (NVMe percentage used, or 100 minus a SATA SSD's normalised wear attribute): 100 % is the rated write endurance spent, and the drive may run well past it. A hard disk reports no such figure, so its Wear is power-on hours against a 5-year life (43800 h), the warranty term of NAS and enterprise drives: a generic figure, not this drive's datasheet. A hard disk's real warning sign is Bad sectors (reallocated, pending and offline-uncorrectable, or SCSI grown defects) rising, which puts it in Errors whatever its age. Basis says which Wear a row has. A drive seen in the last 7 days, a node's boot drive, or one of Voyager's disks in its collectd stream that reports nothing now stays listed as Not reported with its last values. A Voyager disk in standby when the exporter restarts reads Not reported until it wakes. Written is NVMe and SCSI only.",
       "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
+        "type": "datasource",
+        "uid": "-- Mixed --"
       },
       "targets": [
         {
           "refId": "A",
           "expr": "(group by (instance, device) (smartctl_device_smart_status{job=\"smartctl\"} == 0 or smartctl_device_critical_warning{job=\"smartctl\"} > 0) * 3 or group by (instance, device) (smartctl_device_media_errors{job=\"smartctl\"} > 0 or smartctl_device_attribute{job=\"smartctl\", attribute_name=~\"Reallocated_Sector_Ct|Current_Pending_Sector|Offline_Uncorrectable\", attribute_value_type=\"raw\"} > 0 or smartctl_scsi_grown_defect_list{job=\"smartctl\"} > 0 or smartctl_read_total_uncorrected_errors{job=\"smartctl\"} > 0 or smartctl_write_total_uncorrected_errors{job=\"smartctl\"} > 0) * 2 or group by (instance, device) (smartctl_device{job=\"smartctl\"}) * 0 or on (instance, device) max by (instance, device) (label_replace((topk by (instance, device) (1, max by (instance, device, model_name) (last_over_time(timestamp(smartctl_device{job=\"smartctl\"})[7d:10m]))) or on (instance, device) last_over_time(max by (instance, device) (label_replace(label_replace({__name__=~\"servers_Voyager_local_disktemp_.+_temperature\"}, \"device\", \"$1\", \"__name__\", \"servers_Voyager_local_disktemp_(.+)_temperature\"), \"instance\", \"voyager\", \"\", \"\"))[7d:1h]) or on (instance, device) label_replace(group by (instance, device) (node_disk_info{job=\"node-exporter\", instance!~\"k8s-.*\", device=~\"sda|nvme0n1\"}), \"device\", \"$1\", \"device\", \"(nvme[0-9]+)n[0-9]+\")) * 0 + 1, \"dashboard\", \"homelab-host-$1\", \"instance\", \"(.+)\")) * -1) * on (instance, device) group_left (model_name, dashboard) label_replace((topk by (instance, device) (1, max by (instance, device, model_name) (last_over_time(timestamp(smartctl_device{job=\"smartctl\"})[7d:10m]))) or on (instance, device) last_over_time(max by (instance, device) (label_replace(label_replace({__name__=~\"servers_Voyager_local_disktemp_.+_temperature\"}, \"device\", \"$1\", \"__name__\", \"servers_Voyager_local_disktemp_(.+)_temperature\"), \"instance\", \"voyager\", \"\", \"\"))[7d:1h]) or on (instance, device) label_replace(group by (instance, device) (node_disk_info{job=\"node-exporter\", instance!~\"k8s-.*\", device=~\"sda|nvme0n1\"}), \"device\", \"$1\", \"device\", \"(nvme[0-9]+)n[0-9]+\")) * 0 + 1, \"dashboard\", \"homelab-host-$1\", \"instance\", \"(.+)\")",
           "format": "table",
-          "instant": true
+          "instant": true,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          }
         },
         {
           "refId": "B",
           "expr": "(max by (instance, device) (last_over_time(smartctl_device_percentage_used{job=\"smartctl\"}[7d])) or max by (instance, device) (last_over_time(smartctl_scsi_percentage_used_endurance_indicator{job=\"smartctl\"}[7d])) or max by (instance, device) (100 - last_over_time(smartctl_device_attribute{job=\"smartctl\", attribute_name=~\"Wear_Leveling_Count|Percent_Lifetime_Remain|Media_Wearout_Indicator\", attribute_value_type=\"value\"}[7d])) or max by (instance, device) (last_over_time(smartctl_device_power_on_seconds{job=\"smartctl\"}[7d]) / 3600 / 43800 * 100 and on (instance, device) last_over_time(smartctl_device_rotation_rate{job=\"smartctl\"}[7d]) > 0)) * on (instance, device) group_left (model_name, dashboard) label_replace((topk by (instance, device) (1, max by (instance, device, model_name) (last_over_time(timestamp(smartctl_device{job=\"smartctl\"})[7d:10m]))) or on (instance, device) last_over_time(max by (instance, device) (label_replace(label_replace({__name__=~\"servers_Voyager_local_disktemp_.+_temperature\"}, \"device\", \"$1\", \"__name__\", \"servers_Voyager_local_disktemp_(.+)_temperature\"), \"instance\", \"voyager\", \"\", \"\"))[7d:1h]) or on (instance, device) label_replace(group by (instance, device) (node_disk_info{job=\"node-exporter\", instance!~\"k8s-.*\", device=~\"sda|nvme0n1\"}), \"device\", \"$1\", \"device\", \"(nvme[0-9]+)n[0-9]+\")) * 0 + 1, \"dashboard\", \"homelab-host-$1\", \"instance\", \"(.+)\")",
           "format": "table",
-          "instant": true
+          "instant": true,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          }
         },
         {
           "refId": "C",
           "expr": "((max by (instance, device) (last_over_time(smartctl_device_percentage_used{job=\"smartctl\"}[7d])) or max by (instance, device) (last_over_time(smartctl_scsi_percentage_used_endurance_indicator{job=\"smartctl\"}[7d])) or max by (instance, device) (100 - last_over_time(smartctl_device_attribute{job=\"smartctl\", attribute_name=~\"Wear_Leveling_Count|Percent_Lifetime_Remain|Media_Wearout_Indicator\", attribute_value_type=\"value\"}[7d]))) * 0 or (max by (instance, device) (last_over_time(smartctl_device_power_on_seconds{job=\"smartctl\"}[7d]) / 3600 / 43800 * 100 and on (instance, device) last_over_time(smartctl_device_rotation_rate{job=\"smartctl\"}[7d]) > 0)) * 0 + 1) * on (instance, device) group_left (model_name, dashboard) label_replace((topk by (instance, device) (1, max by (instance, device, model_name) (last_over_time(timestamp(smartctl_device{job=\"smartctl\"})[7d:10m]))) or on (instance, device) last_over_time(max by (instance, device) (label_replace(label_replace({__name__=~\"servers_Voyager_local_disktemp_.+_temperature\"}, \"device\", \"$1\", \"__name__\", \"servers_Voyager_local_disktemp_(.+)_temperature\"), \"instance\", \"voyager\", \"\", \"\"))[7d:1h]) or on (instance, device) label_replace(group by (instance, device) (node_disk_info{job=\"node-exporter\", instance!~\"k8s-.*\", device=~\"sda|nvme0n1\"}), \"device\", \"$1\", \"device\", \"(nvme[0-9]+)n[0-9]+\")) * 0 + 1, \"dashboard\", \"homelab-host-$1\", \"instance\", \"(.+)\")",
           "format": "table",
-          "instant": true
+          "instant": true,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          }
         },
         {
           "refId": "D",
           "expr": "(max by (instance, device) (last_over_time(smartctl_device_available_spare{job=\"smartctl\"}[7d]))) * on (instance, device) group_left (model_name, dashboard) label_replace((topk by (instance, device) (1, max by (instance, device, model_name) (last_over_time(timestamp(smartctl_device{job=\"smartctl\"})[7d:10m]))) or on (instance, device) last_over_time(max by (instance, device) (label_replace(label_replace({__name__=~\"servers_Voyager_local_disktemp_.+_temperature\"}, \"device\", \"$1\", \"__name__\", \"servers_Voyager_local_disktemp_(.+)_temperature\"), \"instance\", \"voyager\", \"\", \"\"))[7d:1h]) or on (instance, device) label_replace(group by (instance, device) (node_disk_info{job=\"node-exporter\", instance!~\"k8s-.*\", device=~\"sda|nvme0n1\"}), \"device\", \"$1\", \"device\", \"(nvme[0-9]+)n[0-9]+\")) * 0 + 1, \"dashboard\", \"homelab-host-$1\", \"instance\", \"(.+)\")",
           "format": "table",
-          "instant": true
+          "instant": true,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          }
         },
         {
           "refId": "E",
           "expr": "(max by (instance, device) (last_over_time(smartctl_device_media_errors{job=\"smartctl\"}[7d]))) * on (instance, device) group_left (model_name, dashboard) label_replace((topk by (instance, device) (1, max by (instance, device, model_name) (last_over_time(timestamp(smartctl_device{job=\"smartctl\"})[7d:10m]))) or on (instance, device) last_over_time(max by (instance, device) (label_replace(label_replace({__name__=~\"servers_Voyager_local_disktemp_.+_temperature\"}, \"device\", \"$1\", \"__name__\", \"servers_Voyager_local_disktemp_(.+)_temperature\"), \"instance\", \"voyager\", \"\", \"\"))[7d:1h]) or on (instance, device) label_replace(group by (instance, device) (node_disk_info{job=\"node-exporter\", instance!~\"k8s-.*\", device=~\"sda|nvme0n1\"}), \"device\", \"$1\", \"device\", \"(nvme[0-9]+)n[0-9]+\")) * 0 + 1, \"dashboard\", \"homelab-host-$1\", \"instance\", \"(.+)\")",
           "format": "table",
-          "instant": true
+          "instant": true,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          }
         },
         {
           "refId": "F",
           "expr": "(sum by (instance, device) (last_over_time(smartctl_device_attribute{job=\"smartctl\", attribute_name=~\"Reallocated_Sector_Ct|Current_Pending_Sector|Offline_Uncorrectable\", attribute_value_type=\"raw\"}[7d])) or max by (instance, device) (last_over_time(smartctl_scsi_grown_defect_list{job=\"smartctl\"}[7d]))) * on (instance, device) group_left (model_name, dashboard) label_replace((topk by (instance, device) (1, max by (instance, device, model_name) (last_over_time(timestamp(smartctl_device{job=\"smartctl\"})[7d:10m]))) or on (instance, device) last_over_time(max by (instance, device) (label_replace(label_replace({__name__=~\"servers_Voyager_local_disktemp_.+_temperature\"}, \"device\", \"$1\", \"__name__\", \"servers_Voyager_local_disktemp_(.+)_temperature\"), \"instance\", \"voyager\", \"\", \"\"))[7d:1h]) or on (instance, device) label_replace(group by (instance, device) (node_disk_info{job=\"node-exporter\", instance!~\"k8s-.*\", device=~\"sda|nvme0n1\"}), \"device\", \"$1\", \"device\", \"(nvme[0-9]+)n[0-9]+\")) * 0 + 1, \"dashboard\", \"homelab-host-$1\", \"instance\", \"(.+)\")",
           "format": "table",
-          "instant": true
+          "instant": true,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          }
         },
         {
           "refId": "G",
           "expr": "(max by (instance, device) (last_over_time(smartctl_device_critical_warning{job=\"smartctl\"}[7d]))) * on (instance, device) group_left (model_name, dashboard) label_replace((topk by (instance, device) (1, max by (instance, device, model_name) (last_over_time(timestamp(smartctl_device{job=\"smartctl\"})[7d:10m]))) or on (instance, device) last_over_time(max by (instance, device) (label_replace(label_replace({__name__=~\"servers_Voyager_local_disktemp_.+_temperature\"}, \"device\", \"$1\", \"__name__\", \"servers_Voyager_local_disktemp_(.+)_temperature\"), \"instance\", \"voyager\", \"\", \"\"))[7d:1h]) or on (instance, device) label_replace(group by (instance, device) (node_disk_info{job=\"node-exporter\", instance!~\"k8s-.*\", device=~\"sda|nvme0n1\"}), \"device\", \"$1\", \"device\", \"(nvme[0-9]+)n[0-9]+\")) * 0 + 1, \"dashboard\", \"homelab-host-$1\", \"instance\", \"(.+)\")",
           "format": "table",
-          "instant": true
+          "instant": true,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          }
         },
         {
           "refId": "H",
           "expr": "(max by (instance, device) (last_over_time(smartctl_device_power_on_seconds{job=\"smartctl\"}[7d])) / 3600) * on (instance, device) group_left (model_name, dashboard) label_replace((topk by (instance, device) (1, max by (instance, device, model_name) (last_over_time(timestamp(smartctl_device{job=\"smartctl\"})[7d:10m]))) or on (instance, device) last_over_time(max by (instance, device) (label_replace(label_replace({__name__=~\"servers_Voyager_local_disktemp_.+_temperature\"}, \"device\", \"$1\", \"__name__\", \"servers_Voyager_local_disktemp_(.+)_temperature\"), \"instance\", \"voyager\", \"\", \"\"))[7d:1h]) or on (instance, device) label_replace(group by (instance, device) (node_disk_info{job=\"node-exporter\", instance!~\"k8s-.*\", device=~\"sda|nvme0n1\"}), \"device\", \"$1\", \"device\", \"(nvme[0-9]+)n[0-9]+\")) * 0 + 1, \"dashboard\", \"homelab-host-$1\", \"instance\", \"(.+)\")",
           "format": "table",
-          "instant": true
+          "instant": true,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          }
         },
         {
           "refId": "I",
           "expr": "(max by (instance, device) (last_over_time(smartctl_device_bytes_written{job=\"smartctl\"}[7d]))) * on (instance, device) group_left (model_name, dashboard) label_replace((topk by (instance, device) (1, max by (instance, device, model_name) (last_over_time(timestamp(smartctl_device{job=\"smartctl\"})[7d:10m]))) or on (instance, device) last_over_time(max by (instance, device) (label_replace(label_replace({__name__=~\"servers_Voyager_local_disktemp_.+_temperature\"}, \"device\", \"$1\", \"__name__\", \"servers_Voyager_local_disktemp_(.+)_temperature\"), \"instance\", \"voyager\", \"\", \"\"))[7d:1h]) or on (instance, device) label_replace(group by (instance, device) (node_disk_info{job=\"node-exporter\", instance!~\"k8s-.*\", device=~\"sda|nvme0n1\"}), \"device\", \"$1\", \"device\", \"(nvme[0-9]+)n[0-9]+\")) * 0 + 1, \"dashboard\", \"homelab-host-$1\", \"instance\", \"(.+)\")",
           "format": "table",
-          "instant": true
+          "instant": true,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          }
         },
         {
           "refId": "K",
           "expr": "(max by (instance, device) (last_over_time(smartctl_device_temperature{job=\"smartctl\", temperature_type=\"current\"}[7d]))) * on (instance, device) group_left (model_name, dashboard) label_replace((topk by (instance, device) (1, max by (instance, device, model_name) (last_over_time(timestamp(smartctl_device{job=\"smartctl\"})[7d:10m]))) or on (instance, device) last_over_time(max by (instance, device) (label_replace(label_replace({__name__=~\"servers_Voyager_local_disktemp_.+_temperature\"}, \"device\", \"$1\", \"__name__\", \"servers_Voyager_local_disktemp_(.+)_temperature\"), \"instance\", \"voyager\", \"\", \"\"))[7d:1h]) or on (instance, device) label_replace(group by (instance, device) (node_disk_info{job=\"node-exporter\", instance!~\"k8s-.*\", device=~\"sda|nvme0n1\"}), \"device\", \"$1\", \"device\", \"(nvme[0-9]+)n[0-9]+\")) * 0 + 1, \"dashboard\", \"homelab-host-$1\", \"instance\", \"(.+)\")",
           "format": "table",
-          "instant": true
+          "instant": true,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          }
+        },
+        {
+          "refId": "NetBoxDevices",
+          "datasource": {
+            "type": "netboxlabs-netbox-datasource",
+            "uid": "netbox"
+          },
+          "queryType": "objects",
+          "objectType": "dcim/devices",
+          "fields": [
+            "name",
+            "device_type",
+            "display_url"
+          ],
+          "joinKeys": [
+            {
+              "source": "name",
+              "output": "instance",
+              "transform": "lower"
+            }
+          ],
+          "limit": 500
         }
       ],
       "fieldConfig": {
@@ -795,6 +857,30 @@
                 ]
               }
             ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "NetBox"
+            },
+            "properties": [
+              {
+                "id": "noValue",
+                "value": "not in NetBox"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "display_url"
+            },
+            "properties": [
+              {
+                "id": "custom.hidden",
+                "value": true
+              }
+            ]
           }
         ]
       },
@@ -814,7 +900,25 @@
       "transformations": [
         {
           "id": "merge",
-          "options": {}
+          "options": {},
+          "filter": {
+            "id": "byRefId",
+            "options": "/^(?:A|B|C|D|E|F|G|H|I|K)$/"
+          }
+        },
+        {
+          "id": "joinByField",
+          "options": {
+            "byField": "instance",
+            "mode": "outerTabular"
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
+            "regex": "^(.+) netbox_[a-z_]+$",
+            "renamePattern": "$1"
+          }
         },
         {
           "id": "organize",
@@ -824,19 +928,21 @@
             },
             "indexByName": {
               "instance": 0,
-              "device": 1,
-              "model_name": 2,
-              "Value #A": 3,
-              "Value #B": 4,
-              "Value #C": 5,
-              "Value #D": 6,
-              "Value #E": 7,
-              "Value #F": 8,
-              "Value #G": 9,
-              "Value #H": 10,
-              "Value #I": 11,
-              "Value #K": 12,
-              "dashboard": 13
+              "device": 3,
+              "model_name": 4,
+              "Value #A": 5,
+              "Value #B": 6,
+              "Value #C": 7,
+              "Value #D": 8,
+              "Value #E": 9,
+              "Value #F": 10,
+              "Value #G": 11,
+              "Value #H": 12,
+              "Value #I": 13,
+              "Value #K": 14,
+              "dashboard": 15,
+              "name": 1,
+              "device_type": 2
             },
             "renameByName": {
               "instance": "Host",
@@ -851,8 +957,26 @@
               "Value #G": "Critical warning",
               "Value #H": "Power-on",
               "Value #I": "Written",
-              "Value #K": "°C"
+              "Value #K": "°C",
+              "name": "NetBox",
+              "device_type": "NetBox model"
             }
+          }
+        },
+        {
+          "id": "filterByValue",
+          "options": {
+            "type": "exclude",
+            "match": "any",
+            "filters": [
+              {
+                "fieldName": "Health",
+                "config": {
+                  "id": "isNull",
+                  "options": {}
+                }
+              }
+            ]
           }
         }
       ],

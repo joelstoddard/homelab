@@ -621,8 +621,8 @@
       "title": "Both instances",
       "description": "One row per Pi-hole, any probe failing first. The three probe columns are the blackbox dns_lookup (a public name), dns_wildcard (a LAN-domain name, via Bind9) and dns_lancache (a CDN name, via lancache-dns) asked of that instance; Not reporting is a probe seen in the last day and silent now. Serving clients is inferred from the highest query rate among instances passing dns_lookup (see the Summary stat). Click an instance to show only it.",
       "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
+        "type": "datasource",
+        "uid": "-- Mixed --"
       },
       "targets": [
         {
@@ -630,76 +630,157 @@
           "expr": "max by (hostname) (label_replace(max by (instance) (probe_success{job=\"blackbox\", module=\"dns_lookup\", instance=~\"pihole-0.*\", instance=~\"$instance\"}) or on (instance) (max by (instance) (last_over_time(probe_success{job=\"blackbox\", module=\"dns_lookup\", instance=~\"pihole-0.*\", instance=~\"$instance\"}[1d])) * 0 - 1), \"hostname\", \"$1\", \"instance\", \"(.*)\"))",
           "format": "table",
           "instant": true,
-          "range": false
+          "range": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          }
         },
         {
           "refId": "B",
           "expr": "max by (hostname) (label_replace(max by (instance) (probe_success{job=\"blackbox\", module=\"dns_wildcard\", instance=~\"pihole-0.*\", instance=~\"$instance\"}) or on (instance) (max by (instance) (last_over_time(probe_success{job=\"blackbox\", module=\"dns_wildcard\", instance=~\"pihole-0.*\", instance=~\"$instance\"}[1d])) * 0 - 1), \"hostname\", \"$1\", \"instance\", \"(.*)\"))",
           "format": "table",
           "instant": true,
-          "range": false
+          "range": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          }
         },
         {
           "refId": "C",
           "expr": "max by (hostname) (label_replace(max by (instance) (probe_success{job=\"blackbox\", module=\"dns_lancache\", instance=~\"pihole-0.*\", instance=~\"$instance\"}) or on (instance) (max by (instance) (last_over_time(probe_success{job=\"blackbox\", module=\"dns_lancache\", instance=~\"pihole-0.*\", instance=~\"$instance\"}[1d])) * 0 - 1), \"hostname\", \"$1\", \"instance\", \"(.*)\"))",
           "format": "table",
           "instant": true,
-          "range": false
+          "range": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          }
         },
         {
           "refId": "D",
           "expr": "max by (hostname) (((pihole_request_rate{hostname=~\"$instance\"} and on (hostname) label_replace(probe_success{job=\"blackbox\", module=\"dns_lookup\"} == 1, \"hostname\", \"$1\", \"instance\", \"(.*)\")) == bool on () group_left () max((pihole_request_rate{job=\"pihole\"} and on (hostname) label_replace(probe_success{job=\"blackbox\", module=\"dns_lookup\"} == 1, \"hostname\", \"$1\", \"instance\", \"(.*)\")))) or on (hostname) (pihole_request_rate{hostname=~\"$instance\"} * 0))",
           "format": "table",
           "instant": true,
-          "range": false
+          "range": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          }
         },
         {
           "refId": "E",
           "expr": "max by (hostname) (pihole_request_rate{hostname=~\"$instance\"})",
           "format": "table",
           "instant": true,
-          "range": false
+          "range": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          }
         },
         {
           "refId": "F",
           "expr": "max by (hostname) (pihole_dns_queries_today{hostname=~\"$instance\"})",
           "format": "table",
           "instant": true,
-          "range": false
+          "range": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          }
         },
         {
           "refId": "G",
           "expr": "max by (hostname) (pihole_ads_percentage_today{hostname=~\"$instance\"})",
           "format": "table",
           "instant": true,
-          "range": false
+          "range": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          }
         },
         {
           "refId": "H",
           "expr": "max by (hostname) (pihole_queries_cached{hostname=~\"$instance\"} / pihole_dns_queries_today{hostname=~\"$instance\"} * 100)",
           "format": "table",
           "instant": true,
-          "range": false
+          "range": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          }
         },
         {
           "refId": "I",
           "expr": "max by (hostname) (pihole_unique_clients{hostname=~\"$instance\"})",
           "format": "table",
           "instant": true,
-          "range": false
+          "range": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          }
         },
         {
           "refId": "J",
           "expr": "max by (hostname) (pihole_domains_being_blocked{hostname=~\"$instance\"})",
           "format": "table",
           "instant": true,
-          "range": false
+          "range": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          }
+        },
+        {
+          "refId": "NetBoxVMs",
+          "datasource": {
+            "type": "netboxlabs-netbox-datasource",
+            "uid": "netbox"
+          },
+          "queryType": "objects",
+          "objectType": "virtualization/virtual-machines",
+          "fields": [
+            "name",
+            "status",
+            "description",
+            "display_url"
+          ],
+          "joinKeys": [
+            {
+              "source": "name",
+              "output": "hostname",
+              "transform": "lower"
+            }
+          ],
+          "limit": 500
         }
       ],
       "transformations": [
         {
           "id": "merge",
-          "options": {}
+          "options": {},
+          "filter": {
+            "id": "byRefId",
+            "options": "/^(?:A|B|C|D|E|F|G|H|I|J)$/"
+          }
+        },
+        {
+          "id": "joinByField",
+          "options": {
+            "byField": "hostname",
+            "mode": "outerTabular"
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
+            "regex": "^(.+) netbox_[a-z_]+$",
+            "renamePattern": "$1"
+          }
         },
         {
           "id": "organize",
@@ -709,16 +790,19 @@
             },
             "indexByName": {
               "hostname": 0,
-              "Value #A": 1,
-              "Value #B": 2,
-              "Value #C": 3,
-              "Value #D": 4,
-              "Value #E": 5,
-              "Value #F": 6,
-              "Value #G": 7,
-              "Value #H": 8,
-              "Value #I": 9,
-              "Value #J": 10
+              "Value #A": 4,
+              "Value #B": 5,
+              "Value #C": 6,
+              "Value #D": 7,
+              "Value #E": 8,
+              "Value #F": 9,
+              "Value #G": 10,
+              "Value #H": 11,
+              "Value #I": 12,
+              "Value #J": 13,
+              "name": 1,
+              "status": 2,
+              "description": 3
             },
             "renameByName": {
               "hostname": "Instance",
@@ -731,8 +815,27 @@
               "Value #G": "Blocked",
               "Value #H": "Cached",
               "Value #I": "Clients today",
-              "Value #J": "Gravity domains"
+              "Value #J": "Gravity domains",
+              "name": "NetBox",
+              "status": "NetBox status",
+              "description": "NetBox description"
             }
+          }
+        },
+        {
+          "id": "filterByValue",
+          "options": {
+            "type": "exclude",
+            "match": "any",
+            "filters": [
+              {
+                "fieldName": "DNS lookup",
+                "config": {
+                  "id": "isNull",
+                  "options": {}
+                }
+              }
+            ]
           }
         }
       ],
@@ -931,6 +1034,30 @@
                     "url": "/d/homelab-pihole?var-instance=${__value.raw}&${__url_time_range}"
                   }
                 ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "NetBox"
+            },
+            "properties": [
+              {
+                "id": "noValue",
+                "value": "not in NetBox"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "display_url"
+            },
+            "properties": [
+              {
+                "id": "custom.hidden",
+                "value": true
               }
             ]
           }
@@ -1448,7 +1575,7 @@
     {
       "type": "table",
       "title": "Top clients today, named by NetBox",
-      "description": "The ten clients that sent the most queries today, summed across the selected instances, each address looked up in NetBox's IP addresses (the hidden client variable holds the same ten). Device or VM is what the address's interface belongs to, Role the device's role (NetBox gives a VM none here), DNS name and Description the address record's own. NetBox reads \"not in NetBox\" for a client with no address record, usually a DHCP device, which NetBox deliberately does not model; a recorded address assigned to no interface shows blank Device and VM.",
+      "description": "The ten clients that sent the most queries today, summed across the selected instances, each address looked up in NetBox's IP addresses (the hidden client variable holds the same ten). NetBox device or VM is what the address's interface belongs to, NetBox role the device's role (NetBox gives a VM none here), NetBox DNS name and description the address record's own. NetBox reads \"not in NetBox\" for a client with no address record, usually a DHCP device, which NetBox deliberately does not model; a recorded address assigned to no interface shows blank NetBox device and VM.",
       "targets": [
         {
           "refId": "A",
@@ -1520,11 +1647,11 @@
               "Value": "Queries today",
               "Value #A": "Queries today",
               "match_count": "NetBox",
-              "device_name": "Device",
-              "vm_name": "VM",
-              "device_role": "Role",
-              "address_dns_name": "DNS name",
-              "address_description": "Description"
+              "device_name": "NetBox device",
+              "vm_name": "NetBox VM",
+              "device_role": "NetBox role",
+              "address_dns_name": "NetBox DNS name",
+              "address_description": "NetBox description"
             }
           }
         },

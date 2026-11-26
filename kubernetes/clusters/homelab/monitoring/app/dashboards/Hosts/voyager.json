@@ -74,6 +74,115 @@
       }
     },
     {
+      "type": "table",
+      "title": "NetBox",
+      "description": "This host's NetBox device record, read at view time. The NetBox cell links to the record.",
+      "id": 38,
+      "gridPos": {
+        "h": 3,
+        "w": 24,
+        "x": 0,
+        "y": 1
+      },
+      "datasource": {
+        "type": "netboxlabs-netbox-datasource",
+        "uid": "netbox"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "netboxlabs-netbox-datasource",
+            "uid": "netbox"
+          },
+          "queryType": "objects",
+          "objectType": "dcim/devices",
+          "filters": [
+            {
+              "field": "name",
+              "operator": "ie",
+              "value": "voyager"
+            }
+          ],
+          "fields": [
+            "name",
+            "role",
+            "device_type",
+            "site",
+            "platform",
+            "status",
+            "primary_ip4",
+            "description",
+            "display_url"
+          ],
+          "limit": 1
+        }
+      ],
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "indexByName": {
+              "name": 0,
+              "role": 1,
+              "device_type": 2,
+              "site": 3,
+              "platform": 4,
+              "status": 5,
+              "primary_ip4": 6,
+              "description": 7
+            },
+            "renameByName": {
+              "name": "NetBox",
+              "role": "NetBox role",
+              "device_type": "NetBox model",
+              "site": "NetBox site",
+              "platform": "NetBox platform",
+              "status": "NetBox status",
+              "primary_ip4": "NetBox primary IP",
+              "description": "NetBox description"
+            },
+            "excludeByName": {}
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "\u2014"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "NetBox"
+            },
+            "properties": [
+              {
+                "id": "noValue",
+                "value": "not in NetBox"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "display_url"
+            },
+            "properties": [
+              {
+                "id": "custom.hidden",
+                "value": true
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      }
+    },
+    {
       "type": "gauge",
       "title": "CPU",
       "description": "Share of CPU time not idle, averaged across cores.",
@@ -132,7 +241,7 @@
         "h": 4,
         "w": 3,
         "x": 0,
-        "y": 1
+        "y": 4
       }
     },
     {
@@ -196,7 +305,7 @@
         "h": 4,
         "w": 3,
         "x": 3,
-        "y": 1
+        "y": 4
       }
     },
     {
@@ -251,7 +360,7 @@
         "h": 4,
         "w": 3,
         "x": 6,
-        "y": 1
+        "y": 4
       }
     },
     {
@@ -307,7 +416,7 @@
         "h": 4,
         "w": 3,
         "x": 9,
-        "y": 1
+        "y": 4
       }
     },
     {
@@ -369,7 +478,7 @@
         "h": 4,
         "w": 3,
         "x": 12,
-        "y": 1
+        "y": 4
       }
     },
     {
@@ -431,7 +540,7 @@
         "h": 4,
         "w": 3,
         "x": 15,
-        "y": 1
+        "y": 4
       }
     },
     {
@@ -486,7 +595,7 @@
         "h": 2,
         "w": 2,
         "x": 18,
-        "y": 1
+        "y": 4
       }
     },
     {
@@ -541,7 +650,7 @@
         "h": 2,
         "w": 2,
         "x": 20,
-        "y": 1
+        "y": 4
       }
     },
     {
@@ -596,7 +705,7 @@
         "h": 2,
         "w": 2,
         "x": 22,
-        "y": 1
+        "y": 4
       }
     },
     {
@@ -650,7 +759,7 @@
         "h": 2,
         "w": 3,
         "x": 18,
-        "y": 3
+        "y": 6
       }
     },
     {
@@ -707,7 +816,7 @@
         "h": 2,
         "w": 3,
         "x": 21,
-        "y": 3
+        "y": 6
       }
     },
     {
@@ -719,7 +828,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 5
+        "y": 8
       }
     },
     {
@@ -788,7 +897,7 @@
         "h": 7,
         "w": 12,
         "x": 0,
-        "y": 6
+        "y": 9
       }
     },
     {
@@ -863,7 +972,7 @@
         "h": 7,
         "w": 12,
         "x": 12,
-        "y": 6
+        "y": 9
       }
     },
     {
@@ -930,7 +1039,7 @@
         "h": 7,
         "w": 12,
         "x": 0,
-        "y": 13
+        "y": 16
       }
     },
     {
@@ -981,7 +1090,7 @@
         "h": 7,
         "w": 12,
         "x": 12,
-        "y": 13
+        "y": 16
       }
     },
     {
@@ -994,7 +1103,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 20
+        "y": 23
       }
     },
     {
@@ -1050,7 +1159,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 21
+        "y": 24
       }
     },
     {
@@ -1110,7 +1219,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 21
+        "y": 24
       }
     },
     {
@@ -1122,7 +1231,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 29
+        "y": 32
       }
     },
     {
@@ -1172,7 +1281,7 @@
         "h": 8,
         "w": 24,
         "x": 0,
-        "y": 30
+        "y": 33
       }
     },
     {
@@ -1185,7 +1294,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 38
+        "y": 41
       }
     },
     {
@@ -1235,7 +1344,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 39
+        "y": 42
       }
     },
     {
@@ -1301,7 +1410,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 39
+        "y": 42
       }
     },
     {
@@ -1314,7 +1423,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 47
+        "y": 50
       }
     },
     {
@@ -1369,7 +1478,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 48
+        "y": 51
       }
     },
     {
@@ -1424,7 +1533,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 48
+        "y": 51
       }
     },
     {
@@ -1479,7 +1588,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 56
+        "y": 59
       }
     },
     {
@@ -1529,7 +1638,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 56
+        "y": 59
       }
     },
     {
@@ -1579,7 +1688,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 64
+        "y": 67
       }
     },
     {
@@ -1629,7 +1738,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 64
+        "y": 67
       }
     },
     {
@@ -1642,7 +1751,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 72
+        "y": 75
       }
     },
     {
@@ -1709,7 +1818,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 73
+        "y": 76
       }
     },
     {
@@ -1764,7 +1873,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 73
+        "y": 76
       }
     },
     {
@@ -1777,7 +1886,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 81
+        "y": 84
       }
     },
     {
@@ -1806,7 +1915,7 @@
         "h": 12,
         "w": 24,
         "x": 0,
-        "y": 82
+        "y": 85
       }
     }
   ]

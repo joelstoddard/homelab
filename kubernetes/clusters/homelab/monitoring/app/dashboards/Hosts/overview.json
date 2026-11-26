@@ -53,69 +53,148 @@
       "id": 1,
       "description": "One row per physical host: the four Proxmox NUCs, the eight Talos Pis, Voyager (TrueNAS) and Hubble (the router). Voyager's Root disk is its pool. SMART, drive wear and power are blank where a host does not report them. Click a host for its dashboard.",
       "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
+        "type": "datasource",
+        "uid": "-- Mixed --"
       },
       "targets": [
         {
           "refId": "U",
           "expr": "label_replace(label_replace(max by (instance) (up{job=\"node-exporter\", instance!~\"k8s-.*\"}) or max by (instance) (max_over_time(up{job=\"node-exporter\", instance!~\"k8s-.*\"}[1d])) * 0 or label_replace(count(servers_Voyager_local_uptime_uptime) > bool 0 or count(max_over_time(servers_Voyager_local_uptime_uptime[1d])) * 0, \"instance\", \"voyager\", \"\", \"\") or label_replace(max(homeassistant_entity_available{job=\"home-assistant\", friendly_name=\"Router Uptime\"}) or max(max_over_time(homeassistant_entity_available{job=\"home-assistant\", friendly_name=\"Router Uptime\"}[1d])) * 0, \"instance\", \"hubble\", \"\", \"\"), \"dashboard\", \"homelab-host-$1\", \"instance\", \"(.*)\"), \"dashboard\", \"homelab-router\", \"instance\", \"hubble\")",
           "format": "table",
-          "instant": true
+          "instant": true,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          }
         },
         {
           "refId": "A",
           "expr": "label_replace(label_replace(max by (instance) (time() - node_boot_time_seconds{job=\"node-exporter\"} and on (instance) group by (instance) (node_boot_time_seconds{job=\"node-exporter\", instance!~\"k8s-.*\"})) or label_replace(max(servers_Voyager_local_uptime_uptime), \"instance\", \"voyager\", \"\", \"\") or label_replace(max(homeassistant_sensor_duration_s{job=\"home-assistant\", friendly_name=\"Router Uptime\"}), \"instance\", \"hubble\", \"\", \"\"), \"dashboard\", \"homelab-host-$1\", \"instance\", \"(.*)\"), \"dashboard\", \"homelab-router\", \"instance\", \"hubble\")",
           "format": "table",
-          "instant": true
+          "instant": true,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          }
         },
         {
           "refId": "B",
           "expr": "label_replace(label_replace(max by (instance) (100 * (1 - avg by (instance) (rate(node_cpu_seconds_total{job=\"node-exporter\", mode=\"idle\"}[5m]))) and on (instance) group by (instance) (node_boot_time_seconds{job=\"node-exporter\", instance!~\"k8s-.*\"})) or label_replace(max(100 * (1 - servers_Voyager_local_aggregation_cpu_average_cpu_idle / (servers_Voyager_local_aggregation_cpu_average_cpu_idle + servers_Voyager_local_aggregation_cpu_average_cpu_interrupt + servers_Voyager_local_aggregation_cpu_average_cpu_nice + servers_Voyager_local_aggregation_cpu_average_cpu_system + servers_Voyager_local_aggregation_cpu_average_cpu_user))), \"instance\", \"voyager\", \"\", \"\") or label_replace(max(homeassistant_sensor_unit_percent{job=\"home-assistant\", friendly_name=\"Router CPU usage\"}), \"instance\", \"hubble\", \"\", \"\"), \"dashboard\", \"homelab-host-$1\", \"instance\", \"(.*)\"), \"dashboard\", \"homelab-router\", \"instance\", \"hubble\")",
           "format": "table",
-          "instant": true
+          "instant": true,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          }
         },
         {
           "refId": "C",
           "expr": "label_replace(label_replace(max by (instance) (100 * (1 - node_memory_MemAvailable_bytes{job=\"node-exporter\"} / node_memory_MemTotal_bytes{job=\"node-exporter\"}) and on (instance) group by (instance) (node_boot_time_seconds{job=\"node-exporter\", instance!~\"k8s-.*\"})) or label_replace(max(100 * (servers_Voyager_local_memory_memory_wired + servers_Voyager_local_memory_memory_active) / (servers_Voyager_local_memory_memory_wired + servers_Voyager_local_memory_memory_active + servers_Voyager_local_memory_memory_inactive + servers_Voyager_local_memory_memory_laundry + servers_Voyager_local_memory_memory_free)), \"instance\", \"voyager\", \"\", \"\") or label_replace(max(homeassistant_sensor_unit_percent{job=\"home-assistant\", friendly_name=\"Router Memory usage\"}), \"instance\", \"hubble\", \"\", \"\"), \"dashboard\", \"homelab-host-$1\", \"instance\", \"(.*)\"), \"dashboard\", \"homelab-router\", \"instance\", \"hubble\")",
           "format": "table",
-          "instant": true
+          "instant": true,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          }
         },
         {
           "refId": "D",
           "expr": "label_replace(label_replace(max by (instance) (100 * (1 - node_filesystem_avail_bytes{job=\"node-exporter\", mountpoint=~\"/|/var\", fstype=~\"ext4|xfs\"} / node_filesystem_size_bytes{job=\"node-exporter\", mountpoint=~\"/|/var\", fstype=~\"ext4|xfs\"}) and on (instance) group by (instance) (node_boot_time_seconds{job=\"node-exporter\", instance!~\"k8s-.*\"})) or label_replace(100 * sum({__name__=~\"servers_Voyager_local_df_mnt_Voyager(_.+)?_df_complex_used\"}) / (sum({__name__=~\"servers_Voyager_local_df_mnt_Voyager(_.+)?_df_complex_used\"}) + sum(servers_Voyager_local_df_mnt_Voyager_df_complex_free)), \"instance\", \"voyager\", \"\", \"\"), \"dashboard\", \"homelab-host-$1\", \"instance\", \"(.*)\"), \"dashboard\", \"homelab-router\", \"instance\", \"hubble\")",
           "format": "table",
-          "instant": true
+          "instant": true,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          }
         },
         {
           "refId": "E",
           "expr": "label_replace(label_replace(max by (instance) (node_hwmon_temp_celsius{job=\"node-exporter\"} and on (instance) group by (instance) (node_boot_time_seconds{job=\"node-exporter\", instance!~\"k8s-.*\"})) or label_replace(max(label_replace(max({__name__=~\"servers_Voyager_local_cputemp_.+_temperature\"}) / 10 - 273.15, \"s\", \"cpu\", \"\", \"\") or label_replace(max({__name__=~\"servers_Voyager_local_disktemp_.+_temperature\"}), \"s\", \"disk\", \"\", \"\")), \"instance\", \"voyager\", \"\", \"\") or label_replace(max(homeassistant_sensor_temperature_celsius{job=\"home-assistant\", friendly_name=\"Router CPU temperature\"}), \"instance\", \"hubble\", \"\", \"\"), \"dashboard\", \"homelab-host-$1\", \"instance\", \"(.*)\"), \"dashboard\", \"homelab-router\", \"instance\", \"hubble\")",
           "format": "table",
-          "instant": true
+          "instant": true,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          }
         },
         {
           "refId": "F",
           "expr": "label_replace(label_replace(min by (instance) (smartctl_device_smart_status), \"dashboard\", \"homelab-host-$1\", \"instance\", \"(.*)\"), \"dashboard\", \"homelab-router\", \"instance\", \"hubble\")",
           "format": "table",
-          "instant": true
+          "instant": true,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          }
         },
         {
           "refId": "G",
           "expr": "label_replace(label_replace(max by (instance) (smartctl_device_percentage_used), \"dashboard\", \"homelab-host-$1\", \"instance\", \"(.*)\"), \"dashboard\", \"homelab-router\", \"instance\", \"hubble\")",
           "format": "table",
-          "instant": true
+          "instant": true,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          }
         },
         {
           "refId": "H",
           "expr": "label_replace(label_replace(sum by (instance) (rate(node_rapl_psys_joules_total[5m])), \"dashboard\", \"homelab-host-$1\", \"instance\", \"(.*)\"), \"dashboard\", \"homelab-router\", \"instance\", \"hubble\")",
           "format": "table",
-          "instant": true
+          "instant": true,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          }
+        },
+        {
+          "refId": "NetBoxDevices",
+          "datasource": {
+            "type": "netboxlabs-netbox-datasource",
+            "uid": "netbox"
+          },
+          "queryType": "objects",
+          "objectType": "dcim/devices",
+          "fields": [
+            "name",
+            "role",
+            "device_type",
+            "status",
+            "description",
+            "display_url"
+          ],
+          "joinKeys": [
+            {
+              "source": "name",
+              "output": "instance",
+              "transform": "lower"
+            }
+          ],
+          "limit": 500
         }
       ],
       "transformations": [
         {
           "id": "merge",
-          "options": {}
+          "options": {},
+          "filter": {
+            "id": "byRefId",
+            "options": "/^(?:U|A|B|C|D|E|F|G|H)$/"
+          }
+        },
+        {
+          "id": "joinByField",
+          "options": {
+            "byField": "instance",
+            "mode": "outerTabular"
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
+            "regex": "^(.+) netbox_[a-z_]+$",
+            "renamePattern": "$1"
+          }
         },
         {
           "id": "organize",
@@ -125,15 +204,20 @@
             },
             "indexByName": {
               "instance": 0,
-              "Value #U": 1,
-              "Value #A": 2,
-              "Value #B": 3,
-              "Value #C": 4,
-              "Value #D": 5,
-              "Value #E": 6,
-              "Value #F": 7,
-              "Value #G": 8,
-              "Value #H": 9
+              "Value #U": 6,
+              "Value #A": 7,
+              "Value #B": 8,
+              "Value #C": 9,
+              "Value #D": 10,
+              "Value #E": 11,
+              "Value #F": 12,
+              "Value #G": 13,
+              "Value #H": 14,
+              "name": 1,
+              "role": 2,
+              "device_type": 3,
+              "status": 4,
+              "description": 5
             },
             "renameByName": {
               "instance": "Host",
@@ -145,8 +229,29 @@
               "Value #E": "Hottest sensor",
               "Value #F": "SMART",
               "Value #G": "Drive wear",
-              "Value #H": "Platform power"
+              "Value #H": "Platform power",
+              "name": "NetBox",
+              "role": "NetBox role",
+              "device_type": "NetBox model",
+              "status": "NetBox status",
+              "description": "NetBox description"
             }
+          }
+        },
+        {
+          "id": "filterByValue",
+          "options": {
+            "type": "exclude",
+            "match": "any",
+            "filters": [
+              {
+                "fieldName": "Up",
+                "config": {
+                  "id": "isNull",
+                  "options": {}
+                }
+              }
+            ]
           }
         }
       ],
@@ -500,6 +605,30 @@
             "matcher": {
               "id": "byName",
               "options": "dashboard"
+            },
+            "properties": [
+              {
+                "id": "custom.hidden",
+                "value": true
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "NetBox"
+            },
+            "properties": [
+              {
+                "id": "noValue",
+                "value": "not in NetBox"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "display_url"
             },
             "properties": [
               {
