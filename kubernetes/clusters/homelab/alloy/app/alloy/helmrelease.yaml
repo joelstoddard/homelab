@@ -9,7 +9,8 @@ metadata:
 spec:
   interval: 1h0m0s
   releaseName: alloy
-  timeout: 10m0s
+  # The DaemonSet rolls one node at a time, ~35 s each: 20 nodes need ~12 min.
+  timeout: 20m0s
   chart:
     spec:
       chart: alloy
