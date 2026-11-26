@@ -1,0 +1,16 @@
+# The tunnel's origin, metachat.metachat.svc.cluster.local:8080
+# (opentofu/resources/cloudflare/hostnames.tf).
+apiVersion: v1
+kind: Service
+metadata:
+  name: metachat
+  namespace: metachat
+  labels:
+    app.kubernetes.io/name: metachat
+spec:
+  selector:
+    app.kubernetes.io/name: metachat
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http

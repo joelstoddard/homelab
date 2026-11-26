@@ -1,0 +1,36 @@
+# Default-deny egress with kube-dns only: nginx serves files and calls out on
+# nothing. docs/design/skylab-security.md, "Pod egress".
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: egress
+spec:
+  endpointSelector: {}
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
+---
+# Only cloudflared reaches the site (docs/design/skylab-ingress.md).
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: ingress
+spec:
+  endpointSelector: {}
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: cloudflared
+            app.kubernetes.io/name: cloudflared
+      toPorts:
+        - ports:
+            - port: "8080"
+              protocol: TCP
