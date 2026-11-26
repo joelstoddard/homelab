@@ -67,6 +67,16 @@ class Committed(unittest.TestCase):
                                  f"{host}.json is stale: run python3 hosts.py")
 
 
+    def test_every_host_shows_its_netbox_record(self):
+        for host in load(FEATURES):
+            panels = load(os.path.join(HOSTS_DIR, f"{host}.json"))["panels"]
+            identity = [p for p in panels if p.get("title") == "NetBox"]
+            self.assertEqual(len(identity), 1, host)
+            [target] = identity[0]["targets"]
+            self.assertEqual(target["datasource"]["uid"], "netbox", host)
+            self.assertEqual([f["value"] for f in target["filters"] if f["field"] == "name"], [host], host)
+
+
 class Layout(unittest.TestCase):
     def test_generated_files_have_no_vertical_gap(self):
         # A dropped panel must not leave its rows empty; Grafana's gravity hides it only in the browser.
