@@ -124,6 +124,8 @@ defaults that hide the control-plane components.
   Explorer covering Alloy's logs.
 - **NetBox datasource.** `netboxlabs-netbox-datasource`, pinned, installs
   from an init container running `grafana cli` from Grafana's own image.
+  `values.yaml` pins `image.tag` instead of taking the chart's appVersion,
+  so both images carry one tag that `make -C kubernetes lint` compares.
   The chart's `plugins:` list cannot do it: `preinstall_disabled` drops
   `preinstall_sync` too. The plugin downloads from grafana.com on every pod
   start, so a grafana.com outage keeps a restarted Grafana down. Its
