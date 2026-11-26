@@ -50,8 +50,11 @@ profile. The server listens on 8080 because an unprivileged process cannot bind
 from Grafana's pods in `monitoring`, and from the host entity for kubelet
 probes. Egress is cluster DNS and `ntfy.sh` on 443 only. The DNS rule's
 `matchName: ntfy.sh` is what lets Cilium learn the addresses for `toFQDNs`, and
-`*.cluster.local` admits the search-domain lookups a short name such as
-`ntfy.sh` first triggers; without it the resolver stalls on them.
+`**.cluster.local` admits the search-domain lookups a short name such as
+`ntfy.sh` first triggers (`ntfy.sh.ntfy.svc.cluster.local` and so on). It
+must be `**.`: Cilium's `*` matches one label only, so `*.cluster.local`
+refuses those lookups and every resolution of `ntfy.sh` waits on the
+refusals first.
 
 ## Accepted gaps
 
