@@ -17,20 +17,4 @@ cluster:
       bind-address: 0.0.0.0
   etcd:
     extraArgs:
-      listen-metrics-urls: http://0.0.0.0:2381
-{% if talos_static_network %}
-{# The scraper runs on a worker and arrives masqueraded to that worker's address, so the workers
-   are the sources (docs/design/observability.md). Skylab's default-deny closes :2381 already. #}
----
-apiVersion: v1alpha1
-kind: NetworkRuleConfig
-name: etcd-metrics
-portSelector:
-  ports:
-    - 2381
-  protocol: tcp
-ingress:
-{% for worker in talos_cluster_hosts | difference(talos_controlplane_hosts) | sort %}
-  - subnet: {{ hostvars[worker].ansible_host }}/32
-{% endfor %}
-{% endif %}
+      listen-metrics-urls: http://127.0.0.1:2381
