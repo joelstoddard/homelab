@@ -5,7 +5,7 @@ roles:
     version: "5.1.0"
 collections:
   - name: ansible.utils
-    version: "5.1.2"
+    version: "6.1.1"
   - name: ansible.posix
     version: "1.6.2"
   - name: community.general
