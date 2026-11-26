@@ -303,7 +303,7 @@ full list is `flux-system`, `cilium`, `cilium-lb`, `descheduler`, `cluster-secre
 `cert-manager-issuers`, `traefik`, `traefik-middlewares`, `lan-services`,
 `tailscale`, `longhorn`, `longhorn-jobs`, `monitoring`, `alloy`,
 `host-monitoring`, `searxng`, `media`, `media-downloads`, `media-egress`, `glance`,
-`home-assistant`, `actual`, `uptime-kuma`, `it-tools`, `orb-agent`, `lancache`, `nebula-sync`).
+`home-assistant`, `actual`, `uptime-kuma`, `ntfy`, `it-tools`, `orb-agent`, `lancache`, `nebula-sync`).
 `cluster-secrets/` is one SOPS Secret in `flux-system` holding `DOMAIN`,
 `TRAEFIK_LB_IP` and `ACME_EMAIL`; consumers (`cert-manager-issuers`,
 `traefik`, `longhorn`) add `dependsOn: cluster-secrets` +
@@ -491,6 +491,17 @@ never on Voyager: SQLite corrupts on NFS. Uptime Kuma pins
 #228, and they reach targets by `.svc` name or address because cluster DNS
 cannot resolve the LAN wildcard. See `docs/design/actual.md` and
 `docs/design/uptime-kuma.md`.
+`ntfy/` (`dependsOn: traefik, traefik-middlewares, longhorn, cluster-secrets`,
+substituted, `decryption`) is the push-notification server on `ntfy.${DOMAIN}`
+that Grafana alerting posts to through the in-cluster Service, never the public
+hostname. One replica, `Recreate`, uid 1000 on a read-only root, SQLite cache
+and auth databases on a Longhorn RWO volume. Auth is deny-all with users
+declared from the `ntfy-auth` Secret, whose substitution is disabled so Flux
+does not strip `$` from the bcrypt hashes; the container receives only the two
+hash/ACL keys, not the plaintext passwords beside them. `upstream-base-url:
+https://ntfy.sh` is the iOS wake-up relay and the one third-party dependency.
+A `CiliumNetworkPolicy` limits egress to cluster DNS and `ntfy.sh:443`. See
+`docs/design/ntfy.md`.
 `it-tools/` (`dependsOn: traefik, traefik-middlewares, cluster-secrets`,
 substituted, no `decryption`) is ShareVB's maintained IT-Tools fork on
 `it-tools.${DOMAIN}`, not the stale upstream: one static app pod plus four
