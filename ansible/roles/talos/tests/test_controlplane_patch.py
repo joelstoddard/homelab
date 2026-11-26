@@ -65,14 +65,15 @@ class ControlplanePatchTest(unittest.TestCase):
     def _etcd_metrics_rule(self, docs):
         return [d for d in docs if d.get("kind") == "NetworkRuleConfig" and d.get("name") == "etcd-metrics"]
 
-    def test_etcd_metrics_admits_only_the_workers(self):
-        rules = self._etcd_metrics_rule(self._render(static_network=True))
-        self.assertEqual(len(rules), 1)
-        self.assertEqual(rules[0]["portSelector"], {"ports": [2381], "protocol": "tcp"})
+    def test_etcd_metrics_listen_on_loopback_only(self):
+        machine = next(d for d in self._render(static_network=True) if "cluster" in d)
         self.assertEqual(
-            [i["subnet"] for i in rules[0]["ingress"]],
-            ["192.168.1.21/32", "192.168.1.22/32"],
+            machine["cluster"]["etcd"]["extraArgs"]["listen-metrics-urls"],
+            "http://127.0.0.1:2381",
         )
+
+    def test_no_etcd_metrics_rule_with_static_node_addresses(self):
+        self.assertEqual(self._etcd_metrics_rule(self._render(static_network=True)), [])
 
     def test_no_rule_without_static_node_addresses(self):
         self.assertEqual(self._etcd_metrics_rule(self._render(static_network=False)), [])
