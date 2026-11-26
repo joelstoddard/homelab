@@ -3,6 +3,10 @@
 # arrive through the sidecar from labelled ConfigMaps (dashboards/). A UI edit
 # to a provisioned dashboard is refused; Save As a copy, iterate, export,
 # commit — the copy vanishes on restart. docs/design/observability.md.
+# Pinned here, not taken from the chart, so one Renovate PR moves it with the
+# plugin installer's image below; make lint fails when the two differ.
+image:
+  tag: 13.3.2-distroless
 persistence:
   enabled: false
 testFramework:

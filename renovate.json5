@@ -48,6 +48,14 @@
       datasourceTemplate: 'github-releases',
       extractVersionTemplate: '^v(?<version>.+)$',
     },
+    {
+      description: 'Grafana image.tag; as docker.io/grafana/grafana it joins the plugin installer image in the grafana monorepo group (make -C kubernetes lint)',
+      customType: 'regex',
+      managerFilePatterns: ['/^kubernetes/clusters/[^/]+/monitoring/app/grafana/values\\.yaml$/'],
+      matchStrings: ['\\nimage:\\n  tag: (?<currentValue>\\S+)\\n'],
+      depNameTemplate: 'docker.io/grafana/grafana',
+      datasourceTemplate: 'docker',
+    },
   ],
   packageRules: [
     {

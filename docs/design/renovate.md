@@ -53,6 +53,12 @@ when something breaks.
   never bump one at a time. If a Flux PR arrives without the regenerated
   file, its note says to run `make -C kubernetes generate` on the branch.
 
+  Grafana's `image.tag` and its plugin installer's image are a pair too,
+  in one file. A custom manager reads the tag as `docker.io/grafana/grafana`,
+  the installer image's depName, so both fall in `config:recommended`'s
+  Grafana monorepo group and share the `renovate/grafana-monorepo` branch.
+  A Grafana chart PR therefore leaves Grafana's version alone.
+
 - **Talos stays below 1.14.** Talos 1.14 makes `usb-storage` a kernel
   module and stops waiting for USB disks, so the Pis boot into maintenance
   mode ([siderolabs/talos#14260](https://github.com/siderolabs/talos/issues/14260)).

@@ -51,6 +51,7 @@ ALLOY_RELEASES := $(HOME_TREE)/alloy/app/alloy/helmrelease.yaml \
                   $(HOME_TREE)/alloy/app/alloy-events/helmrelease.yaml \
                   $(HOME_TREE)/host-monitoring/app/alloy-gateway/helmrelease.yaml \
                   $(HOME_TREE)/host-monitoring/app/alloy-talos/helmrelease.yaml
+GRAFANA_VALUES := $(HOME_TREE)/monitoring/app/grafana/values.yaml
 # Skylab's security guards and probes (docs/design/skylab-security.md). A
 # listed layer must carry a default-deny egress policy once it exists.
 SKYLAB_TREE          := clusters/skylab
@@ -145,6 +146,12 @@ lint-offline:
 		echo "kube_components differs between config.alloy and cluster.alloy; kubelet and the control plane drop the same families." >&2; \
 		exit 1; }
 	@echo ">> kube_components drop rules identical in config.alloy and cluster.alloy"
+	@a=$$(awk '/^image:/{f=1; next} /^[^ ]/{f=0} f && /^  tag:/{print $$2}' $(GRAFANA_VALUES)); \
+	b=$$(sed -n 's|^ *image: docker.io/grafana/grafana:||p' $(GRAFANA_VALUES)); \
+	[ -n "$$a" ] && [ "$$a" = "$$b" ] || { \
+		echo "$(GRAFANA_VALUES): image.tag ($$a) and the plugin installer's tag ($$b) differ; the plugin must install from Grafana's own image." >&2; \
+		exit 1; }
+	@echo ">> Grafana and its plugin installer share one image tag"
 	@stray=$$(find . -path './clusters/*/*' -prune -o -type f \( -name '*.yaml' -o -name '*.yml' -o -name '*.json' \) -print); \
 	[ -z "$$stray" ] || { \
 		echo "manifest outside a cluster tree:" $$stray >&2; \
