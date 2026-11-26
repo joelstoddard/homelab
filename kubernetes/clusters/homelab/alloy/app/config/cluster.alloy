@@ -543,57 +543,6 @@ prometheus.scrape "kube_scheduler" {
 	}
 }
 
-// etcd is a Talos host service, not a pod: discover it by control-plane node
-// and hit the plain-HTTP metrics listener the talos role's patch opens.
-discovery.kubernetes "control_plane_nodes" {
-	role = "node"
-
-	selectors {
-		role  = "node"
-		label = "node-role.kubernetes.io/control-plane"
-	}
-}
-
-discovery.relabel "etcd" {
-	targets = discovery.kubernetes.control_plane_nodes.targets
-
-	rule {
-		source_labels = ["__meta_kubernetes_node_address_InternalIP"]
-		regex         = "(.+)"
-		replacement   = "$1:2381"
-		target_label  = "__address__"
-	}
-
-	rule {
-		source_labels = ["__meta_kubernetes_node_name"]
-		target_label  = "node"
-	}
-
-	rule {
-		source_labels = ["__meta_kubernetes_node_name"]
-		target_label  = "instance"
-	}
-}
-
-prometheus.scrape "etcd" {
-	targets         = discovery.relabel.etcd.output
-	forward_to      = [prometheus.relabel.etcd.receiver]
-	job_name        = "etcd"
-	scrape_interval = "60s"
-}
-
-// Per-method gRPC result codes and the debugging histograms; the disk, raft
-// and request latency histograms stay.
-prometheus.relabel "etcd" {
-	forward_to = [prometheus.remote_write.prometheus.receiver]
-
-	rule {
-		source_labels = ["__name__"]
-		regex         = "grpc_server_handled_total|etcd_debugging_.*"
-		action        = "drop"
-	}
-}
-
 // ------------------------------------------------- cluster-wide: Pi probes --
 
 // The Pi nodes' Talos API, probed from the blackbox exporter in host-monitoring.
