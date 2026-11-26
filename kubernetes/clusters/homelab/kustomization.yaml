@@ -31,6 +31,7 @@ resources:
   - uptime-kuma/ks.yaml
   - ntfy/ks.yaml
   - it-tools/ks.yaml
+  - bentopdf/ks.yaml
   - orb-agent/ks.yaml
   - lancache/ks.yaml
   - nebula-sync/ks.yaml

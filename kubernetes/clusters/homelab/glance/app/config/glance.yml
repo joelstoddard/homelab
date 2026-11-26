@@ -195,6 +195,10 @@ pages:
                     url: https://it-tools.${DOMAIN}
                     check-url: http://it-tools.it-tools.svc:8080/
                     icon: /assets/it-tools.svg
+                  - title: BentoPDF
+                    url: https://bentopdf.${DOMAIN}
+                    check-url: http://bentopdf.bentopdf.svc:8080/
+                    icon: /assets/bentopdf.svg
 
           - type: split-column
             widgets:
