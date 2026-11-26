@@ -100,8 +100,10 @@ when something breaks.
 - **Annotated pins.** A pin that no built-in manager reads carries a
   `# renovate: datasource=… depName=…` comment on the line above it:
   `versions.env`, the `install.sh` tool versions, and the Pi netboot
-  `uboot_version` and `rpi_firmware_version`. One custom manager reads them
-  all. Two more custom managers read the digest-pinned `dns_lancache_image`
+  `uboot_version` and `rpi_firmware_version`, and CI's `AGE_VERSION` in
+  `.github/workflows/lint.yaml`. One custom manager reads them all; it allows
+  indentation before the pinned name, because the workflow's pin is a step
+  `env:` key. Two more custom managers read the digest-pinned `dns_lancache_image`
   and the Grafana NetBox plugin version in the Grafana values.
 
 - **PR notes carry the manual steps.**

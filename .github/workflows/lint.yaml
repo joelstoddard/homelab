@@ -63,10 +63,21 @@ jobs:
       - run: make -C ansible build lint
 
       # The secrets-bundle test encrypts with the real sops and a throwaway age
-      # key; install.sh holds the sops pin.
+      # key. age-keygen builds from source because apt's mirrors fail runs and
+      # age publishes no checksum file; sum.golang.org verifies the module.
+      - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
+        with:
+          go-version: stable
+          cache: false
       - name: Install age and sops
+        env:
+          # renovate: datasource=go depName=filippo.io/age
+          AGE_VERSION: v1.3.2
         run: |
-          sudo apt-get install -y age
+          go install "filippo.io/age/cmd/age-keygen@${AGE_VERSION}"
+          gobin="$(go env GOPATH)/bin"
+          "$gobin/age-keygen" --version
+          echo "$gobin" >> "$GITHUB_PATH"
           v=$(sed -n 's/^SOPS_VERSION="\(.*\)"$/\1/p' install.sh)
           base="https://github.com/getsops/sops/releases/download/${v}"
           curl -fsSLO "$base/sops-${v}.linux.amd64"

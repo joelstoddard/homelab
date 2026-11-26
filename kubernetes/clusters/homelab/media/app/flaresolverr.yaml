@@ -73,9 +73,11 @@ spec:
             requests:
               cpu: 100m
               memory: 256Mi
+            # Each request runs its own Chromium, and Prowlarr sends them in
+            # overlapping pairs; two solves stall at 1Gi.
             limits:
               cpu: "1"
-              memory: 1Gi
+              memory: 1536Mi
 ---
 apiVersion: v1
 kind: Service
