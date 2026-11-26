@@ -15,7 +15,7 @@ collections:
   # The talos role seeds Cilium with the helm modules; 6.5.0 is the first
   # release that speaks Helm 4 (install.sh's HELM_VERSION), so never go below it.
   - name: kubernetes.core
-    version: "6.5.0"
+    version: "6.6.0"
   - name: netbox.netbox
     version: "3.21.0"
   - name: community.sops
