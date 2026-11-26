@@ -9,7 +9,7 @@ collections:
   - name: ansible.posix
     version: "2.2.2"
   - name: community.general
-    version: "10.5.0"
+    version: "14.0.1"
   - name: community.docker
     version: "5.4.1"
   # The talos role seeds Cilium with the helm modules; 6.5.0 is the first
