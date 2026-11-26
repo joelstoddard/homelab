@@ -58,10 +58,10 @@ defaults that hide the control-plane components.
   same targets. The release creates no Service: its own metrics are scraped
   by pod annotation, and `alloy-cluster` is the name the chart gives a
   clustered `alloy` release's peer Service. Its control-plane targets are
-  host-network listeners on the node addresses (`0.0.0.0` binds from the
-  talos role's patch). No Cilium host policy is configured, and Talos's
-  ingress firewall admits etcd's `:2381` from worker addresses only
-  (Talos control plane, below).
+  the scheduler and controller-manager, host-network listeners on the node
+  addresses (`0.0.0.0` binds from the talos role's patch). etcd is not one
+  of them: the node-local Alloy scrapes it on loopback (Talos control
+  plane, below).
 - **No Prometheus Operator, no CRDs.** Flux, Cilium, cert-manager,
   kube-state-metrics and Traefik already carry the annotations — Traefik's
   chart annotates its own pods once `metrics.prometheus` is on, so this
@@ -301,26 +301,25 @@ defaults that hide the control-plane components.
 - **Talos control plane.** Scheduler and controller-manager bind to
   `127.0.0.1` and etcd has no metrics listener by default; a control-plane
   patch sets `bind-address: 0.0.0.0` and `listen-metrics-urls:
-  http://0.0.0.0:2381`, rolled with `make -C ansible apply-upgrade` and then
+  http://127.0.0.1:2381`, rolled with `make -C ansible apply-upgrade` and then
   one graceful `talosctl reboot` per control-plane node: the play reboots
   only on a build change, the static pods restart on config push, but etcd
   reads its arguments at start and Talos refuses restarting it via the API
   (`docs/talos-bootstrap.md`, "In-place upgrade"). etcd
-  runs as a Talos host service, not a static pod, so Alloy discovers it by
-  node (`node-role.kubernetes.io/control-plane`) on `:2381` over plain
-  HTTP. The same patch adds a `NetworkRuleConfig`, `etcd-metrics`, that
-  admits `:2381` from every worker's address and drops it from anywhere
-  else; no default action is set, so every other port stays open. The
-  sources are node addresses, not the pod CIDR, because the scrape arrives
-  masqueraded: conntrack on a control-plane node shows the connection from
-  the `alloy-cluster` pod's node address, and on that node the original
-  tuple carries the pod IP. Workers only, because `alloy-cluster` tolerates
-  no control-plane taint. Any pod on a worker, a host-network process
-  there, or a tailnet client the subnet router forwards still reaches
-  `:2381`; the firewall keeps it off the rest of the LAN. Adding
-  or re-addressing a worker changes the control-plane configs, so roll
-  them with it. A scraper moved onto a control-plane node would see
-  `up{job="etcd"}` drop to 0.
+  runs as a Talos host service, not a static pod, and its metrics listen on
+  loopback only, so no other host, pod or tailnet client can reach them.
+  The node-local Alloy DaemonSet is on `hostNetwork` and tolerates the
+  control-plane taint, so on each control-plane node it shares etcd's
+  loopback; `config.alloy` keeps the `etcd` job to nodes carrying
+  `node-role.kubernetes.io/control-plane` and scrapes `127.0.0.1:2381` over
+  plain HTTP. No firewall rule is needed. A firewall could not do this
+  job: a scrape from a worker pod arrives masqueraded to the worker's node
+  address, so a rule admitting it also admits every pod on that worker and
+  every tailnet client the subnet router forwards. Mutual TLS on the
+  listener is no answer either: etcd serves an `https` metrics URL with its
+  client-certificate settings, so the scraper's certificate would also read
+  the whole datastore. A control-plane node without the node-local Alloy
+  shows as a missing `up{job="etcd"}` series, not a 0.
 - **Services overview → Service → app dashboard.** Grafana is the detailed
   view for one misbehaving workload. `Services/services-overview.json` (uid
   `services-overview`) is one table, a row per Deployment, StatefulSet and

@@ -330,7 +330,7 @@ between adjacent minors only.
 
 The control-plane metrics patch
 (`templates/patches/controlplane.yaml.j2`: `bind-address: 0.0.0.0` for scheduler and
-controller-manager, `listen-metrics-urls: http://0.0.0.0:2381` for etcd) goes
+controller-manager, `listen-metrics-urls: http://127.0.0.1:2381` for etcd) goes
 out with `apply-upgrade` on the five control-plane nodes, but the play only
 reboots a node when its Talos build changes; on an unchanged build it pushes
 the config and Talos restarts the scheduler and controller-manager static
@@ -339,8 +339,8 @@ refuses `talosctl service etcd restart` ("doesn't support restart operation
 via API"). So follow it with one graceful reboot per control-plane node,
 `talosctl -n <ip> reboot --wait`, checking `talosctl etcd status` and the
 node's Ready condition before the next. After each, `up{job="etcd"}` for
-that node is 1 (the `etcd-metrics` firewall rule admits `:2381` only from
-worker addresses, so a `curl` from the LAN times out) and `curl -k
+that node is 1 (the node-local Alloy scrapes etcd on loopback, so a `curl`
+of `:2381` from the LAN is refused) and `curl -k
 https://<control-plane-ip>:10259/metrics` returns 403 (listening and
 authenticating, not a connection refusal).
 `docs/design/observability.md`.
