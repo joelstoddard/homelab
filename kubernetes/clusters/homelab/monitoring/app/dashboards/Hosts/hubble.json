@@ -820,6 +820,192 @@
         "x": 0,
         "y": 32
       }
+    },
+    {
+      "type": "table",
+      "title": "DHCP clients",
+      "description": "One row per address, MAC and client-reported name the router acknowledged a DHCP lease for over the time range, from its dnsmasq log, with the number of acknowledgements: a device that moved address or changed its name has a row for each. NetBox is the address's NetBox record; NetBox deliberately does not model DHCP devices, so most rows read \"not in NetBox\".",
+      "id": 16,
+      "gridPos": {
+        "h": 12,
+        "w": 24,
+        "x": 0,
+        "y": 44
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "sum by (ip, mac, name) (count_over_time({job=\"syslog\", host=\"hubble\", app=\"dnsmasq-dhcp\"} |= \"DHCPACK\" | regexp \"DHCPACK\\\\([^)]*\\\\) (?P<ip>\\\\S+) (?P<mac>\\\\S+) ?(?P<name>\\\\S*)\" [$__range]))",
+          "queryType": "instant",
+          "legendFormat": ""
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "netboxlabs-netbox-datasource",
+            "uid": "netbox"
+          },
+          "queryType": "objects",
+          "objectType": "ipam/ip-addresses",
+          "fields": [
+            "address",
+            "dns_name",
+            "description",
+            "assigned_object",
+            "display_url"
+          ],
+          "joinKeys": [
+            {
+              "source": "address",
+              "output": "ip",
+              "transform": "iphost"
+            }
+          ],
+          "limit": 1000
+        }
+      ],
+      "transformations": [
+        {
+          "id": "labelsToFields",
+          "options": {
+            "mode": "columns"
+          },
+          "filter": {
+            "id": "byRefId",
+            "options": "/^(?:A)$/"
+          }
+        },
+        {
+          "id": "merge",
+          "options": {},
+          "filter": {
+            "id": "byRefId",
+            "options": "/^(?:A)$/"
+          }
+        },
+        {
+          "id": "joinByField",
+          "options": {
+            "byField": "ip",
+            "mode": "outerTabular"
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
+            "regex": "^(.+) netbox_[a-z_]+$",
+            "renamePattern": "$1"
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true
+            },
+            "indexByName": {
+              "ip": 0,
+              "mac": 1,
+              "name": 2,
+              "Value": 3,
+              "Value #A": 3,
+              "address": 4,
+              "dns_name": 5,
+              "description": 6,
+              "assigned_object": 7
+            },
+            "renameByName": {
+              "ip": "Address",
+              "mac": "MAC",
+              "name": "DHCP name",
+              "Value": "ACKs",
+              "Value #A": "ACKs",
+              "address": "NetBox",
+              "dns_name": "NetBox DNS name",
+              "description": "NetBox description",
+              "assigned_object": "NetBox interface"
+            }
+          }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "sort": [
+              {
+                "field": "ACKs",
+                "desc": true
+              }
+            ]
+          }
+        },
+        {
+          "id": "filterByValue",
+          "options": {
+            "type": "exclude",
+            "match": "any",
+            "filters": [
+              {
+                "fieldName": "ACKs",
+                "config": {
+                  "id": "isNull",
+                  "options": {}
+                }
+              }
+            ]
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "\u2014"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "NetBox"
+            },
+            "properties": [
+              {
+                "id": "noValue",
+                "value": "not in NetBox"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "ACKs"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "short"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "display_url"
+            },
+            "properties": [
+              {
+                "id": "custom.hidden",
+                "value": true
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      }
     }
   ],
   "links": [
