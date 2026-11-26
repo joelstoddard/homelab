@@ -5,7 +5,10 @@ Every file here becomes one ConfigMap (kustomization.yaml), labelled
 by its `grafana_folder` annotation. Provisioned dashboards are read-only in
 the UI: Save As a copy, iterate, Export → JSON model with "export for sharing
 externally" **off**, drop the file in its folder directory, add a generator
-entry, PR. The copy disappears on the next Grafana restart. A file's
+entry, PR. Grafana's database is on a volume, so the copy stays until you
+delete it: delete it once the PR merges. Every dashboard carries the
+`Changes` annotation query (Grafana annotations tagged `flux`), and
+`test_dashboards.py` fails on one without it. A file's
 `grafana_folder` is its directory, nested folders included (`Kubernetes/Alloy`,
 `Kubernetes/vendored`); `test_dashboards.py` enforces it.
 
