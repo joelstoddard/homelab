@@ -27,7 +27,7 @@ spec:
           # An init container, so the push container below runs only on success.
           initContainers:
             - name: recyclarr
-              image: ghcr.io/recyclarr/recyclarr:8.7.2
+              image: ghcr.io/recyclarr/recyclarr:8.8.1
               # No tty: a real sync logs plain [INF]/[WRN] lines, and giving it
               # a terminal replaces them with redrawn progress frames.
               # Given no arguments the entrypoint runs its own cron loop and
