@@ -54,6 +54,8 @@ ALLOY_RELEASES := $(HOME_TREE)/alloy/app/alloy/helmrelease.yaml \
                   $(HOME_TREE)/host-monitoring/app/alloy-gateway/helmrelease.yaml \
                   $(HOME_TREE)/host-monitoring/app/alloy-talos/helmrelease.yaml
 GRAFANA_VALUES := $(HOME_TREE)/monitoring/app/grafana/values.yaml
+GLANCE_CONFIG  := $(HOME_TREE)/glance/app/config/glance.yml
+GLANCE_ICONS   := $(HOME_TREE)/glance/app/icons
 # Skylab's security guards and probes (docs/design/skylab-security.md). A
 # listed layer must carry a default-deny egress policy once it exists.
 SKYLAB_TREE          := clusters/skylab
@@ -160,6 +162,17 @@ lint-offline:
 		echo "$(GRAFANA_VALUES): image.tag ($$a) and the plugin installer's tag ($$b) differ; the plugin must install from Grafana's own image." >&2; \
 		exit 1; }
 	@echo ">> Grafana and its plugin installer share one image tag"
+	@cdn=$$(grep -nE '^[[:space:]]*-?[[:space:]]*icon:[[:space:]]*(auto-invert[[:space:]]+)?(di|mdi|si|sh):' $(GLANCE_CONFIG)); \
+	[ -z "$$cdn" ] || { \
+		echo "$(GLANCE_CONFIG) loads an icon from a CDN:" >&2; echo "$$cdn" >&2; \
+		echo "add the SVG to $(GLANCE_ICONS) and name /assets/<file>; see docs/design/glance.md, \"Icons\"." >&2; \
+		exit 1; }; \
+	for a in $$(sed -nE 's#^[[:space:]]*-?[[:space:]]*icon:[[:space:]]*(auto-invert[[:space:]]+)?/assets/##p' $(GLANCE_CONFIG)); do \
+		[ -f $(GLANCE_ICONS)/$$a ] && grep -qx "      - $$a" $(GLANCE_ICONS)/kustomization.yaml || { \
+			echo "$(GLANCE_CONFIG) names /assets/$$a, which is not a file listed in $(GLANCE_ICONS)/kustomization.yaml." >&2; \
+			exit 1; }; \
+	done
+	@echo ">> every Glance icon is served from the glance-icons ConfigMap"
 	@stray=$$(find . -path './clusters/*/*' -prune -o -type f \( -name '*.yaml' -o -name '*.yml' -o -name '*.json' \) -print); \
 	[ -z "$$stray" ] || { \
 		echo "manifest outside a cluster tree:" $$stray >&2; \
