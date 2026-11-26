@@ -29,7 +29,7 @@ spec:
         - name: seerr
           # Seerr, not Overseerr: upstream Overseerr is Plex-only, and this
           # fork is what carries MediaServerType.JELLYFIN.
-          image: seerr/seerr:v3.4.1
+          image: seerr/seerr:v3.5.2
           env:
             - name: TZ
               value: Europe/London
