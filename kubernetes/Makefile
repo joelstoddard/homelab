@@ -46,6 +46,8 @@ PIHOLE_PASSWORD_COPIES := $(HOME_TREE)/nebula-sync/app/secret.sops.yaml \
 TALOS_VARS_FILE    := ../ansible/roles/talos/vars/homelab.sops.yaml
 CLUSTER_SECRETS    := $(HOME_TREE)/cluster-secrets/app/secrets.sops.yaml
 TALOS_LOGS_SERVICE := $(HOME_TREE)/host-monitoring/app/alloy-talos/service-talos-logs.yaml
+INGEST_SERVICES    := $(HOME_TREE)/host-monitoring/app/alloy-gateway/service-syslog.yaml \
+                      $(HOME_TREE)/host-monitoring/app/graphite-exporter.yaml
 ALLOY_RELEASES := $(HOME_TREE)/alloy/app/alloy/helmrelease.yaml \
                   $(HOME_TREE)/alloy/app/alloy-cluster/helmrelease.yaml \
                   $(HOME_TREE)/alloy/app/alloy-events/helmrelease.yaml \
@@ -140,6 +142,12 @@ lint-offline:
 		echo "$(TALOS_LOGS_SERVICE) must keep its deny-by-default source ranges and no NodePort, or the LAN can send Talos log lines." >&2; \
 		exit 1; }
 	@echo ">> talos-logs admits only the nodes"
+	@for f in $(INGEST_SERVICES); do \
+		grep -q '^  allocateLoadBalancerNodePorts: false$$' $$f || { \
+			echo "$$f must not allocate NodePorts, or its receiver listens on every node address too." >&2; \
+			exit 1; }; \
+	done
+	@echo ">> syslog and graphite listen only on the ingest address"
 	@a=$$(sed -n '/^prometheus\.relabel "kube_components" {/,/^}/p' $(ALLOY_CONFIG)/config.alloy); \
 	b=$$(sed -n '/^prometheus\.relabel "kube_components" {/,/^}/p' $(ALLOY_CONFIG)/cluster.alloy); \
 	[ -n "$$a" ] && [ "$$a" = "$$b" ] || { \

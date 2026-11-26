@@ -103,7 +103,10 @@ the constraints of the stack apply throughout: a public repo (no address or doma
   the `cilium-lb` pool like Traefik's, is claimed by two Services that share
   it through `lbipam.cilium.io/sharing-key: ingest`: `graphite` on TCP 2003
   and `syslog` on UDP and TCP 514. TrueNAS and the router need a fixed
-  address to send to, and one is enough.
+  address to send to, and one is enough. Both set
+  `allocateLoadBalancerNodePorts: false`, so neither receiver also listens
+  on a high port of every node's address; `make -C kubernetes lint-offline`
+  fails if either loses it.
 - **Syslog listens on 1514 in the pod.** The chart runs Alloy as its default
   user, root today, but 1514 needs neither root nor `NET_BIND_SERVICE` to
   bind — correct whatever the chart's user — so `alloy.extraPorts` opens 1514
