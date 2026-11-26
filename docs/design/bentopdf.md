@@ -34,8 +34,13 @@ requests and those tools together.
 
 ## Design
 
-**One pod, no state.** One replica, no volume, no metrics endpoint: nginx
-exposes none, and its access log reaches Loki through the node Alloy.
+**One pod, no state.** One replica, no volume, no metrics endpoint, and its
+access log reaches Loki through the node Alloy. The image's `nginx.conf`
+includes no `conf.d/`, so a `stub_status` page for an exporter means
+replacing that whole file, CSP and isolation headers included, on every
+bump; it would count only connections and requests, which Traefik already
+reports per status code and with latency. `Services/bentopdf.json` builds on
+Traefik, cAdvisor and the access log instead.
 
 **Read-only root.** The pod runs as uid 101 with every capability dropped,
 which meets the `restricted` PodSecurity profile. On a read-only root nginx
