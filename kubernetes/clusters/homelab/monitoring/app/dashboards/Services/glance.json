@@ -218,7 +218,7 @@
       "type": "timeseries",
       "title": "Network throughput",
       "gridPos": { "h": 8, "w": 8, "x": 16, "y": 12 },
-      "description": "Mostly outbound: the pod polls a dozen check-urls a minute. Icons are fetched by the browser from a CDN and never cross this pod.",
+      "description": "Mostly outbound: the pod polls a dozen check-urls a minute. The tile icons are also served from this pod.",
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "targets": [
         {
