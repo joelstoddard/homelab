@@ -40,6 +40,8 @@ spec:
               containerPort: 9633
           # SMART needs raw passthrough commands to the block device: root
           # and privileged, which the image's default user cannot do.
+          # Privileged already exposes the host's /dev/sda; a /dev hostPath
+          # mount stops runc creating /dev/termination-log.
           securityContext:
             runAsUser: 0
             privileged: true
@@ -51,11 +53,3 @@ spec:
             limits:
               cpu: 100m
               memory: 64Mi
-          volumeMounts:
-            - name: dev
-              mountPath: /dev
-              readOnly: true
-      volumes:
-        - name: dev
-          hostPath:
-            path: /dev
