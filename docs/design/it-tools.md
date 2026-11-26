@@ -152,7 +152,24 @@ reading its repository's history and changing the tag and digest by hand.
 with no `Authorization` header and relies on the browser sending the cached
 credential and `Sec-Fetch-Site` on the upgrade. If a browser sends neither,
 the port tester fails in that browser; the bridge route is never opened
-without them.
+without them. Safari sends the credential only once the password is saved in
+Passwords; until then it also asks again on every reload.
+
+**The port tester is a socket client, not a scanner.** Configure opens TCP to
+the target and the log then shows only what the target sends. A TLS port such
+as Proxmox's 8006 sends nothing first, so an open port looks silent; test with
+a port that speaks first, such as SSH on 22. A closed port shows
+`TCP Error: ECONNREFUSED`.
+
+**Some sites refuse cors-anywhere.** It forwards the browser's `User-Agent`,
+and `youtu.be` answers 404 to a browser User-Agent from the cluster's address,
+with or without the `host:443` rewrite. The short-URL expander then reports
+that link as failed. Other redirectors, such as `w.wiki` and `doi.org`, expand
+normally.
+
+**The multi-link downloader uses the helper only when it must.** It fetches a
+site that sends CORS headers itself directly from the browser, so a download
+from such a site does not test `/svc/cors`.
 
 **`tools-settings.json` is mounted by `subPath`.** A `subPath` mount never
 sees a ConfigMap update, so the generator keeps its name hash: an edit renames
