@@ -51,6 +51,10 @@ loki:
     retention_period: 720h
     allow_structured_metadata: true
     volume_enabled: true
+    # Sharding spreads a hot stream over ingesters, and there is one. It also
+    # stored each sharded entry a second time in the unsharded stream.
+    shard_streams:
+      enabled: false
   compactor:
     retention_enabled: true
     delete_request_store: filesystem
