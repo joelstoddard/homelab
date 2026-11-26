@@ -10,7 +10,7 @@ EXPORTER=/mnt/Voyager/scripts/smartctl_exporter
 
 pgrep -x smartctl_exporter >/dev/null && exit 0
 
-exec daemon -r -R 10 -P /var/run/smartctl_exporter.supervisor.pid \
+exec daemon -f -r -R 10 -P /var/run/smartctl_exporter.supervisor.pid \
 	-t smartctl_exporter -o /var/log/smartctl_exporter.log \
 	"$EXPORTER" \
 	--smartctl.path=/usr/local/sbin/smartctl \
