@@ -18,7 +18,10 @@ spec:
   install:
     remediation:
       retries: 3
+  # Flux skips the chart's crds/ on upgrade by default, which left the CRDs at
+  # the first-installed version while the controller moved on.
   upgrade:
+    crds: CreateReplace
     remediation:
       retries: 3
   valuesFrom:
