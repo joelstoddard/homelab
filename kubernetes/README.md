@@ -808,8 +808,7 @@ Consequences:
 - **No metrics endpoint, and no annotation.** Glance exposes none, so the
   dashboard (`monitoring/app/dashboards/Services/glance.json`) is built from
   Traefik, cAdvisor and kube-state-metrics. Traefik series match on the
-  `service` label's `glance-glance-` prefix, kube-state-metrics on
-  `exported_namespace`.
+  `service` label's `glance-glance-` prefix.
 
 ```bash
 flux --context homelab get ks glance

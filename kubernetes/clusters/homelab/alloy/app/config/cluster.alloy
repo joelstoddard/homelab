@@ -291,6 +291,9 @@ prometheus.scrape "annotated_services" {
 	forward_to      = [prometheus.relabel.annotated_services.receiver]
 	job_name        = "annotated-services"
 	scrape_interval = "60s"
+	// kube-state-metrics series keep the object's namespace, pod and node
+	// rather than renaming them exported_*. No other target here sets those.
+	honor_labels = true
 }
 
 // cilium-envoy's proxy statistics and Hubble's gRPC server counters, which no

@@ -298,7 +298,7 @@
             "uid": "${datasource}"
           },
           "exemplar": true,
-          "expr": "sum(kube_pod_info{exported_node=\"$node\", cluster=\"$cluster\"})",
+          "expr": "sum(kube_pod_info{node=\"$node\", cluster=\"$cluster\"})",
           "interval": "",
           "legendFormat": "",
           "refId": "A"
@@ -437,7 +437,7 @@
             "uid": "${datasource}"
           },
           "exemplar": true,
-          "expr": "label_replace(label_replace(kube_pod_info{exported_node=\"$node\", cluster=\"$cluster\"}, \"namespace\", \"$1\", \"exported_namespace\", \"(.+)\"), \"pod\", \"$1\", \"exported_pod\", \"(.+)\")",
+          "expr": "kube_pod_info{node=\"$node\", cluster=\"$cluster\"}",
           "format": "table",
           "interval": "",
           "legendFormat": "",
@@ -3934,14 +3934,14 @@
           "type": "prometheus",
           "uid": "${datasource}"
         },
-        "definition": "label_values(kube_node_info{cluster=\"$cluster\"}, exported_node)",
+        "definition": "label_values(kube_node_info{cluster=\"$cluster\"}, node)",
         "hide": 0,
         "includeAll": false,
         "multi": false,
         "name": "node",
         "options": [],
         "query": {
-          "query": "label_values(kube_node_info{cluster=\"$cluster\"}, exported_node)",
+          "query": "label_values(kube_node_info{cluster=\"$cluster\"}, node)",
           "refId": "StandardVariableQuery"
         },
         "refresh": 2,

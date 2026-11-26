@@ -213,7 +213,7 @@
        {"refId": "D", "datasource": {"type": "prometheus", "uid": "prometheus"}, "instant": true, "range": false, "format": "table",
         "expr": "max by (host, kernel) (label_replace(label_replace(node_uname_info, \"host\", \"$1\", \"nodename\", \"(.*)\"), \"kernel\", \"$1\", \"release\", \"(.*)\"))"},
        {"refId": "E", "datasource": {"type": "prometheus", "uid": "prometheus"}, "instant": true, "range": false, "format": "table",
-        "expr": "max by (host, kubelet) (label_replace(label_replace(kube_node_info, \"host\", \"$1\", \"exported_node\", \"(.*)\"), \"kubelet\", \"$1\", \"kubelet_version\", \"(.*)\"))"}
+        "expr": "max by (host, kubelet) (label_replace(label_replace(kube_node_info, \"host\", \"$1\", \"node\", \"(.*)\"), \"kubelet\", \"$1\", \"kubelet_version\", \"(.*)\"))"}
      ],
      "transformations": [
        {"id": "merge", "filter": {"id": "byRefId", "options": "/^(A|B)$/"}, "options": {}},
@@ -277,7 +277,7 @@
         "filters": [{"field": "assigned_to_interface", "operator": "", "value": "true"}],
         "contextFields": ["ip", "device_name", "vm_name", "is_primary_ip", "address_status"], "limit": 500},
        {"refId": "B", "datasource": {"type": "prometheus", "uid": "prometheus"}, "instant": true, "range": false, "format": "table",
-        "expr": "max by (host, ip) (label_replace(label_replace(kube_node_info, \"host\", \"$1\", \"exported_node\", \"(.*)\"), \"ip\", \"$1\", \"internal_ip\", \"(.*)\"))"}
+        "expr": "max by (host, ip) (label_replace(label_replace(kube_node_info, \"host\", \"$1\", \"node\", \"(.*)\"), \"ip\", \"$1\", \"internal_ip\", \"(.*)\"))"}
      ],
      "transformations": [
        {"id": "joinByField", "options": {"byField": "ip", "mode": "outerTabular"}},

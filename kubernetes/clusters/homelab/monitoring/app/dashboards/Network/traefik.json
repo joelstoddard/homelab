@@ -443,7 +443,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum(kube_deployment_status_replicas_unavailable{exported_namespace=\"traefik\", deployment=\"traefik\"})",
+          "expr": "sum(kube_deployment_status_replicas_unavailable{namespace=\"traefik\", deployment=\"traefik\"})",
           "instant": true
         }
       ],

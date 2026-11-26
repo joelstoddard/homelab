@@ -53,8 +53,7 @@ namespace is a change to make to all of them at once, or not at all.
 Recyclarr is not an exportarr target — see `docs/design/arr-metrics.md`. It
 is a CronJob rather than a service; kube-state-metrics already reports its
 schedule and per-run outcome through `kube_cronjob_*` and
-`kube_job_status_failed`, on `exported_namespace` like every other series from
-that collector. The sync runs in an init container, and a `push` container
+`kube_job_status_failed`. The sync runs in an init container, and a `push` container
 then reports the success to an Uptime Kuma push monitor
 (`docs/design/uptime-kuma.md`, "The CronJobs report through push monitors").
 Read a run's sync output with `-c recyclarr`; the default container is

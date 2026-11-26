@@ -29,7 +29,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "kube_deployment_status_replicas_available{exported_namespace=\"media\", deployment=\"radarr\"}"
+          "expr": "kube_deployment_status_replicas_available{namespace=\"media\", deployment=\"radarr\"}"
         }
       ],
       "fieldConfig": {
@@ -64,8 +64,7 @@
             "lastNotNull"
           ]
         }
-      },
-      "description": "kube-state-metrics series carry the collector's own namespace, so the subject is exported_namespace. A bare namespace= selects nothing and the panel reads No data without erroring."
+      }
     },
     {
       "id": 2,
@@ -139,7 +138,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum(kube_pod_container_status_restarts_total{exported_namespace=\"media\", container=\"radarr\"})"
+          "expr": "sum(kube_pod_container_status_restarts_total{namespace=\"media\", container=\"radarr\"})"
         }
       ],
       "fieldConfig": {
@@ -554,7 +553,7 @@
         },
         {
           "refId": "B",
-          "expr": "max(kube_pod_container_resource_limits{exported_namespace=\"media\", resource=\"cpu\", container=\"radarr\"})",
+          "expr": "max(kube_pod_container_resource_limits{namespace=\"media\", resource=\"cpu\", container=\"radarr\"})",
           "legendFormat": "limit"
         }
       ],
@@ -563,8 +562,7 @@
           "unit": "none"
         },
         "overrides": []
-      },
-      "description": "cAdvisor uses namespace, kube-state-metrics uses exported_namespace \u2014 both label spellings appear in this one panel, deliberately."
+      }
     },
     {
       "id": 31,
@@ -588,7 +586,7 @@
         },
         {
           "refId": "B",
-          "expr": "max(kube_pod_container_resource_limits{exported_namespace=\"media\", resource=\"memory\", container=\"radarr\"})",
+          "expr": "max(kube_pod_container_resource_limits{namespace=\"media\", resource=\"memory\", container=\"radarr\"})",
           "legendFormat": "limit"
         }
       ],

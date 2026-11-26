@@ -29,8 +29,7 @@ with Sonarr and Radarr, whose exporters already count the result, and it
 exposes no Prometheus endpoint of its own, so its request rates and latencies
 come from Traefik's per-service metrics. Recyclarr is a CronJob
 rather than a service; kube-state-metrics already reports its schedule and
-per-run outcome through `kube_cronjob_*` and `kube_job_status_failed`, on
-`exported_namespace` like every other series from that collector.
+per-run outcome through `kube_cronjob_*` and `kube_job_status_failed`.
 
 **qBittorrent has the same shape with a different exporter.** exportarr does
 not speak qBittorrent, so `media-downloads/app/qbittorrent-exporter.yaml`
