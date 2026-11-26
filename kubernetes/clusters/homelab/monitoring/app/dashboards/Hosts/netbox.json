@@ -55,9 +55,9 @@
         "fields": ["name", "vcpus", "memory"],
         "joinKeys": [{"source": "name", "output": "host", "transform": "lower"}], "limit": 200},
        {"refId": "B", "datasource": {"type": "prometheus", "uid": "prometheus"}, "instant": true, "range": false, "format": "table",
-        "expr": "max by (host) (label_replace(pve_memory_size_bytes{id=~\"(qemu|lxc)/.*\"} * on (id) group_left (name) max by (id, name) (pve_guest_info), \"host\", \"$1\", \"name\", \"(.*)\")) / 1048576"},
+        "expr": "max by (host) (label_replace(pve_memory_size_bytes{id=~\"(qemu|lxc)/.*\"} * on (id) group_left (name) max by (id, name) (pve_guest_info{template!=\"1\"}), \"host\", \"$1\", \"name\", \"(.*)\")) / 1048576"},
        {"refId": "C", "datasource": {"type": "prometheus", "uid": "prometheus"}, "instant": true, "range": false, "format": "table",
-        "expr": "max by (host) (label_replace(pve_cpu_usage_limit{id=~\"(qemu|lxc)/.*\"} * on (id) group_left (name) max by (id, name) (pve_guest_info), \"host\", \"$1\", \"name\", \"(.*)\"))"}
+        "expr": "max by (host) (label_replace(pve_cpu_usage_limit{id=~\"(qemu|lxc)/.*\"} * on (id) group_left (name) max by (id, name) (pve_guest_info{template!=\"1\"}), \"host\", \"$1\", \"name\", \"(.*)\"))"}
      ],
      "transformations": [
        {"id": "joinByField", "options": {"byField": "host", "mode": "outerTabular"}},
@@ -117,7 +117,7 @@
         "fields": ["name", "role"],
         "joinKeys": [{"source": "name", "output": "host", "transform": "lower"}], "limit": 200},
        {"refId": "C", "datasource": {"type": "prometheus", "uid": "prometheus"}, "instant": true, "range": false, "format": "table",
-        "expr": "max by (host) (label_replace(pve_up{id=~\"node/.*\"}, \"host\", \"$1\", \"id\", \"node/(.*)\")) or max by (host) (label_replace(pve_up{id=~\"(qemu|lxc)/.*\"} * on (id) group_left (name) max by (id, name) (pve_guest_info), \"host\", \"$1\", \"name\", \"(.*)\"))"},
+        "expr": "max by (host) (label_replace(pve_up{id=~\"node/.*\"}, \"host\", \"$1\", \"id\", \"node/(.*)\")) or max by (host) (label_replace(pve_up{id=~\"(qemu|lxc)/.*\"} * on (id) group_left (name) max by (id, name) (pve_guest_info{template!=\"1\"}), \"host\", \"$1\", \"name\", \"(.*)\"))"},
        {"refId": "D", "datasource": {"type": "prometheus", "uid": "prometheus"}, "instant": true, "range": false, "format": "table",
         "expr": "max by (host) (label_replace(node_uname_info, \"host\", \"$1\", \"nodename\", \"(.*)\"))"},
        {"refId": "E", "datasource": {"type": "prometheus", "uid": "prometheus"}, "instant": true, "range": false, "format": "table",
