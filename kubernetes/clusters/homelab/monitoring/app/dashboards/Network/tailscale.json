@@ -56,7 +56,7 @@
     {"id": 6, "type": "stat", "title": "Restarts", "gridPos": {"h": 4, "w": 3, "x": 21, "y": 0},
      "description": "Liveness-probe restarts of the current pod. A reschedule starts a fresh pod at zero, so a climbing count means tailscaled wedges in place.",
      "datasource": {"type": "prometheus", "uid": "prometheus"},
-     "targets": [{"refId": "A", "expr": "max(kube_pod_container_status_restarts_total{exported_namespace=\"tailscale\", container=\"tailscale\"})", "instant": true, "legendFormat": "restarts"}],
+     "targets": [{"refId": "A", "expr": "max(kube_pod_container_status_restarts_total{namespace=\"tailscale\", container=\"tailscale\"})", "instant": true, "legendFormat": "restarts"}],
      "options": {"textMode": "value", "colorMode": "value", "graphMode": "none"},
      "fieldConfig": {"defaults": {"unit": "short", "decimals": 0,
        "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "orange", "value": 1}]}}, "overrides": []}},

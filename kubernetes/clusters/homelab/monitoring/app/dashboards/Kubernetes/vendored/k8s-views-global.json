@@ -433,7 +433,7 @@
           },
           "editorMode": "code",
           "exemplar": true,
-          "expr": "count(count by (exported_node) (kube_node_info{cluster=\"$cluster\"}))",
+          "expr": "count(count by (node) (kube_node_info{cluster=\"$cluster\"}))",
           "interval": "",
           "legendFormat": "",
           "range": true,
@@ -678,7 +678,7 @@
             "uid": "${datasource}"
           },
           "exemplar": true,
-          "expr": "count(count by (exported_node) (kube_node_info{cluster=\"$cluster\"}))",
+          "expr": "count(count by (node) (kube_node_info{cluster=\"$cluster\"}))",
           "hide": false,
           "interval": "",
           "legendFormat": "Nodes",
@@ -2523,9 +2523,9 @@
           },
           "editorMode": "code",
           "exemplar": true,
-          "expr": "sum(increase(kube_pod_container_status_restarts_total{cluster=\"$cluster\"}[$__rate_interval])) by (exported_namespace) > 0",
+          "expr": "sum(increase(kube_pod_container_status_restarts_total{cluster=\"$cluster\"}[$__rate_interval])) by (namespace) > 0",
           "interval": "",
-          "legendFormat": "{{ exported_namespace }}",
+          "legendFormat": "{{ namespace }}",
           "range": true,
           "refId": "A"
         }

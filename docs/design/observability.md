@@ -95,9 +95,7 @@ defaults that hide the control-plane components.
   API) is removed, and the removal is recorded in the dashboards README's
   "Local edits" column so a re-vendor shows what to reapply. A panel that
   is empty only while nothing is wrong (OOM kills, renewal events,
-  transcodes) stays and sets `noValue: "None"`. A vendored panel that
-  reads kube-state-metrics' `namespace`, `pod` or `node` reads the
-  collector, not the object: use the `exported_` labels.
+  transcodes) stays and sets `noValue: "None"`.
 - **Alloy mixin dashboards.** `Kubernetes/Alloy/alloy-resources.json`,
   `alloy-controller.json`, `alloy-prometheus-remote-write.json` and
   `alloy-loki.json` are the alloy-mixin's own rendered JSON,
@@ -392,16 +390,16 @@ Talos machine and kernel logs: `job="talos"`, `node`, `service` (the Talos
 service: `kubelet`, `containerd`, `machined`, `kernel`, …) and `level` (Talos's
 own, mostly `info` even for errors).
 
-**kube-state-metrics series describe one pod but are scraped from another, and
-the collision renames the subject.** On those series `namespace` and `pod` are
-kube-state-metrics itself, while the pod being described is `exported_namespace`
-and `exported_pod`.
-
-Filter them on the `exported_` names. A bare `pod=~"..."` matches the
-kube-state-metrics pod, so the query returns nothing and the panel reads "No
-data" rather than erroring — the failure is silent, and it bit the Jellyfin
-dashboard's Availability panel. cAdvisor and kubelet series are unaffected:
-there `namespace` and `pod` are already the subject.
+**kube-state-metrics series keep the subject's labels.** They describe one pod
+but are scraped from another, so the `annotated_services` scrape in
+`cluster.alloy` sets `honor_labels = true`: `namespace`, `pod` and `node` name
+the object, as on cAdvisor and kubelet series, and vendored Kubernetes
+dashboards work unedited. Without it Prometheus renames the object's labels
+`exported_*`, and a bare `pod=~"..."` silently matches the collector and reads
+"No data". No other target of that job sets those labels. cert-manager, the
+Flux controllers, longhorn-manager, kubelet and kube-controller-manager scrape
+without it, so their own clashing labels arrive as `exported_*`, which the
+Storage and Security dashboards read.
 
 ## Failure modes
 

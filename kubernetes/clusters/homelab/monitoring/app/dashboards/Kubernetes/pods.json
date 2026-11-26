@@ -42,10 +42,10 @@
           "uid": "prometheus"
         },
         "query": {
-          "query": "label_values(kube_pod_info, exported_namespace)",
+          "query": "label_values(kube_pod_info, namespace)",
           "refId": "namespace"
         },
-        "definition": "label_values(kube_pod_info, exported_namespace)",
+        "definition": "label_values(kube_pod_info, namespace)",
         "refresh": 2,
         "sort": 1,
         "multi": true,
@@ -70,10 +70,10 @@
           "uid": "prometheus"
         },
         "query": {
-          "query": "label_values(kube_pod_info{exported_namespace=~\"$namespace\"}, exported_pod)",
+          "query": "label_values(kube_pod_info{namespace=~\"$namespace\"}, pod)",
           "refId": "pod"
         },
-        "definition": "label_values(kube_pod_info{exported_namespace=~\"$namespace\"}, exported_pod)",
+        "definition": "label_values(kube_pod_info{namespace=~\"$namespace\"}, pod)",
         "refresh": 2,
         "sort": 1,
         "multi": true,
@@ -98,10 +98,10 @@
           "uid": "prometheus"
         },
         "query": {
-          "query": "query_result(label_replace(count(kube_pod_info{exported_namespace=~\"$namespace\", exported_pod=~\"$pod\"}) == 1, \"group\", \"container\", \"\", \"\") or on () label_replace(count(group by (exported_namespace) (kube_pod_info{exported_namespace=~\"$namespace\", exported_pod=~\"$pod\"})) == 1, \"group\", \"pod\", \"\", \"\") or on () label_replace(count(kube_pod_info{exported_namespace=~\"$namespace\", exported_pod=~\"$pod\"}) < count(kube_pod_info{exported_namespace=~\"$namespace\"}), \"group\", \"pod\", \"\", \"\") or on () label_replace(vector(0), \"group\", \"namespace\", \"\", \"\"))",
+          "query": "query_result(label_replace(count(kube_pod_info{namespace=~\"$namespace\", pod=~\"$pod\"}) == 1, \"group\", \"container\", \"\", \"\") or on () label_replace(count(group by (namespace) (kube_pod_info{namespace=~\"$namespace\", pod=~\"$pod\"})) == 1, \"group\", \"pod\", \"\", \"\") or on () label_replace(count(kube_pod_info{namespace=~\"$namespace\", pod=~\"$pod\"}) < count(kube_pod_info{namespace=~\"$namespace\"}), \"group\", \"pod\", \"\", \"\") or on () label_replace(vector(0), \"group\", \"namespace\", \"\", \"\"))",
           "refId": "group"
         },
-        "definition": "query_result(label_replace(count(kube_pod_info{exported_namespace=~\"$namespace\", exported_pod=~\"$pod\"}) == 1, \"group\", \"container\", \"\", \"\") or on () label_replace(count(group by (exported_namespace) (kube_pod_info{exported_namespace=~\"$namespace\", exported_pod=~\"$pod\"})) == 1, \"group\", \"pod\", \"\", \"\") or on () label_replace(count(kube_pod_info{exported_namespace=~\"$namespace\", exported_pod=~\"$pod\"}) < count(kube_pod_info{exported_namespace=~\"$namespace\"}), \"group\", \"pod\", \"\", \"\") or on () label_replace(vector(0), \"group\", \"namespace\", \"\", \"\"))",
+        "definition": "query_result(label_replace(count(kube_pod_info{namespace=~\"$namespace\", pod=~\"$pod\"}) == 1, \"group\", \"container\", \"\", \"\") or on () label_replace(count(group by (namespace) (kube_pod_info{namespace=~\"$namespace\", pod=~\"$pod\"})) == 1, \"group\", \"pod\", \"\", \"\") or on () label_replace(count(kube_pod_info{namespace=~\"$namespace\", pod=~\"$pod\"}) < count(kube_pod_info{namespace=~\"$namespace\"}), \"group\", \"pod\", \"\", \"\") or on () label_replace(vector(0), \"group\", \"namespace\", \"\", \"\"))",
         "regex": "/group=\"(\\w+)\"/",
         "refresh": 2
       },
@@ -142,7 +142,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by (phase) (kube_pod_status_phase{exported_namespace=~\"$namespace\", exported_pod=~\"$pod\"}) > 0",
+          "expr": "sum by (phase) (kube_pod_status_phase{namespace=~\"$namespace\", pod=~\"$pod\"}) > 0",
           "instant": true,
           "legendFormat": "{{phase}}"
         }
@@ -197,7 +197,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "count((kube_pod_status_ready{exported_namespace=~\"$namespace\", exported_pod=~\"$pod\", condition=\"false\"} == 1) unless on (exported_namespace, exported_pod) (kube_pod_status_phase{exported_namespace=~\"$namespace\", exported_pod=~\"$pod\", phase=\"Succeeded\"} == 1)) or vector(0)",
+          "expr": "count((kube_pod_status_ready{namespace=~\"$namespace\", pod=~\"$pod\", condition=\"false\"} == 1) unless on (namespace, pod) (kube_pod_status_phase{namespace=~\"$namespace\", pod=~\"$pod\", phase=\"Succeeded\"} == 1)) or vector(0)",
           "instant": true
         }
       ],
@@ -254,7 +254,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "round(sum(increase(kube_pod_container_status_restarts_total{exported_namespace=~\"$namespace\", exported_pod=~\"$pod\"}[24h]))) or vector(0)",
+          "expr": "round(sum(increase(kube_pod_container_status_restarts_total{namespace=~\"$namespace\", pod=~\"$pod\"}[24h]))) or vector(0)",
           "instant": true
         }
       ],
@@ -425,49 +425,49 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "max by (namespace, pod, phase) (label_replace(label_replace(kube_pod_status_phase{exported_namespace=~\"$namespace\", exported_pod=~\"$pod\"} == 1, \"namespace\", \"$1\", \"exported_namespace\", \"(.*)\"), \"pod\", \"$1\", \"exported_pod\", \"(.*)\"))",
+          "expr": "max by (namespace, pod, phase) (kube_pod_status_phase{namespace=~\"$namespace\", pod=~\"$pod\"} == 1)",
           "format": "table",
           "instant": true,
           "range": false
         },
         {
           "refId": "B",
-          "expr": "max by (namespace, pod) (label_replace(label_replace((kube_pod_status_ready{exported_namespace=~\"$namespace\", exported_pod=~\"$pod\", condition=\"true\"} unless on (exported_namespace, exported_pod) (kube_pod_status_phase{exported_namespace=~\"$namespace\", exported_pod=~\"$pod\", phase=\"Succeeded\"} == 1)) or on (exported_namespace, exported_pod) (2 * (kube_pod_status_phase{exported_namespace=~\"$namespace\", exported_pod=~\"$pod\", phase=\"Succeeded\"} == 1)), \"namespace\", \"$1\", \"exported_namespace\", \"(.*)\"), \"pod\", \"$1\", \"exported_pod\", \"(.*)\")) or 0 * sum by (namespace, pod) (label_replace(label_replace(kube_pod_info{exported_namespace=~\"$namespace\", exported_pod=~\"$pod\"}, \"namespace\", \"$1\", \"exported_namespace\", \"(.*)\"), \"pod\", \"$1\", \"exported_pod\", \"(.*)\"))",
+          "expr": "max by (namespace, pod) ((kube_pod_status_ready{namespace=~\"$namespace\", pod=~\"$pod\", condition=\"true\"} unless on (namespace, pod) (kube_pod_status_phase{namespace=~\"$namespace\", pod=~\"$pod\", phase=\"Succeeded\"} == 1)) or on (namespace, pod) (2 * (kube_pod_status_phase{namespace=~\"$namespace\", pod=~\"$pod\", phase=\"Succeeded\"} == 1))) or 0 * sum by (namespace, pod) (kube_pod_info{namespace=~\"$namespace\", pod=~\"$pod\"})",
           "format": "table",
           "instant": true,
           "range": false
         },
         {
           "refId": "C",
-          "expr": "(round(sum by (namespace, pod) (label_replace(label_replace(increase(kube_pod_container_status_restarts_total{exported_namespace=~\"$namespace\", exported_pod=~\"$pod\"}[24h]), \"namespace\", \"$1\", \"exported_namespace\", \"(.*)\"), \"pod\", \"$1\", \"exported_pod\", \"(.*)\"))) and on (namespace, pod) sum by (namespace, pod) (label_replace(label_replace(kube_pod_info{exported_namespace=~\"$namespace\", exported_pod=~\"$pod\"}, \"namespace\", \"$1\", \"exported_namespace\", \"(.*)\"), \"pod\", \"$1\", \"exported_pod\", \"(.*)\"))) or 0 * sum by (namespace, pod) (label_replace(label_replace(kube_pod_info{exported_namespace=~\"$namespace\", exported_pod=~\"$pod\"}, \"namespace\", \"$1\", \"exported_namespace\", \"(.*)\"), \"pod\", \"$1\", \"exported_pod\", \"(.*)\"))",
+          "expr": "(round(sum by (namespace, pod) (increase(kube_pod_container_status_restarts_total{namespace=~\"$namespace\", pod=~\"$pod\"}[24h]))) and on (namespace, pod) sum by (namespace, pod) (kube_pod_info{namespace=~\"$namespace\", pod=~\"$pod\"})) or 0 * sum by (namespace, pod) (kube_pod_info{namespace=~\"$namespace\", pod=~\"$pod\"})",
           "format": "table",
           "instant": true,
           "range": false
         },
         {
           "refId": "D",
-          "expr": "(sum by (namespace, pod) (rate(container_cpu_usage_seconds_total{namespace=~\"$namespace\", pod=~\"$pod\", container!=\"\", container!=\"POD\"}[$__rate_interval])) and on (namespace, pod) sum by (namespace, pod) (label_replace(label_replace(kube_pod_info{exported_namespace=~\"$namespace\", exported_pod=~\"$pod\"}, \"namespace\", \"$1\", \"exported_namespace\", \"(.*)\"), \"pod\", \"$1\", \"exported_pod\", \"(.*)\"))) or 0 * sum by (namespace, pod) (label_replace(label_replace(kube_pod_info{exported_namespace=~\"$namespace\", exported_pod=~\"$pod\"}, \"namespace\", \"$1\", \"exported_namespace\", \"(.*)\"), \"pod\", \"$1\", \"exported_pod\", \"(.*)\"))",
+          "expr": "(sum by (namespace, pod) (rate(container_cpu_usage_seconds_total{namespace=~\"$namespace\", pod=~\"$pod\", container!=\"\", container!=\"POD\"}[$__rate_interval])) and on (namespace, pod) sum by (namespace, pod) (kube_pod_info{namespace=~\"$namespace\", pod=~\"$pod\"})) or 0 * sum by (namespace, pod) (kube_pod_info{namespace=~\"$namespace\", pod=~\"$pod\"})",
           "format": "table",
           "instant": true,
           "range": false
         },
         {
           "refId": "E",
-          "expr": "(sum by (namespace, pod) (container_memory_working_set_bytes{namespace=~\"$namespace\", pod=~\"$pod\", container!=\"\", container!=\"POD\"}) and on (namespace, pod) sum by (namespace, pod) (label_replace(label_replace(kube_pod_info{exported_namespace=~\"$namespace\", exported_pod=~\"$pod\"}, \"namespace\", \"$1\", \"exported_namespace\", \"(.*)\"), \"pod\", \"$1\", \"exported_pod\", \"(.*)\"))) or 0 * sum by (namespace, pod) (label_replace(label_replace(kube_pod_info{exported_namespace=~\"$namespace\", exported_pod=~\"$pod\"}, \"namespace\", \"$1\", \"exported_namespace\", \"(.*)\"), \"pod\", \"$1\", \"exported_pod\", \"(.*)\"))",
+          "expr": "(sum by (namespace, pod) (container_memory_working_set_bytes{namespace=~\"$namespace\", pod=~\"$pod\", container!=\"\", container!=\"POD\"}) and on (namespace, pod) sum by (namespace, pod) (kube_pod_info{namespace=~\"$namespace\", pod=~\"$pod\"})) or 0 * sum by (namespace, pod) (kube_pod_info{namespace=~\"$namespace\", pod=~\"$pod\"})",
           "format": "table",
           "instant": true,
           "range": false
         },
         {
           "refId": "F",
-          "expr": "max by (namespace, pod, node) (label_replace(label_replace(label_replace(kube_pod_info{exported_namespace=~\"$namespace\", exported_pod=~\"$pod\"}, \"namespace\", \"$1\", \"exported_namespace\", \"(.*)\"), \"pod\", \"$1\", \"exported_pod\", \"(.*)\"), \"node\", \"$1\", \"exported_node\", \"(.*)\"))",
+          "expr": "max by (namespace, pod, node) (kube_pod_info{namespace=~\"$namespace\", pod=~\"$pod\"})",
           "format": "table",
           "instant": true,
           "range": false
         },
         {
           "refId": "G",
-          "expr": "max by (namespace, pod) (time() - label_replace(label_replace(kube_pod_start_time{exported_namespace=~\"$namespace\", exported_pod=~\"$pod\"}, \"namespace\", \"$1\", \"exported_namespace\", \"(.*)\"), \"pod\", \"$1\", \"exported_pod\", \"(.*)\")) or 0 * sum by (namespace, pod) (label_replace(label_replace(kube_pod_info{exported_namespace=~\"$namespace\", exported_pod=~\"$pod\"}, \"namespace\", \"$1\", \"exported_namespace\", \"(.*)\"), \"pod\", \"$1\", \"exported_pod\", \"(.*)\"))",
+          "expr": "max by (namespace, pod) (time() - kube_pod_start_time{namespace=~\"$namespace\", pod=~\"$pod\"}) or 0 * sum by (namespace, pod) (kube_pod_info{namespace=~\"$namespace\", pod=~\"$pod\"})",
           "format": "table",
           "instant": true,
           "range": false
@@ -736,12 +736,12 @@
         },
         {
           "refId": "B",
-          "expr": "max by (container) (kube_pod_container_resource_requests{exported_namespace=~\"$namespace\", exported_pod=~\"$pod\", resource=\"cpu\"}) and on () (count(kube_pod_info{exported_namespace=~\"$namespace\", exported_pod=~\"$pod\"}) == 1)",
+          "expr": "max by (container) (kube_pod_container_resource_requests{namespace=~\"$namespace\", pod=~\"$pod\", resource=\"cpu\"}) and on () (count(kube_pod_info{namespace=~\"$namespace\", pod=~\"$pod\"}) == 1)",
           "legendFormat": "{{container}} request"
         },
         {
           "refId": "C",
-          "expr": "max by (container) (kube_pod_container_resource_limits{exported_namespace=~\"$namespace\", exported_pod=~\"$pod\", resource=\"cpu\"}) and on () (count(kube_pod_info{exported_namespace=~\"$namespace\", exported_pod=~\"$pod\"}) == 1)",
+          "expr": "max by (container) (kube_pod_container_resource_limits{namespace=~\"$namespace\", pod=~\"$pod\", resource=\"cpu\"}) and on () (count(kube_pod_info{namespace=~\"$namespace\", pod=~\"$pod\"}) == 1)",
           "legendFormat": "{{container}} limit"
         }
       ],
@@ -820,12 +820,12 @@
         },
         {
           "refId": "B",
-          "expr": "max by (container) (kube_pod_container_resource_requests{exported_namespace=~\"$namespace\", exported_pod=~\"$pod\", resource=\"memory\"}) and on () (count(kube_pod_info{exported_namespace=~\"$namespace\", exported_pod=~\"$pod\"}) == 1)",
+          "expr": "max by (container) (kube_pod_container_resource_requests{namespace=~\"$namespace\", pod=~\"$pod\", resource=\"memory\"}) and on () (count(kube_pod_info{namespace=~\"$namespace\", pod=~\"$pod\"}) == 1)",
           "legendFormat": "{{container}} request"
         },
         {
           "refId": "C",
-          "expr": "max by (container) (kube_pod_container_resource_limits{exported_namespace=~\"$namespace\", exported_pod=~\"$pod\", resource=\"memory\"}) and on () (count(kube_pod_info{exported_namespace=~\"$namespace\", exported_pod=~\"$pod\"}) == 1)",
+          "expr": "max by (container) (kube_pod_container_resource_limits{namespace=~\"$namespace\", pod=~\"$pod\", resource=\"memory\"}) and on () (count(kube_pod_info{namespace=~\"$namespace\", pod=~\"$pod\"}) == 1)",
           "legendFormat": "{{container}} limit"
         }
       ],
@@ -899,7 +899,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "label_replace(sum by (namespace, $group) (label_replace(label_replace(increase(kube_pod_container_status_restarts_total{exported_namespace=~\"$namespace\", exported_pod=~\"$pod\"}[$__rate_interval]), \"namespace\", \"$1\", \"exported_namespace\", \"(.*)\"), \"pod\", \"$1\", \"exported_pod\", \"(.*)\")) > 0, \"pod\", \"$$__all\", \"pod\", \"\")",
+          "expr": "label_replace(sum by (namespace, $group) (increase(kube_pod_container_status_restarts_total{namespace=~\"$namespace\", pod=~\"$pod\"}[$__rate_interval])) > 0, \"pod\", \"$$__all\", \"pod\", \"\")",
           "legendFormat": "{{$group}}"
         }
       ],

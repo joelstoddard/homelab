@@ -152,7 +152,7 @@
    "targets": [
     {
      "refId": "A",
-     "expr": "max(kube_pod_container_status_restarts_total{exported_namespace=\"media-downloads\", exported_pod=~\"media-egress-.*\"})",
+     "expr": "max(kube_pod_container_status_restarts_total{namespace=\"media-downloads\", pod=~\"media-egress-.*\"})",
      "legendFormat": "restarts",
      "instant": true
     }

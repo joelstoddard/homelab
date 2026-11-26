@@ -47,10 +47,10 @@
           "uid": "prometheus"
         },
         "query": {
-          "query": "label_values(kube_node_info, exported_node)",
+          "query": "label_values(kube_node_info, node)",
           "refId": "node"
         },
-        "definition": "label_values(kube_node_info, exported_node)",
+        "definition": "label_values(kube_node_info, node)",
         "refresh": 2,
         "sort": 1,
         "multi": true,
@@ -75,10 +75,10 @@
           "uid": "prometheus"
         },
         "query": {
-          "query": "query_result(label_replace(count(kube_node_info{exported_node=~\"$node\"}) == 1, \"group\", \"pod\", \"\", \"\") or on () label_replace(vector(0), \"group\", \"node\", \"\", \"\"))",
+          "query": "query_result(label_replace(count(kube_node_info{node=~\"$node\"}) == 1, \"group\", \"pod\", \"\", \"\") or on () label_replace(vector(0), \"group\", \"node\", \"\", \"\"))",
           "refId": "group"
         },
-        "definition": "query_result(label_replace(count(kube_node_info{exported_node=~\"$node\"}) == 1, \"group\", \"pod\", \"\", \"\") or on () label_replace(vector(0), \"group\", \"node\", \"\", \"\"))",
+        "definition": "query_result(label_replace(count(kube_node_info{node=~\"$node\"}) == 1, \"group\", \"pod\", \"\", \"\") or on () label_replace(vector(0), \"group\", \"node\", \"\", \"\"))",
         "regex": "/group=\"(\\w+)\"/",
         "refresh": 2
       }
@@ -109,7 +109,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "count(kube_node_info{exported_node=~\"$node\"})",
+          "expr": "count(kube_node_info{node=~\"$node\"})",
           "instant": true
         }
       ],
@@ -162,7 +162,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "count(kube_node_status_condition{exported_node=~\"$node\", condition=\"Ready\", status=\"true\"} == 0) or vector(0)",
+          "expr": "count(kube_node_status_condition{node=~\"$node\", condition=\"Ready\", status=\"true\"} == 0) or vector(0)",
           "instant": true
         }
       ],
@@ -219,7 +219,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "count(sum by (exported_node) (kube_node_status_condition{exported_node=~\"$node\", condition=~\".+Pressure\", status=\"true\"}) > 0) or vector(0)",
+          "expr": "count(sum by (node) (kube_node_status_condition{node=~\"$node\", condition=~\".+Pressure\", status=\"true\"}) > 0) or vector(0)",
           "instant": true
         }
       ],
@@ -276,7 +276,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum(kube_node_spec_unschedulable{exported_node=~\"$node\"})",
+          "expr": "sum(kube_node_spec_unschedulable{node=~\"$node\"})",
           "instant": true
         }
       ],
@@ -333,7 +333,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "count(kube_pod_info{exported_node=~\"$node\"} * on (exported_namespace, exported_pod) group_left () (kube_pod_status_phase{phase=\"Running\"} == 1)) or vector(0)",
+          "expr": "count(kube_pod_info{node=~\"$node\"} * on (namespace, pod) group_left () (kube_pod_status_phase{phase=\"Running\"} == 1)) or vector(0)",
           "instant": true
         }
       ],
@@ -386,7 +386,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum(sum by (node) (rate(node_cpu_seconds_total{job=\"node-exporter\", node=~\"$node\", mode!~\"idle|iowait|steal\"}[$__rate_interval]))) / sum(max by (node) (label_replace(kube_node_status_allocatable{exported_node=~\"$node\", resource=\"cpu\"}, \"node\", \"$1\", \"exported_node\", \"(.*)\")))",
+          "expr": "sum(sum by (node) (rate(node_cpu_seconds_total{job=\"node-exporter\", node=~\"$node\", mode!~\"idle|iowait|steal\"}[$__rate_interval]))) / sum(max by (node) (kube_node_status_allocatable{node=~\"$node\", resource=\"cpu\"}))",
           "instant": true
         }
       ],
@@ -448,7 +448,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum(sum by (node) (node_memory_MemTotal_bytes{job=\"node-exporter\", node=~\"$node\"} - node_memory_MemAvailable_bytes{job=\"node-exporter\", node=~\"$node\"})) / sum(max by (node) (label_replace(kube_node_status_allocatable{exported_node=~\"$node\", resource=\"memory\"}, \"node\", \"$1\", \"exported_node\", \"(.*)\")))",
+          "expr": "sum(sum by (node) (node_memory_MemTotal_bytes{job=\"node-exporter\", node=~\"$node\"} - node_memory_MemAvailable_bytes{job=\"node-exporter\", node=~\"$node\"})) / sum(max by (node) (kube_node_status_allocatable{node=~\"$node\", resource=\"memory\"}))",
           "instant": true
         }
       ],
@@ -574,7 +574,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "max by (node, host) (label_replace(label_replace(pve_guest_info{name=~\"k8s-.*\", name=~\"$node\"}, \"host\", \"$1\", \"node\", \"(.+)\"), \"node\", \"$1\", \"name\", \"(.+)\")) or max by (node, host) (label_replace(label_replace(kube_node_info{exported_node=~\"$node\"}, \"node\", \"$1\", \"exported_node\", \"(.*)\"), \"host\", \"$1\", \"exported_node\", \"(.+)\")) unless on (node) max by (node, host) (label_replace(label_replace(pve_guest_info{name=~\"k8s-.*\", name=~\"$node\"}, \"host\", \"$1\", \"node\", \"(.+)\"), \"node\", \"$1\", \"name\", \"(.+)\"))",
+          "expr": "max by (node, host) (label_replace(label_replace(pve_guest_info{name=~\"k8s-.*\", name=~\"$node\"}, \"host\", \"$1\", \"node\", \"(.+)\"), \"node\", \"$1\", \"name\", \"(.+)\")) or max by (node, host) (label_replace(kube_node_info{node=~\"$node\"}, \"host\", \"$1\", \"node\", \"(.+)\")) unless on (node) max by (node, host) (label_replace(label_replace(pve_guest_info{name=~\"k8s-.*\", name=~\"$node\"}, \"host\", \"$1\", \"node\", \"(.+)\"), \"node\", \"$1\", \"name\", \"(.+)\"))",
           "format": "table",
           "instant": true,
           "range": false,
@@ -585,7 +585,7 @@
         },
         {
           "refId": "B",
-          "expr": "max by (node) (label_replace(kube_node_role{exported_node=~\"$node\", role=\"control-plane\"}, \"node\", \"$1\", \"exported_node\", \"(.*)\")) or on (node) 0 * max by (node) (label_replace(kube_node_info{exported_node=~\"$node\"}, \"node\", \"$1\", \"exported_node\", \"(.*)\"))",
+          "expr": "max by (node) (kube_node_role{node=~\"$node\", role=\"control-plane\"}) or on (node) 0 * max by (node) (kube_node_info{node=~\"$node\"})",
           "format": "table",
           "instant": true,
           "range": false,
@@ -596,7 +596,7 @@
         },
         {
           "refId": "C",
-          "expr": "max by (node) (label_replace(kube_node_status_condition{exported_node=~\"$node\", condition=\"Ready\", status=\"true\"}, \"node\", \"$1\", \"exported_node\", \"(.*)\"))",
+          "expr": "max by (node) (kube_node_status_condition{node=~\"$node\", condition=\"Ready\", status=\"true\"})",
           "format": "table",
           "instant": true,
           "range": false,
@@ -607,7 +607,7 @@
         },
         {
           "refId": "D",
-          "expr": "max by (node) (label_replace(kube_node_spec_unschedulable{exported_node=~\"$node\"}, \"node\", \"$1\", \"exported_node\", \"(.*)\"))",
+          "expr": "max by (node) (kube_node_spec_unschedulable{node=~\"$node\"})",
           "format": "table",
           "instant": true,
           "range": false,
@@ -618,7 +618,7 @@
         },
         {
           "refId": "E",
-          "expr": "sum by (node) (label_replace(kube_node_status_condition{exported_node=~\"$node\", condition=~\".+Pressure\", status=\"true\"}, \"node\", \"$1\", \"exported_node\", \"(.*)\"))",
+          "expr": "sum by (node) (kube_node_status_condition{node=~\"$node\", condition=~\".+Pressure\", status=\"true\"})",
           "format": "table",
           "instant": true,
           "range": false,
@@ -629,7 +629,7 @@
         },
         {
           "refId": "F",
-          "expr": "sum by (node) (rate(node_cpu_seconds_total{job=\"node-exporter\", node=~\"$node\", mode!~\"idle|iowait|steal\"}[$__rate_interval])) / max by (node) (label_replace(kube_node_status_allocatable{exported_node=~\"$node\", resource=\"cpu\"}, \"node\", \"$1\", \"exported_node\", \"(.*)\"))",
+          "expr": "sum by (node) (rate(node_cpu_seconds_total{job=\"node-exporter\", node=~\"$node\", mode!~\"idle|iowait|steal\"}[$__rate_interval])) / max by (node) (kube_node_status_allocatable{node=~\"$node\", resource=\"cpu\"})",
           "format": "table",
           "instant": true,
           "range": false,
@@ -640,7 +640,7 @@
         },
         {
           "refId": "G",
-          "expr": "sum by (node) (label_replace(kube_pod_container_resource_requests{exported_node=~\"$node\", resource=\"cpu\"} * on (exported_namespace, exported_pod) group_left () (kube_pod_status_phase{phase=~\"Running|Pending\"} == 1), \"node\", \"$1\", \"exported_node\", \"(.*)\")) / max by (node) (label_replace(kube_node_status_allocatable{exported_node=~\"$node\", resource=\"cpu\"}, \"node\", \"$1\", \"exported_node\", \"(.*)\")) or 0 * max by (node) (label_replace(kube_node_info{exported_node=~\"$node\"}, \"node\", \"$1\", \"exported_node\", \"(.*)\"))",
+          "expr": "sum by (node) (kube_pod_container_resource_requests{node=~\"$node\", resource=\"cpu\"} * on (namespace, pod) group_left () (kube_pod_status_phase{phase=~\"Running|Pending\"} == 1)) / max by (node) (kube_node_status_allocatable{node=~\"$node\", resource=\"cpu\"}) or 0 * max by (node) (kube_node_info{node=~\"$node\"})",
           "format": "table",
           "instant": true,
           "range": false,
@@ -651,7 +651,7 @@
         },
         {
           "refId": "H",
-          "expr": "sum by (node) (node_memory_MemTotal_bytes{job=\"node-exporter\", node=~\"$node\"} - node_memory_MemAvailable_bytes{job=\"node-exporter\", node=~\"$node\"}) / max by (node) (label_replace(kube_node_status_allocatable{exported_node=~\"$node\", resource=\"memory\"}, \"node\", \"$1\", \"exported_node\", \"(.*)\"))",
+          "expr": "sum by (node) (node_memory_MemTotal_bytes{job=\"node-exporter\", node=~\"$node\"} - node_memory_MemAvailable_bytes{job=\"node-exporter\", node=~\"$node\"}) / max by (node) (kube_node_status_allocatable{node=~\"$node\", resource=\"memory\"})",
           "format": "table",
           "instant": true,
           "range": false,
@@ -662,7 +662,7 @@
         },
         {
           "refId": "I",
-          "expr": "sum by (node) (label_replace(kube_pod_container_resource_requests{exported_node=~\"$node\", resource=\"memory\"} * on (exported_namespace, exported_pod) group_left () (kube_pod_status_phase{phase=~\"Running|Pending\"} == 1), \"node\", \"$1\", \"exported_node\", \"(.*)\")) / max by (node) (label_replace(kube_node_status_allocatable{exported_node=~\"$node\", resource=\"memory\"}, \"node\", \"$1\", \"exported_node\", \"(.*)\")) or 0 * max by (node) (label_replace(kube_node_info{exported_node=~\"$node\"}, \"node\", \"$1\", \"exported_node\", \"(.*)\"))",
+          "expr": "sum by (node) (kube_pod_container_resource_requests{node=~\"$node\", resource=\"memory\"} * on (namespace, pod) group_left () (kube_pod_status_phase{phase=~\"Running|Pending\"} == 1)) / max by (node) (kube_node_status_allocatable{node=~\"$node\", resource=\"memory\"}) or 0 * max by (node) (kube_node_info{node=~\"$node\"})",
           "format": "table",
           "instant": true,
           "range": false,
@@ -673,7 +673,7 @@
         },
         {
           "refId": "J",
-          "expr": "count by (node) (label_replace(kube_pod_info{exported_node=~\"$node\"} * on (exported_namespace, exported_pod) group_left () (kube_pod_status_phase{phase=\"Running\"} == 1), \"node\", \"$1\", \"exported_node\", \"(.*)\")) or 0 * max by (node) (label_replace(kube_node_info{exported_node=~\"$node\"}, \"node\", \"$1\", \"exported_node\", \"(.*)\"))",
+          "expr": "count by (node) (kube_pod_info{node=~\"$node\"} * on (namespace, pod) group_left () (kube_pod_status_phase{phase=\"Running\"} == 1)) or 0 * max by (node) (kube_node_info{node=~\"$node\"})",
           "format": "table",
           "instant": true,
           "range": false,
@@ -684,7 +684,7 @@
         },
         {
           "refId": "K",
-          "expr": "round(sum by (node) (increase(node_vmstat_oom_kill{job=\"node-exporter\", node=~\"$node\"}[24h]))) or 0 * max by (node) (label_replace(kube_node_info{exported_node=~\"$node\"}, \"node\", \"$1\", \"exported_node\", \"(.*)\"))",
+          "expr": "round(sum by (node) (increase(node_vmstat_oom_kill{job=\"node-exporter\", node=~\"$node\"}[24h]))) or 0 * max by (node) (kube_node_info{node=~\"$node\"})",
           "format": "table",
           "instant": true,
           "range": false,
@@ -1349,7 +1349,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by (node) (rate(node_cpu_seconds_total{job=\"node-exporter\", node=~\"$node\", mode!~\"idle|iowait|steal\"}[$__rate_interval])) / max by (node) (label_replace(kube_node_status_allocatable{exported_node=~\"$node\", resource=\"cpu\"}, \"node\", \"$1\", \"exported_node\", \"(.*)\"))",
+          "expr": "sum by (node) (rate(node_cpu_seconds_total{job=\"node-exporter\", node=~\"$node\", mode!~\"idle|iowait|steal\"}[$__rate_interval])) / max by (node) (kube_node_status_allocatable{node=~\"$node\", resource=\"cpu\"})",
           "legendFormat": "{{node}}"
         }
       ],
@@ -1406,7 +1406,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by (node) (node_memory_MemTotal_bytes{job=\"node-exporter\", node=~\"$node\"} - node_memory_MemAvailable_bytes{job=\"node-exporter\", node=~\"$node\"}) / max by (node) (label_replace(kube_node_status_allocatable{exported_node=~\"$node\", resource=\"memory\"}, \"node\", \"$1\", \"exported_node\", \"(.*)\"))",
+          "expr": "sum by (node) (node_memory_MemTotal_bytes{job=\"node-exporter\", node=~\"$node\"} - node_memory_MemAvailable_bytes{job=\"node-exporter\", node=~\"$node\"}) / max by (node) (kube_node_status_allocatable{node=~\"$node\", resource=\"memory\"})",
           "legendFormat": "{{node}}"
         }
       ],
@@ -1877,7 +1877,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "max by (node, condition) (label_replace(kube_node_status_condition{exported_node=~\"$node\", condition=~\".+Pressure|NetworkUnavailable\", status=\"true\"}, \"node\", \"$1\", \"exported_node\", \"(.*)\")) == 1",
+          "expr": "max by (node, condition) (kube_node_status_condition{node=~\"$node\", condition=~\".+Pressure|NetworkUnavailable\", status=\"true\"}) == 1",
           "legendFormat": "{{node}} {{condition}}"
         }
       ],
@@ -1935,7 +1935,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "max by (node) (label_replace(kube_node_status_condition{exported_node=~\"$node\", condition=\"Ready\", status=\"true\"}, \"node\", \"$1\", \"exported_node\", \"(.*)\")) == 0",
+          "expr": "max by (node) (kube_node_status_condition{node=~\"$node\", condition=\"Ready\", status=\"true\"}) == 0",
           "legendFormat": "{{node}}"
         }
       ],
@@ -2013,28 +2013,28 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "max by (node, namespace, pod) (label_replace(label_replace(label_replace(kube_pod_info{exported_node=~\"$node\"}, \"node\", \"$1\", \"exported_node\", \"(.*)\"), \"namespace\", \"$1\", \"exported_namespace\", \"(.*)\"), \"pod\", \"$1\", \"exported_pod\", \"(.*)\"))",
+          "expr": "max by (node, namespace, pod) (kube_pod_info{node=~\"$node\"})",
           "format": "table",
           "instant": true,
           "range": false
         },
         {
           "refId": "B",
-          "expr": "(sum by (node, namespace, pod) (rate(container_cpu_usage_seconds_total{node=~\"$node\", container!=\"\", container!=\"POD\"}[$__rate_interval])) and on (node, namespace, pod) max by (node, namespace, pod) (label_replace(label_replace(label_replace(kube_pod_info{exported_node=~\"$node\"}, \"node\", \"$1\", \"exported_node\", \"(.*)\"), \"namespace\", \"$1\", \"exported_namespace\", \"(.*)\"), \"pod\", \"$1\", \"exported_pod\", \"(.*)\"))) or 0 * max by (node, namespace, pod) (label_replace(label_replace(label_replace(kube_pod_info{exported_node=~\"$node\"}, \"node\", \"$1\", \"exported_node\", \"(.*)\"), \"namespace\", \"$1\", \"exported_namespace\", \"(.*)\"), \"pod\", \"$1\", \"exported_pod\", \"(.*)\"))",
+          "expr": "(sum by (node, namespace, pod) (rate(container_cpu_usage_seconds_total{node=~\"$node\", container!=\"\", container!=\"POD\"}[$__rate_interval])) and on (node, namespace, pod) max by (node, namespace, pod) (kube_pod_info{node=~\"$node\"})) or 0 * max by (node, namespace, pod) (kube_pod_info{node=~\"$node\"})",
           "format": "table",
           "instant": true,
           "range": false
         },
         {
           "refId": "C",
-          "expr": "(sum by (node, namespace, pod) (container_memory_working_set_bytes{node=~\"$node\", container!=\"\", container!=\"POD\"}) and on (node, namespace, pod) max by (node, namespace, pod) (label_replace(label_replace(label_replace(kube_pod_info{exported_node=~\"$node\"}, \"node\", \"$1\", \"exported_node\", \"(.*)\"), \"namespace\", \"$1\", \"exported_namespace\", \"(.*)\"), \"pod\", \"$1\", \"exported_pod\", \"(.*)\"))) or 0 * max by (node, namespace, pod) (label_replace(label_replace(label_replace(kube_pod_info{exported_node=~\"$node\"}, \"node\", \"$1\", \"exported_node\", \"(.*)\"), \"namespace\", \"$1\", \"exported_namespace\", \"(.*)\"), \"pod\", \"$1\", \"exported_pod\", \"(.*)\"))",
+          "expr": "(sum by (node, namespace, pod) (container_memory_working_set_bytes{node=~\"$node\", container!=\"\", container!=\"POD\"}) and on (node, namespace, pod) max by (node, namespace, pod) (kube_pod_info{node=~\"$node\"})) or 0 * max by (node, namespace, pod) (kube_pod_info{node=~\"$node\"})",
           "format": "table",
           "instant": true,
           "range": false
         },
         {
           "refId": "D",
-          "expr": "round(sum by (node, namespace, pod) (label_replace(label_replace(label_replace(increase(kube_pod_container_status_restarts_total[24h]) * on (exported_namespace, exported_pod) group_left (exported_node) kube_pod_info{exported_node=~\"$node\"}, \"node\", \"$1\", \"exported_node\", \"(.*)\"), \"namespace\", \"$1\", \"exported_namespace\", \"(.*)\"), \"pod\", \"$1\", \"exported_pod\", \"(.*)\"))) or 0 * max by (node, namespace, pod) (label_replace(label_replace(label_replace(kube_pod_info{exported_node=~\"$node\"}, \"node\", \"$1\", \"exported_node\", \"(.*)\"), \"namespace\", \"$1\", \"exported_namespace\", \"(.*)\"), \"pod\", \"$1\", \"exported_pod\", \"(.*)\"))",
+          "expr": "round(sum by (node, namespace, pod) (increase(kube_pod_container_status_restarts_total[24h]) * on (namespace, pod) group_left (node) kube_pod_info{node=~\"$node\"})) or 0 * max by (node, namespace, pod) (kube_pod_info{node=~\"$node\"})",
           "format": "table",
           "instant": true,
           "range": false

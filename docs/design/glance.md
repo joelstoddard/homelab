@@ -337,8 +337,7 @@ health.
 
 `monitoring/app/dashboards/Services/glance.json` assembles those into one
 dashboard. The label to remember is that Traefik series are matched on the `service`
-label's `glance-glance-` prefix, because the CRD provider appends a hash, while
-kube-state-metrics series are matched on `exported_namespace`. Only requests
+label's `glance-glance-` prefix, because the CRD provider appends a hash. Only requests
 through the ingress are counted, so the `check-url` probes do not appear.
 
 Expect long flat stretches: a start page is opened a few times a day, not
