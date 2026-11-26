@@ -25,9 +25,10 @@
         '/^versions\\.env$/',
         '/^install\\.sh$/',
         '/^ansible/roles/00-pxe/defaults/main\\.yaml$/',
+        '/^\\.github/workflows/.+\\.ya?ml$/',
       ],
       matchStrings: [
-        '# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)( registryUrl=(?<registryUrl>\\S+))?( extractVersion=(?<extractVersion>\\S+))?\\n[A-Za-z_]+[=:] ?"?(?<currentValue>[^"\\s]+)"?',
+        '# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)( registryUrl=(?<registryUrl>\\S+))?( extractVersion=(?<extractVersion>\\S+))?\\n\\s*[A-Za-z_]+[=:] ?"?(?<currentValue>[^"\\s]+)"?',
       ],
     },
     {
