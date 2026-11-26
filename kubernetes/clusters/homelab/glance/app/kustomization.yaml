@@ -15,6 +15,7 @@ resources:
   - service.yaml
   - ingressroute.yaml
   - stats
+  - icons
 configMapGenerator:
   - name: glance-config
     files:
