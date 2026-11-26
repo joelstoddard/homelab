@@ -29,6 +29,7 @@ resources:
   - home-assistant/ks.yaml
   - actual/ks.yaml
   - uptime-kuma/ks.yaml
+  - ntfy/ks.yaml
   - it-tools/ks.yaml
   - orb-agent/ks.yaml
   - lancache/ks.yaml
