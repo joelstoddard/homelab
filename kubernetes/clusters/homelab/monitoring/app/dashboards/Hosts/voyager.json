@@ -25,6 +25,24 @@
       "title": "TrueNAS storage",
       "url": "/d/homelab-truenas",
       "icon": "dashboard"
+    },
+    {
+      "type": "link",
+      "title": "Temperatures",
+      "url": "/d/homelab-temperatures",
+      "icon": "dashboard"
+    },
+    {
+      "type": "link",
+      "title": "SMART",
+      "url": "/d/homelab-smart",
+      "icon": "dashboard"
+    },
+    {
+      "type": "link",
+      "title": "Power",
+      "url": "/d/homelab-power",
+      "icon": "dashboard"
     }
   ],
   "templating": {
@@ -53,6 +71,532 @@
         "w": 24,
         "x": 0,
         "y": 0
+      }
+    },
+    {
+      "type": "gauge",
+      "title": "CPU",
+      "description": "Share of CPU time not idle, averaged across cores.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "100 * (1 - servers_Voyager_local_aggregation_cpu_average_cpu_idle / (servers_Voyager_local_aggregation_cpu_average_cpu_idle + servers_Voyager_local_aggregation_cpu_average_cpu_interrupt + servers_Voyager_local_aggregation_cpu_average_cpu_nice + servers_Voyager_local_aggregation_cpu_average_cpu_system + servers_Voyager_local_aggregation_cpu_average_cpu_user))",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 80
+              },
+              {
+                "color": "red",
+                "value": 90
+              }
+            ]
+          },
+          "min": 0,
+          "max": 100
+        },
+        "overrides": []
+      },
+      "options": {
+        "showThresholdMarkers": true,
+        "showThresholdLabels": false,
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "id": 3,
+      "gridPos": {
+        "h": 4,
+        "w": 3,
+        "x": 0,
+        "y": 1
+      }
+    },
+    {
+      "type": "gauge",
+      "title": "Load",
+      "description": "Five-minute load average over the core count: 100 % is one runnable task per core.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "100 * servers_Voyager_local_load_load_midterm / scalar(count({__name__=~\"servers_Voyager_local_cpu_[0-9]+_cpu_idle\"}))",
+          "legendFormat": "",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 80
+              },
+              {
+                "color": "red",
+                "value": 90
+              }
+            ]
+          },
+          "min": 0,
+          "max": 100,
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "showThresholdMarkers": true,
+        "showThresholdLabels": false,
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "id": 23,
+      "gridPos": {
+        "h": 4,
+        "w": 3,
+        "x": 3,
+        "y": 1
+      }
+    },
+    {
+      "type": "gauge",
+      "title": "Memory in use",
+      "description": "Wired (which holds the ZFS ARC) and active memory against all of RAM. A ZFS host keeps this high on purpose.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "100 * (servers_Voyager_local_memory_memory_wired + servers_Voyager_local_memory_memory_active) / (servers_Voyager_local_memory_memory_wired + servers_Voyager_local_memory_memory_active + servers_Voyager_local_memory_memory_inactive + servers_Voyager_local_memory_memory_laundry + servers_Voyager_local_memory_memory_free)",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "decimals": 1,
+          "min": 0,
+          "max": 100
+        },
+        "overrides": []
+      },
+      "options": {
+        "showThresholdMarkers": true,
+        "showThresholdLabels": false,
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "id": 4,
+      "gridPos": {
+        "h": 4,
+        "w": 3,
+        "x": 6,
+        "y": 1
+      }
+    },
+    {
+      "type": "gauge",
+      "title": "Pool used",
+      "description": "Space referenced by the pool's datasets over that plus free: snapshots are not counted, as on TrueNAS storage.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "100 * sum({__name__=~\"servers_Voyager_local_df_mnt_Voyager(_.+)?_df_complex_used\"}) / (sum({__name__=~\"servers_Voyager_local_df_mnt_Voyager(_.+)?_df_complex_used\"}) + sum(servers_Voyager_local_df_mnt_Voyager_df_complex_free))",
+          "legendFormat": "",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "decimals": 1,
+          "min": 0,
+          "max": 100
+        },
+        "overrides": []
+      },
+      "options": {
+        "showThresholdMarkers": true,
+        "showThresholdLabels": false,
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "id": 24,
+      "gridPos": {
+        "h": 4,
+        "w": 3,
+        "x": 9,
+        "y": 1
+      }
+    },
+    {
+      "type": "gauge",
+      "title": "Hottest CPU core",
+      "description": "The warmest core (the sensor reports tenths of a kelvin).",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max(label_replace({__name__=~\"servers_Voyager_local_cputemp_.+_temperature\"}, \"core\", \"$1\", \"__name__\", \"servers_Voyager_local_cputemp_(.+)_temperature\") / 10 - 273.15)",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "celsius",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 80
+              },
+              {
+                "color": "red",
+                "value": 95
+              }
+            ]
+          },
+          "min": 0,
+          "max": 100
+        },
+        "overrides": []
+      },
+      "options": {
+        "showThresholdMarkers": true,
+        "showThresholdLabels": false,
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "id": 6,
+      "gridPos": {
+        "h": 4,
+        "w": 3,
+        "x": 12,
+        "y": 1
+      }
+    },
+    {
+      "type": "gauge",
+      "title": "Hottest disk",
+      "description": "The warmest drive's temperature.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max(label_replace({__name__=~\"servers_Voyager_local_disktemp_.+_temperature\"}, \"disk\", \"$1\", \"__name__\", \"servers_Voyager_local_disktemp_(.+)_temperature\"))",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "celsius",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 45
+              },
+              {
+                "color": "red",
+                "value": 55
+              }
+            ]
+          },
+          "min": 0,
+          "max": 100
+        },
+        "overrides": []
+      },
+      "options": {
+        "showThresholdMarkers": true,
+        "showThresholdLabels": false,
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "id": 7,
+      "gridPos": {
+        "h": 4,
+        "w": 3,
+        "x": 15,
+        "y": 1
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Cores",
+      "description": "CPU cores collectd reports.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "count({__name__=~\"servers_Voyager_local_cpu_[0-9]+_cpu_idle\"})",
+          "legendFormat": "",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "id": 25,
+      "gridPos": {
+        "h": 2,
+        "w": 2,
+        "x": 18,
+        "y": 1
+      }
+    },
+    {
+      "type": "stat",
+      "title": "RAM",
+      "description": "All memory queues together: wired, active, inactive, laundry and free.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "servers_Voyager_local_memory_memory_wired + servers_Voyager_local_memory_memory_active + servers_Voyager_local_memory_memory_inactive + servers_Voyager_local_memory_memory_laundry + servers_Voyager_local_memory_memory_free",
+          "legendFormat": "",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "id": 26,
+      "gridPos": {
+        "h": 2,
+        "w": 2,
+        "x": 20,
+        "y": 1
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Pool",
+      "description": "Referenced plus free space on the pool.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum({__name__=~\"servers_Voyager_local_df_mnt_Voyager(_.+)?_df_complex_used\"}) + sum(servers_Voyager_local_df_mnt_Voyager_df_complex_free)",
+          "legendFormat": "",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "id": 27,
+      "gridPos": {
+        "h": 2,
+        "w": 2,
+        "x": 22,
+        "y": 1
       }
     },
     {
@@ -91,7 +635,7 @@
       },
       "options": {
         "colorMode": "value",
-        "graphMode": "area",
+        "graphMode": "none",
         "textMode": "value",
         "reduceOptions": {
           "calcs": [
@@ -103,125 +647,10 @@
       },
       "id": 2,
       "gridPos": {
-        "h": 4,
-        "w": 4,
-        "x": 0,
-        "y": 1
-      }
-    },
-    {
-      "type": "stat",
-      "title": "CPU",
-      "description": "Share of CPU time not idle, averaged across cores.",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "100 * (1 - servers_Voyager_local_aggregation_cpu_average_cpu_idle / (servers_Voyager_local_aggregation_cpu_average_cpu_idle + servers_Voyager_local_aggregation_cpu_average_cpu_interrupt + servers_Voyager_local_aggregation_cpu_average_cpu_nice + servers_Voyager_local_aggregation_cpu_average_cpu_system + servers_Voyager_local_aggregation_cpu_average_cpu_user))",
-          "instant": true
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "percent",
-          "color": {
-            "mode": "thresholds"
-          },
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "orange",
-                "value": 80
-              },
-              {
-                "color": "red",
-                "value": 90
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "options": {
-        "colorMode": "value",
-        "graphMode": "area",
-        "textMode": "value",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        }
-      },
-      "id": 3,
-      "gridPos": {
-        "h": 4,
-        "w": 4,
-        "x": 4,
-        "y": 1
-      }
-    },
-    {
-      "type": "stat",
-      "title": "Memory in use",
-      "description": "Wired (which holds the ZFS ARC) and active memory against all of RAM. A ZFS host keeps this high on purpose.",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "100 * (servers_Voyager_local_memory_memory_wired + servers_Voyager_local_memory_memory_active) / (servers_Voyager_local_memory_memory_wired + servers_Voyager_local_memory_memory_active + servers_Voyager_local_memory_memory_inactive + servers_Voyager_local_memory_memory_laundry + servers_Voyager_local_memory_memory_free)",
-          "instant": true
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "percent",
-          "color": {
-            "mode": "thresholds"
-          },
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              }
-            ]
-          },
-          "decimals": 1
-        },
-        "overrides": []
-      },
-      "options": {
-        "colorMode": "value",
-        "graphMode": "area",
-        "textMode": "value",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        }
-      },
-      "id": 4,
-      "gridPos": {
-        "h": 4,
-        "w": 4,
-        "x": 8,
-        "y": 1
+        "h": 2,
+        "w": 3,
+        "x": 18,
+        "y": 3
       }
     },
     {
@@ -263,7 +692,7 @@
       },
       "options": {
         "colorMode": "value",
-        "graphMode": "area",
+        "graphMode": "none",
         "textMode": "value",
         "reduceOptions": {
           "calcs": [
@@ -275,452 +704,22 @@
       },
       "id": 5,
       "gridPos": {
-        "h": 4,
-        "w": 4,
-        "x": 12,
-        "y": 1
-      }
-    },
-    {
-      "type": "stat",
-      "title": "Hottest CPU core",
-      "description": "The warmest core (the sensor reports tenths of a kelvin).",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "max(label_replace({__name__=~\"servers_Voyager_local_cputemp_.+_temperature\"}, \"core\", \"$1\", \"__name__\", \"servers_Voyager_local_cputemp_(.+)_temperature\") / 10 - 273.15)",
-          "instant": true
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "celsius",
-          "color": {
-            "mode": "thresholds"
-          },
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "orange",
-                "value": 80
-              },
-              {
-                "color": "red",
-                "value": 95
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "options": {
-        "colorMode": "value",
-        "graphMode": "area",
-        "textMode": "value",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        }
-      },
-      "id": 6,
-      "gridPos": {
-        "h": 4,
-        "w": 4,
-        "x": 16,
-        "y": 1
-      }
-    },
-    {
-      "type": "stat",
-      "title": "Hottest disk",
-      "description": "The warmest drive's temperature.",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "max(label_replace({__name__=~\"servers_Voyager_local_disktemp_.+_temperature\"}, \"disk\", \"$1\", \"__name__\", \"servers_Voyager_local_disktemp_(.+)_temperature\"))",
-          "instant": true
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "celsius",
-          "color": {
-            "mode": "thresholds"
-          },
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "orange",
-                "value": 45
-              },
-              {
-                "color": "red",
-                "value": 55
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "options": {
-        "colorMode": "value",
-        "graphMode": "area",
-        "textMode": "value",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        }
-      },
-      "id": 7,
-      "gridPos": {
-        "h": 4,
-        "w": 4,
-        "x": 20,
-        "y": 1
+        "h": 2,
+        "w": 3,
+        "x": 21,
+        "y": 3
       }
     },
     {
       "type": "row",
-      "title": "Temperatures",
+      "title": "CPU, memory, network and disk",
       "collapsed": false,
-      "panels": [],
-      "id": 8,
+      "id": 36,
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
         "y": 5
-      }
-    },
-    {
-      "type": "timeseries",
-      "title": "CPU",
-      "description": "Per-core temperature.",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "label_replace({__name__=~\"servers_Voyager_local_cputemp_.+_temperature\"}, \"core\", \"$1\", \"__name__\", \"servers_Voyager_local_cputemp_(.+)_temperature\") / 10 - 273.15",
-          "legendFormat": "Core {{core}}"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "celsius",
-          "custom": {
-            "lineWidth": 2,
-            "fillOpacity": 10,
-            "showPoints": "never"
-          },
-          "min": null
-        },
-        "overrides": []
-      },
-      "options": {
-        "legend": {
-          "displayMode": "table",
-          "placement": "right",
-          "calcs": [
-            "mean",
-            "max",
-            "lastNotNull"
-          ]
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        }
-      },
-      "id": 9,
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 6
-      }
-    },
-    {
-      "type": "timeseries",
-      "title": "Disks",
-      "description": "Each drive's temperature.",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "label_replace({__name__=~\"servers_Voyager_local_disktemp_.+_temperature\"}, \"disk\", \"$1\", \"__name__\", \"servers_Voyager_local_disktemp_(.+)_temperature\")",
-          "legendFormat": "{{disk}}"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "celsius",
-          "custom": {
-            "lineWidth": 2,
-            "fillOpacity": 10,
-            "showPoints": "never",
-            "thresholdsStyle": {
-              "mode": "line"
-            }
-          },
-          "min": null,
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "red",
-                "value": 55
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "options": {
-        "legend": {
-          "displayMode": "table",
-          "placement": "right",
-          "calcs": [
-            "mean",
-            "max",
-            "lastNotNull"
-          ]
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        }
-      },
-      "id": 10,
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 6
-      }
-    },
-    {
-      "type": "row",
-      "title": "Storage",
-      "collapsed": false,
-      "panels": [],
-      "id": 11,
-      "gridPos": {
-        "h": 1,
-        "w": 24,
-        "x": 0,
-        "y": 14
-      }
-    },
-    {
-      "type": "timeseries",
-      "title": "Disk throughput",
-      "description": "Bytes read and written per second, per drive.",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "label_replace({__name__=~\"servers_Voyager_local_disk_.+_disk_octets_read\"}, \"disk\", \"$1\", \"__name__\", \"servers_Voyager_local_disk_(.+)_disk_octets_read\")",
-          "legendFormat": "{{disk}} read"
-        },
-        {
-          "refId": "B",
-          "expr": "label_replace({__name__=~\"servers_Voyager_local_disk_.+_disk_octets_write\"}, \"disk\", \"$1\", \"__name__\", \"servers_Voyager_local_disk_(.+)_disk_octets_write\")",
-          "legendFormat": "{{disk}} write"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "Bps",
-          "custom": {
-            "lineWidth": 2,
-            "fillOpacity": 10,
-            "showPoints": "never"
-          },
-          "min": 0
-        },
-        "overrides": []
-      },
-      "options": {
-        "legend": {
-          "displayMode": "table",
-          "placement": "right",
-          "calcs": [
-            "mean",
-            "max",
-            "lastNotNull"
-          ]
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        }
-      },
-      "id": 12,
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 15
-      }
-    },
-    {
-      "type": "timeseries",
-      "title": "Disk IOPS",
-      "description": "Read and write operations per second, per drive.",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "label_replace({__name__=~\"servers_Voyager_local_disk_.+_disk_ops_read\"}, \"disk\", \"$1\", \"__name__\", \"servers_Voyager_local_disk_(.+)_disk_ops_read\")",
-          "legendFormat": "{{disk}} read"
-        },
-        {
-          "refId": "B",
-          "expr": "label_replace({__name__=~\"servers_Voyager_local_disk_.+_disk_ops_write\"}, \"disk\", \"$1\", \"__name__\", \"servers_Voyager_local_disk_(.+)_disk_ops_write\")",
-          "legendFormat": "{{disk}} write"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "iops",
-          "custom": {
-            "lineWidth": 2,
-            "fillOpacity": 10,
-            "showPoints": "never"
-          },
-          "min": 0
-        },
-        "overrides": []
-      },
-      "options": {
-        "legend": {
-          "displayMode": "table",
-          "placement": "right",
-          "calcs": [
-            "mean",
-            "max",
-            "lastNotNull"
-          ]
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        }
-      },
-      "id": 13,
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 15
-      }
-    },
-    {
-      "type": "timeseries",
-      "title": "Disk latency",
-      "description": "Average time per operation, as collectd's disk plugin reports it.",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "label_replace({__name__=~\"servers_Voyager_local_disk_.+_disk_time_read\"}, \"disk\", \"$1\", \"__name__\", \"servers_Voyager_local_disk_(.+)_disk_time_read\")",
-          "legendFormat": "{{disk}} read"
-        },
-        {
-          "refId": "B",
-          "expr": "label_replace({__name__=~\"servers_Voyager_local_disk_.+_disk_time_write\"}, \"disk\", \"$1\", \"__name__\", \"servers_Voyager_local_disk_(.+)_disk_time_write\")",
-          "legendFormat": "{{disk}} write"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "ms",
-          "custom": {
-            "lineWidth": 2,
-            "fillOpacity": 10,
-            "showPoints": "never"
-          },
-          "min": 0
-        },
-        "overrides": []
-      },
-      "options": {
-        "legend": {
-          "displayMode": "table",
-          "placement": "right",
-          "calcs": [
-            "mean",
-            "max",
-            "lastNotNull"
-          ]
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        }
-      },
-      "id": 14,
-      "gridPos": {
-        "h": 8,
-        "w": 24,
-        "x": 0,
-        "y": 23
-      }
-    },
-    {
-      "type": "row",
-      "title": "CPU and memory",
-      "collapsed": false,
-      "panels": [],
-      "id": 15,
-      "gridPos": {
-        "h": 1,
-        "w": 24,
-        "x": 0,
-        "y": 31
       }
     },
     {
@@ -786,10 +785,10 @@
       },
       "id": 16,
       "gridPos": {
-        "h": 8,
+        "h": 7,
         "w": 12,
         "x": 0,
-        "y": 32
+        "y": 6
       }
     },
     {
@@ -861,10 +860,197 @@
       },
       "id": 17,
       "gridPos": {
-        "h": 8,
+        "h": 7,
         "w": 12,
         "x": 12,
-        "y": 32
+        "y": 6
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Network",
+      "description": "Bits per second per interface: out above zero, in below.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "8 * label_replace({__name__=~\"servers_Voyager_local_interface_.+_if_octets_tx\"}, \"interface\", \"$1\", \"__name__\", \"servers_Voyager_local_interface_(.+)_if_octets_tx\")",
+          "legendFormat": "{{interface}} out"
+        },
+        {
+          "refId": "B",
+          "expr": "8 * label_replace({__name__=~\"servers_Voyager_local_interface_.+_if_octets_rx\"}, \"interface\", \"$1\", \"__name__\", \"servers_Voyager_local_interface_(.+)_if_octets_rx\")",
+          "legendFormat": "{{interface}} in"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bps",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "never"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "/.* in/"
+            },
+            "properties": [
+              {
+                "id": "custom.transform",
+                "value": "negative-Y"
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "mean",
+            "max",
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "id": 20,
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 0,
+        "y": 13
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Pool used",
+      "description": "Pool used over time, as the Pool used gauge.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "100 * sum({__name__=~\"servers_Voyager_local_df_mnt_Voyager(_.+)?_df_complex_used\"}) / (sum({__name__=~\"servers_Voyager_local_df_mnt_Voyager(_.+)?_df_complex_used\"}) + sum(servers_Voyager_local_df_mnt_Voyager_df_complex_free))",
+          "legendFormat": "Voyager"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "never"
+          },
+          "min": 0,
+          "max": 100
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "mean",
+            "max",
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "id": 28,
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 12,
+        "y": 13
+      }
+    },
+    {
+      "type": "row",
+      "title": "CPU and memory",
+      "collapsed": false,
+      "panels": [],
+      "id": 15,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 20
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "CPU utilisation",
+      "description": "Average across cores, and the busiest single core: a gap between them is one core saturated while the rest idle.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "100 * (1 - servers_Voyager_local_aggregation_cpu_average_cpu_idle / (servers_Voyager_local_aggregation_cpu_average_cpu_idle + servers_Voyager_local_aggregation_cpu_average_cpu_interrupt + servers_Voyager_local_aggregation_cpu_average_cpu_nice + servers_Voyager_local_aggregation_cpu_average_cpu_system + servers_Voyager_local_aggregation_cpu_average_cpu_user))",
+          "legendFormat": "Average"
+        },
+        {
+          "refId": "B",
+          "expr": "100 * (1 - min(sum by (core) (label_replace({__name__=~\"servers_Voyager_local_cpu_[0-9]+_cpu_idle\"}, \"core\", \"$1\", \"__name__\", \"servers_Voyager_local_cpu_([0-9]+)_cpu_idle\")) / sum by (core) (label_replace({__name__=~\"servers_Voyager_local_cpu_[0-9]+_cpu_.+\"}, \"core\", \"$1\", \"__name__\", \"servers_Voyager_local_cpu_([0-9]+)_cpu_(.+)\"))))",
+          "legendFormat": "Busiest core"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "never"
+          },
+          "min": 0,
+          "max": 100
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "mean",
+            "max",
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "id": 29,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 21
       }
     },
     {
@@ -921,29 +1107,28 @@
       },
       "id": 18,
       "gridPos": {
-        "h": 6,
-        "w": 24,
-        "x": 0,
-        "y": 40
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 21
       }
     },
     {
       "type": "row",
-      "title": "Network",
+      "title": "System",
       "collapsed": false,
-      "panels": [],
-      "id": 19,
+      "id": 37,
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 46
+        "y": 29
       }
     },
     {
       "type": "timeseries",
-      "title": "Network",
-      "description": "Bits per second in and out, per interface.",
+      "title": "Processes",
+      "description": "Processes by state: running, blocked on I/O, waiting, and zombies.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -951,18 +1136,13 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "8 * label_replace({__name__=~\"servers_Voyager_local_interface_.+_if_octets_rx\"}, \"interface\", \"$1\", \"__name__\", \"servers_Voyager_local_interface_(.+)_if_octets_rx\")",
-          "legendFormat": "{{interface}} in"
-        },
-        {
-          "refId": "B",
-          "expr": "8 * label_replace({__name__=~\"servers_Voyager_local_interface_.+_if_octets_tx\"}, \"interface\", \"$1\", \"__name__\", \"servers_Voyager_local_interface_(.+)_if_octets_tx\")",
-          "legendFormat": "{{interface}} out"
+          "expr": "label_replace({__name__=~\"servers_Voyager_local_processes_ps_state_(running|blocked|wait|zombies)\"}, \"state\", \"$1\", \"__name__\", \"servers_Voyager_local_processes_ps_state_(running|blocked|wait|zombies)\")",
+          "legendFormat": "{{state}}"
         }
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "bps",
+          "unit": "short",
           "custom": {
             "lineWidth": 2,
             "fillOpacity": 10,
@@ -987,12 +1167,604 @@
           "sort": "desc"
         }
       },
-      "id": 20,
+      "id": 30,
       "gridPos": {
         "h": 8,
         "w": 24,
         "x": 0,
+        "y": 30
+      }
+    },
+    {
+      "type": "row",
+      "title": "Temperatures",
+      "collapsed": false,
+      "panels": [],
+      "id": 8,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 38
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "CPU",
+      "description": "Per-core temperature.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "label_replace({__name__=~\"servers_Voyager_local_cputemp_.+_temperature\"}, \"core\", \"$1\", \"__name__\", \"servers_Voyager_local_cputemp_(.+)_temperature\") / 10 - 273.15",
+          "legendFormat": "Core {{core}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "celsius",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "never"
+          },
+          "min": null
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "mean",
+            "max",
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "id": 9,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 39
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Disks",
+      "description": "Each drive's temperature.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "label_replace({__name__=~\"servers_Voyager_local_disktemp_.+_temperature\"}, \"disk\", \"$1\", \"__name__\", \"servers_Voyager_local_disktemp_(.+)_temperature\")",
+          "legendFormat": "{{disk}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "celsius",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "thresholdsStyle": {
+              "mode": "line"
+            }
+          },
+          "min": null,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 55
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "mean",
+            "max",
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "id": 10,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 39
+      }
+    },
+    {
+      "type": "row",
+      "title": "Storage",
+      "collapsed": false,
+      "panels": [],
+      "id": 11,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
         "y": 47
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Disk throughput",
+      "description": "Bytes read and written per second, per drive.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "label_replace({__name__=~\"servers_Voyager_local_disk_.+_disk_octets_read\"}, \"disk\", \"$1\", \"__name__\", \"servers_Voyager_local_disk_(.+)_disk_octets_read\")",
+          "legendFormat": "{{disk}} read"
+        },
+        {
+          "refId": "B",
+          "expr": "label_replace({__name__=~\"servers_Voyager_local_disk_.+_disk_octets_write\"}, \"disk\", \"$1\", \"__name__\", \"servers_Voyager_local_disk_(.+)_disk_octets_write\")",
+          "legendFormat": "{{disk}} write"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "Bps",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "never"
+          },
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "mean",
+            "max",
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "id": 12,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 48
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Disk IOPS",
+      "description": "Read and write operations per second, per drive.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "label_replace({__name__=~\"servers_Voyager_local_disk_.+_disk_ops_read\"}, \"disk\", \"$1\", \"__name__\", \"servers_Voyager_local_disk_(.+)_disk_ops_read\")",
+          "legendFormat": "{{disk}} read"
+        },
+        {
+          "refId": "B",
+          "expr": "label_replace({__name__=~\"servers_Voyager_local_disk_.+_disk_ops_write\"}, \"disk\", \"$1\", \"__name__\", \"servers_Voyager_local_disk_(.+)_disk_ops_write\")",
+          "legendFormat": "{{disk}} write"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "iops",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "never"
+          },
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "mean",
+            "max",
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "id": 13,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 48
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Disk latency",
+      "description": "Average time per operation, as collectd's disk plugin reports it.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "label_replace({__name__=~\"servers_Voyager_local_disk_.+_disk_time_read\"}, \"disk\", \"$1\", \"__name__\", \"servers_Voyager_local_disk_(.+)_disk_time_read\")",
+          "legendFormat": "{{disk}} read"
+        },
+        {
+          "refId": "B",
+          "expr": "label_replace({__name__=~\"servers_Voyager_local_disk_.+_disk_time_write\"}, \"disk\", \"$1\", \"__name__\", \"servers_Voyager_local_disk_(.+)_disk_time_write\")",
+          "legendFormat": "{{disk}} write"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "never"
+          },
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "mean",
+            "max",
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "id": 14,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 56
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Busy",
+      "description": "Share of time each disk had I/O in flight (GEOM).",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "label_replace({__name__=~\"servers_Voyager_local_geom_stat_geom_busy_percent_.+\"}, \"disk\", \"$1\", \"__name__\", \"servers_Voyager_local_geom_stat_geom_busy_percent_(.+)\")",
+          "legendFormat": "{{disk}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "never"
+          },
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "mean",
+            "max",
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "id": 31,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 56
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Queue length",
+      "description": "I/O requests queued per disk (GEOM).",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "label_replace({__name__=~\"servers_Voyager_local_geom_stat_geom_queue_.+\"}, \"disk\", \"$1\", \"__name__\", \"servers_Voyager_local_geom_stat_geom_queue_(.+)\")",
+          "legendFormat": "{{disk}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "never"
+          },
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "mean",
+            "max",
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "id": 32,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 64
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Pool free",
+      "description": "Free space on the pool.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "servers_Voyager_local_df_mnt_Voyager_df_complex_free",
+          "legendFormat": "free"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "never"
+          },
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "mean",
+            "max",
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "id": 33,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 64
+      }
+    },
+    {
+      "type": "row",
+      "title": "Network",
+      "collapsed": false,
+      "panels": [],
+      "id": 19,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 72
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Packets",
+      "description": "Packets per second per interface: out above zero, in below.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "label_replace({__name__=~\"servers_Voyager_local_interface_.+_if_packets_tx\"}, \"interface\", \"$1\", \"__name__\", \"servers_Voyager_local_interface_(.+)_if_packets_tx\")",
+          "legendFormat": "{{interface}} out"
+        },
+        {
+          "refId": "B",
+          "expr": "label_replace({__name__=~\"servers_Voyager_local_interface_.+_if_packets_rx\"}, \"interface\", \"$1\", \"__name__\", \"servers_Voyager_local_interface_(.+)_if_packets_rx\")",
+          "legendFormat": "{{interface}} in"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "pps",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "never"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "/.* in/"
+            },
+            "properties": [
+              {
+                "id": "custom.transform",
+                "value": "negative-Y"
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "mean",
+            "max",
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "id": 34,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 73
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Errors",
+      "description": "Packets per second received or sent in error. Should stay at 0.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "label_replace({__name__=~\"servers_Voyager_local_interface_.+_if_errors_rx\"}, \"interface\", \"$1\", \"__name__\", \"servers_Voyager_local_interface_(.+)_if_errors_rx\")",
+          "legendFormat": "{{interface}} in"
+        },
+        {
+          "refId": "B",
+          "expr": "label_replace({__name__=~\"servers_Voyager_local_interface_.+_if_errors_tx\"}, \"interface\", \"$1\", \"__name__\", \"servers_Voyager_local_interface_(.+)_if_errors_tx\")",
+          "legendFormat": "{{interface}} out"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "pps",
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "never"
+          },
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "mean",
+            "max",
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "id": 35,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 73
       }
     },
     {
@@ -1005,7 +1777,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 55
+        "y": 81
       }
     },
     {
@@ -1034,7 +1806,7 @@
         "h": 12,
         "w": 24,
         "x": 0,
-        "y": 56
+        "y": 82
       }
     }
   ]

@@ -59,55 +59,55 @@
       "targets": [
         {
           "refId": "U",
-          "expr": "max by (instance) (up{job=\"node-exporter\", instance!~\"k8s-.*\"}) or max by (instance) (max_over_time(up{job=\"node-exporter\", instance!~\"k8s-.*\"}[1d])) * 0 or label_replace(count(servers_Voyager_local_uptime_uptime) > bool 0 or count(max_over_time(servers_Voyager_local_uptime_uptime[1d])) * 0, \"instance\", \"voyager\", \"\", \"\") or label_replace(max(homeassistant_entity_available{job=\"home-assistant\", friendly_name=\"Router Uptime\"}) or max(max_over_time(homeassistant_entity_available{job=\"home-assistant\", friendly_name=\"Router Uptime\"}[1d])) * 0, \"instance\", \"hubble\", \"\", \"\")",
+          "expr": "label_replace(label_replace(max by (instance) (up{job=\"node-exporter\", instance!~\"k8s-.*\"}) or max by (instance) (max_over_time(up{job=\"node-exporter\", instance!~\"k8s-.*\"}[1d])) * 0 or label_replace(count(servers_Voyager_local_uptime_uptime) > bool 0 or count(max_over_time(servers_Voyager_local_uptime_uptime[1d])) * 0, \"instance\", \"voyager\", \"\", \"\") or label_replace(max(homeassistant_entity_available{job=\"home-assistant\", friendly_name=\"Router Uptime\"}) or max(max_over_time(homeassistant_entity_available{job=\"home-assistant\", friendly_name=\"Router Uptime\"}[1d])) * 0, \"instance\", \"hubble\", \"\", \"\"), \"dashboard\", \"homelab-host-$1\", \"instance\", \"(.*)\"), \"dashboard\", \"homelab-router\", \"instance\", \"hubble\")",
           "format": "table",
           "instant": true
         },
         {
           "refId": "A",
-          "expr": "max by (instance) (time() - node_boot_time_seconds{job=\"node-exporter\"} and on (instance) group by (instance) (node_boot_time_seconds{job=\"node-exporter\", instance!~\"k8s-.*\"})) or label_replace(max(servers_Voyager_local_uptime_uptime), \"instance\", \"voyager\", \"\", \"\") or label_replace(max(homeassistant_sensor_duration_s{job=\"home-assistant\", friendly_name=\"Router Uptime\"}), \"instance\", \"hubble\", \"\", \"\")",
+          "expr": "label_replace(label_replace(max by (instance) (time() - node_boot_time_seconds{job=\"node-exporter\"} and on (instance) group by (instance) (node_boot_time_seconds{job=\"node-exporter\", instance!~\"k8s-.*\"})) or label_replace(max(servers_Voyager_local_uptime_uptime), \"instance\", \"voyager\", \"\", \"\") or label_replace(max(homeassistant_sensor_duration_s{job=\"home-assistant\", friendly_name=\"Router Uptime\"}), \"instance\", \"hubble\", \"\", \"\"), \"dashboard\", \"homelab-host-$1\", \"instance\", \"(.*)\"), \"dashboard\", \"homelab-router\", \"instance\", \"hubble\")",
           "format": "table",
           "instant": true
         },
         {
           "refId": "B",
-          "expr": "max by (instance) (100 * (1 - avg by (instance) (rate(node_cpu_seconds_total{job=\"node-exporter\", mode=\"idle\"}[5m]))) and on (instance) group by (instance) (node_boot_time_seconds{job=\"node-exporter\", instance!~\"k8s-.*\"})) or label_replace(max(100 * (1 - servers_Voyager_local_aggregation_cpu_average_cpu_idle / (servers_Voyager_local_aggregation_cpu_average_cpu_idle + servers_Voyager_local_aggregation_cpu_average_cpu_interrupt + servers_Voyager_local_aggregation_cpu_average_cpu_nice + servers_Voyager_local_aggregation_cpu_average_cpu_system + servers_Voyager_local_aggregation_cpu_average_cpu_user))), \"instance\", \"voyager\", \"\", \"\") or label_replace(max(homeassistant_sensor_unit_percent{job=\"home-assistant\", friendly_name=\"Router CPU usage\"}), \"instance\", \"hubble\", \"\", \"\")",
+          "expr": "label_replace(label_replace(max by (instance) (100 * (1 - avg by (instance) (rate(node_cpu_seconds_total{job=\"node-exporter\", mode=\"idle\"}[5m]))) and on (instance) group by (instance) (node_boot_time_seconds{job=\"node-exporter\", instance!~\"k8s-.*\"})) or label_replace(max(100 * (1 - servers_Voyager_local_aggregation_cpu_average_cpu_idle / (servers_Voyager_local_aggregation_cpu_average_cpu_idle + servers_Voyager_local_aggregation_cpu_average_cpu_interrupt + servers_Voyager_local_aggregation_cpu_average_cpu_nice + servers_Voyager_local_aggregation_cpu_average_cpu_system + servers_Voyager_local_aggregation_cpu_average_cpu_user))), \"instance\", \"voyager\", \"\", \"\") or label_replace(max(homeassistant_sensor_unit_percent{job=\"home-assistant\", friendly_name=\"Router CPU usage\"}), \"instance\", \"hubble\", \"\", \"\"), \"dashboard\", \"homelab-host-$1\", \"instance\", \"(.*)\"), \"dashboard\", \"homelab-router\", \"instance\", \"hubble\")",
           "format": "table",
           "instant": true
         },
         {
           "refId": "C",
-          "expr": "max by (instance) (100 * (1 - node_memory_MemAvailable_bytes{job=\"node-exporter\"} / node_memory_MemTotal_bytes{job=\"node-exporter\"}) and on (instance) group by (instance) (node_boot_time_seconds{job=\"node-exporter\", instance!~\"k8s-.*\"})) or label_replace(max(100 * (servers_Voyager_local_memory_memory_wired + servers_Voyager_local_memory_memory_active) / (servers_Voyager_local_memory_memory_wired + servers_Voyager_local_memory_memory_active + servers_Voyager_local_memory_memory_inactive + servers_Voyager_local_memory_memory_laundry + servers_Voyager_local_memory_memory_free)), \"instance\", \"voyager\", \"\", \"\") or label_replace(max(homeassistant_sensor_unit_percent{job=\"home-assistant\", friendly_name=\"Router Memory usage\"}), \"instance\", \"hubble\", \"\", \"\")",
+          "expr": "label_replace(label_replace(max by (instance) (100 * (1 - node_memory_MemAvailable_bytes{job=\"node-exporter\"} / node_memory_MemTotal_bytes{job=\"node-exporter\"}) and on (instance) group by (instance) (node_boot_time_seconds{job=\"node-exporter\", instance!~\"k8s-.*\"})) or label_replace(max(100 * (servers_Voyager_local_memory_memory_wired + servers_Voyager_local_memory_memory_active) / (servers_Voyager_local_memory_memory_wired + servers_Voyager_local_memory_memory_active + servers_Voyager_local_memory_memory_inactive + servers_Voyager_local_memory_memory_laundry + servers_Voyager_local_memory_memory_free)), \"instance\", \"voyager\", \"\", \"\") or label_replace(max(homeassistant_sensor_unit_percent{job=\"home-assistant\", friendly_name=\"Router Memory usage\"}), \"instance\", \"hubble\", \"\", \"\"), \"dashboard\", \"homelab-host-$1\", \"instance\", \"(.*)\"), \"dashboard\", \"homelab-router\", \"instance\", \"hubble\")",
           "format": "table",
           "instant": true
         },
         {
           "refId": "D",
-          "expr": "max by (instance) (100 * (1 - node_filesystem_avail_bytes{job=\"node-exporter\", mountpoint=~\"/|/var\", fstype=~\"ext4|xfs\"} / node_filesystem_size_bytes{job=\"node-exporter\", mountpoint=~\"/|/var\", fstype=~\"ext4|xfs\"}) and on (instance) group by (instance) (node_boot_time_seconds{job=\"node-exporter\", instance!~\"k8s-.*\"})) or label_replace(100 * sum({__name__=~\"servers_Voyager_local_df_mnt_Voyager(_.+)?_df_complex_used\"}) / (sum({__name__=~\"servers_Voyager_local_df_mnt_Voyager(_.+)?_df_complex_used\"}) + sum(servers_Voyager_local_df_mnt_Voyager_df_complex_free)), \"instance\", \"voyager\", \"\", \"\")",
+          "expr": "label_replace(label_replace(max by (instance) (100 * (1 - node_filesystem_avail_bytes{job=\"node-exporter\", mountpoint=~\"/|/var\", fstype=~\"ext4|xfs\"} / node_filesystem_size_bytes{job=\"node-exporter\", mountpoint=~\"/|/var\", fstype=~\"ext4|xfs\"}) and on (instance) group by (instance) (node_boot_time_seconds{job=\"node-exporter\", instance!~\"k8s-.*\"})) or label_replace(100 * sum({__name__=~\"servers_Voyager_local_df_mnt_Voyager(_.+)?_df_complex_used\"}) / (sum({__name__=~\"servers_Voyager_local_df_mnt_Voyager(_.+)?_df_complex_used\"}) + sum(servers_Voyager_local_df_mnt_Voyager_df_complex_free)), \"instance\", \"voyager\", \"\", \"\"), \"dashboard\", \"homelab-host-$1\", \"instance\", \"(.*)\"), \"dashboard\", \"homelab-router\", \"instance\", \"hubble\")",
           "format": "table",
           "instant": true
         },
         {
           "refId": "E",
-          "expr": "max by (instance) (node_hwmon_temp_celsius{job=\"node-exporter\"} and on (instance) group by (instance) (node_boot_time_seconds{job=\"node-exporter\", instance!~\"k8s-.*\"})) or label_replace(max(label_replace(max({__name__=~\"servers_Voyager_local_cputemp_.+_temperature\"}) / 10 - 273.15, \"s\", \"cpu\", \"\", \"\") or label_replace(max({__name__=~\"servers_Voyager_local_disktemp_.+_temperature\"}), \"s\", \"disk\", \"\", \"\")), \"instance\", \"voyager\", \"\", \"\") or label_replace(max(homeassistant_sensor_temperature_celsius{job=\"home-assistant\", friendly_name=\"Router CPU temperature\"}), \"instance\", \"hubble\", \"\", \"\")",
+          "expr": "label_replace(label_replace(max by (instance) (node_hwmon_temp_celsius{job=\"node-exporter\"} and on (instance) group by (instance) (node_boot_time_seconds{job=\"node-exporter\", instance!~\"k8s-.*\"})) or label_replace(max(label_replace(max({__name__=~\"servers_Voyager_local_cputemp_.+_temperature\"}) / 10 - 273.15, \"s\", \"cpu\", \"\", \"\") or label_replace(max({__name__=~\"servers_Voyager_local_disktemp_.+_temperature\"}), \"s\", \"disk\", \"\", \"\")), \"instance\", \"voyager\", \"\", \"\") or label_replace(max(homeassistant_sensor_temperature_celsius{job=\"home-assistant\", friendly_name=\"Router CPU temperature\"}), \"instance\", \"hubble\", \"\", \"\"), \"dashboard\", \"homelab-host-$1\", \"instance\", \"(.*)\"), \"dashboard\", \"homelab-router\", \"instance\", \"hubble\")",
           "format": "table",
           "instant": true
         },
         {
           "refId": "F",
-          "expr": "min by (instance) (smartctl_device_smart_status)",
+          "expr": "label_replace(label_replace(min by (instance) (smartctl_device_smart_status), \"dashboard\", \"homelab-host-$1\", \"instance\", \"(.*)\"), \"dashboard\", \"homelab-router\", \"instance\", \"hubble\")",
           "format": "table",
           "instant": true
         },
         {
           "refId": "G",
-          "expr": "max by (instance) (smartctl_device_percentage_used)",
+          "expr": "label_replace(label_replace(max by (instance) (smartctl_device_percentage_used), \"dashboard\", \"homelab-host-$1\", \"instance\", \"(.*)\"), \"dashboard\", \"homelab-router\", \"instance\", \"hubble\")",
           "format": "table",
           "instant": true
         },
         {
           "refId": "H",
-          "expr": "sum by (instance) (rate(node_rapl_psys_joules_total[5m]))",
+          "expr": "label_replace(label_replace(sum by (instance) (rate(node_rapl_psys_joules_total[5m])), \"dashboard\", \"homelab-host-$1\", \"instance\", \"(.*)\"), \"dashboard\", \"homelab-router\", \"instance\", \"hubble\")",
           "format": "table",
           "instant": true
         }
@@ -490,9 +490,21 @@
                 "value": [
                   {
                     "title": "Open ${__value.raw}",
-                    "url": "/d/homelab-host-${__value.raw}"
+                    "url": "/d/${__data.fields.dashboard}"
                   }
                 ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "dashboard"
+            },
+            "properties": [
+              {
+                "id": "custom.hidden",
+                "value": true
               }
             ]
           }
@@ -544,7 +556,13 @@
                 "value": null
               }
             ]
-          }
+          },
+          "links": [
+            {
+              "title": "Open Proxmox",
+              "url": "/d/homelab-proxmox?${__url_time_range}"
+            }
+          ]
         },
         "overrides": []
       },
@@ -597,7 +615,13 @@
                 "value": null
               }
             ]
-          }
+          },
+          "links": [
+            {
+              "title": "Open Proxmox",
+              "url": "/d/homelab-proxmox?${__url_time_range}"
+            }
+          ]
         },
         "overrides": []
       },
@@ -650,7 +674,13 @@
                 "value": null
               }
             ]
-          }
+          },
+          "links": [
+            {
+              "title": "Open Proxmox",
+              "url": "/d/homelab-proxmox?${__url_time_range}"
+            }
+          ]
         },
         "overrides": []
       },

@@ -374,7 +374,7 @@ kubelet/cAdvisor, exporting node metrics in-process and tailing
 replica scraping every cluster-wide target — pods and Services annotated
 `prometheus.io/scrape` + `prometheus.io/port`, the control plane, Longhorn,
 SearXNG, Home Assistant, the descheduler — on a Pi by preferred (not required) arm64
-affinity (`cluster.alloy`); and a one-replica `alloy-events`. No Prometheus
+affinity (`cluster.alloy`); a one-replica `alloy-events`; and a privileged `smartctl-exporter` DaemonSet on the arm64 nodes (`/dev/sda;sntrealtek`, `job="smartctl"`). No Prometheus
 Operator, no CRDs: those two River files are the only place scrape config
 lives. `alloy-cluster` is an ordinary pod, so a NetworkPolicy-protected
 target admits it by namespace + pod label. The three `monitoring` values files
@@ -389,7 +389,7 @@ substituted) is the fleet outside the cluster: `pve-exporter`,
 the router, `graphite-exporter` receives TrueNAS's collectd stream, and a
 third Alloy (`alloy-gateway`) scrapes all four, plus the
 `prometheus-bind-exporter` the `dns` role runs on each Bind9 and
-lancache-dns container (`job="bind"`, `:9119`), and runs the syslog receiver;
+lancache-dns container (`job="bind"`, `:9119`), and Voyager's `smartctl_exporter` (`job="smartctl"`, runbook in `docs/design/host-monitoring.md`), and runs the syslog receiver;
 the two receivers share one pinned `${INGEST_LB_IP}` through
 `lbipam.cilium.io/sharing-key`, syslog on 1514 in the pod so it needs neither
 root nor NET_BIND_SERVICE. Another Alloy, `alloy-talos`, takes the Talos
@@ -408,7 +408,9 @@ per-service basic-auth rule because both sinks are write-only. Addresses are
 only ever `${…}` from `cluster-secrets`, listed in
 `host-monitoring/app/targets/targets.json`; the gateway's River sits in
 `app/config/` with substitution disabled and its targets mount at
-`/etc/alloy-targets`, outside the chart's read-only `/etc/alloy`. No ICMP
+`/etc/alloy-targets`, outside the chart's read-only `/etc/alloy`. The Pis'
+Talos API probes (`tcp_connect`, port 50000) are not in that file: `alloy-cluster`
+discovers the arm64 nodes and probes them through the same exporter. No ICMP
 probes: PodSecurity baseline forbids `NET_RAW`. See
 `docs/design/host-monitoring.md`.
 `searxng/` (`dependsOn: traefik, traefik-middlewares, cluster-secrets`,

@@ -88,3 +88,6 @@ metrics:
     addEntryPointsLabels: true
     addRoutersLabels: true
     addServicesLabels: true
+    # The chart's default buckets (0.1, 0.3, 1.2 and 5 s) make every quantile coarse.
+    # These 13 bounds span 5 ms to 60 s and cost about 2,500 service series.
+    buckets: "0.005,0.01,0.025,0.05,0.1,0.25,0.5,1,2.5,5,10,30,60"

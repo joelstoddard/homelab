@@ -11,21 +11,30 @@ generatorOptions:
     kustomize.toolkit.fluxcd.io/substitute: disabled
 configMapGenerator:
   - name: dashboard-k8s-views-global
-    files: [Kubernetes/k8s-views-global.json]
+    files: [Kubernetes/vendored/k8s-views-global.json]
+    options: {annotations: {grafana_folder: Kubernetes/vendored}}
+  - name: dashboard-kubernetes-overview
+    files: [Kubernetes/overview.json]
     options: {annotations: {grafana_folder: Kubernetes}}
   - name: dashboard-namespaces
     files: [Kubernetes/namespaces.json]
     options: {annotations: {grafana_folder: Kubernetes}}
   - name: dashboard-k8s-views-nodes
-    files: [Kubernetes/k8s-views-nodes.json]
+    files: [Kubernetes/vendored/k8s-views-nodes.json]
+    options: {annotations: {grafana_folder: Kubernetes/vendored}}
+  - name: dashboard-nodes
+    files: [Kubernetes/nodes.json]
     options: {annotations: {grafana_folder: Kubernetes}}
   - name: dashboard-pods
     files: [Kubernetes/pods.json]
     options: {annotations: {grafana_folder: Kubernetes}}
   - name: dashboard-node-exporter-full
-    files: [Kubernetes/node-exporter-full.json]
-    options: {annotations: {grafana_folder: Kubernetes}}
+    files: [Kubernetes/vendored/node-exporter-full.json]
+    options: {annotations: {grafana_folder: Kubernetes/vendored}}
   - name: dashboard-longhorn
+    files: [Storage/vendored/longhorn.json]
+    options: {annotations: {grafana_folder: Storage/vendored}}
+  - name: dashboard-longhorn-volumes
     files: [Storage/longhorn.json]
     options: {annotations: {grafana_folder: Storage}}
   - name: dashboard-truenas
@@ -35,9 +44,15 @@ configMapGenerator:
     files: [Storage/overview.json]
     options: {annotations: {grafana_folder: Storage}}
   - name: dashboard-traefik
+    files: [Network/vendored/traefik.json]
+    options: {annotations: {grafana_folder: Network/vendored}}
+  - name: dashboard-traefik-ingress
     files: [Network/traefik.json]
     options: {annotations: {grafana_folder: Network}}
   - name: dashboard-cert-manager
+    files: [Security/vendored/cert-manager.json]
+    options: {annotations: {grafana_folder: Security/vendored}}
+  - name: dashboard-cert-manager-certificates
     files: [Security/cert-manager.json]
     options: {annotations: {grafana_folder: Security}}
   - name: dashboard-security-overview
@@ -47,17 +62,17 @@ configMapGenerator:
     files: [Kubernetes/flux-control-plane.json]
     options: {annotations: {grafana_folder: Kubernetes}}
   - name: dashboard-alloy-resources
-    files: [Kubernetes/alloy-resources.json]
-    options: {annotations: {grafana_folder: Kubernetes}}
+    files: [Kubernetes/Alloy/alloy-resources.json]
+    options: {annotations: {grafana_folder: Kubernetes/Alloy}}
   - name: dashboard-alloy-controller
-    files: [Kubernetes/alloy-controller.json]
-    options: {annotations: {grafana_folder: Kubernetes}}
+    files: [Kubernetes/Alloy/alloy-controller.json]
+    options: {annotations: {grafana_folder: Kubernetes/Alloy}}
   - name: dashboard-alloy-prometheus-remote-write
-    files: [Kubernetes/alloy-prometheus-remote-write.json]
-    options: {annotations: {grafana_folder: Kubernetes}}
+    files: [Kubernetes/Alloy/alloy-prometheus-remote-write.json]
+    options: {annotations: {grafana_folder: Kubernetes/Alloy}}
   - name: dashboard-alloy-loki
-    files: [Kubernetes/alloy-loki.json]
-    options: {annotations: {grafana_folder: Kubernetes}}
+    files: [Kubernetes/Alloy/alloy-loki.json]
+    options: {annotations: {grafana_folder: Kubernetes/Alloy}}
   - name: dashboard-logs-explorer
     files: [Kubernetes/logs-explorer.json]
     options: {annotations: {grafana_folder: Kubernetes}}
@@ -65,15 +80,21 @@ configMapGenerator:
     files: [Kubernetes/kubernetes-events.json]
     options: {annotations: {grafana_folder: Kubernetes}}
   - name: dashboard-proxmox
-    files: [Hosts/proxmox.json]
-    options: {annotations: {grafana_folder: Hosts}}
+    files: [Hosts/vendored/proxmox.json]
+    options: {annotations: {grafana_folder: Hosts/vendored}}
   - name: dashboard-pihole
+    files: [Network/vendored/pihole.json]
+    options: {annotations: {grafana_folder: Network/vendored}}
+  - name: dashboard-pihole-pair
     files: [Network/pihole.json]
     options: {annotations: {grafana_folder: Network}}
   - name: dashboard-bind
     files: [Network/bind.json]
     options: {annotations: {grafana_folder: Network}}
   - name: dashboard-blackbox
+    files: [Network/vendored/blackbox.json]
+    options: {annotations: {grafana_folder: Network/vendored}}
+  - name: dashboard-blackbox-probes
     files: [Network/blackbox.json]
     options: {annotations: {grafana_folder: Network}}
   - name: dashboard-netbox
@@ -118,11 +139,23 @@ configMapGenerator:
   - name: dashboard-host-voyager
     files: [Hosts/voyager.json]
     options: {annotations: {grafana_folder: Hosts}}
+  - name: dashboard-hosts-proxmox
+    files: [Hosts/proxmox.json]
+    options: {annotations: {grafana_folder: Hosts}}
   - name: dashboard-hosts-overview
     files: [Hosts/overview.json]
     options: {annotations: {grafana_folder: Hosts}}
   - name: dashboard-router
     files: [Hosts/hubble.json]
+    options: {annotations: {grafana_folder: Hosts}}
+  - name: dashboard-hosts-temperatures
+    files: [Hosts/temperatures.json]
+    options: {annotations: {grafana_folder: Hosts}}
+  - name: dashboard-hosts-smart
+    files: [Hosts/smart.json]
+    options: {annotations: {grafana_folder: Hosts}}
+  - name: dashboard-hosts-power
+    files: [Hosts/power.json]
     options: {annotations: {grafana_folder: Hosts}}
   - name: dashboard-searxng
     files: [Services/searxng.json]

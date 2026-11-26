@@ -24,5 +24,6 @@
   {"targets": ["${BIND9_01_IP}:9119"],    "labels": {"group": "bind", "instance": "bind9-01"}},
   {"targets": ["${BIND9_02_IP}:9119"],    "labels": {"group": "bind", "instance": "bind9-02"}},
   {"targets": ["${LANCACHE_01_IP}:9119"], "labels": {"group": "bind", "instance": "lancache-01"}},
-  {"targets": ["${LANCACHE_02_IP}:9119"], "labels": {"group": "bind", "instance": "lancache-02"}}
+  {"targets": ["${LANCACHE_02_IP}:9119"], "labels": {"group": "bind", "instance": "lancache-02"}},
+  {"targets": ["${VOYAGER_IP}:9633"],     "labels": {"group": "smartctl", "instance": "voyager"}}
 ]
