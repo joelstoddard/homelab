@@ -1,0 +1,88 @@
+apiVersion: 1
+groups:
+  - orgId: 1
+    name: storage
+    folder: Infrastructure
+    interval: 1m
+    rules:
+      # One series per node mounting the claim; max keeps one per claim.
+      - uid: infra-pvc-full
+        title: Volume nearly full
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            relativeTimeRange: {from: 600, to: 0}
+            model:
+              refId: A
+              instant: true
+              expr: 'max by (namespace, persistentvolumeclaim) (kubelet_volume_stats_used_bytes / kubelet_volume_stats_capacity_bytes)'
+          - refId: B
+            datasourceUid: __expr__
+            model: {refId: B, type: reduce, expression: A, reducer: last}
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: B
+              conditions: [{evaluator: {type: gt, params: [0.85]}}]
+        noDataState: OK
+        execErrState: Error
+        for: 15m
+        annotations:
+          summary: '{{ $labels.namespace }}/{{ $labels.persistentvolumeclaim }} is {{ humanizePercentage $values.B.Value }} full'
+      # Robustness 2 is degraded, 3 faulted.
+      - uid: infra-longhorn-degraded
+        title: Longhorn volume degraded
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            relativeTimeRange: {from: 600, to: 0}
+            model:
+              refId: A
+              instant: true
+              expr: 'max by (pvc_namespace, pvc) (longhorn_volume_robustness)'
+          - refId: B
+            datasourceUid: __expr__
+            model: {refId: B, type: reduce, expression: A, reducer: last}
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: B
+              conditions: [{evaluator: {type: gt, params: [1]}}]
+        noDataState: OK
+        execErrState: Error
+        for: 15m
+        annotations:
+          summary: 'Longhorn volume {{ $labels.pvc_namespace }}/{{ $labels.pvc }} is {{ if eq $values.B.Value 3.0 }}faulted{{ else }}degraded{{ end }}'
+      # The check label keeps both series apart through "or"; max folds them back per device.
+      - uid: infra-smart-failing
+        title: Disk SMART failing
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            relativeTimeRange: {from: 600, to: 0}
+            model:
+              refId: A
+              instant: true
+              expr: 'max by (instance, device) (label_replace(smartctl_device_smart_status != bool 1, "check", "status", "", "") or label_replace(smartctl_device_critical_warning > bool 0, "check", "critical_warning", "", ""))'
+          - refId: B
+            datasourceUid: __expr__
+            model: {refId: B, type: reduce, expression: A, reducer: last}
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: B
+              conditions: [{evaluator: {type: gt, params: [0]}}]
+        noDataState: OK
+        execErrState: Error
+        for: 0m
+        annotations:
+          summary: 'Disk {{ $labels.device }} on {{ $labels.instance }} is failing SMART: replace it'

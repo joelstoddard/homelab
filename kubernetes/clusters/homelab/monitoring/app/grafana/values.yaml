@@ -73,6 +73,12 @@ extraSecretMounts:
     subPath: netbox.yaml
     readOnly: true
 sidecar:
+  # Alert rules, the policy and the contact point (alerting/), from this namespace.
+  alerts:
+    enabled: true
+    label: grafana_alert
+    labelValue: "1"
+    resource: both
   dashboards:
     enabled: true
     label: grafana_dashboard

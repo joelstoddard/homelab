@@ -1,0 +1,7 @@
+# The whole notification tree: provisioning replaces it, so every route lives here.
+apiVersion: 1
+policies:
+  - orgId: 1
+    receiver: ntfy
+    group_by: [alertname]
+    repeat_interval: 4h
