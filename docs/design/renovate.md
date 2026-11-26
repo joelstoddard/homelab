@@ -90,7 +90,10 @@ when something breaks.
   require a major in another (wcmatch 10.2 needs bracex 3), so a split
   PR does not install. `ansible-core` stays below 2.19, and `resolvelib`
   below 1.1 with it: 2.19 changes the callback API the `redact` callback
-  uses and breaks the pinned `community.sops` (#404).
+  uses and breaks the pinned `community.sops` (#404). `passlib` stays below
+  1.8: PyPI's 1.9.5 comes from the `libpass` fork's repository with no
+  announced transfer of the name, and passlib hashes the preseed root
+  passwords. Lift the rule once the fork or PyPI confirms the transfer.
 
 - **Annotated pins.** A pin that no built-in manager reads carries a
   `# renovate: datasource=… depName=…` comment on the line above it:

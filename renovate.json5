@@ -127,6 +127,12 @@
       allowedVersions: '<1.1.0',
     },
     {
+      description: 'passlib 1.9.5 on PyPI comes from the libpass fork with no announced name transfer; hold until the transfer is confirmed (docs/design/renovate.md)',
+      matchManagers: ['pip_requirements'],
+      matchPackageNames: ['passlib'],
+      allowedVersions: '<1.8.0',
+    },
+    {
       description: 'CI Python matches the operator venv: 3.14 has no rpds-py wheel (.github/workflows/lint.yaml)',
       matchManagers: ['github-actions'],
       matchDepNames: ['python'],
