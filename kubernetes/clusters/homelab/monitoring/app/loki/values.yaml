@@ -63,8 +63,6 @@ lokiCanary:
   enabled: false
 test:
   enabled: false
-minio:
-  enabled: false
 # Both are memcached deployments whose default allocations are gigabytes;
 # a single-node homelab Loki does not need a cache tier.
 chunksCache:
