@@ -2,6 +2,7 @@
 import glob
 import json
 import os
+import re
 import unittest
 
 import yaml
@@ -85,6 +86,145 @@ class Power(unittest.TestCase):
         self.assertTrue(any("node_rapl" in e for e in exprs))
         for e in exprs:
             self.assertNotRegex(e, r"(delta|increase)\(node_rapl")
+
+
+def netbox_targets(panel):
+    return [t for t in panel.get("targets", [])
+            if isinstance(t, dict) and isinstance(t.get("datasource"), dict) and t["datasource"].get("uid") == "netbox"]
+
+
+def netbox_join_tables():
+    for path in FILES:
+        with open(path) as f:
+            dashboard = json.load(f)
+        for p in panels(dashboard.get("panels", [])):
+            nb = netbox_targets(p)
+            if p.get("type") == "table" and nb and len(nb) < len(p.get("targets", [])):
+                yield os.path.relpath(path, HERE), p
+
+
+class NetBox(unittest.TestCase):
+    # NetBox is the base of the audit dashboard's tables by design; everywhere else it only adds columns.
+    AUDIT = "Hosts/netbox.json"
+    IDENTIFIERS = {"ip", "name", "address"}
+
+    def test_netbox_joins_keep_metric_rows(self):
+        tables = list(netbox_join_tables())
+        self.assertTrue(tables)
+        for rel, p in tables:
+            if rel == self.AUDIT:
+                continue
+            ids = [t["id"] for t in p.get("transformations", [])]
+            where = f"{rel}: {p.get('title')}"
+            joins = [t for t in p["transformations"] if t["id"] == "joinByField"]
+            self.assertTrue(joins and all(j["options"].get("mode") == "outerTabular" for j in joins), where)
+            later = p["transformations"][ids.index("joinByField"):]
+            self.assertTrue(any(
+                t["id"] == "filterByValue" and t["options"].get("type") == "exclude"
+                and any(f["config"]["id"] == "isNull" for f in t["options"]["filters"])
+                for t in later), where)
+
+    def test_netbox_join_tables_run_every_query(self):
+        # A panel-level datasource sends every target to it; the NetBox queries then never run.
+        for rel, p in netbox_join_tables():
+            where = f"{rel}: {p.get('title')}"
+            self.assertIn(p.get("datasource", {"uid": "-- Mixed --"}).get("uid"), {"-- Mixed --"}, where)
+            for t in p["targets"]:
+                self.assertIsInstance(t.get("datasource"), dict, f"{where}: {t.get('refId')}")
+
+    def test_netbox_join_strips_frame_names(self):
+        # joinByField suffixes NetBox fields with the frame name ("role netbox_devices"), so renames miss them.
+        for rel, p in netbox_join_tables():
+            if rel == NetBox.AUDIT:
+                continue
+            ids = [t["id"] for t in p["transformations"]]
+            last_join = len(ids) - 1 - ids[::-1].index("joinByField")
+            self.assertEqual(ids[last_join + 1], "renameByRegex", f"{rel}: {p.get('title')}")
+
+    def test_netbox_join_scopes_only_the_first_combine(self):
+        # A merged or joined frame has no refId, so a refId filter on a later transformation skips it.
+        for rel, p in netbox_join_tables():
+            seen_combine = False
+            for t in p["transformations"]:
+                if seen_combine and t["id"] != "merge":
+                    self.assertNotIn("filter", t, f"{rel}: {p.get('title')}: {t['id']}")
+                if t["id"] in ("merge", "joinByField"):
+                    seen_combine = True
+
+    def test_netbox_join_filters_name_real_queries(self):
+        # Grafana's query filter matches an explicit refId list; it does not apply a lookahead regex as written.
+        for rel, p in netbox_join_tables():
+            refs = {t["refId"] for t in p["targets"]}
+            for t in p["transformations"]:
+                if "filter" in t:
+                    m = re.fullmatch(r"/\^\((?:\?:)?([\w|]+)\)\$/", t["filter"]["options"])
+                    self.assertTrue(m and set(m.group(1).split("|")) <= refs, f"{rel}: {p.get('title')}: {t['filter']}")
+
+    def test_netbox_join_row_filter_names_a_shown_column(self):
+        # Before organize the metric field names are not stable; the filter keys on the renamed header.
+        for rel, p in netbox_join_tables():
+            if rel == NetBox.AUDIT:
+                continue
+            ids = [t["id"] for t in p["transformations"]]
+            organize = p["transformations"][ids.index("organize")]["options"].get("renameByName", {})
+            last = p["transformations"][-1]
+            self.assertEqual(last["id"], "filterByValue", f"{rel}: {p.get('title')}")
+            for f in last["options"]["filters"]:
+                self.assertIn(f["fieldName"], organize.values(), f"{rel}: {p.get('title')}")
+
+    def test_netbox_record_column_links_to_netbox(self):
+        # The plugin links the record cell only when the query returns display_url.
+        for path in FILES:
+            rel = os.path.relpath(path, HERE)
+            if rel == self.AUDIT:
+                continue
+            with open(path) as f:
+                dashboard = json.load(f)
+            for p in panels(dashboard.get("panels", [])):
+                organize = [t["options"] for t in p.get("transformations", []) if t["id"] == "organize"]
+                if not organize or "NetBox" not in organize[-1].get("renameByName", {}).values():
+                    continue
+                objects = [t for t in netbox_targets(p) if t.get("queryType") == "objects"]
+                if not objects:
+                    continue
+                for t in objects:
+                    self.assertIn("display_url", t["fields"], f"{rel}: {p.get('title')}")
+                # Excluding display_url empties the link the plugin builds from it; hide it instead.
+                self.assertFalse(organize[-1].get("excludeByName", {}).get("display_url"), f"{rel}: {p.get('title')}")
+                hidden = [o for o in p.get("fieldConfig", {}).get("overrides", [])
+                          if o["matcher"].get("options") == "display_url"
+                          and {"id": "custom.hidden", "value": True} in o["properties"]]
+                self.assertTrue(hidden, f"{rel}: {p.get('title')}")
+
+    def test_netbox_join_keys_lowercase(self):
+        for path in FILES:
+            with open(path) as f:
+                dashboard = json.load(f)
+            for p in panels(dashboard.get("panels", [])):
+                for t in netbox_targets(p):
+                    for k in t.get("joinKeys", []):
+                        if k["source"] != "address":
+                            self.assertEqual(k.get("transform"), "lower", f"{os.path.relpath(path, HERE)}: {p.get('title')}")
+
+    def test_netbox_columns_are_prefixed(self):
+        # Tables carry their own Role, Model and Status columns; an unprefixed NetBox header would clash.
+        for path in FILES:
+            with open(path) as f:
+                dashboard = json.load(f)
+            for p in panels(dashboard.get("panels", [])):
+                nb = netbox_targets(p)
+                if not nb or len(nb) == len(p.get("targets", [])):
+                    continue
+                keys = {k[side] for t in nb for k in t.get("joinKeys", []) for side in ("source", "output")}
+                fields = {f for t in nb for f in t.get("fields", []) + t.get("contextFields", [])}
+                renames = {}
+                for t in p.get("transformations", []):
+                    if t["id"] == "organize":
+                        renames.update(t["options"].get("renameByName", {}))
+                for field in sorted(fields - keys - self.IDENTIFIERS):
+                    if field in renames:
+                        self.assertTrue(renames[field].startswith("NetBox"),
+                                        f"{os.path.relpath(path, HERE)}: {p.get('title')}: {field} -> {renames[field]}")
 
 
 if __name__ == "__main__":

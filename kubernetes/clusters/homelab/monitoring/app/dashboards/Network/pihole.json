@@ -1448,7 +1448,7 @@
     {
       "type": "table",
       "title": "Top clients today, named by NetBox",
-      "description": "The ten clients that sent the most queries today, summed across the selected instances, each address looked up in NetBox's IP addresses (the hidden client variable holds the same ten). Device or VM is what the address's interface belongs to, Role the device's role (NetBox gives a VM none here), DNS name and Description the address record's own. NetBox reads \"not in NetBox\" for a client with no address record, usually a DHCP device, which NetBox deliberately does not model; a recorded address assigned to no interface shows blank Device and VM.",
+      "description": "The ten clients that sent the most queries today, summed across the selected instances, each address looked up in NetBox's IP addresses (the hidden client variable holds the same ten). NetBox device or VM is what the address's interface belongs to, NetBox role the device's role (NetBox gives a VM none here), NetBox DNS name and description the address record's own. NetBox reads \"not in NetBox\" for a client with no address record, usually a DHCP device, which NetBox deliberately does not model; a recorded address assigned to no interface shows blank NetBox device and VM.",
       "targets": [
         {
           "refId": "A",
@@ -1520,11 +1520,11 @@
               "Value": "Queries today",
               "Value #A": "Queries today",
               "match_count": "NetBox",
-              "device_name": "Device",
-              "vm_name": "VM",
-              "device_role": "Role",
-              "address_dns_name": "DNS name",
-              "address_description": "Description"
+              "device_name": "NetBox device",
+              "vm_name": "NetBox VM",
+              "device_role": "NetBox role",
+              "address_dns_name": "NetBox DNS name",
+              "address_description": "NetBox description"
             }
           }
         },
