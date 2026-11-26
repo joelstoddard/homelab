@@ -65,7 +65,7 @@ echo ">> Installing age (encrypted host_vars decryption)"
 apt-get install -y age
 
 # renovate: datasource=github-releases depName=getsops/sops
-SOPS_VERSION="v3.12.2"
+SOPS_VERSION="v3.13.3"
 SOPS_ARCH="$(dpkg --print-architecture)"
 if have_version "$SOPS_VERSION" sops --version; then
     echo ">> sops ${SOPS_VERSION} already installed"
