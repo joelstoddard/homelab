@@ -572,39 +572,81 @@
       "title": "Every sensor",
       "description": "Every temperature sensor, closest to its limit first. Crit is the sensor's own critical limit where hwmon reports one (CPU cores, NVMe composite), 85 °C for a Pi SoC (Warm 80), 60 °C for a hard disk (Warm 50), 70 °C for an SSD from SMART (Warm 60), else 90 °C (Warm 80). A NUC's CPU package appears twice: as the thermal zone x86_pkg_temp (Crit 90) and as coretemp's Package id 0 (Crit 100). A host that stops reporting keeps its rows for a day with its last reading, marked Not reporting.",
       "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
+        "type": "datasource",
+        "uid": "-- Mixed --"
       },
       "targets": [
         {
           "refId": "A",
           "expr": "label_replace(label_replace(last_over_time((max by (instance, chip, sensor) (label_replace(node_hwmon_temp_celsius{job=\"node-exporter\", instance!~\"k8s-.*\", chip!~\"thermal_.*\"} * on (instance, chip, sensor) group_left (label) node_hwmon_sensor_label{job=\"node-exporter\", instance!~\"k8s-.*\"}, \"sensor\", \"$1\", \"label\", \"(.+)\")) or max by (instance, chip, sensor) (node_hwmon_temp_celsius{job=\"node-exporter\", instance!~\"k8s-.*\", chip!~\"thermal_.*\"} unless on (instance, chip, sensor) node_hwmon_sensor_label{job=\"node-exporter\", instance!~\"k8s-.*\"}) or max by (instance, chip, sensor) (label_replace(label_replace(node_thermal_zone_temp{job=\"node-exporter\", instance!~\"k8s-.*\"}, \"sensor\", \"$1\", \"type\", \"(.+)\"), \"chip\", \"thermal_zone\", \"\", \"\")) or max by (instance, chip, sensor) (label_replace(label_replace(label_replace({__name__=~\"servers_Voyager_local_cputemp_.+_temperature\"}, \"sensor\", \"Core $1\", \"__name__\", \"servers_Voyager_local_cputemp_(.+)_temperature\"), \"chip\", \"cputemp\", \"\", \"\"), \"instance\", \"voyager\", \"\", \"\") / 10 - 273.15) or (max by (instance, chip, sensor) (label_replace(label_replace(label_replace({__name__=~\"servers_Voyager_local_disktemp_.+_temperature\"}, \"sensor\", \"$1\", \"__name__\", \"servers_Voyager_local_disktemp_(.+)_temperature\"), \"chip\", \"disktemp\", \"\", \"\"), \"instance\", \"voyager\", \"\", \"\")) or max by (instance, chip, sensor) (label_replace(label_replace(smartctl_device_temperature{job=\"smartctl\", temperature_type=\"current\", instance!~\"rumba|tango|salsa|samba\", instance=\"voyager\"}, \"sensor\", \"$1\", \"device\", \"(.+)\"), \"chip\", \"smart\", \"\", \"\"))) or max by (instance, chip, sensor) (label_replace(label_replace(smartctl_device_temperature{job=\"smartctl\", temperature_type=\"current\", instance!~\"rumba|tango|salsa|samba\", instance!=\"voyager\"}, \"sensor\", \"$1\", \"device\", \"(.+)\"), \"chip\", \"smart\", \"\", \"\")) or max by (instance, chip, sensor) (label_replace(label_replace(label_replace(homeassistant_sensor_temperature_celsius{job=\"home-assistant\", friendly_name=\"Router CPU temperature\"}, \"instance\", \"hubble\", \"\", \"\"), \"chip\", \"router\", \"\", \"\"), \"sensor\", \"CPU\", \"\", \"\")))[1d:5m]), \"dashboard\", \"homelab-host-$1\", \"instance\", \"(.*)\"), \"dashboard\", \"homelab-router\", \"instance\", \"hubble\")",
           "format": "table",
-          "instant": true
+          "instant": true,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          }
         },
         {
           "refId": "E",
           "expr": "label_replace(label_replace(last_over_time(((max by (instance, chip, sensor) (label_replace(label_replace(label_replace({__name__=~\"servers_Voyager_local_disktemp_.+_temperature\"}, \"sensor\", \"$1\", \"__name__\", \"servers_Voyager_local_disktemp_(.+)_temperature\"), \"chip\", \"disktemp\", \"\", \"\"), \"instance\", \"voyager\", \"\", \"\")) or max by (instance, chip, sensor) (label_replace(label_replace(smartctl_device_temperature{job=\"smartctl\", temperature_type=\"current\", instance!~\"rumba|tango|salsa|samba\", instance=\"voyager\"}, \"sensor\", \"$1\", \"device\", \"(.+)\"), \"chip\", \"smart\", \"\", \"\"))) * 0 + 50 or max by (instance, chip, sensor) (label_replace(label_replace(smartctl_device_temperature{job=\"smartctl\", temperature_type=\"current\", instance!~\"rumba|tango|salsa|samba\", instance!=\"voyager\"}, \"sensor\", \"$1\", \"device\", \"(.+)\"), \"chip\", \"smart\", \"\", \"\")) * 0 + 60 or (max by (instance, chip, sensor) (label_replace(node_hwmon_temp_celsius{job=\"node-exporter\", instance!~\"k8s-.*\", chip!~\"thermal_.*\"} * on (instance, chip, sensor) group_left (label) node_hwmon_sensor_label{job=\"node-exporter\", instance!~\"k8s-.*\"}, \"sensor\", \"$1\", \"label\", \"(.+)\")) or max by (instance, chip, sensor) (node_hwmon_temp_celsius{job=\"node-exporter\", instance!~\"k8s-.*\", chip!~\"thermal_.*\"} unless on (instance, chip, sensor) node_hwmon_sensor_label{job=\"node-exporter\", instance!~\"k8s-.*\"}) or max by (instance, chip, sensor) (label_replace(label_replace(node_thermal_zone_temp{job=\"node-exporter\", instance!~\"k8s-.*\"}, \"sensor\", \"$1\", \"type\", \"(.+)\"), \"chip\", \"thermal_zone\", \"\", \"\")) or max by (instance, chip, sensor) (label_replace(label_replace(label_replace({__name__=~\"servers_Voyager_local_cputemp_.+_temperature\"}, \"sensor\", \"Core $1\", \"__name__\", \"servers_Voyager_local_cputemp_(.+)_temperature\"), \"chip\", \"cputemp\", \"\", \"\"), \"instance\", \"voyager\", \"\", \"\") / 10 - 273.15) or (max by (instance, chip, sensor) (label_replace(label_replace(label_replace({__name__=~\"servers_Voyager_local_disktemp_.+_temperature\"}, \"sensor\", \"$1\", \"__name__\", \"servers_Voyager_local_disktemp_(.+)_temperature\"), \"chip\", \"disktemp\", \"\", \"\"), \"instance\", \"voyager\", \"\", \"\")) or max by (instance, chip, sensor) (label_replace(label_replace(smartctl_device_temperature{job=\"smartctl\", temperature_type=\"current\", instance!~\"rumba|tango|salsa|samba\", instance=\"voyager\"}, \"sensor\", \"$1\", \"device\", \"(.+)\"), \"chip\", \"smart\", \"\", \"\"))) or max by (instance, chip, sensor) (label_replace(label_replace(smartctl_device_temperature{job=\"smartctl\", temperature_type=\"current\", instance!~\"rumba|tango|salsa|samba\", instance!=\"voyager\"}, \"sensor\", \"$1\", \"device\", \"(.+)\"), \"chip\", \"smart\", \"\", \"\")) or max by (instance, chip, sensor) (label_replace(label_replace(label_replace(homeassistant_sensor_temperature_celsius{job=\"home-assistant\", friendly_name=\"Router CPU temperature\"}, \"instance\", \"hubble\", \"\", \"\"), \"chip\", \"router\", \"\", \"\"), \"sensor\", \"CPU\", \"\", \"\"))) * 0 + 80)[1d:5m]), \"dashboard\", \"homelab-host-$1\", \"instance\", \"(.*)\"), \"dashboard\", \"homelab-router\", \"instance\", \"hubble\")",
           "format": "table",
-          "instant": true
+          "instant": true,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          }
         },
         {
           "refId": "B",
           "expr": "label_replace(label_replace(last_over_time((max by (instance, chip, sensor) (label_replace(node_hwmon_temp_crit_celsius{job=\"node-exporter\", instance!~\"k8s-.*\", chip!~\"thermal_.*\"} * on (instance, chip, sensor) group_left (label) node_hwmon_sensor_label{job=\"node-exporter\", instance!~\"k8s-.*\"}, \"sensor\", \"$1\", \"label\", \"(.+)\")) or max by (instance, chip, sensor) (node_hwmon_temp_crit_celsius{job=\"node-exporter\", instance!~\"k8s-.*\", chip!~\"thermal_.*\"} unless on (instance, chip, sensor) node_hwmon_sensor_label{job=\"node-exporter\", instance!~\"k8s-.*\"}) or max by (instance, chip, sensor) (label_replace(label_replace(node_thermal_zone_temp{job=\"node-exporter\", instance!~\"k8s-.*\", type=\"cpu-thermal\"}, \"sensor\", \"$1\", \"type\", \"(.+)\"), \"chip\", \"thermal_zone\", \"\", \"\")) * 0 + 85 or (max by (instance, chip, sensor) (label_replace(label_replace(label_replace({__name__=~\"servers_Voyager_local_disktemp_.+_temperature\"}, \"sensor\", \"$1\", \"__name__\", \"servers_Voyager_local_disktemp_(.+)_temperature\"), \"chip\", \"disktemp\", \"\", \"\"), \"instance\", \"voyager\", \"\", \"\")) or max by (instance, chip, sensor) (label_replace(label_replace(smartctl_device_temperature{job=\"smartctl\", temperature_type=\"current\", instance!~\"rumba|tango|salsa|samba\", instance=\"voyager\"}, \"sensor\", \"$1\", \"device\", \"(.+)\"), \"chip\", \"smart\", \"\", \"\"))) * 0 + 60 or max by (instance, chip, sensor) (label_replace(label_replace(smartctl_device_temperature{job=\"smartctl\", temperature_type=\"current\", instance!~\"rumba|tango|salsa|samba\", instance!=\"voyager\"}, \"sensor\", \"$1\", \"device\", \"(.+)\"), \"chip\", \"smart\", \"\", \"\")) * 0 + 70 or (max by (instance, chip, sensor) (label_replace(node_hwmon_temp_celsius{job=\"node-exporter\", instance!~\"k8s-.*\", chip!~\"thermal_.*\"} * on (instance, chip, sensor) group_left (label) node_hwmon_sensor_label{job=\"node-exporter\", instance!~\"k8s-.*\"}, \"sensor\", \"$1\", \"label\", \"(.+)\")) or max by (instance, chip, sensor) (node_hwmon_temp_celsius{job=\"node-exporter\", instance!~\"k8s-.*\", chip!~\"thermal_.*\"} unless on (instance, chip, sensor) node_hwmon_sensor_label{job=\"node-exporter\", instance!~\"k8s-.*\"}) or max by (instance, chip, sensor) (label_replace(label_replace(node_thermal_zone_temp{job=\"node-exporter\", instance!~\"k8s-.*\"}, \"sensor\", \"$1\", \"type\", \"(.+)\"), \"chip\", \"thermal_zone\", \"\", \"\")) or max by (instance, chip, sensor) (label_replace(label_replace(label_replace({__name__=~\"servers_Voyager_local_cputemp_.+_temperature\"}, \"sensor\", \"Core $1\", \"__name__\", \"servers_Voyager_local_cputemp_(.+)_temperature\"), \"chip\", \"cputemp\", \"\", \"\"), \"instance\", \"voyager\", \"\", \"\") / 10 - 273.15) or (max by (instance, chip, sensor) (label_replace(label_replace(label_replace({__name__=~\"servers_Voyager_local_disktemp_.+_temperature\"}, \"sensor\", \"$1\", \"__name__\", \"servers_Voyager_local_disktemp_(.+)_temperature\"), \"chip\", \"disktemp\", \"\", \"\"), \"instance\", \"voyager\", \"\", \"\")) or max by (instance, chip, sensor) (label_replace(label_replace(smartctl_device_temperature{job=\"smartctl\", temperature_type=\"current\", instance!~\"rumba|tango|salsa|samba\", instance=\"voyager\"}, \"sensor\", \"$1\", \"device\", \"(.+)\"), \"chip\", \"smart\", \"\", \"\"))) or max by (instance, chip, sensor) (label_replace(label_replace(smartctl_device_temperature{job=\"smartctl\", temperature_type=\"current\", instance!~\"rumba|tango|salsa|samba\", instance!=\"voyager\"}, \"sensor\", \"$1\", \"device\", \"(.+)\"), \"chip\", \"smart\", \"\", \"\")) or max by (instance, chip, sensor) (label_replace(label_replace(label_replace(homeassistant_sensor_temperature_celsius{job=\"home-assistant\", friendly_name=\"Router CPU temperature\"}, \"instance\", \"hubble\", \"\", \"\"), \"chip\", \"router\", \"\", \"\"), \"sensor\", \"CPU\", \"\", \"\"))) * 0 + 90)[1d:5m]), \"dashboard\", \"homelab-host-$1\", \"instance\", \"(.*)\"), \"dashboard\", \"homelab-router\", \"instance\", \"hubble\")",
           "format": "table",
-          "instant": true
+          "instant": true,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          }
         },
         {
           "refId": "C",
           "expr": "label_replace(label_replace(last_over_time((max by (instance, chip, sensor) (label_replace(node_hwmon_temp_crit_celsius{job=\"node-exporter\", instance!~\"k8s-.*\", chip!~\"thermal_.*\"} * on (instance, chip, sensor) group_left (label) node_hwmon_sensor_label{job=\"node-exporter\", instance!~\"k8s-.*\"}, \"sensor\", \"$1\", \"label\", \"(.+)\")) or max by (instance, chip, sensor) (node_hwmon_temp_crit_celsius{job=\"node-exporter\", instance!~\"k8s-.*\", chip!~\"thermal_.*\"} unless on (instance, chip, sensor) node_hwmon_sensor_label{job=\"node-exporter\", instance!~\"k8s-.*\"}) or max by (instance, chip, sensor) (label_replace(label_replace(node_thermal_zone_temp{job=\"node-exporter\", instance!~\"k8s-.*\", type=\"cpu-thermal\"}, \"sensor\", \"$1\", \"type\", \"(.+)\"), \"chip\", \"thermal_zone\", \"\", \"\")) * 0 + 85 or (max by (instance, chip, sensor) (label_replace(label_replace(label_replace({__name__=~\"servers_Voyager_local_disktemp_.+_temperature\"}, \"sensor\", \"$1\", \"__name__\", \"servers_Voyager_local_disktemp_(.+)_temperature\"), \"chip\", \"disktemp\", \"\", \"\"), \"instance\", \"voyager\", \"\", \"\")) or max by (instance, chip, sensor) (label_replace(label_replace(smartctl_device_temperature{job=\"smartctl\", temperature_type=\"current\", instance!~\"rumba|tango|salsa|samba\", instance=\"voyager\"}, \"sensor\", \"$1\", \"device\", \"(.+)\"), \"chip\", \"smart\", \"\", \"\"))) * 0 + 60 or max by (instance, chip, sensor) (label_replace(label_replace(smartctl_device_temperature{job=\"smartctl\", temperature_type=\"current\", instance!~\"rumba|tango|salsa|samba\", instance!=\"voyager\"}, \"sensor\", \"$1\", \"device\", \"(.+)\"), \"chip\", \"smart\", \"\", \"\")) * 0 + 70 or (max by (instance, chip, sensor) (label_replace(node_hwmon_temp_celsius{job=\"node-exporter\", instance!~\"k8s-.*\", chip!~\"thermal_.*\"} * on (instance, chip, sensor) group_left (label) node_hwmon_sensor_label{job=\"node-exporter\", instance!~\"k8s-.*\"}, \"sensor\", \"$1\", \"label\", \"(.+)\")) or max by (instance, chip, sensor) (node_hwmon_temp_celsius{job=\"node-exporter\", instance!~\"k8s-.*\", chip!~\"thermal_.*\"} unless on (instance, chip, sensor) node_hwmon_sensor_label{job=\"node-exporter\", instance!~\"k8s-.*\"}) or max by (instance, chip, sensor) (label_replace(label_replace(node_thermal_zone_temp{job=\"node-exporter\", instance!~\"k8s-.*\"}, \"sensor\", \"$1\", \"type\", \"(.+)\"), \"chip\", \"thermal_zone\", \"\", \"\")) or max by (instance, chip, sensor) (label_replace(label_replace(label_replace({__name__=~\"servers_Voyager_local_cputemp_.+_temperature\"}, \"sensor\", \"Core $1\", \"__name__\", \"servers_Voyager_local_cputemp_(.+)_temperature\"), \"chip\", \"cputemp\", \"\", \"\"), \"instance\", \"voyager\", \"\", \"\") / 10 - 273.15) or (max by (instance, chip, sensor) (label_replace(label_replace(label_replace({__name__=~\"servers_Voyager_local_disktemp_.+_temperature\"}, \"sensor\", \"$1\", \"__name__\", \"servers_Voyager_local_disktemp_(.+)_temperature\"), \"chip\", \"disktemp\", \"\", \"\"), \"instance\", \"voyager\", \"\", \"\")) or max by (instance, chip, sensor) (label_replace(label_replace(smartctl_device_temperature{job=\"smartctl\", temperature_type=\"current\", instance!~\"rumba|tango|salsa|samba\", instance=\"voyager\"}, \"sensor\", \"$1\", \"device\", \"(.+)\"), \"chip\", \"smart\", \"\", \"\"))) or max by (instance, chip, sensor) (label_replace(label_replace(smartctl_device_temperature{job=\"smartctl\", temperature_type=\"current\", instance!~\"rumba|tango|salsa|samba\", instance!=\"voyager\"}, \"sensor\", \"$1\", \"device\", \"(.+)\"), \"chip\", \"smart\", \"\", \"\")) or max by (instance, chip, sensor) (label_replace(label_replace(label_replace(homeassistant_sensor_temperature_celsius{job=\"home-assistant\", friendly_name=\"Router CPU temperature\"}, \"instance\", \"hubble\", \"\", \"\"), \"chip\", \"router\", \"\", \"\"), \"sensor\", \"CPU\", \"\", \"\"))) * 0 + 90)[1d:5m]) - last_over_time((max by (instance, chip, sensor) (label_replace(node_hwmon_temp_celsius{job=\"node-exporter\", instance!~\"k8s-.*\", chip!~\"thermal_.*\"} * on (instance, chip, sensor) group_left (label) node_hwmon_sensor_label{job=\"node-exporter\", instance!~\"k8s-.*\"}, \"sensor\", \"$1\", \"label\", \"(.+)\")) or max by (instance, chip, sensor) (node_hwmon_temp_celsius{job=\"node-exporter\", instance!~\"k8s-.*\", chip!~\"thermal_.*\"} unless on (instance, chip, sensor) node_hwmon_sensor_label{job=\"node-exporter\", instance!~\"k8s-.*\"}) or max by (instance, chip, sensor) (label_replace(label_replace(node_thermal_zone_temp{job=\"node-exporter\", instance!~\"k8s-.*\"}, \"sensor\", \"$1\", \"type\", \"(.+)\"), \"chip\", \"thermal_zone\", \"\", \"\")) or max by (instance, chip, sensor) (label_replace(label_replace(label_replace({__name__=~\"servers_Voyager_local_cputemp_.+_temperature\"}, \"sensor\", \"Core $1\", \"__name__\", \"servers_Voyager_local_cputemp_(.+)_temperature\"), \"chip\", \"cputemp\", \"\", \"\"), \"instance\", \"voyager\", \"\", \"\") / 10 - 273.15) or (max by (instance, chip, sensor) (label_replace(label_replace(label_replace({__name__=~\"servers_Voyager_local_disktemp_.+_temperature\"}, \"sensor\", \"$1\", \"__name__\", \"servers_Voyager_local_disktemp_(.+)_temperature\"), \"chip\", \"disktemp\", \"\", \"\"), \"instance\", \"voyager\", \"\", \"\")) or max by (instance, chip, sensor) (label_replace(label_replace(smartctl_device_temperature{job=\"smartctl\", temperature_type=\"current\", instance!~\"rumba|tango|salsa|samba\", instance=\"voyager\"}, \"sensor\", \"$1\", \"device\", \"(.+)\"), \"chip\", \"smart\", \"\", \"\"))) or max by (instance, chip, sensor) (label_replace(label_replace(smartctl_device_temperature{job=\"smartctl\", temperature_type=\"current\", instance!~\"rumba|tango|salsa|samba\", instance!=\"voyager\"}, \"sensor\", \"$1\", \"device\", \"(.+)\"), \"chip\", \"smart\", \"\", \"\")) or max by (instance, chip, sensor) (label_replace(label_replace(label_replace(homeassistant_sensor_temperature_celsius{job=\"home-assistant\", friendly_name=\"Router CPU temperature\"}, \"instance\", \"hubble\", \"\", \"\"), \"chip\", \"router\", \"\", \"\"), \"sensor\", \"CPU\", \"\", \"\")))[1d:5m]), \"dashboard\", \"homelab-host-$1\", \"instance\", \"(.*)\"), \"dashboard\", \"homelab-router\", \"instance\", \"hubble\")",
           "format": "table",
-          "instant": true
+          "instant": true,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          }
         },
         {
           "refId": "D",
           "expr": "label_replace(label_replace((((max by (instance, chip, sensor) (label_replace(node_hwmon_temp_celsius{job=\"node-exporter\", instance!~\"k8s-.*\", chip!~\"thermal_.*\"} * on (instance, chip, sensor) group_left (label) node_hwmon_sensor_label{job=\"node-exporter\", instance!~\"k8s-.*\"}, \"sensor\", \"$1\", \"label\", \"(.+)\")) or max by (instance, chip, sensor) (node_hwmon_temp_celsius{job=\"node-exporter\", instance!~\"k8s-.*\", chip!~\"thermal_.*\"} unless on (instance, chip, sensor) node_hwmon_sensor_label{job=\"node-exporter\", instance!~\"k8s-.*\"}) or max by (instance, chip, sensor) (label_replace(label_replace(node_thermal_zone_temp{job=\"node-exporter\", instance!~\"k8s-.*\"}, \"sensor\", \"$1\", \"type\", \"(.+)\"), \"chip\", \"thermal_zone\", \"\", \"\")) or max by (instance, chip, sensor) (label_replace(label_replace(label_replace({__name__=~\"servers_Voyager_local_cputemp_.+_temperature\"}, \"sensor\", \"Core $1\", \"__name__\", \"servers_Voyager_local_cputemp_(.+)_temperature\"), \"chip\", \"cputemp\", \"\", \"\"), \"instance\", \"voyager\", \"\", \"\") / 10 - 273.15) or (max by (instance, chip, sensor) (label_replace(label_replace(label_replace({__name__=~\"servers_Voyager_local_disktemp_.+_temperature\"}, \"sensor\", \"$1\", \"__name__\", \"servers_Voyager_local_disktemp_(.+)_temperature\"), \"chip\", \"disktemp\", \"\", \"\"), \"instance\", \"voyager\", \"\", \"\")) or max by (instance, chip, sensor) (label_replace(label_replace(smartctl_device_temperature{job=\"smartctl\", temperature_type=\"current\", instance!~\"rumba|tango|salsa|samba\", instance=\"voyager\"}, \"sensor\", \"$1\", \"device\", \"(.+)\"), \"chip\", \"smart\", \"\", \"\"))) or max by (instance, chip, sensor) (label_replace(label_replace(smartctl_device_temperature{job=\"smartctl\", temperature_type=\"current\", instance!~\"rumba|tango|salsa|samba\", instance!=\"voyager\"}, \"sensor\", \"$1\", \"device\", \"(.+)\"), \"chip\", \"smart\", \"\", \"\")) or max by (instance, chip, sensor) (label_replace(label_replace(label_replace(homeassistant_sensor_temperature_celsius{job=\"home-assistant\", friendly_name=\"Router CPU temperature\"}, \"instance\", \"hubble\", \"\", \"\"), \"chip\", \"router\", \"\", \"\"), \"sensor\", \"CPU\", \"\", \"\"))) >= bool (max by (instance, chip, sensor) (label_replace(node_hwmon_temp_crit_celsius{job=\"node-exporter\", instance!~\"k8s-.*\", chip!~\"thermal_.*\"} * on (instance, chip, sensor) group_left (label) node_hwmon_sensor_label{job=\"node-exporter\", instance!~\"k8s-.*\"}, \"sensor\", \"$1\", \"label\", \"(.+)\")) or max by (instance, chip, sensor) (node_hwmon_temp_crit_celsius{job=\"node-exporter\", instance!~\"k8s-.*\", chip!~\"thermal_.*\"} unless on (instance, chip, sensor) node_hwmon_sensor_label{job=\"node-exporter\", instance!~\"k8s-.*\"}) or max by (instance, chip, sensor) (label_replace(label_replace(node_thermal_zone_temp{job=\"node-exporter\", instance!~\"k8s-.*\", type=\"cpu-thermal\"}, \"sensor\", \"$1\", \"type\", \"(.+)\"), \"chip\", \"thermal_zone\", \"\", \"\")) * 0 + 85 or (max by (instance, chip, sensor) (label_replace(label_replace(label_replace({__name__=~\"servers_Voyager_local_disktemp_.+_temperature\"}, \"sensor\", \"$1\", \"__name__\", \"servers_Voyager_local_disktemp_(.+)_temperature\"), \"chip\", \"disktemp\", \"\", \"\"), \"instance\", \"voyager\", \"\", \"\")) or max by (instance, chip, sensor) (label_replace(label_replace(smartctl_device_temperature{job=\"smartctl\", temperature_type=\"current\", instance!~\"rumba|tango|salsa|samba\", instance=\"voyager\"}, \"sensor\", \"$1\", \"device\", \"(.+)\"), \"chip\", \"smart\", \"\", \"\"))) * 0 + 60 or max by (instance, chip, sensor) (label_replace(label_replace(smartctl_device_temperature{job=\"smartctl\", temperature_type=\"current\", instance!~\"rumba|tango|salsa|samba\", instance!=\"voyager\"}, \"sensor\", \"$1\", \"device\", \"(.+)\"), \"chip\", \"smart\", \"\", \"\")) * 0 + 70 or (max by (instance, chip, sensor) (label_replace(node_hwmon_temp_celsius{job=\"node-exporter\", instance!~\"k8s-.*\", chip!~\"thermal_.*\"} * on (instance, chip, sensor) group_left (label) node_hwmon_sensor_label{job=\"node-exporter\", instance!~\"k8s-.*\"}, \"sensor\", \"$1\", \"label\", \"(.+)\")) or max by (instance, chip, sensor) (node_hwmon_temp_celsius{job=\"node-exporter\", instance!~\"k8s-.*\", chip!~\"thermal_.*\"} unless on (instance, chip, sensor) node_hwmon_sensor_label{job=\"node-exporter\", instance!~\"k8s-.*\"}) or max by (instance, chip, sensor) (label_replace(label_replace(node_thermal_zone_temp{job=\"node-exporter\", instance!~\"k8s-.*\"}, \"sensor\", \"$1\", \"type\", \"(.+)\"), \"chip\", \"thermal_zone\", \"\", \"\")) or max by (instance, chip, sensor) (label_replace(label_replace(label_replace({__name__=~\"servers_Voyager_local_cputemp_.+_temperature\"}, \"sensor\", \"Core $1\", \"__name__\", \"servers_Voyager_local_cputemp_(.+)_temperature\"), \"chip\", \"cputemp\", \"\", \"\"), \"instance\", \"voyager\", \"\", \"\") / 10 - 273.15) or (max by (instance, chip, sensor) (label_replace(label_replace(label_replace({__name__=~\"servers_Voyager_local_disktemp_.+_temperature\"}, \"sensor\", \"$1\", \"__name__\", \"servers_Voyager_local_disktemp_(.+)_temperature\"), \"chip\", \"disktemp\", \"\", \"\"), \"instance\", \"voyager\", \"\", \"\")) or max by (instance, chip, sensor) (label_replace(label_replace(smartctl_device_temperature{job=\"smartctl\", temperature_type=\"current\", instance!~\"rumba|tango|salsa|samba\", instance=\"voyager\"}, \"sensor\", \"$1\", \"device\", \"(.+)\"), \"chip\", \"smart\", \"\", \"\"))) or max by (instance, chip, sensor) (label_replace(label_replace(smartctl_device_temperature{job=\"smartctl\", temperature_type=\"current\", instance!~\"rumba|tango|salsa|samba\", instance!=\"voyager\"}, \"sensor\", \"$1\", \"device\", \"(.+)\"), \"chip\", \"smart\", \"\", \"\")) or max by (instance, chip, sensor) (label_replace(label_replace(label_replace(homeassistant_sensor_temperature_celsius{job=\"home-assistant\", friendly_name=\"Router CPU temperature\"}, \"instance\", \"hubble\", \"\", \"\"), \"chip\", \"router\", \"\", \"\"), \"sensor\", \"CPU\", \"\", \"\"))) * 0 + 90)) + ((max by (instance, chip, sensor) (label_replace(node_hwmon_temp_celsius{job=\"node-exporter\", instance!~\"k8s-.*\", chip!~\"thermal_.*\"} * on (instance, chip, sensor) group_left (label) node_hwmon_sensor_label{job=\"node-exporter\", instance!~\"k8s-.*\"}, \"sensor\", \"$1\", \"label\", \"(.+)\")) or max by (instance, chip, sensor) (node_hwmon_temp_celsius{job=\"node-exporter\", instance!~\"k8s-.*\", chip!~\"thermal_.*\"} unless on (instance, chip, sensor) node_hwmon_sensor_label{job=\"node-exporter\", instance!~\"k8s-.*\"}) or max by (instance, chip, sensor) (label_replace(label_replace(node_thermal_zone_temp{job=\"node-exporter\", instance!~\"k8s-.*\"}, \"sensor\", \"$1\", \"type\", \"(.+)\"), \"chip\", \"thermal_zone\", \"\", \"\")) or max by (instance, chip, sensor) (label_replace(label_replace(label_replace({__name__=~\"servers_Voyager_local_cputemp_.+_temperature\"}, \"sensor\", \"Core $1\", \"__name__\", \"servers_Voyager_local_cputemp_(.+)_temperature\"), \"chip\", \"cputemp\", \"\", \"\"), \"instance\", \"voyager\", \"\", \"\") / 10 - 273.15) or (max by (instance, chip, sensor) (label_replace(label_replace(label_replace({__name__=~\"servers_Voyager_local_disktemp_.+_temperature\"}, \"sensor\", \"$1\", \"__name__\", \"servers_Voyager_local_disktemp_(.+)_temperature\"), \"chip\", \"disktemp\", \"\", \"\"), \"instance\", \"voyager\", \"\", \"\")) or max by (instance, chip, sensor) (label_replace(label_replace(smartctl_device_temperature{job=\"smartctl\", temperature_type=\"current\", instance!~\"rumba|tango|salsa|samba\", instance=\"voyager\"}, \"sensor\", \"$1\", \"device\", \"(.+)\"), \"chip\", \"smart\", \"\", \"\"))) or max by (instance, chip, sensor) (label_replace(label_replace(smartctl_device_temperature{job=\"smartctl\", temperature_type=\"current\", instance!~\"rumba|tango|salsa|samba\", instance!=\"voyager\"}, \"sensor\", \"$1\", \"device\", \"(.+)\"), \"chip\", \"smart\", \"\", \"\")) or max by (instance, chip, sensor) (label_replace(label_replace(label_replace(homeassistant_sensor_temperature_celsius{job=\"home-assistant\", friendly_name=\"Router CPU temperature\"}, \"instance\", \"hubble\", \"\", \"\"), \"chip\", \"router\", \"\", \"\"), \"sensor\", \"CPU\", \"\", \"\"))) >= bool ((max by (instance, chip, sensor) (label_replace(label_replace(label_replace({__name__=~\"servers_Voyager_local_disktemp_.+_temperature\"}, \"sensor\", \"$1\", \"__name__\", \"servers_Voyager_local_disktemp_(.+)_temperature\"), \"chip\", \"disktemp\", \"\", \"\"), \"instance\", \"voyager\", \"\", \"\")) or max by (instance, chip, sensor) (label_replace(label_replace(smartctl_device_temperature{job=\"smartctl\", temperature_type=\"current\", instance!~\"rumba|tango|salsa|samba\", instance=\"voyager\"}, \"sensor\", \"$1\", \"device\", \"(.+)\"), \"chip\", \"smart\", \"\", \"\"))) * 0 + 50 or max by (instance, chip, sensor) (label_replace(label_replace(smartctl_device_temperature{job=\"smartctl\", temperature_type=\"current\", instance!~\"rumba|tango|salsa|samba\", instance!=\"voyager\"}, \"sensor\", \"$1\", \"device\", \"(.+)\"), \"chip\", \"smart\", \"\", \"\")) * 0 + 60 or (max by (instance, chip, sensor) (label_replace(node_hwmon_temp_celsius{job=\"node-exporter\", instance!~\"k8s-.*\", chip!~\"thermal_.*\"} * on (instance, chip, sensor) group_left (label) node_hwmon_sensor_label{job=\"node-exporter\", instance!~\"k8s-.*\"}, \"sensor\", \"$1\", \"label\", \"(.+)\")) or max by (instance, chip, sensor) (node_hwmon_temp_celsius{job=\"node-exporter\", instance!~\"k8s-.*\", chip!~\"thermal_.*\"} unless on (instance, chip, sensor) node_hwmon_sensor_label{job=\"node-exporter\", instance!~\"k8s-.*\"}) or max by (instance, chip, sensor) (label_replace(label_replace(node_thermal_zone_temp{job=\"node-exporter\", instance!~\"k8s-.*\"}, \"sensor\", \"$1\", \"type\", \"(.+)\"), \"chip\", \"thermal_zone\", \"\", \"\")) or max by (instance, chip, sensor) (label_replace(label_replace(label_replace({__name__=~\"servers_Voyager_local_cputemp_.+_temperature\"}, \"sensor\", \"Core $1\", \"__name__\", \"servers_Voyager_local_cputemp_(.+)_temperature\"), \"chip\", \"cputemp\", \"\", \"\"), \"instance\", \"voyager\", \"\", \"\") / 10 - 273.15) or (max by (instance, chip, sensor) (label_replace(label_replace(label_replace({__name__=~\"servers_Voyager_local_disktemp_.+_temperature\"}, \"sensor\", \"$1\", \"__name__\", \"servers_Voyager_local_disktemp_(.+)_temperature\"), \"chip\", \"disktemp\", \"\", \"\"), \"instance\", \"voyager\", \"\", \"\")) or max by (instance, chip, sensor) (label_replace(label_replace(smartctl_device_temperature{job=\"smartctl\", temperature_type=\"current\", instance!~\"rumba|tango|salsa|samba\", instance=\"voyager\"}, \"sensor\", \"$1\", \"device\", \"(.+)\"), \"chip\", \"smart\", \"\", \"\"))) or max by (instance, chip, sensor) (label_replace(label_replace(smartctl_device_temperature{job=\"smartctl\", temperature_type=\"current\", instance!~\"rumba|tango|salsa|samba\", instance!=\"voyager\"}, \"sensor\", \"$1\", \"device\", \"(.+)\"), \"chip\", \"smart\", \"\", \"\")) or max by (instance, chip, sensor) (label_replace(label_replace(label_replace(homeassistant_sensor_temperature_celsius{job=\"home-assistant\", friendly_name=\"Router CPU temperature\"}, \"instance\", \"hubble\", \"\", \"\"), \"chip\", \"router\", \"\", \"\"), \"sensor\", \"CPU\", \"\", \"\"))) * 0 + 80))) or last_over_time((max by (instance, chip, sensor) (label_replace(node_hwmon_temp_celsius{job=\"node-exporter\", instance!~\"k8s-.*\", chip!~\"thermal_.*\"} * on (instance, chip, sensor) group_left (label) node_hwmon_sensor_label{job=\"node-exporter\", instance!~\"k8s-.*\"}, \"sensor\", \"$1\", \"label\", \"(.+)\")) or max by (instance, chip, sensor) (node_hwmon_temp_celsius{job=\"node-exporter\", instance!~\"k8s-.*\", chip!~\"thermal_.*\"} unless on (instance, chip, sensor) node_hwmon_sensor_label{job=\"node-exporter\", instance!~\"k8s-.*\"}) or max by (instance, chip, sensor) (label_replace(label_replace(node_thermal_zone_temp{job=\"node-exporter\", instance!~\"k8s-.*\"}, \"sensor\", \"$1\", \"type\", \"(.+)\"), \"chip\", \"thermal_zone\", \"\", \"\")) or max by (instance, chip, sensor) (label_replace(label_replace(label_replace({__name__=~\"servers_Voyager_local_cputemp_.+_temperature\"}, \"sensor\", \"Core $1\", \"__name__\", \"servers_Voyager_local_cputemp_(.+)_temperature\"), \"chip\", \"cputemp\", \"\", \"\"), \"instance\", \"voyager\", \"\", \"\") / 10 - 273.15) or (max by (instance, chip, sensor) (label_replace(label_replace(label_replace({__name__=~\"servers_Voyager_local_disktemp_.+_temperature\"}, \"sensor\", \"$1\", \"__name__\", \"servers_Voyager_local_disktemp_(.+)_temperature\"), \"chip\", \"disktemp\", \"\", \"\"), \"instance\", \"voyager\", \"\", \"\")) or max by (instance, chip, sensor) (label_replace(label_replace(smartctl_device_temperature{job=\"smartctl\", temperature_type=\"current\", instance!~\"rumba|tango|salsa|samba\", instance=\"voyager\"}, \"sensor\", \"$1\", \"device\", \"(.+)\"), \"chip\", \"smart\", \"\", \"\"))) or max by (instance, chip, sensor) (label_replace(label_replace(smartctl_device_temperature{job=\"smartctl\", temperature_type=\"current\", instance!~\"rumba|tango|salsa|samba\", instance!=\"voyager\"}, \"sensor\", \"$1\", \"device\", \"(.+)\"), \"chip\", \"smart\", \"\", \"\")) or max by (instance, chip, sensor) (label_replace(label_replace(label_replace(homeassistant_sensor_temperature_celsius{job=\"home-assistant\", friendly_name=\"Router CPU temperature\"}, \"instance\", \"hubble\", \"\", \"\"), \"chip\", \"router\", \"\", \"\"), \"sensor\", \"CPU\", \"\", \"\")))[1d:5m]) * 0 - 1, \"dashboard\", \"homelab-host-$1\", \"instance\", \"(.*)\"), \"dashboard\", \"homelab-router\", \"instance\", \"hubble\")",
           "format": "table",
-          "instant": true
+          "instant": true,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          }
+        },
+        {
+          "refId": "NetBoxDevices",
+          "datasource": {
+            "type": "netboxlabs-netbox-datasource",
+            "uid": "netbox"
+          },
+          "queryType": "objects",
+          "objectType": "dcim/devices",
+          "fields": [
+            "name",
+            "device_type",
+            "display_url"
+          ],
+          "joinKeys": [
+            {
+              "source": "name",
+              "output": "instance",
+              "transform": "lower"
+            }
+          ],
+          "limit": 500
         }
       ],
       "fieldConfig": {
@@ -746,6 +788,30 @@
                 ]
               }
             ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "NetBox"
+            },
+            "properties": [
+              {
+                "id": "noValue",
+                "value": "not in NetBox"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "display_url"
+            },
+            "properties": [
+              {
+                "id": "custom.hidden",
+                "value": true
+              }
+            ]
           }
         ]
       },
@@ -761,7 +827,25 @@
       "transformations": [
         {
           "id": "merge",
-          "options": {}
+          "options": {},
+          "filter": {
+            "id": "byRefId",
+            "options": "/^(?:A|E|B|C|D)$/"
+          }
+        },
+        {
+          "id": "joinByField",
+          "options": {
+            "byField": "instance",
+            "mode": "outerTabular"
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
+            "regex": "^(.+) netbox_[a-z_]+$",
+            "renamePattern": "$1"
+          }
         },
         {
           "id": "organize",
@@ -771,14 +855,16 @@
             },
             "indexByName": {
               "instance": 0,
-              "chip": 1,
-              "sensor": 2,
-              "Value #A": 3,
-              "Value #E": 4,
-              "Value #B": 5,
-              "Value #C": 6,
-              "Value #D": 7,
-              "dashboard": 8
+              "chip": 3,
+              "sensor": 4,
+              "Value #A": 5,
+              "Value #E": 6,
+              "Value #B": 7,
+              "Value #C": 8,
+              "Value #D": 9,
+              "dashboard": 10,
+              "name": 1,
+              "device_type": 2
             },
             "renameByName": {
               "instance": "Host",
@@ -788,8 +874,26 @@
               "Value #E": "Warm",
               "Value #B": "Crit",
               "Value #C": "Headroom",
-              "Value #D": "State"
+              "Value #D": "State",
+              "name": "NetBox",
+              "device_type": "NetBox model"
             }
+          }
+        },
+        {
+          "id": "filterByValue",
+          "options": {
+            "type": "exclude",
+            "match": "any",
+            "filters": [
+              {
+                "fieldName": "°C",
+                "config": {
+                  "id": "isNull",
+                  "options": {}
+                }
+              }
+            ]
           }
         }
       ],
