@@ -181,6 +181,9 @@ configMapGenerator:
   - name: dashboard-bentopdf
     files: [Services/bentopdf.json]
     options: {annotations: {grafana_folder: Services}}
+  - name: dashboard-changedetection
+    files: [Services/changedetection.json]
+    options: {annotations: {grafana_folder: Services}}
   - name: dashboard-seerr
     files: [Services/seerr.json]
     options: {annotations: {grafana_folder: Services}}
