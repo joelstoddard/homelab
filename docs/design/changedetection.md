@@ -60,8 +60,10 @@ API ports.
 topic `changedetection`; `phone` may read it. ntfy's own network policy admits
 the app. The app posts in-cluster, never through the public hostname. The
 Apprise URL is set once in Settings > Notifications (UI state):
-`ntfy://changedetection:<password>@ntfy.ntfy.svc:8080/changedetection`, with the
-password from `CHANGEDETECTION_PASSWORD` in `ntfy/app/secret.sops.yaml`.
+`ntfy://changedetection:<password>@ntfy.ntfy.svc/changedetection`, with the
+password from `CHANGEDETECTION_PASSWORD` in `ntfy/app/secret.sops.yaml`. The
+Service publishes port 80; the policies name the pod's 8080, because Cilium
+sees the backend, not the Service.
 
 **Its own credential.** The app's password is optional and off by default, so
 its one route carries `changedetection-auth`, a basic-auth Middleware whose
