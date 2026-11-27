@@ -36,6 +36,7 @@ resources:
   - spliit/ks.yaml
   - sure/ks.yaml
   - dawarich/ks.yaml
+  - paperless/ks.yaml
   - orb-agent/ks.yaml
   - lancache/ks.yaml
   - nebula-sync/ks.yaml

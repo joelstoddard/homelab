@@ -1,0 +1,23 @@
+# Only Paperless reaches the broker (plus the kubelet's probe).
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: valkey-ingress
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: valkey
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: paperless
+      toPorts:
+        - ports:
+            - port: "6379"
+              protocol: TCP
+    - fromEntities:
+        - host
+      toPorts:
+        - ports:
+            - port: "6379"
+              protocol: TCP

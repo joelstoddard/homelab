@@ -23,6 +23,7 @@ configMapGenerator:
       - lidarr.svg
       - longhorn.svg
       - netbox.svg
+      - paperless-ngx.svg
       - pi-hole.svg
       - prowlarr.svg
       - proxmox.svg

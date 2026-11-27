@@ -1,0 +1,131 @@
+# Rootless, as upstream documents: the process starts as uid 1000 with no
+# privilege remapping. Documents live on Voyager; index and SQLite on Longhorn.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: paperless
+  labels:
+    app.kubernetes.io/name: paperless
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: paperless
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: paperless
+    spec:
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      # s6-overlay refuses a /run it does not own, and an emptyDir is root's; this
+      # root step only chowns it, with CHOWN alone (docs/design/paperless.md).
+      initContainers:
+        - name: run-owner
+          image: ghcr.io/paperless-ngx/paperless-ngx:3.5.1@sha256:8508853b8a0f8394074260957d0be186c8c64f346973b24a7583de4580f306b9
+          command: ["chown", "1000:1000", "/run"]
+          securityContext:
+            runAsUser: 0
+            runAsNonRoot: false
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+              add: ["CHOWN"]
+          volumeMounts:
+            - name: run
+              mountPath: /run
+      containers:
+        - name: paperless
+          image: ghcr.io/paperless-ngx/paperless-ngx:3.5.1@sha256:8508853b8a0f8394074260957d0be186c8c64f346973b24a7583de4580f306b9
+          env:
+            - name: PAPERLESS_URL
+              value: https://paperless.${DOMAIN}
+            - name: PAPERLESS_REDIS
+              value: redis://valkey.paperless.svc:6379
+            - name: PAPERLESS_DATA_DIR
+              value: /usr/src/paperless/data
+            - name: PAPERLESS_MEDIA_ROOT
+              value: /usr/src/paperless/media
+            - name: PAPERLESS_CONSUMPTION_DIR
+              value: /usr/src/paperless/consume
+            - name: PAPERLESS_SCRATCH_DIR
+              value: /tmp/paperless
+            # NFS delivers no inotify events, so the consume folder is polled.
+            - name: PAPERLESS_CONSUMER_POLLING_INTERVAL
+              value: "30"
+            - name: PAPERLESS_CONSUMER_RECURSIVE
+              value: "true"
+            - name: PAPERLESS_ADMIN_USER
+              value: admin
+            - name: PAPERLESS_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: paperless-secrets
+                  key: PAPERLESS_ADMIN_PASSWORD
+            - name: PAPERLESS_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: paperless-secrets
+                  key: PAPERLESS_SECRET_KEY
+          ports:
+            - name: http
+              containerPort: 8000
+          readinessProbe:
+            httpGet:
+              path: /accounts/login/
+              port: http
+            periodSeconds: 15
+          livenessProbe:
+            httpGet:
+              path: /accounts/login/
+              port: http
+            initialDelaySeconds: 180
+            periodSeconds: 30
+            failureThreshold: 3
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: data
+              mountPath: /usr/src/paperless/data
+            - name: documents
+              mountPath: /usr/src/paperless/media
+              subPath: media
+            - name: documents
+              mountPath: /usr/src/paperless/consume
+              subPath: consume
+            - name: documents
+              mountPath: /usr/src/paperless/export
+              subPath: export
+            - name: tmp
+              mountPath: /tmp
+            - name: run
+              mountPath: /run
+          resources:
+            requests:
+              cpu: 100m
+              memory: 768Mi
+            limits:
+              cpu: "2"
+              memory: 2Gi
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: paperless-data
+        - name: documents
+          persistentVolumeClaim:
+            claimName: paperless-documents
+        - name: tmp
+          emptyDir: {}
+        - name: run
+          emptyDir: {}

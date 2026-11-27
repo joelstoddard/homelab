@@ -203,6 +203,10 @@ pages:
                     url: https://dawarich.${DOMAIN}
                     check-url: http://dawarich.dawarich.svc:3000/api/v1/health
                     icon: /assets/dawarich.svg
+                  - title: Paperless-ngx
+                    url: https://paperless.${DOMAIN}
+                    check-url: http://paperless.paperless.svc:8000/accounts/login/
+                    icon: /assets/paperless-ngx.svg
                   - title: IT-Tools
                     url: https://it-tools.${DOMAIN}
                     check-url: http://it-tools.it-tools.svc:8080/
