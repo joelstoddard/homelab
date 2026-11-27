@@ -18,6 +18,9 @@ spec:
       labels:
         app.kubernetes.io/name: paperless
     spec:
+      # Service links would inject PAPERLESS_PORT=tcp://..., which the app reads
+      # as its own port setting (docs/design/paperless.md).
+      enableServiceLinks: false
       securityContext:
         runAsUser: 1000
         runAsGroup: 1000

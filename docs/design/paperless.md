@@ -66,6 +66,11 @@ capability and exits. That is why the namespace stays on Talos's default
 Found by a boot test before the first deploy: without it the pod exits in 15
 seconds.
 
+**No Service links.** The Service is `paperless`, so Kubernetes would inject
+`PAPERLESS_PORT=tcp://<address>:8000`. Paperless reads that variable as its
+listen port, and its web server exits on every start. `enableServiceLinks:
+false` removes it, as for Uptime Kuma.
+
 **The first superuser** is created at start-up from `PAPERLESS_ADMIN_USER`
 (`admin`) and `PAPERLESS_ADMIN_PASSWORD`, generated into `secret.sops.yaml`;
 Paperless never overwrites an existing user, so the variables stay. Read the
