@@ -14,10 +14,12 @@ import urllib.request
 LOKI = os.environ.get("LOKI_URL", "http://loki.monitoring.svc:3100")
 GRAFANA = os.environ.get("GRAFANA_URL", "http://grafana.monitoring.svc")
 BACKFILL_NS = 30 * 86400 * 10**9
-QUERY = ('{job="journal", unit=~"pvedaemon.service|pve-ha-lrm.service"} '
-         '|~ "<[^>]+> (starting task UPID|update (VM|CT) )"')
+# No unit filter: pvesh and qm log a change under the shell session that ran them.
+QUERY = '{job="journal"} |~ "<[^>]+> (starting task UPID|update (VM|CT) )"'
 LIMIT = 5000
 
+# Tasks Proxmox runs on a schedule that change nothing: aptupdate refreshes package lists daily.
+ROUTINE = {"aptupdate"}
 TASK = re.compile(r"<(?P<user>[^>]+)> starting task UPID:[^:]+:[^:]+:[^:]+:[^:]+:(?P<type>[^:]+):(?P<id>[^:]*):")
 UPDATE = re.compile(r"<(?P<user>[^>]+)> (?P<what>update (?:VM|CT) \d+: .*)$")
 
@@ -33,7 +35,7 @@ def parse(line, node):
             return None
         user, action, rest = m["user"], "update", m["what"].rstrip()
     # OpenTofu's API token: its applies already post an Operator annotation.
-    if user.endswith("!terraform"):
+    if user.endswith("!terraform") or action in ROUTINE:
         return None
     return {"node": node, "user": user, "action": action, "text": f"proxmox {node}: {user} {rest}"}
 

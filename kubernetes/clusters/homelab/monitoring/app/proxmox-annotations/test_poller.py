@@ -32,12 +32,25 @@ class Parse(unittest.TestCase):
         self.assertIsNone(poller.parse(TOFU, "salsa"))
         self.assertIsNone(poller.parse("<root@pam!terraform> update VM 201: -balloon 4000", "salsa"))
 
+    def test_the_daily_package_list_refresh_is_not_a_change(self):
+        # pve-daily-update.service runs it on every NUC every day; it installs nothing.
+        line = "<root@pam> starting task UPID:Rumba:0011A2B3:07F5EE15:6AEF798C:aptupdate::root@pam:"
+        self.assertIsNone(poller.parse(line, "rumba"))
+
     def test_logins_and_task_ends_are_not_changes(self):
         self.assertIsNone(poller.parse("<root@pam> successful auth for user 'root@pam'", "rumba"))
         self.assertIsNone(poller.parse("<root@pam> end task UPID:Rumba:1:2:3:qmshutdown:201:root@pam: OK", "rumba"))
 
     def test_an_unknown_line_is_skipped(self):
         self.assertIsNone(poller.parse("something else entirely", "rumba"))
+
+
+class Query(unittest.TestCase):
+    def test_shell_changes_are_read_whatever_unit_logged_them(self):
+        # pvesh and qm run the API handler in-process and log under the SSH session's scope,
+        # not pvedaemon.service (seen 2026-11-27: "update VM 901" from session-1244.scope).
+        self.assertNotIn("unit", poller.QUERY)
+        self.assertIn('job="journal"', poller.QUERY)
 
 
 class Annotation(unittest.TestCase):
