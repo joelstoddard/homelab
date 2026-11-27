@@ -132,13 +132,17 @@ defaults that hide the control-plane components.
   **Proxmox** (yellow): Grafana annotations tagged `proxmox`, posted by the
   `proxmox-annotations` CronJob (`monitoring/app/proxmox-annotations/`,
   every 5 min). Proxmox records every change in the NUCs' journal, which
-  their Alloy already ships to Loki: `pvedaemon` logs `<user> starting task
+  their Alloy already ships to Loki: `<user> starting task
   UPID:…:<type>:<id>:…` for tasks and `<user> update VM|CT <id>: -<keys>`
   for config edits that run without a task (a task log alone misses those).
-  `poller.py` reads those lines from Loki and posts one annotation each,
-  tagged `node:`, `user:` and `action:`. It skips the `root@pam!terraform`
-  token's lines, because OpenTofu applies already post an Operator
-  annotation. Its only state is Grafana's: each run reads the newest
+  The query filters on that message, not on the unit: an API call logs
+  under `pvedaemon.service`, but `pvesh` and `qm` run the handler
+  in-process and log under the SSH session's scope (found 2026-11-27, when
+  the first end-to-end test from a shell was missed). `poller.py` posts one
+  annotation per line, tagged `node:`, `user:` and `action:`. It skips the
+  `root@pam!terraform` token's lines, because OpenTofu applies already post
+  an Operator annotation, and `aptupdate`, the daily package-list refresh
+  that changes nothing. Its only state is Grafana's: each run reads the newest
   `proxmox` annotation (Grafana returns newest first) and queries Loki from
   that millisecond, dropping a line already posted at that time; the first
   run backfills Loki's 30 days. The token belongs to the service account
