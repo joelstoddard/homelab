@@ -195,6 +195,10 @@ pages:
                     url: https://spliit.${DOMAIN}
                     check-url: http://spliit.spliit.svc:3000/
                     icon: /assets/spliit.svg
+                  - title: Sure
+                    url: https://sure.${DOMAIN}
+                    check-url: http://sure.sure.svc:3000/up
+                    icon: /assets/sure.svg
                   - title: IT-Tools
                     url: https://it-tools.${DOMAIN}
                     check-url: http://it-tools.it-tools.svc:8080/
