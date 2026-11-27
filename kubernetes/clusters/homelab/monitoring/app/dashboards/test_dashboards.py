@@ -76,19 +76,47 @@ class Layout(unittest.TestCase):
                     self.assertIsInstance(value, int, f"{os.path.relpath(path, HERE)} panel {p.get('id')} gridPos.{key}={value!r}")
 
 
+def change_toggles(path):
+    with open(path) as f:
+        dashboard = json.load(f)
+    return {a.get("name"): a for a in dashboard.get("annotations", {}).get("list", [])}
+
+
 class Changes(unittest.TestCase):
-    def test_every_dashboard_shows_flux_changes(self):
-        # Flux posts organization annotations tagged flux; a dashboard shows them only when it queries the tag.
+    # One toggle per source of change, so each can be switched off alone (docs/design/observability.md).
+    GRAFANA = {"type": "grafana", "uid": "-- Grafana --"}
+
+    def assert_tag_toggle(self, name, tag):
         self.assertTrue(FILES)
         for path in FILES:
-            with open(path) as f:
-                dashboard = json.load(f)
-            changes = [a for a in dashboard.get("annotations", {}).get("list", []) if a.get("name") == "Changes"]
-            self.assertEqual(len(changes), 1, os.path.relpath(path, HERE))
-            self.assertEqual(changes[0]["datasource"], {"type": "grafana", "uid": "-- Grafana --"}, os.path.relpath(path, HERE))
-            self.assertTrue(changes[0]["enable"], os.path.relpath(path, HERE))
-            self.assertEqual(changes[0]["target"]["type"], "tags", os.path.relpath(path, HERE))
-            self.assertIn("flux", changes[0]["target"]["tags"], os.path.relpath(path, HERE))
+            toggle = change_toggles(path).get(name)
+            where = os.path.relpath(path, HERE)
+            self.assertIsNotNone(toggle, f"{where}: no {name} annotation")
+            self.assertEqual(toggle["datasource"], self.GRAFANA, where)
+            self.assertTrue(toggle["enable"], where)
+            self.assertEqual(toggle["target"]["type"], "tags", where)
+            self.assertEqual(toggle["target"]["tags"], [tag], where)
+
+    def test_every_dashboard_shows_flux_changes(self):
+        # Flux posts organization annotations tagged flux; a dashboard shows them only when it queries the tag.
+        self.assert_tag_toggle("Flux", "flux")
+
+    def test_every_dashboard_shows_operator_changes(self):
+        # scripts/annotate tags every Ansible, OpenTofu and manual change operator.
+        self.assert_tag_toggle("Operator", "operator")
+
+    def test_every_dashboard_shows_every_netbox_change(self):
+        # No objectTypes filter: a prefix or IP edit matters as much as a device edit.
+        for path in FILES:
+            toggles = change_toggles(path)
+            where = os.path.relpath(path, HERE)
+            self.assertNotIn("NetBox changes", toggles, f"{where}: the device-and-VM-only query is replaced by NetBox")
+            netbox = toggles.get("NetBox")
+            self.assertIsNotNone(netbox, f"{where}: no NetBox annotation")
+            self.assertEqual(netbox["datasource"], {"type": "netboxlabs-netbox-datasource", "uid": "netbox"}, where)
+            self.assertTrue(netbox["enable"], where)
+            self.assertEqual(netbox["target"].get("queryType"), "annotations", where)
+            self.assertNotIn("objectTypes", netbox["target"], where)
 
 
 class Power(unittest.TestCase):

@@ -1,6 +1,6 @@
 .POSIX:
 .PHONY: default help homelab install bootstrap-secrets ansible opentofu dns talos kubernetes kubeconfig \
-        build dev lint lint-sops check clean check-env
+        build dev lint lint-sops check clean check-env annotate
 .NOTPARALLEL:
 
 LIMIT ?=
@@ -57,6 +57,7 @@ help:
 	@echo "  lint              - Lint everything."
 	@echo "  lint-sops         - Every file a .sops.yaml rule covers is SOPS-encrypted. Offline, no key."
 	@echo "  kubeconfig        - Merge the cluster context into ~/.kube/config (OPERATOR_SSH=user@host)."
+	@echo "  annotate          - Mark a manual change on every dashboard: MSG=\"what changed\" [SOURCE=manual]."
 	@echo "  check             - Dry-run everything."
 	@echo "  clean             - Clean caches and retry files."
 	@echo
@@ -172,6 +173,13 @@ lint-sops:
 		echo "run 'sops encrypt -i <file>' on each before committing; this repo is public and its history cannot be revoked." >&2; \
 		exit 1; }; \
 	echo ">> $$(echo $$files | wc -w | tr -d ' ') files under a .sops.yaml rule are encrypted"
+
+# A Grafana annotation for a change no tool records (talosctl, kubectl, a UI);
+# docs/design/observability.md, "Change annotations".
+SOURCE ?= manual
+annotate:
+	@[ -n "$(MSG)" ] || { echo 'usage: make annotate MSG="what changed" [SOURCE=manual]' >&2; exit 1; }
+	@scripts/annotate "$(SOURCE)" "$(MSG)"
 
 # Merge the Talos cluster's kube context into this machine's ~/.kube/config.
 kubeconfig:
