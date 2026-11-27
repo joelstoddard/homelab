@@ -33,6 +33,7 @@ configMapGenerator:
       - seerr.svg
       - sonarr.svg
       - spliit.svg
+      - sure.svg
       - tailscale.svg
       - traefik.svg
       - truenas.svg

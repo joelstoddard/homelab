@@ -1,0 +1,29 @@
+# PostgreSQL's data on Longhorn, never Voyager: a database corrupts on NFS.
+# No backup until #228 (docs/design/sure.md).
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: postgres-data
+  labels:
+    app.kubernetes.io/name: postgres
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 2Gi
+---
+# Uploaded CSV files and other Active Storage blobs, shared by web and worker,
+# which is why both run in one pod.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: sure-storage
+  labels:
+    app.kubernetes.io/name: sure
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
