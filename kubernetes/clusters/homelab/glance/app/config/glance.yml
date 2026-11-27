@@ -199,6 +199,10 @@ pages:
                     url: https://bentopdf.${DOMAIN}
                     check-url: http://bentopdf.bentopdf.svc:8080/
                     icon: /assets/bentopdf.svg
+                  - title: changedetection.io
+                    url: https://changedetection.${DOMAIN}
+                    check-url: http://changedetection.changedetection.svc:5000/
+                    icon: /assets/changedetection.svg
 
           - type: split-column
             widgets:

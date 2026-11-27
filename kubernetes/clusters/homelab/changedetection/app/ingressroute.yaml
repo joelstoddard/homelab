@@ -1,0 +1,20 @@
+# changedetection.io's own password is optional and off by default, so its one
+# route carries its own basic-auth Middleware (docs/design/ingress-tls.md).
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: changedetection
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - kind: Rule
+      match: Host(`changedetection.${DOMAIN}`)
+      middlewares:
+        - name: default-headers
+          namespace: traefik
+        - name: changedetection-auth
+          namespace: traefik
+      services:
+        - name: changedetection
+          port: 5000

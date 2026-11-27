@@ -73,3 +73,11 @@ metadata:
 spec:
   basicAuth:
     secret: bentopdf-auth-users
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: changedetection-auth
+spec:
+  basicAuth:
+    secret: changedetection-auth-users

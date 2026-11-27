@@ -305,7 +305,7 @@ full list is `flux-system`, `cilium`, `cilium-lb`, `descheduler`, `cluster-secre
 `cert-manager-issuers`, `traefik`, `traefik-middlewares`, `lan-services`,
 `tailscale`, `longhorn`, `longhorn-jobs`, `monitoring`, `alloy`,
 `host-monitoring`, `searxng`, `media`, `media-downloads`, `media-egress`, `glance`,
-`home-assistant`, `actual`, `uptime-kuma`, `ntfy`, `it-tools`, `bentopdf`, `orb-agent`, `lancache`, `nebula-sync`).
+`home-assistant`, `actual`, `uptime-kuma`, `ntfy`, `it-tools`, `bentopdf`, `changedetection`, `orb-agent`, `lancache`, `nebula-sync`).
 `cluster-secrets/` is one SOPS Secret in `flux-system` holding `DOMAIN`,
 `TRAEFIK_LB_IP` and `ACME_EMAIL`; consumers (`cert-manager-issuers`,
 `traefik`, `longhorn`) add `dependsOn: cluster-secrets` +
@@ -539,6 +539,17 @@ start without. Every tool runs in the browser, and the advanced ones
 (PyMuPDF, Ghostscript, CoherentPDF, OCR) load WASM from jsDelivr, a
 deliberate trade-off: self-hosting it means our own image. See
 `docs/design/bentopdf.md`.
+`changedetection/` (`dependsOn: traefik, traefik-middlewares, longhorn,
+cluster-secrets`, substituted, no `decryption`) is changedetection.io on
+`changedetection.${DOMAIN}`, behind its own `changedetection-auth`, watching
+product prices and stock: the app (uid 1000, 1Gi Longhorn datastore,
+`Recreate`) and `sockpuppetbrowser`, a Chrome started `--no-sandbox` that only
+the app may reach. Both pods fetch any URL a watch names, so
+`fetchers-egress` allows DNS and the internet and denies `${LAN_PREFIX}` (the
+whole LAN, from `cluster-secrets`) and the Kubernetes and Talos API ports.
+Changes go to ntfy's `changedetection` topic as the write-only ntfy user
+`changedetection`; its Apprise URL and the watches are UI state on the volume.
+See `docs/design/changedetection.md`.
 `orb-agent/` (`decryption`, no `dependsOn`, not substituted) is the LAN
 discovery agent for NetBox Assurance: one `netboxlabs/orb-agent` replica,
 `Recreate`, Fleet-managed, on `hostNetwork` in a PodSecurity `privileged`
