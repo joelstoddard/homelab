@@ -35,7 +35,13 @@ scheduled syncs recur on their own.
 
 **Non-root on a read-only root.** The image runs as uid 1000 (`rails`).
 `/rails/tmp`, `/rails/log` and `/tmp` are `emptyDir`s; everything that must
-survive is on the storage claim or in PostgreSQL.
+survive is on the storage claim or in PostgreSQL. Ruby's `Dir.tmpdir` refuses
+a directory that is world-writable without the sticky bit, and every
+`emptyDir` is mode 0777 without it, so Rails aborts at boot with "could not
+find a temporary directory". An init container, the same image as uid 1000,
+creates `/rails/tmp/sys` with mode 0700, and both containers set
+`TMPDIR=/rails/tmp/sys`. Any other Ruby app here on a read-only root needs the
+same.
 
 **TLS ends at Traefik.** `RAILS_FORCE_SSL=false`, because a forced redirect
 would turn the kubelet's plain-HTTP probes on `/up` into 301s; and
