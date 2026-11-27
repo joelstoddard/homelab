@@ -1,0 +1,112 @@
+# PostGIS for Dawarich alone, until the HA database (#173). imresamu/postgis is
+# the multi-arch build of the official, amd64-only postgis/postgis.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres
+  labels:
+    app.kubernetes.io/name: postgres
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: postgres
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: postgres
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9187"
+    spec:
+      securityContext:
+        runAsUser: 70
+        runAsGroup: 70
+        fsGroup: 70
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: postgres
+          image: docker.io/imresamu/postgis:17-3.5-alpine@sha256:cd3e4f2acea6d27e5314c70ca478e6e4d2d97b1a4a594de0a7c71456472c65ef
+          env:
+            - name: POSTGRES_USER
+              value: dawarich
+            - name: POSTGRES_DB
+              value: dawarich
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: dawarich-db
+                  key: POSTGRES_PASSWORD
+          ports:
+            - name: postgres
+              containerPort: 5432
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", "dawarich", "-d", "dawarich", "-h", "127.0.0.1"]
+            periodSeconds: 10
+          livenessProbe:
+            exec:
+              command: ["pg_isready", "-U", "dawarich", "-d", "dawarich", "-h", "127.0.0.1"]
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            failureThreshold: 3
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          # Mounted one level above PGDATA (/var/lib/postgresql/data), so the
+          # volume's lost+found never sits in the data directory.
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql
+            - name: run
+              mountPath: /var/run/postgresql
+            - name: tmp
+              mountPath: /tmp
+          resources:
+            requests:
+              cpu: 20m
+              memory: 128Mi
+            limits:
+              cpu: "1"
+              memory: 512Mi
+        - name: exporter
+          image: quay.io/prometheuscommunity/postgres-exporter:v0.21.1@sha256:a88794758ad461c75f3825b51cde4bde730bdff04b3b24d00efe14217e41f615
+          env:
+            - name: DATA_SOURCE_URI
+              value: 127.0.0.1:5432/dawarich?sslmode=disable
+            - name: DATA_SOURCE_USER
+              value: dawarich
+            - name: DATA_SOURCE_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: dawarich-db
+                  key: POSTGRES_PASSWORD
+          ports:
+            - name: metrics
+              containerPort: 9187
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: 5m
+              memory: 16Mi
+            limits:
+              cpu: 100m
+              memory: 64Mi
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: postgres-data
+        - name: run
+          emptyDir: {}
+        - name: tmp
+          emptyDir: {}

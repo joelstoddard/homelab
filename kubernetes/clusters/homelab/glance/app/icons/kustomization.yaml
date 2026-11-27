@@ -13,6 +13,7 @@ configMapGenerator:
       - bentopdf.svg
       - bitwarden.svg
       - changedetection.svg
+      - dawarich.svg
       - cloudflare.svg
       - grafana.svg
       - hetzner.svg

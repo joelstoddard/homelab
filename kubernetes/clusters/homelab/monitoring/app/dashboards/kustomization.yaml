@@ -190,6 +190,9 @@ configMapGenerator:
   - name: dashboard-sure
     files: [Services/sure.json]
     options: {annotations: {grafana_folder: Services}}
+  - name: dashboard-dawarich
+    files: [Services/dawarich.json]
+    options: {annotations: {grafana_folder: Services}}
   - name: dashboard-seerr
     files: [Services/seerr.json]
     options: {annotations: {grafana_folder: Services}}

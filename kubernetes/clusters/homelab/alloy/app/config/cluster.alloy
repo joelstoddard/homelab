@@ -659,6 +659,27 @@ prometheus.scrape "searxng" {
 	}
 }
 
+// -------------------------------------------------- cluster-wide: Dawarich --
+
+// Dawarich's /metrics needs basic auth, like SearXNG's, and Rails' host check
+// refuses a pod-IP Host, so the target is the Service name it allows
+// (docs/design/dawarich.md).
+prometheus.scrape "dawarich" {
+	targets = [{
+		"__address__" = "dawarich.dawarich.svc:3000",
+		"namespace"   = "dawarich",
+		"instance"    = "dawarich",
+	}]
+	forward_to      = [prometheus.remote_write.prometheus.receiver]
+	job_name        = "dawarich"
+	scrape_interval = "60s"
+
+	basic_auth {
+		username = "metrics"
+		password = remote.kubernetes.secret.cluster_secrets.data["DAWARICH_METRICS_PASSWORD"]
+	}
+}
+
 // -------------------------------------------- cluster-wide: Home Assistant --
 
 // Home Assistant's /api/prometheus needs a bearer token, which the

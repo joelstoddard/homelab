@@ -305,7 +305,7 @@ full list is `flux-system`, `cilium`, `cilium-lb`, `descheduler`, `cluster-secre
 `cert-manager-issuers`, `traefik`, `traefik-middlewares`, `lan-services`,
 `tailscale`, `longhorn`, `longhorn-jobs`, `monitoring`, `alloy`,
 `host-monitoring`, `searxng`, `media`, `media-downloads`, `media-egress`, `glance`,
-`home-assistant`, `actual`, `uptime-kuma`, `ntfy`, `it-tools`, `bentopdf`, `changedetection`, `spliit`, `sure`, `orb-agent`, `lancache`, `nebula-sync`).
+`home-assistant`, `actual`, `uptime-kuma`, `ntfy`, `it-tools`, `bentopdf`, `changedetection`, `spliit`, `sure`, `dawarich`, `orb-agent`, `lancache`, `nebula-sync`).
 `cluster-secrets/` is one SOPS Secret in `flux-system` holding `DOMAIN`,
 `TRAEFIK_LB_IP` and `ACME_EMAIL`; consumers (`cert-manager-issuers`,
 `traefik`, `longhorn`) add `dependsOn: cluster-secrets` +
@@ -376,7 +376,7 @@ kubelet/cAdvisor, exporting node metrics in-process and tailing
 `/var/log/pods` (`alloy/app/config/config.alloy`); one `alloy-cluster`
 replica scraping every cluster-wide target — pods and Services annotated
 `prometheus.io/scrape` + `prometheus.io/port`, the control plane, Longhorn,
-SearXNG, Home Assistant, the descheduler — on a Pi by preferred (not required) arm64
+SearXNG, Home Assistant, Dawarich, the descheduler — on a Pi by preferred (not required) arm64
 affinity (`cluster.alloy`); a one-replica `alloy-events`; and a privileged `smartctl-exporter` DaemonSet on the arm64 nodes (`/dev/sda;sntrealtek`, `job="smartctl"`). No Prometheus
 Operator, no CRDs: those two River files are the only place scrape config
 lives. `alloy-cluster` is an ordinary pod, so a NetworkPolicy-protected
@@ -572,6 +572,20 @@ lost job. `RAILS_FORCE_SSL=false` keeps the `/up` probes from being redirected;
 `RAILS_ASSUME_SSL=true` keeps cookies secure. Never regenerate
 `SECRET_KEY_BASE`: the encryption keys derive from it. See
 `docs/design/sure.md`.
+`dawarich/` (`dependsOn: traefik, traefik-middlewares, longhorn,
+cluster-secrets`, substituted, `decryption`) is Dawarich, location history, on
+`dawarich.${DOMAIN}` with its own login; the phone posts over the tailnet with
+an API key. One Rails container with Sidekiq embedded, whose entrypoint copies
+`public_dist` into an `emptyDir` `public/` and migrates and seeds on every
+start — the seed creates the admin `demo@dawarich.app` / `safepassword` on an
+empty database, deleted by hand after every fresh install. Its own PostGIS
+(`imresamu/postgis` 17, the multi-arch build; 5Gi, volume one level above
+`PGDATA`) and a `noeviction` Valkey; the Sure `TMPDIR` init container.
+`APPLICATION_HOSTS` must name every `Host` it is reached by, or Rails answers
+403; `/api/v1/health` is exempt, so the probes use it. Its Yabeda `/metrics`
+needs basic auth, so `cluster.alloy` scrapes it explicitly on the Service name
+with `DAWARICH_METRICS_PASSWORD` from `cluster-secrets`. See
+`docs/design/dawarich.md`.
 `orb-agent/` (`decryption`, no `dependsOn`, not substituted) is the LAN
 discovery agent for NetBox Assurance: one `netboxlabs/orb-agent` replica,
 `Recreate`, Fleet-managed, on `hostNetwork` in a PodSecurity `privileged`
