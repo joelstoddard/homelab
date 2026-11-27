@@ -1,0 +1,18 @@
+# No auth Middleware: a documented exception, because each group is reached by
+# its own unguessable link and is meant to be shared (docs/design/spliit.md).
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: spliit
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - kind: Rule
+      match: Host(`spliit.${DOMAIN}`)
+      middlewares:
+        - name: default-headers
+          namespace: traefik
+      services:
+        - name: spliit
+          port: 3000

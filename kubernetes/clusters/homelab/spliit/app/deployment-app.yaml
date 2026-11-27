@@ -1,0 +1,88 @@
+# The image starts as root; nothing it does needs root, so it runs as the
+# image's node user. Its entrypoint runs prisma migrate deploy on every start.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: spliit
+  labels:
+    app.kubernetes.io/name: spliit
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: spliit
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: spliit
+    spec:
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              preference:
+                matchExpressions:
+                  - key: kubernetes.io/arch
+                    operator: In
+                    values: ["arm64"]
+      containers:
+        - name: spliit
+          image: ghcr.io/spliit-app/spliit:1.30.0@sha256:cfaf0f84ef4f11cd3e4c46329039a0f1f51a7d7bf8cc218bf7c1b366e58a99f1
+          env:
+            - name: BASE_URL
+              value: https://spliit.${DOMAIN}
+            - name: HOME
+              value: /tmp
+            - name: POSTGRES_PRISMA_URL
+              valueFrom:
+                secretKeyRef:
+                  name: spliit-db
+                  key: POSTGRES_PRISMA_URL
+            - name: POSTGRES_URL_NON_POOLING
+              valueFrom:
+                secretKeyRef:
+                  name: spliit-db
+                  key: POSTGRES_URL_NON_POOLING
+          ports:
+            - name: http
+              containerPort: 3000
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 60
+            periodSeconds: 30
+            failureThreshold: 3
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: next-cache
+              mountPath: /usr/app/.next/cache
+            - name: tmp
+              mountPath: /tmp
+          resources:
+            requests:
+              cpu: 20m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 384Mi
+      volumes:
+        - name: next-cache
+          emptyDir: {}
+        - name: tmp
+          emptyDir: {}
