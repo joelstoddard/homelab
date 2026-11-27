@@ -199,6 +199,10 @@ pages:
                     url: https://sure.${DOMAIN}
                     check-url: http://sure.sure.svc:3000/up
                     icon: /assets/sure.svg
+                  - title: Dawarich
+                    url: https://dawarich.${DOMAIN}
+                    check-url: http://dawarich.dawarich.svc:3000/api/v1/health
+                    icon: /assets/dawarich.svg
                   - title: IT-Tools
                     url: https://it-tools.${DOMAIN}
                     check-url: http://it-tools.it-tools.svc:8080/
