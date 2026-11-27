@@ -184,6 +184,13 @@ that already has one is a second prompt and no security — the four \*arr
 middlewares and qBittorrent's were removed on that basis on 2026-09-20
 (`docs/design/media-foundation.md`, "Ingress and auth").
 
+**Spliit is the one service without a login that carries no basic auth.** Each
+of its groups lives at an unguessable link meant to be passed to the people who
+share the costs, and a credential in front would have to be passed with it. It
+holds names and amounts, and it is reachable from the LAN and the tailnet only.
+The open "create group" page is the cost: anyone who can reach it can add a
+group (`docs/design/spliit.md`). Revisit this if Spliit is ever published.
+
 `default-headers` sets HSTS (`stsSeconds: 31536000`, `stsIncludeSubdomains`)
 plus `frameDeny`, `contentTypeNosniff`, `browserXssFilter`. **`stsPreload` is
 deliberately absent**: `preload` asserts a host is eligible for and wants to be
