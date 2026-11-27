@@ -33,6 +33,7 @@ resources:
   - it-tools/ks.yaml
   - bentopdf/ks.yaml
   - changedetection/ks.yaml
+  - spliit/ks.yaml
   - orb-agent/ks.yaml
   - lancache/ks.yaml
   - nebula-sync/ks.yaml

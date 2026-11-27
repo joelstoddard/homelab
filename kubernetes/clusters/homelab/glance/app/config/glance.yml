@@ -191,6 +191,10 @@ pages:
                     url: https://actual.${DOMAIN}
                     check-url: http://actual.actual.svc:5006/health
                     icon: /assets/actual-budget.svg
+                  - title: Spliit
+                    url: https://spliit.${DOMAIN}
+                    check-url: http://spliit.spliit.svc:3000/
+                    icon: /assets/spliit.svg
                   - title: IT-Tools
                     url: https://it-tools.${DOMAIN}
                     check-url: http://it-tools.it-tools.svc:8080/

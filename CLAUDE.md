@@ -305,7 +305,7 @@ full list is `flux-system`, `cilium`, `cilium-lb`, `descheduler`, `cluster-secre
 `cert-manager-issuers`, `traefik`, `traefik-middlewares`, `lan-services`,
 `tailscale`, `longhorn`, `longhorn-jobs`, `monitoring`, `alloy`,
 `host-monitoring`, `searxng`, `media`, `media-downloads`, `media-egress`, `glance`,
-`home-assistant`, `actual`, `uptime-kuma`, `ntfy`, `it-tools`, `bentopdf`, `changedetection`, `orb-agent`, `lancache`, `nebula-sync`).
+`home-assistant`, `actual`, `uptime-kuma`, `ntfy`, `it-tools`, `bentopdf`, `changedetection`, `spliit`, `orb-agent`, `lancache`, `nebula-sync`).
 `cluster-secrets/` is one SOPS Secret in `flux-system` holding `DOMAIN`,
 `TRAEFIK_LB_IP` and `ACME_EMAIL`; consumers (`cert-manager-issuers`,
 `traefik`, `longhorn`) add `dependsOn: cluster-secrets` +
@@ -550,6 +550,17 @@ whole LAN, from `cluster-secrets`) and the Kubernetes and Talos API ports.
 Changes go to ntfy's `changedetection` topic as the write-only ntfy user
 `changedetection`; its Apprise URL and the watches are UI state on the volume.
 See `docs/design/changedetection.md`.
+`spliit/` (`dependsOn: traefik, traefik-middlewares, longhorn,
+cluster-secrets`, substituted, `decryption`) is Spliit, shared expenses, on
+`spliit.${DOMAIN}`, with **no auth Middleware**: the one documented exception
+among services without a login, because each group is an unguessable link
+meant to be shared. It has its own plain PostgreSQL 18 `Deployment` (uid 70,
+`Recreate`, 2Gi Longhorn, no backup until #228) with a `postgres-exporter`
+sidecar, reachable only from Spliit and `alloy-cluster`; `secret-db.sops.yaml`
+holds the password and both connection URLs, substitution disabled. Spliit
+runs `prisma migrate deploy` on every start. Sure and Dawarich follow the same
+one-PostgreSQL-per-app pattern until the HA database (#173). See
+`docs/design/spliit.md`.
 `orb-agent/` (`decryption`, no `dependsOn`, not substituted) is the LAN
 discovery agent for NetBox Assurance: one `netboxlabs/orb-agent` replica,
 `Recreate`, Fleet-managed, on `hostNetwork` in a PodSecurity `privileged`
