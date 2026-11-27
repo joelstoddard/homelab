@@ -293,6 +293,7 @@ check: build lint
 	fi
 
 apply: build lint components secret sync
+	@../scripts/annotate flux-bootstrap "flux: install and sync applied to $(CLUSTER)" "cluster:$(CLUSTER)"
 
 # Server-side apply throughout: kustomize-controller drops the kubectl field
 # manager when it takes these objects over, so a later re-run with changed

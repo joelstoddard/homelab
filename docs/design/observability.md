@@ -109,10 +109,24 @@ defaults that hide the control-plane components.
      revoked alone. `ANNOTATE_START_MS`/`ANNOTATE_END_MS` make a region. It
      never fails the change it records: an undecryptable file or an
      unreachable Grafana (off the LAN and the tailnet) is a warning and
-     exit 0. `make annotate MSG="…"` (source `manual`) is the record for
-     anything no tool posts: a `talosctl` or `kubectl` action, or a change
-     in a UI. The sources without a feed are #547 (`kubectl`), #548
-     (Proxmox) and #549 (TrueNAS, router, Pi-hole).
+     exit 0. Three tools call it:
+     1. **Ansible:** the `annotate` callback (`callbacks_enabled`, beside
+        `redact`) posts one region per playbook run, from its start to its
+        stats, tagged `ansible` and `playbook:<file>` (plus `failed`), only
+        when a task changed something and the run was not `--check`. A dry
+        run or a no-op run leaves no mark.
+     2. **OpenTofu:** `run_tofu apply` passes each root's log to
+        `scripts/annotate-tofu`, which reads the last "Apply complete!"
+        line (the provider retry appends to the same log) and marks only a
+        root with a non-zero count, tagged `tofu` and `root:<name>`.
+     3. **Flux bootstrap:** `make -C kubernetes apply` posts once at the end,
+        tagged `flux-bootstrap` and `cluster:<name>`.
+
+     `make annotate MSG="…"` (source `manual`) is the record for anything
+     no tool posts: a `talosctl` or `kubectl` action, or a change in a UI.
+     The sources without a feed are #547 (`kubectl`), #548 (Proxmox) and
+     #549 (TrueNAS, router, Pi-hole). A warning never prints the Grafana
+     URL, because subprocess output bypasses the `redact` callback.
 - **Rotating the admin password.** The `grafana-admin` Secret only seeds
   a new database, so changing it alone changes nothing. Change the live
   password first through `PUT /api/user/password`, authenticating with the

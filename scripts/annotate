@@ -32,6 +32,6 @@ PY
 sops -d --extract '["GRAFANA_TOKEN"]' "$ENV_FILE" 2>/dev/null |
   { read -r token; printf 'header = "Authorization: Bearer %s"\n' "$token"; } |
   curl -sf --max-time 10 -K - -X POST -H 'Content-Type: application/json' \
-    --data @/dev/fd/3 "$url/api/annotations" >/dev/null 3<<EOF || warn "Grafana at $url refused or is unreachable"
+    --data @/dev/fd/3 "$url/api/annotations" >/dev/null 3<<EOF || warn "Grafana refused the request or is unreachable"
 $body
 EOF

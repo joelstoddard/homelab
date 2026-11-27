@@ -137,12 +137,15 @@ define run_tofu
 				set -a; eval "$$(sops -d $$d/secrets.env)"; set +a; \
 			fi; \
 			log=$$(mktemp); trap 'rm -f "$$log" "$$log.rc"' EXIT; \
+			start=$$(($$(date +%s) * 1000)); \
 			{ tofu -chdir=$$d $(1) $(2) 2>&1; echo $$? > "$$log.rc"; } | tee "$$log"; \
 			rc=$$(cat "$$log.rc"); \
 			if [ "$$rc" -ne 0 ] && [ "$(1)" = apply ] && grep -q "inconsistent final plan" "$$log"; then \
 				echo ">> bpg/proxmox planned VM attributes off a not-yet-created ISO id; re-applying $$d once"; \
-				tofu -chdir=$$d $(1) $(2); rc=$$?; \
+				{ tofu -chdir=$$d $(1) $(2) 2>&1; echo $$? > "$$log.rc"; } | tee -a "$$log"; \
+				rc=$$(cat "$$log.rc"); \
 			fi; \
+			if [ "$(1)" = apply ]; then ../scripts/annotate-tofu $$d "$$log" $$start; fi; \
 			exit $$rc \
 		) || rc=$$?; \
 		if [ "$$rc" -eq 2 ] && [ "$(1)" = plan ]; then \

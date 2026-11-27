@@ -1,0 +1,19 @@
+#!/bin/sh
+# Usage: scripts/annotate-tofu <root-dir> <apply-log> <start-ms>
+#
+# Called by opentofu/Makefile after each root's apply: marks the root as an Operator
+# annotation when its last "Apply complete!" line counts a change, and never fails.
+# docs/design/observability.md, "Change annotations".
+HERE=$(cd "$(dirname "$0")" && pwd)
+ANNOTATE=${ANNOTATE:-$HERE/annotate}
+root=$1 log=$2 start=$3
+
+counts=$(sed -n 's/^Apply complete! Resources: \([0-9]*\) added, \([0-9]*\) changed, \([0-9]*\) destroyed\..*/\1 \2 \3/p' "$log" 2>/dev/null | tail -n 1)
+[ -n "$counts" ] || exit 0
+read -r added changed destroyed <<EOF
+$counts
+EOF
+[ $((added + changed + destroyed)) -gt 0 ] || exit 0
+
+ANNOTATE_START_MS=$start "$ANNOTATE" tofu "tofu: $root $added added, $changed changed, $destroyed destroyed" \
+  "root:$(basename "$root")" || true
