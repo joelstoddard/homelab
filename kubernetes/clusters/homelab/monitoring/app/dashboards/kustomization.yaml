@@ -184,6 +184,9 @@ configMapGenerator:
   - name: dashboard-changedetection
     files: [Services/changedetection.json]
     options: {annotations: {grafana_folder: Services}}
+  - name: dashboard-spliit
+    files: [Services/spliit.json]
+    options: {annotations: {grafana_folder: Services}}
   - name: dashboard-seerr
     files: [Services/seerr.json]
     options: {annotations: {grafana_folder: Services}}
