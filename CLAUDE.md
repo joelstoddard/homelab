@@ -386,7 +386,11 @@ metrics need the talos role's control-plane patch (`bind-address`,
 `listen-metrics-urls`). Alerting is provisioned from `monitoring/app/alerting/`
 through Grafana's alerts sidecar, contact point `ntfy` via the in-cluster
 Service, and kube-state-metrics exports Flux Ready state as `gotk_resource_info`.
-See `docs/design/observability.md`.
+Every dashboard has three change toggles: Flux (Flux's `grafana` Provider),
+NetBox (its change log) and Operator (`scripts/annotate`). After a change no
+tool records — a `talosctl` or `kubectl` action, a UI edit — run
+`make annotate MSG="what changed"`.
+See `docs/design/observability.md`, "Change annotations".
 `host-monitoring/` (`dependsOn: monitoring, cilium-lb, cluster-secrets`,
 substituted) is the fleet outside the cluster: `pve-exporter`,
 `pihole-exporter` and `blackbox-exporter` poll and probe Proxmox, Pi-hole and

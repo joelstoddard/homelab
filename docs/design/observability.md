@@ -91,10 +91,28 @@ defaults that hide the control-plane components.
   that keeps annotations alone. Iterating on a dashboard: Save As a copy,
   iterate, Export (sharing-externally off), drop the file in git, then
   delete the copy by hand. The volume has no backup until #228; losing it
-  loses annotations and UI-made objects, never config. Every dashboard
-  carries a `Changes` annotation query on the `flux` tag, which
-  `test_dashboards.py` enforces, because Flux's annotations belong to no
-  dashboard and show only where a query asks for them.
+  loses annotations and UI-made objects, never config.
+- **Change annotations.** Every dashboard carries three toggles, one per
+  source of change, so each can be switched off alone; `test_dashboards.py`
+  enforces all three, because an organization annotation shows only where a
+  dashboard queries for it.
+  1. **Flux** (purple): Grafana annotations tagged `flux`, posted by Flux
+     ("Flux change annotations", below).
+  2. **NetBox** (blue): the NetBox datasource's change log, read when the
+     dashboard opens, with no `objectTypes` filter, so a prefix or address
+     edit shows as well as a device edit. Nothing is stored here; it lasts
+     as long as NetBox keeps its change log.
+  3. **Operator** (orange): Grafana annotations tagged `operator`, posted by
+     `scripts/annotate <source> <text> [tag…]`. Its URL and token are in
+     `scripts/annotate.sops.env`; the token belongs to the service account
+     `operator-annotations` (Editor), separate from Flux's so either can be
+     revoked alone. `ANNOTATE_START_MS`/`ANNOTATE_END_MS` make a region. It
+     never fails the change it records: an undecryptable file or an
+     unreachable Grafana (off the LAN and the tailnet) is a warning and
+     exit 0. `make annotate MSG="…"` (source `manual`) is the record for
+     anything no tool posts: a `talosctl` or `kubectl` action, or a change
+     in a UI. The sources without a feed are #547 (`kubectl`), #548
+     (Proxmox) and #549 (TrueNAS, router, Pi-hole).
 - **Rotating the admin password.** The `grafana-admin` Secret only seeds
   a new database, so changing it alone changes nothing. Change the live
   password first through `PUT /api/user/password`, authenticating with the
