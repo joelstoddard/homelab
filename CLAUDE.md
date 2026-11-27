@@ -305,7 +305,7 @@ full list is `flux-system`, `cilium`, `cilium-lb`, `descheduler`, `cluster-secre
 `cert-manager-issuers`, `traefik`, `traefik-middlewares`, `lan-services`,
 `tailscale`, `longhorn`, `longhorn-jobs`, `monitoring`, `alloy`,
 `host-monitoring`, `searxng`, `media`, `media-downloads`, `media-egress`, `glance`,
-`home-assistant`, `actual`, `uptime-kuma`, `ntfy`, `it-tools`, `bentopdf`, `changedetection`, `spliit`, `sure`, `dawarich`, `orb-agent`, `lancache`, `nebula-sync`).
+`home-assistant`, `actual`, `uptime-kuma`, `ntfy`, `it-tools`, `bentopdf`, `changedetection`, `spliit`, `sure`, `dawarich`, `paperless`, `orb-agent`, `lancache`, `nebula-sync`).
 `cluster-secrets/` is one SOPS Secret in `flux-system` holding `DOMAIN`,
 `TRAEFIK_LB_IP` and `ACME_EMAIL`; consumers (`cert-manager-issuers`,
 `traefik`, `longhorn`) add `dependsOn: cluster-secrets` +
@@ -586,6 +586,17 @@ empty database, deleted by hand after every fresh install. Its own PostGIS
 needs basic auth, so `cluster.alloy` scrapes it explicitly on the Service name
 with `DAWARICH_METRICS_PASSWORD` from `cluster-secrets`. See
 `docs/design/dawarich.md`.
+`paperless/` (`dependsOn: traefik, traefik-middlewares, longhorn,
+cluster-secrets`, substituted, `decryption`) is Paperless-ngx on
+`paperless.${DOMAIN}` with its own login. Documents live on Voyager's own
+`paperless` dataset (Mapall user `paperless`, one NFS PersistentVolume mounted
+by `subPath` as `media/`, `consume/` and `export/`; the consume folder is also
+an SMB share for the scanner and is polled every 30 s, as NFS has no inotify).
+The index and SQLite are on Longhorn. Rootless as uid 1000 on a read-only root,
+except a root init container that chowns `/run` with `CHOWN` alone, because
+s6-overlay refuses a `/run` it does not own — so the namespace stays
+`baseline`. A Valkey broker; the first superuser `admin` comes from
+`secret.sops.yaml`. See `docs/design/paperless.md`.
 `orb-agent/` (`decryption`, no `dependsOn`, not substituted) is the LAN
 discovery agent for NetBox Assurance: one `netboxlabs/orb-agent` replica,
 `Recreate`, Fleet-managed, on `hostNetwork` in a PodSecurity `privileged`
