@@ -18,10 +18,13 @@ fetches the message from `https://ntfy.${DOMAIN}`. Without the setting the iOS
 app receives only while in the foreground. The relay never sees the message
 body. It is the one third-party dependency, accepted.
 
-**Deny-all, declarative users.** `auth-default-access: deny-all`. Two users are
-declared from the `ntfy-auth` Secret: `grafana`, write-only, and `phone`,
-read-only, both on the topic `homelab-alerts`. The server reads them from
-`NTFY_AUTH_USERS` and `NTFY_AUTH_ACCESS` at startup. There is no auth Middleware
+**Deny-all, declarative users.** `auth-default-access: deny-all`. Three users
+are declared from the `ntfy-auth` Secret, each publisher on its own topic:
+`grafana`, write-only on `homelab-alerts`; `changedetection`, write-only on
+`changedetection` (`docs/design/changedetection.md`); and `phone`, read-only on
+both. The server reads them from `NTFY_AUTH_USERS` and `NTFY_AUTH_ACCESS`
+(comma-separated, `user:hash:role` and `user:topic:permission`) at startup. A
+new publisher also needs an ingress rule in `networkpolicy.yaml`. There is no auth Middleware
 on the route: ntfy enforces its own users, and the phone app cannot answer a
 basic-auth prompt in front of them.
 
@@ -33,9 +36,12 @@ receives the plaintext. Substitution is disabled on the Secret
 (`kustomize.toolkit.fluxcd.io/substitute: disabled`) because Flux would strip
 the `$` from the bcrypt hashes.
 
-**Rotating a password.** Generate a hash with `ntfy user hash`, put the hash
-and the matching plaintext into the Secret, re-encrypt it, and restart the pod:
-declarative auth is applied at startup.
+**Rotating a password, or adding a user.** Generate a hash with `ntfy user
+hash`, or `htpasswd -nBC 10` with the `$2y$` prefix changed to `$2a$` (ntfy
+refuses a cost below 10, and `htpasswd -B` defaults to 5). Put the hash and the
+matching plaintext into the Secret with `sops set --value-stdin`, and restart
+the pod: declarative auth is applied at startup, and a Secret change alone does
+not restart it.
 
 **SQLite on Longhorn.** The cache (`cache.db`) and auth (`user.db`) databases
 sit on a `ReadWriteOnce` volume, never NFS, which corrupts SQLite. One replica
