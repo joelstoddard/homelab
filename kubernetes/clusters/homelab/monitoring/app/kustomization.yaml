@@ -14,6 +14,9 @@ resources:
   - ingest/secret-ingest-auth.sops.yaml
   - dashboards
   - alerting
+  - flux-annotations/provider.yaml
+  - flux-annotations/alert.yaml
+  - flux-annotations/secret-flux-grafana-token.sops.yaml
 # Each chart's values.yaml -> the ConfigMap its HelmRelease reads via
 # valuesFrom; no hash suffix so the HelmRelease can name it, and the watch
 # label makes helm-controller reconcile on content changes (same pattern as

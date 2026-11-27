@@ -1,0 +1,11 @@
+# Flux posts each forwarded event as a Grafana annotation tagged flux; every
+# dashboard's Changes query shows them (docs/design/observability.md).
+apiVersion: notification.toolkit.fluxcd.io/v1
+kind: Provider
+metadata:
+  name: grafana
+spec:
+  type: grafana
+  address: http://grafana.monitoring.svc/api/annotations
+  secretRef:
+    name: flux-grafana-token

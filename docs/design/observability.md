@@ -95,6 +95,33 @@ defaults that hide the control-plane components.
   carries a `Changes` annotation query on the `flux` tag, which
   `test_dashboards.py` enforces, because Flux's annotations belong to no
   dashboard and show only where a query asks for them.
+- **Flux change annotations.** `monitoring/app/flux-annotations/` holds a
+  Flux `Provider` of type `grafana` (in-cluster
+  `grafana.monitoring.svc/api/annotations`) and an `Alert` on every
+  Kustomization in `flux-system` and every HelmRelease, listed by namespace
+  because a `*` source needs one. Every Kustomization emits "Reconciliation
+  finished" on each interval whether or not anything changed, so the
+  `Alert`'s `exclusionList` drops that, "Health check passed" and
+  "Dependencies do not meet ready condition"; what remains is the
+  `Progressing` events that list objects created, configured or deleted,
+  and every failure. A new HelmRelease namespace needs a line in the
+  `Alert`. The token belongs to the Grafana service account
+  `flux-annotations`, created through the API once Grafana had its volume
+  (a token minted on the stateless pod would have died with it) and kept in
+  `secret-flux-grafana-token.sops.yaml`. It is **Editor**: Grafana OSS has
+  no fixed roles (`/api/access-control/roles` answers 404), so no role
+  narrower than Editor can create annotations. A lost volume loses the
+  account, so the Secret then needs a new token.
+- **Switching a Helm Deployment to `Recreate` needs one manual step.**
+  Kubernetes defaults `spec.strategy.rollingUpdate` on a `RollingUpdate`
+  Deployment and no field manager owns it, so server-side apply can never
+  remove it, not even with an explicit `null`, and Helm's upgrade fails with
+  `rollingUpdate: Forbidden: may not be specified when strategy type is
+  'Recreate'` and rolls back. Remove it once with `kubectl patch deploy
+  <name> --type=json -p '[{"op":"remove","path":"/spec/strategy/rollingUpdate"},{"op":"replace","path":"/spec/strategy/type","value":"Recreate"}]'`
+  (no pod restart: the template is unchanged), then
+  `flux reconcile helmrelease <name> --reset`. Grafana needed it on
+  2026-11-27.
 - **Six folders, each with an overview.** Dashboards are grouped by what
   they watch: Storage, Services, Kubernetes, Hosts, Network and Security.
   Each folder has a `<Folder> overview` dashboard that links down to the
