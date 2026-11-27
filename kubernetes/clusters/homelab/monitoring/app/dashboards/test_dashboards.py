@@ -105,6 +105,10 @@ class Changes(unittest.TestCase):
         # scripts/annotate tags every Ansible, OpenTofu and manual change operator.
         self.assert_tag_toggle("Operator", "operator")
 
+    def test_every_dashboard_shows_proxmox_changes(self):
+        # The proxmox-annotations CronJob tags Proxmox changes made outside OpenTofu.
+        self.assert_tag_toggle("Proxmox", "proxmox")
+
     def test_every_dashboard_shows_every_netbox_change(self):
         # No objectTypes filter: a prefix or IP edit matters as much as a device edit.
         for path in FILES:

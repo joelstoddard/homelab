@@ -1192,6 +1192,23 @@
           "matchAny": true,
           "limit": 100
         }
+      },
+      {
+        "name": "Proxmox",
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "iconColor": "yellow",
+        "target": {
+          "type": "tags",
+          "tags": [
+            "proxmox"
+          ],
+          "matchAny": true,
+          "limit": 100
+        }
       }
     ]
   }
