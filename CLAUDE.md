@@ -305,7 +305,7 @@ full list is `flux-system`, `cilium`, `cilium-lb`, `descheduler`, `cluster-secre
 `cert-manager-issuers`, `traefik`, `traefik-middlewares`, `lan-services`,
 `tailscale`, `longhorn`, `longhorn-jobs`, `monitoring`, `alloy`,
 `host-monitoring`, `searxng`, `media`, `media-downloads`, `media-egress`, `glance`,
-`home-assistant`, `actual`, `uptime-kuma`, `ntfy`, `it-tools`, `bentopdf`, `changedetection`, `spliit`, `orb-agent`, `lancache`, `nebula-sync`).
+`home-assistant`, `actual`, `uptime-kuma`, `ntfy`, `it-tools`, `bentopdf`, `changedetection`, `spliit`, `sure`, `orb-agent`, `lancache`, `nebula-sync`).
 `cluster-secrets/` is one SOPS Secret in `flux-system` holding `DOMAIN`,
 `TRAEFIK_LB_IP` and `ACME_EMAIL`; consumers (`cert-manager-issuers`,
 `traefik`, `longhorn`) add `dependsOn: cluster-secrets` +
@@ -561,6 +561,17 @@ holds the password and both connection URLs, substitution disabled. Spliit
 runs `prisma migrate deploy` on every start. Sure and Dawarich follow the same
 one-PostgreSQL-per-app pattern until the HA database (#173). See
 `docs/design/spliit.md`.
+`sure/` (`dependsOn: traefik, traefik-middlewares, longhorn, cluster-secrets`,
+substituted, `decryption`) is Sure, personal finance on trial against Actual,
+on `sure.${DOMAIN}` with its own login, CSV import only (no SimpleFIN, Plaid
+or OpenAI). The Rails `web` and Sidekiq `worker` are two containers of one
+`Recreate` pod because both mount the RWO `sure-storage` claim; `web` runs
+`db:prepare` on every start. Its own PostgreSQL (Spliit's pattern) and a
+Valkey queue with `noeviction`, never `allkeys-lru`, since an evicted key is a
+lost job. `RAILS_FORCE_SSL=false` keeps the `/up` probes from being redirected;
+`RAILS_ASSUME_SSL=true` keeps cookies secure. Never regenerate
+`SECRET_KEY_BASE`: the encryption keys derive from it. See
+`docs/design/sure.md`.
 `orb-agent/` (`decryption`, no `dependsOn`, not substituted) is the LAN
 discovery agent for NetBox Assurance: one `netboxlabs/orb-agent` replica,
 `Recreate`, Fleet-managed, on `hostNetwork` in a PodSecurity `privileged`
