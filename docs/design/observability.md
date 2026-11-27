@@ -92,10 +92,11 @@ defaults that hide the control-plane components.
   iterate, Export (sharing-externally off), drop the file in git, then
   delete the copy by hand. The volume has no backup until #228; losing it
   loses annotations and UI-made objects, never config.
-- **Change annotations.** Every dashboard carries three toggles, one per
+- **Change annotations.** Every dashboard carries four toggles, one per
   source of change, so each can be switched off alone; `test_dashboards.py`
-  enforces all three, because an organization annotation shows only where a
-  dashboard queries for it.
+  enforces all four, because an organization annotation shows only where a
+  dashboard queries for it. The fourth, **Proxmox**, is described after the
+  list.
   1. **Flux** (purple): Grafana annotations tagged `flux`, posted by Flux
      ("Flux change annotations", below).
   2. **NetBox** (blue): the NetBox datasource's change log, read when the
@@ -124,9 +125,26 @@ defaults that hide the control-plane components.
 
      `make annotate MSG="…"` (source `manual`) is the record for anything
      no tool posts: a `talosctl` or `kubectl` action, or a change in a UI.
-     The sources without a feed are #547 (`kubectl`), #548 (Proxmox) and
-     #549 (TrueNAS, router, Pi-hole). A warning never prints the Grafana
-     URL, because subprocess output bypasses the `redact` callback.
+     The sources without a feed are #547 (`kubectl`) and #549 (TrueNAS,
+     router, Pi-hole). A warning never prints the Grafana URL, because
+     subprocess output bypasses the `redact` callback.
+
+  **Proxmox** (yellow): Grafana annotations tagged `proxmox`, posted by the
+  `proxmox-annotations` CronJob (`monitoring/app/proxmox-annotations/`,
+  every 5 min). Proxmox records every change in the NUCs' journal, which
+  their Alloy already ships to Loki: `pvedaemon` logs `<user> starting task
+  UPID:…:<type>:<id>:…` for tasks and `<user> update VM|CT <id>: -<keys>`
+  for config edits that run without a task (a task log alone misses those).
+  `poller.py` reads those lines from Loki and posts one annotation each,
+  tagged `node:`, `user:` and `action:`. It skips the `root@pam!terraform`
+  token's lines, because OpenTofu applies already post an Operator
+  annotation. Its only state is Grafana's: each run reads the newest
+  `proxmox` annotation (Grafana returns newest first) and queries Loki from
+  that millisecond, dropping a line already posted at that time; the first
+  run backfills Loki's 30 days. The token belongs to the service account
+  `proxmox-annotations` (Editor), the third beside Flux's and the
+  operator's. A failed run posts nothing it has not posted and the next
+  schedule retries from the same point.
 - **Rotating the admin password.** The `grafana-admin` Secret only seeds
   a new database, so changing it alone changes nothing. Change the live
   password first through `PUT /api/user/password`, authenticating with the

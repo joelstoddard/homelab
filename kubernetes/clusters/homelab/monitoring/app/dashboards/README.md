@@ -7,7 +7,7 @@ the UI: Save As a copy, iterate, Export → JSON model with "export for sharing
 externally" **off**, drop the file in its folder directory, add a generator
 entry, PR. Grafana's database is on a volume, so the copy stays until you
 delete it: delete it once the PR merges. Every dashboard carries the
-three change toggles, Flux, NetBox and Operator (`docs/design/observability.md`,
+four change toggles, Flux, NetBox, Operator and Proxmox (`docs/design/observability.md`,
 "Change annotations"), and `test_dashboards.py` fails on one without them. A file's
 `grafana_folder` is its directory, nested folders included (`Kubernetes/Alloy`,
 `Kubernetes/vendored`); `test_dashboards.py` enforces it.

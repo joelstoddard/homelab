@@ -388,8 +388,10 @@ metrics need the talos role's control-plane patch (`bind-address`,
 `listen-metrics-urls`). Alerting is provisioned from `monitoring/app/alerting/`
 through Grafana's alerts sidecar, contact point `ntfy` via the in-cluster
 Service, and kube-state-metrics exports Flux Ready state as `gotk_resource_info`.
-Every dashboard has three change toggles: Flux (Flux's `grafana` Provider),
-NetBox (its change log) and Operator (`scripts/annotate`). After a change no
+Every dashboard has four change toggles: Flux (Flux's `grafana` Provider),
+NetBox (its change log), Operator (`scripts/annotate`) and Proxmox (the
+`proxmox-annotations` CronJob, reading the NUCs' journal in Loki, OpenTofu's
+token excluded). After a change no
 tool records — a `talosctl` or `kubectl` action, a UI edit — run
 `make annotate MSG="what changed"`.
 See `docs/design/observability.md`, "Change annotations".
