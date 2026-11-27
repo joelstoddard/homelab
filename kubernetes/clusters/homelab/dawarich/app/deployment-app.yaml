@@ -1,0 +1,144 @@
+# Rails with Sidekiq embedded, as uid 1000. The entrypoint syncs public/ from the
+# image, creates and migrates the database and runs the seeds on every start.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dawarich
+  labels:
+    app.kubernetes.io/name: dawarich
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: dawarich
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: dawarich
+    spec:
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      # Ruby rejects a world-writable temp dir without the sticky bit, which every
+      # emptyDir is; TMPDIR points at this 0700 one (docs/design/sure.md).
+      initContainers:
+        - name: tmpdir
+          image: docker.io/freikin/dawarich:1.23.0@sha256:c9c6a9c04fa2ad11c438fc0b0ea3b7d95fc7e6d8c7a3cfa98bf1fc5aef2dbfd4
+          command: ["mkdir", "-p", "-m", "0700", "/var/app/tmp/sys"]
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: tmp
+              mountPath: /var/app/tmp
+      containers:
+        - name: dawarich
+          image: docker.io/freikin/dawarich:1.23.0@sha256:c9c6a9c04fa2ad11c438fc0b0ea3b7d95fc7e6d8c7a3cfa98bf1fc5aef2dbfd4
+          command: ["web-entrypoint.sh"]
+          args: ["bin/rails", "server", "-p", "3000", "-b", "::"]
+          env:
+            - name: TMPDIR
+              value: /var/app/tmp/sys
+            - name: HOME
+              value: /var/app/tmp
+            - name: RAILS_ENV
+              value: production
+            - name: RAILS_LOG_TO_STDOUT
+              value: "true"
+            - name: SELF_HOSTED
+              value: "true"
+            - name: STORE_GEODATA
+              value: "true"
+            # Rails' host check: the public name, and the Service name the
+            # alloy-cluster scrape connects to.
+            - name: APPLICATION_HOSTS
+              value: dawarich.${DOMAIN},dawarich.dawarich.svc
+            - name: APPLICATION_PROTOCOL
+              value: http
+            - name: SIDEKIQ_EMBEDDED
+              value: "true"
+            - name: WEB_CONCURRENCY
+              value: "0"
+            - name: BACKGROUND_PROCESSING_CONCURRENCY
+              value: "2"
+            - name: DATABASE_HOST
+              value: postgres.dawarich.svc
+            - name: DATABASE_PORT
+              value: "5432"
+            - name: DATABASE_USERNAME
+              value: dawarich
+            - name: DATABASE_NAME
+              value: dawarich
+            - name: DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: dawarich-db
+                  key: POSTGRES_PASSWORD
+            - name: SECRET_KEY_BASE
+              valueFrom:
+                secretKeyRef:
+                  name: dawarich-db
+                  key: SECRET_KEY_BASE
+            - name: REDIS_URL
+              value: redis://valkey.dawarich.svc:6379
+            - name: PROMETHEUS_EXPORTER_ENABLED
+              value: "true"
+            - name: METRICS_USERNAME
+              value: metrics
+            - name: METRICS_PASSWORD
+              value: ${DAWARICH_METRICS_PASSWORD}
+          ports:
+            - name: http
+              containerPort: 3000
+          # The one path Dawarich exempts from its host check.
+          readinessProbe:
+            httpGet:
+              path: /api/v1/health
+              port: http
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /api/v1/health
+              port: http
+            initialDelaySeconds: 180
+            periodSeconds: 30
+            failureThreshold: 3
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: storage
+              mountPath: /var/app/storage
+            - name: public
+              mountPath: /var/app/public
+            - name: tmp
+              mountPath: /var/app/tmp
+            - name: log
+              mountPath: /var/app/log
+          resources:
+            requests:
+              cpu: 100m
+              memory: 512Mi
+            limits:
+              cpu: "2"
+              memory: 1536Mi
+      volumes:
+        - name: storage
+          persistentVolumeClaim:
+            claimName: dawarich-storage
+        - name: public
+          emptyDir: {}
+        - name: tmp
+          emptyDir: {}
+        - name: log
+          emptyDir: {}

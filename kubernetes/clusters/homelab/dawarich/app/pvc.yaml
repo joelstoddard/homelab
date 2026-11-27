@@ -1,0 +1,28 @@
+# PostGIS on Longhorn, never Voyager (a database corrupts on NFS), sized for years
+# of points at one row each. No backup until #228 (docs/design/dawarich.md).
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: postgres-data
+  labels:
+    app.kubernetes.io/name: postgres
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+---
+# Imports and exports (Active Storage). docs/design/dawarich.md.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: dawarich-storage
+  labels:
+    app.kubernetes.io/name: dawarich
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 2Gi
