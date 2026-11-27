@@ -95,6 +95,16 @@ defaults that hide the control-plane components.
   carries a `Changes` annotation query on the `flux` tag, which
   `test_dashboards.py` enforces, because Flux's annotations belong to no
   dashboard and show only where a query asks for them.
+- **Rotating the admin password.** The `grafana-admin` Secret only seeds
+  a new database, so changing it alone changes nothing. Change the live
+  password first through `PUT /api/user/password`, authenticating with the
+  old one, then write the same value into
+  `secret-grafana-admin.sops.yaml` with `sops set --value-stdin`. Merge
+  promptly: the dashboard and alert sidecars call Grafana's reload API with
+  that Secret, and until Flux applies the new value they get 401 and new
+  dashboards or rules do not load. They read it as environment variables,
+  so restart Grafana once after the merge
+  (`kubectl -n monitoring rollout restart deploy/grafana`).
 - **Flux change annotations.** `monitoring/app/flux-annotations/` holds a
   Flux `Provider` of type `grafana` (in-cluster
   `grafana.monitoring.svc/api/annotations`) and an `Alert` on every
