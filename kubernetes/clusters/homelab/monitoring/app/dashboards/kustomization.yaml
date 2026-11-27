@@ -193,6 +193,9 @@ configMapGenerator:
   - name: dashboard-dawarich
     files: [Services/dawarich.json]
     options: {annotations: {grafana_folder: Services}}
+  - name: dashboard-paperless
+    files: [Services/paperless.json]
+    options: {annotations: {grafana_folder: Services}}
   - name: dashboard-seerr
     files: [Services/seerr.json]
     options: {annotations: {grafana_folder: Services}}
