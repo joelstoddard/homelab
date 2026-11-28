@@ -35,6 +35,9 @@ EXPECTED_UIDS = {
     "infra-latency-p50",
     "infra-recyclarr-sync-failed",
     "infra-recyclarr-no-sync",
+    "infra-nuc-temperature",
+    "infra-pi-temperature",
+    "infra-node-disk-full",
 }
 
 
@@ -107,6 +110,14 @@ class Rules(unittest.TestCase):
         r = rule("infra-recyclarr-no-sync")
         self.assertEqual(r["noDataState"], "Alerting")
         self.assertIn('completed with status Succeeded', r["data"][0]["model"]["expr"])
+
+    def test_temperature_rules_split_the_hosts(self):
+        # A NUC throttles at 100 °C and a Pi at 80 °C; one shared threshold either never
+        # fires for the NUCs or always fires for the Pis.
+        nuc = rule("infra-nuc-temperature")["data"][0]["model"]["expr"]
+        pi = rule("infra-pi-temperature")["data"][0]["model"]["expr"]
+        self.assertIn('instance=~"rumba|tango|salsa|samba"', nuc)
+        self.assertIn('instance!~"rumba|tango|salsa|samba"', pi)
 
 
 class Wiring(unittest.TestCase):
