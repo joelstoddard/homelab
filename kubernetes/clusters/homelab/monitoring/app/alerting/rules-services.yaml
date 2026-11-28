@@ -136,3 +136,57 @@ groups:
         for: 15m
         annotations:
           summary: '{{ $labels.service }} p50 latency is {{ humanizeDuration $values.B.Value }}'
+      # Recyclarr logs one line per sync job; Loki keeps it across pod restarts,
+      # which reset the server's own job counters (docs/design/recyclarr.md).
+      - uid: infra-recyclarr-sync-failed
+        title: Recyclarr sync failed
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: loki
+            relativeTimeRange: {from: 600, to: 0}
+            model:
+              refId: A
+              queryType: instant
+              expr: 'sum(count_over_time({namespace="media", container="recyclarr"} |= "Sync job" |~ "completed with status (Partial|Failed|Blocked)" [24h]))'
+          - refId: B
+            datasourceUid: __expr__
+            model: {refId: B, type: reduce, expression: A, reducer: last}
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: B
+              conditions: [{evaluator: {type: gt, params: [0]}}]
+        noDataState: OK
+        execErrState: Error
+        for: 0s
+        annotations:
+          summary: 'Recyclarr: {{ $values.B.Value }} sync job(s) in the last 24 h did not succeed; read the Recyclarr logs for the failing instance'
+      - uid: infra-recyclarr-no-sync
+        title: Recyclarr has not synced
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: loki
+            relativeTimeRange: {from: 600, to: 0}
+            model:
+              refId: A
+              queryType: instant
+              expr: 'sum(count_over_time({namespace="media", container="recyclarr"} |= "Sync job" |= "completed with status Succeeded" [26h]))'
+          - refId: B
+            datasourceUid: __expr__
+            model: {refId: B, type: reduce, expression: A, reducer: last}
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: B
+              conditions: [{evaluator: {type: lt, params: [1]}}]
+        noDataState: Alerting
+        execErrState: Error
+        for: 30m
+        annotations:
+          summary: 'Recyclarr: no successful sync in 26 h; the daily 04:00 sync is not running or not succeeding'

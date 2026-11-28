@@ -1,0 +1,14 @@
+# Recyclarr's sync state: which custom formats and profiles it manages in each
+# app. Under 1 MiB measured; the guide clones go to an emptyDir instead.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: recyclarr-state
+  labels:
+    app.kubernetes.io/name: recyclarr
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
