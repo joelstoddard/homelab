@@ -51,6 +51,10 @@ spec:
           env:
             - name: PAPERLESS_URL
               value: https://paperless.${DOMAIN}
+            # With PAPERLESS_URL set, Django answers only its host and localhost;
+            # Glance checks the Service name.
+            - name: PAPERLESS_ALLOWED_HOSTS
+              value: paperless.paperless.svc
             - name: PAPERLESS_REDIS
               value: redis://valkey.paperless.svc:6379
             - name: PAPERLESS_DATA_DIR
@@ -85,11 +89,13 @@ spec:
             httpGet:
               path: /accounts/login/
               port: http
+              httpHeaders: [{name: Host, value: localhost}]
             periodSeconds: 15
           livenessProbe:
             httpGet:
               path: /accounts/login/
               port: http
+              httpHeaders: [{name: Host, value: localhost}]
             initialDelaySeconds: 180
             periodSeconds: 30
             failureThreshold: 3

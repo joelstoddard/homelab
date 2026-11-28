@@ -71,6 +71,11 @@ seconds.
 listen port, and its web server exits on every start. `enableServiceLinks:
 false` removes it, as for Uptime Kuma.
 
+**Allowed hosts.** With `PAPERLESS_URL` set, Django answers only that host and
+`localhost`; any other `Host` gets a 400. The kubelet sends the pod IP, so the
+probes send `Host: localhost`, and `PAPERLESS_ALLOWED_HOSTS` adds
+`paperless.paperless.svc` for Glance's check.
+
 **The first superuser** is created at start-up from `PAPERLESS_ADMIN_USER`
 (`admin`) and `PAPERLESS_ADMIN_PASSWORD`, generated into `secret.sops.yaml`;
 Paperless never overwrites an existing user, so the variables stay. Read the
