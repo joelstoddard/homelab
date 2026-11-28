@@ -67,6 +67,12 @@ when something breaks.
   Merging a Talos or Kubernetes PR changes no node: `make -C ansible
   apply-upgrade` rolls it out (`docs/talos-bootstrap.md`).
 
+- **PostgreSQL majors are manual.** A new PostgreSQL major refuses the
+  previous major's data directory, so the per-app databases (Spliit, Sure,
+  and Dawarich's PostGIS) would crash on a merged major bump. Renovate opens
+  minor and digest updates only. A major upgrade is a `pg_dumpall` from the
+  old pod, a fresh volume, and a restore into the new one.
+
 - **Workflow actions stay SHA-pinned.** `config:recommended` updates each
   `uses: …@<sha> # vX.Y.Z` pin's digest and version comment together. The
   `setup-python` version stays below 3.14, the operator venv's interpreter:
