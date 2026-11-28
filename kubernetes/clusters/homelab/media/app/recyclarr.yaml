@@ -1,99 +1,114 @@
-# Recyclarr — a CronJob, not a Deployment: it syncs the TRaSH guide into Sonarr
-# and Radarr, then exits. No Service, no route, no /media mount, no config
-# claim; see docs/design/recyclarr.md.
-apiVersion: batch/v1
-kind: CronJob
+# Recyclarr: a server that syncs the TRaSH guide into Sonarr and Radarr on its
+# own schedule (config/settings.yml). No Service or route; see
+# docs/design/recyclarr.md.
+apiVersion: apps/v1
+kind: Deployment
 metadata:
   name: recyclarr
   labels:
     app.kubernetes.io/name: recyclarr
 spec:
-  schedule: "0 4 * * *"
-  timeZone: Europe/London
-  concurrencyPolicy: Forbid
-  successfulJobsHistoryLimit: 3
-  failedJobsHistoryLimit: 1
-  jobTemplate:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: recyclarr
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: recyclarr
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "7983"
     spec:
-      backoffLimit: 2
-      template:
-        metadata:
-          labels:
-            app.kubernetes.io/name: recyclarr
-        spec:
-          restartPolicy: OnFailure
-          nodeSelector:
-            kubernetes.io/arch: amd64
-          # An init container, so the push container below runs only on success.
-          initContainers:
-            - name: recyclarr
-              image: ghcr.io/recyclarr/recyclarr:8.8.1
-              # No tty: a real sync logs plain [INF]/[WRN] lines, and giving it
-              # a terminal replaces them with redrawn progress frames.
-              # Given no arguments the entrypoint runs its own cron loop and
-              # never exits, which would wedge the Job.
-              args:
-                - sync
-                - --config
-                - /etc/recyclarr/recyclarr.yml
-              env:
-                - name: TZ
-                  value: Europe/London
-                - name: SONARR_API_KEY
-                  valueFrom:
-                    secretKeyRef:
-                      name: arr-apikeys
-                      key: SONARR_API_KEY
-                - name: RADARR_API_KEY
-                  valueFrom:
-                    secretKeyRef:
-                      name: arr-apikeys
-                      key: RADARR_API_KEY
-              volumeMounts:
-                - name: config
-                  mountPath: /etc/recyclarr
-                  readOnly: true
-                # The image points RECYCLARR_CONFIG_DIR at /config and clones
-                # the guide repositories into it on every run, so it needs a
-                # writable volume rather than the ConfigMap.
-                - name: data
-                  mountPath: /config
-              resources:
-                requests:
-                  cpu: 50m
-                  memory: 128Mi
-                limits:
-                  cpu: "1"
-                  memory: 512Mi
-          containers:
-            # Runs only after the sync above exits 0, so a missing heartbeat
-            # in Uptime Kuma means a failed or missing run.
-            - name: push
-              image: docker.io/curlimages/curl:8.23.0
-              args: ["--fail", "--silent", "--show-error", "--retry", "3", "--config", "/etc/push/curlrc"]
-              volumeMounts:
-                - name: push
-                  mountPath: /etc/push
-                  readOnly: true
-              securityContext:
-                allowPrivilegeEscalation: false
-                readOnlyRootFilesystem: true
-                capabilities:
-                  drop: ["ALL"]
-              resources:
-                requests:
-                  cpu: 10m
-                  memory: 16Mi
-                limits:
-                  cpu: 100m
-                  memory: 32Mi
-          volumes:
+      # v9 needs SSE4.2 and POPCNT, which every amd64 node here has.
+      nodeSelector:
+        kubernetes.io/arch: amd64
+      securityContext:
+        fsGroup: 1000
+      containers:
+        - name: recyclarr
+          image: ghcr.io/recyclarr/recyclarr:9.0.0
+          env:
+            - name: TZ
+              value: Europe/London
+            - name: RECYCLARR_STATE_DIR
+              value: /state
+            - name: RECYCLARR_DATA_DIR
+              value: /data
+            # Nothing calls the API; the server refuses to start without a key.
+            - name: RECYCLARR_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: recyclarr-api
+                  key: RECYCLARR_API_KEY
+            - name: SONARR_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: arr-apikeys
+                  key: SONARR_API_KEY
+            - name: RADARR_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: arr-apikeys
+                  key: RADARR_API_KEY
+          ports:
+            - name: management
+              containerPort: 7983
+          # The server opens no port until the first guide download finishes.
+          startupProbe:
+            httpGet:
+              path: /readyz
+              port: management
+            periodSeconds: 10
+            failureThreshold: 30
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: management
+            periodSeconds: 30
+          livenessProbe:
+            httpGet:
+              path: /livez
+              port: management
+            periodSeconds: 60
+            failureThreshold: 3
+          volumeMounts:
             - name: config
-              configMap:
-                name: recyclarr-config
+              mountPath: /config/configs/recyclarr.yml
+              subPath: recyclarr.yml
+              readOnly: true
+            - name: config
+              mountPath: /config/settings.yml
+              subPath: settings.yml
+              readOnly: true
+            - name: state
+              mountPath: /state
             - name: data
-              emptyDir: {}
-            # The push URL holds the monitor's token, so it is a Secret.
-            - name: push
-              secret:
-                secretName: recyclarr-push
+              mountPath: /data
+            - name: tmp
+              mountPath: /tmp
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: "1"
+              memory: 512Mi
+      volumes:
+        - name: config
+          configMap:
+            name: recyclarr-config
+        - name: state
+          persistentVolumeClaim:
+            claimName: recyclarr-state
+        - name: data
+          emptyDir: {}
+        - name: tmp
+          emptyDir: {}
