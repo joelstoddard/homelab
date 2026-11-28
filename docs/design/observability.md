@@ -399,7 +399,10 @@ defaults that hide the control-plane components.
   + 72 MiB, above the limit, so the GC never works hard before the OOM
   kill, and a 10 s dashboard auto-refresh repeats the burst on every
   restart into a crash loop. 1280Mi with a factor of 0.8 gives ~1024 MiB +
-  72 MiB, about 180 MiB under the limit; the fourteen-day peak is 704 MiB. Keep
+  72 MiB, about 180 MiB under the limit; the fourteen-day peak is 704 MiB.
+  Rule evaluation adds little: with the 23 alert rules running, a day with
+  no restarts across four pods (2026-11-27) peaks at 390 MiB, with a median
+  of 327-344 MiB per pod, about 30 % of the limit. Keep
   `factor × limit + ~100 MiB` at or below the limit when changing either
   number.
 - **Talos control plane.** Scheduler and controller-manager bind to
