@@ -44,12 +44,12 @@ fi
 echo ">> Updating apt cache"
 apt-get update
 
-echo ">> Installing base tooling (curl, ca-certificates, gnupg, python3-venv, git, make, rsync, jq, openssl, sudo)"
+echo ">> Installing base tooling (curl, ca-certificates, gnupg, python3-venv, git, make, rsync, jq, openssl, sudo, ssh)"
 # arp-scan: the talos role finds maintenance-mode nodes by MAC on the LAN.
 apt-get install -y \
     ca-certificates curl gnupg \
     python3 python3-pip python3-venv \
-    git make rsync arp-scan jq openssl sudo
+    git make rsync arp-scan jq openssl sudo openssh-client
 
 # The PXE and Talos plays become root on localhost without -K (docs/setup.md).
 # The file name has no dot: sudo skips any sudoers.d file whose name has one.
@@ -251,6 +251,7 @@ verify make
 verify jq
 verify openssl version
 verify sudo
+verify ssh -V
 verify rsync
 verify arp-scan
 
