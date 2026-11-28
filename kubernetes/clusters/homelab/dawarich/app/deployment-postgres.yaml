@@ -30,7 +30,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: postgres
-          image: docker.io/imresamu/postgis:17-3.5-alpine@sha256:cd3e4f2acea6d27e5314c70ca478e6e4d2d97b1a4a594de0a7c71456472c65ef
+          image: docker.io/imresamu/postgis:18-3.5-alpine@sha256:bfc427f5357b89d8c0af6eb1352e538edecd3f2213d97c75475d1d6c44deeabe
           env:
             - name: POSTGRES_USER
               value: dawarich
