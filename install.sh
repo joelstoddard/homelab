@@ -44,12 +44,21 @@ fi
 echo ">> Updating apt cache"
 apt-get update
 
-echo ">> Installing base tooling (curl, ca-certificates, gnupg, python3-venv, git, make, rsync)"
+echo ">> Installing base tooling (curl, ca-certificates, gnupg, python3-venv, git, make, rsync, jq, openssl, sudo)"
 # arp-scan: the talos role finds maintenance-mode nodes by MAC on the LAN.
 apt-get install -y \
     ca-certificates curl gnupg \
     python3 python3-pip python3-venv \
-    git make rsync arp-scan
+    git make rsync arp-scan jq openssl sudo
+
+# The PXE and Talos plays become root on localhost without -K (docs/setup.md).
+# The file name has no dot: sudo skips any sudoers.d file whose name has one.
+echo ">> Granting ${TARGET_USER} passwordless sudo"
+SUDOERS_TMP="$(mktemp)"
+echo "${TARGET_USER} ALL=(ALL) NOPASSWD: ALL" > "$SUDOERS_TMP"
+visudo -cqf "$SUDOERS_TMP"
+install -m 0440 "$SUDOERS_TMP" /etc/sudoers.d/homelab-operator
+rm -f "$SUDOERS_TMP"
 
 # Skip a download when the installed binary reports the pinned version.
 # Matching the bare number ignores a leading v; argv mirrors verify() below.
@@ -239,6 +248,9 @@ verify age
 verify python3
 verify git
 verify make
+verify jq
+verify openssl version
+verify sudo
 verify rsync
 verify arp-scan
 
