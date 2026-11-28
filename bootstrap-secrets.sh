@@ -5,6 +5,9 @@
 #   - ~/.config/netbox/env          (NETBOX_API + NETBOX_TOKEN exports)
 #     sourced by the operator's shell rc so the netbox.netbox inventory
 #     plugin can reach NetBox.
+#   - ~/.ssh/id_rsa (+ .pub)        the key every NUC and Pi trusts
+#     (ansible/inventory/group_vars/all.yaml).
+#   - ~/.bashrc                     a marked block exporting the two above.
 #
 # Idempotent: refuses to overwrite an existing file unless --force is
 # passed. Run as the operator account, NOT root — these are user-private.
@@ -103,6 +106,29 @@ export NETBOX_TOKEN="$netbox_token"
 EOF
 fi
 
+# ---- SSH key ----
+SSH_KEY_FILE="${HOME}/.ssh/id_rsa"
+echo
+echo ">> SSH private key  -> $SSH_KEY_FILE"
+if [[ -f "$SSH_KEY_FILE" && $FORCE -ne 1 ]]; then
+    echo "  exists, skipping (re-run with --force to replace)"
+else
+    require_cmd ssh-keygen
+    echo "  Paste the existing private key the fleet trusts. End with Ctrl-D on its own line."
+    # A paste from another machine can carry CRLF line ends, which ssh-keygen rejects.
+    # The key on disk is replaced only once the paste has proved valid.
+    install -d -m 0700 "$(dirname "$SSH_KEY_FILE")"
+    ssh_tmp="$(mktemp "${SSH_KEY_FILE}.XXXXXX")"
+    tr -d '\r' </dev/stdin > "$ssh_tmp"
+    if ! ssh_pub="$(ssh-keygen -y -f "$ssh_tmp" 2>/dev/null)"; then
+        rm -f "$ssh_tmp"
+        echo "  not a valid private key; nothing written." >&2
+        exit 1
+    fi
+    mv "$ssh_tmp" "$SSH_KEY_FILE"
+    echo "$ssh_pub" > "${SSH_KEY_FILE}.pub"
+fi
+
 # ---- OpenTofu secrets ----
 # Two SOPS-encrypted files, both committed to the repo:
 #
@@ -174,10 +200,20 @@ EOF
     echo "  Wrote $OPENTOFU_SECRETS_FILE. Commit it."
 fi
 
-# ---- Final hints ----
+# ---- Shell rc ----
+BASHRC="${HOME}/.bashrc"
 echo
-echo "Done. Add these lines to your shell rc (~/.zshrc, ~/.bashrc, …):"
-echo "  export SOPS_AGE_KEY_FILE=\"$AGE_KEY_FILE\""
-echo "  source \"$NETBOX_ENV_FILE\""
+echo ">> Shell rc  -> $BASHRC"
+if grep -qF '# >>> homelab >>>' "$BASHRC" 2>/dev/null; then
+    echo "  block present, skipping"
+else
+    cat >> "$BASHRC" <<EOF
+# >>> homelab >>>
+export SOPS_AGE_KEY_FILE="$AGE_KEY_FILE"
+source "$NETBOX_ENV_FILE"
+# <<< homelab <<<
+EOF
+fi
+
 echo
-echo "Then start a fresh shell (or 'source' your rc) and run 'make build' from ansible/."
+echo "Done. Start a fresh shell, then run 'make build' from ansible/."

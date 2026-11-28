@@ -9,6 +9,8 @@ server:
   host: 0.0.0.0
   port: 8080
   proxied: true
+  # Icons are files in ../icons/, never a di:/mdi: CDN slug; lint enforces it.
+  assets-path: /app/assets
 
 # The dotfiles' ash-plus palette, monochrome: #121212 base and grey links, with
 # its green and red kept for up and down.
@@ -57,19 +59,19 @@ pages:
               - links:
                   - title: Cloudflare
                     url: https://dash.cloudflare.com
-                    icon: di:cloudflare
+                    icon: /assets/cloudflare.svg
                   - title: Hetzner
                     url: https://console.hetzner.cloud
-                    icon: di:hetzner
+                    icon: /assets/hetzner.svg
                   - title: NetBox
                     url: ${NETBOX_URL}
-                    icon: di:netbox
+                    icon: /assets/netbox.svg
                   - title: Bitwarden
                     url: https://vault.bitwarden.eu
-                    icon: di:bitwarden
+                    icon: /assets/bitwarden.svg
                   - title: Tailscale
                     url: https://login.tailscale.com/admin
-                    icon: di:tailscale
+                    icon: /assets/tailscale.svg
 
       - size: full
         widgets:
@@ -95,57 +97,57 @@ pages:
               - title: Jellyfin
                 url: https://jellyfin.${DOMAIN}
                 check-url: http://jellyfin.media.svc:8096/health
-                icon: di:jellyfin
+                icon: /assets/jellyfin.svg
 
               # /api/v1/status reaches the GitHub API, so it is not a probe of
               # this service. /appdata answers locally.
               - title: Seerr
                 url: https://seerr.${DOMAIN}
                 check-url: http://seerr.media.svc:5055/api/v1/status/appdata
-                icon: di:seerr
+                icon: /assets/seerr.svg
 
               # / redirects to a login page that answers 200, so it proves
               # nothing. /ping is each app's own kubelet probe path.
               - title: Prowlarr
                 url: https://prowlarr.${DOMAIN}
                 check-url: http://prowlarr.media.svc:9696/ping
-                icon: di:prowlarr
+                icon: /assets/prowlarr.svg
 
               - title: Sonarr
                 url: https://sonarr.${DOMAIN}
                 check-url: http://sonarr.media.svc:8989/ping
-                icon: di:sonarr
+                icon: /assets/sonarr.svg
 
               - title: Radarr
                 url: https://radarr.${DOMAIN}
                 check-url: http://radarr.media.svc:7878/ping
-                icon: di:radarr
+                icon: /assets/radarr.svg
 
               - title: Lidarr
                 url: https://lidarr.${DOMAIN}
                 check-url: http://lidarr.media.svc:8686/ping
-                icon: di:lidarr
+                icon: /assets/lidarr.svg
 
               # Bazarr has no /ping. This path stays 200 if its auth is later
               # set to Basic, which makes every catch-all path 401.
               - title: Bazarr
                 url: https://bazarr.${DOMAIN}
                 check-url: http://bazarr.media.svc:6767/manifest.webmanifest
-                icon: di:bazarr
+                icon: /assets/bazarr.svg
 
               # The API answers 403 without a session. / is the only
               # unauthenticated probe, and returns 200 with the login page.
               - title: qBittorrent
                 url: https://qbittorrent.${DOMAIN}
                 check-url: http://qbittorrent.media-downloads.svc:8080/
-                icon: di:qbittorrent
+                icon: /assets/qbittorrent.svg
 
               # Every path redirects to the login page, so this dot proves the
               # web server answers and nothing more. See docs/design/glance.md.
               - title: SABnzbd
                 url: https://sabnzbd.${DOMAIN}
                 check-url: http://sabnzbd.media.svc:8080/robots.txt
-                icon: di:sabnzbd
+                icon: /assets/sabnzbd.svg
 
           - type: split-column
             widgets:
@@ -157,7 +159,12 @@ pages:
                     url: https://grafana.${DOMAIN}
                     # / redirects to the login page; this answers 200 without auth.
                     check-url: http://grafana.monitoring.svc/api/health
-                    icon: di:grafana
+                    icon: /assets/grafana.svg
+                  - title: Uptime Kuma
+                    url: https://uptime.${DOMAIN}
+                    # / redirects to the setup or login page; this answers 200 without auth.
+                    check-url: http://uptime-kuma.uptime-kuma.svc:3001/api/entry-page
+                    icon: /assets/uptime-kuma.svg
 
               - type: monitor
                 title: Home Automation
@@ -170,16 +177,48 @@ pages:
                     # /manifest.json answers unauthenticated with no redirect,
                     # unlike /.
                     check-url: http://home-assistant.home-assistant.svc:8123/manifest.json
-                    icon: di:home-assistant
+                    icon: /assets/home-assistant.svg
 
-              - type: monitor
-                title: Tools
-                cache: 1m
-                sites:
-                  - title: SearXNG
-                    url: https://searx.${DOMAIN}
-                    check-url: http://searxng.searxng.svc:8080/healthz
-                    icon: di:searxng
+          - type: monitor
+            title: Tools
+            cache: 1m
+            sites:
+              - title: SearXNG
+                url: https://searx.${DOMAIN}
+                check-url: http://searxng.searxng.svc:8080/healthz
+                icon: /assets/searxng.svg
+              - title: Actual
+                url: https://actual.${DOMAIN}
+                check-url: http://actual.actual.svc:5006/health
+                icon: /assets/actual-budget.svg
+              - title: Spliit
+                url: https://spliit.${DOMAIN}
+                check-url: http://spliit.spliit.svc:3000/
+                icon: /assets/spliit.svg
+              - title: Sure
+                url: https://sure.${DOMAIN}
+                check-url: http://sure.sure.svc:3000/up
+                icon: /assets/sure.svg
+              - title: Dawarich
+                url: https://dawarich.${DOMAIN}
+                check-url: http://dawarich.dawarich.svc:3000/api/v1/health
+                icon: /assets/dawarich.svg
+              - title: Paperless-ngx
+                url: https://paperless.${DOMAIN}
+                check-url: http://paperless.paperless.svc:8000/accounts/login/
+                icon: /assets/paperless-ngx.svg
+              - title: IT-Tools
+                url: https://it-tools.${DOMAIN}
+                check-url: http://it-tools.it-tools.svc:8080/
+                icon: /assets/it-tools.svg
+              - title: BentoPDF
+                url: https://bentopdf.${DOMAIN}
+                check-url: http://bentopdf.bentopdf.svc:8080/
+                icon: /assets/bentopdf.svg
+              - title: changedetection.io
+                url: https://changedetection.${DOMAIN}
+                check-url: http://changedetection.changedetection.svc:5000/
+                icon: /assets/changedetection.svg
 
           - type: split-column
             widgets:
@@ -192,7 +231,7 @@ pages:
                     # / answers 404; /admin/ settles on 200 at /admin/login.
                     check-url: https://pihole-vip.lan-services.svc/admin/
                     allow-insecure: true
-                    icon: di:pi-hole
+                    icon: /assets/pi-hole.svg
 
               - type: monitor
                 title: Network
@@ -201,7 +240,7 @@ pages:
                   - title: Router
                     url: https://hubble.${DOMAIN}
                     check-url: http://hubble.lan-services.svc/
-                    icon: mdi:router-network
+                    icon: auto-invert /assets/router-network.svg
 
                   - title: Traefik
                     url: https://traefik.${DOMAIN}/dashboard/
@@ -210,7 +249,7 @@ pages:
                     check-url: https://traefik.traefik.svc/
                     allow-insecure: true
                     alt-status-codes: [404]
-                    icon: di:traefik
+                    icon: /assets/traefik.svg
 
           - type: split-column
             widgets:
@@ -224,25 +263,25 @@ pages:
                     url: https://rumba.${DOMAIN}
                     check-url: https://rumba.lan-services.svc:8006/
                     allow-insecure: true
-                    icon: di:proxmox
+                    icon: /assets/proxmox.svg
 
                   - title: salsa
                     url: https://salsa.${DOMAIN}
                     check-url: https://salsa.lan-services.svc:8006/
                     allow-insecure: true
-                    icon: di:proxmox
+                    icon: /assets/proxmox.svg
 
                   - title: samba
                     url: https://samba.${DOMAIN}
                     check-url: https://samba.lan-services.svc:8006/
                     allow-insecure: true
-                    icon: di:proxmox
+                    icon: /assets/proxmox.svg
 
                   - title: tango
                     url: https://tango.${DOMAIN}
                     check-url: https://tango.lan-services.svc:8006/
                     allow-insecure: true
-                    icon: di:proxmox
+                    icon: /assets/proxmox.svg
 
               - type: monitor
                 title: Storage
@@ -251,20 +290,35 @@ pages:
                   - title: Longhorn
                     url: https://longhorn.${DOMAIN}
                     check-url: http://longhorn-frontend.longhorn-system.svc/
-                    icon: di:longhorn
+                    icon: /assets/longhorn.svg
 
                   - title: TrueNAS
                     url: https://voyager.${DOMAIN}
                     # / redirects to /ui/; probing it directly skips the hop.
                     check-url: https://voyager.lan-services.svc/ui/
                     allow-insecure: true
-                    icon: di:truenas
+                    icon: /assets/truenas.svg
 
       - size: small
         widgets:
           # The Prometheus widgets live in their own ConfigMap, unsubstituted.
           # The doubled sigil is Flux's escape: Glance receives a single one.
           - $$include: stats.yml
+
+          # Upstream of the versions.env pins and the Longhorn and Traefik
+          # charts. A long cache keeps the anonymous GitHub API under 60/h.
+          - type: releases
+            title: Upstream releases
+            cache: 6h
+            show-source-icon: true
+            collapse-after: -1
+            repositories:
+              - siderolabs/talos
+              - kubernetes/kubernetes
+              - fluxcd/flux2
+              - cilium/cilium
+              - longhorn/longhorn
+              - traefik/traefik
 
           - type: markets
             markets:

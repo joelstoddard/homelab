@@ -1,0 +1,14 @@
+# Watches, their history and the notification settings, as JSON and text
+# files. Longhorn, not Voyager, like every app's own state.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: changedetection-data
+  labels:
+    app.kubernetes.io/name: changedetection
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi

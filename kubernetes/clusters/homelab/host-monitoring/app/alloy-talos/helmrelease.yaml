@@ -1,0 +1,41 @@
+# Fifth release of the Alloy chart (the others: alloy, alloy-cluster,
+# alloy-events, alloy-gateway). Version pinned alongside
+# kubernetes/clusters/homelab/alloy/app/alloy/helmrelease.yaml — bump all five together.
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: alloy-talos
+  namespace: host-monitoring
+spec:
+  interval: 1h0m0s
+  releaseName: alloy-talos
+  timeout: 10m0s
+  chart:
+    spec:
+      chart: alloy
+      version: "1.16.0"
+      sourceRef:
+        kind: HelmRepository
+        name: grafana
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    remediation:
+      retries: 3
+  valuesFrom:
+    - kind: ConfigMap
+      name: alloy-talos-values
+  # The chart hard-codes a 1 s readiness timeout; a busy Alloy answers /-/ready
+  # slower than that and sits NotReady, dropping the pod from the talos-logs
+  # Service's endpoints.
+  postRenderers:
+    - kustomize:
+        patches:
+          - target:
+              kind: Deployment
+              name: alloy-talos
+            patch: |
+              - op: replace
+                path: /spec/template/spec/containers/0/readinessProbe/timeoutSeconds
+                value: 5

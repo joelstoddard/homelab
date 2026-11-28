@@ -1,0 +1,55 @@
+# SMART for each Pi's USB SSD, scraped by alloy-cluster's pod-annotation path
+# as job="smartctl", the same job the NUCs' host exporters use.
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: smartctl-exporter
+  labels:
+    app.kubernetes.io/name: smartctl
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: smartctl
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: smartctl
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9633"
+    spec:
+      automountServiceAccountToken: false
+      nodeSelector:
+        kubernetes.io/arch: arm64
+      # kosmos is a Pi too.
+      tolerations:
+        - key: node-role.kubernetes.io/control-plane
+          operator: Exists
+          effect: NoSchedule
+      containers:
+        - name: smartctl-exporter
+          # Pinned by index digest; it carries amd64 and arm64.
+          image: quay.io/prometheuscommunity/smartctl-exporter:v0.15.0@sha256:a76e08dbf5db4781fefd1ed81c65ad46ae8d2849dae6b6d3acebcde2fc4e59d6
+          args:
+            # The NVMe drive sits behind an RTL9210 USB bridge; only
+            # sntrealtek passes NVMe admin commands through it (sat cannot).
+            - --smartctl.device=/dev/sda;sntrealtek
+            - --web.listen-address=:9633
+          ports:
+            - name: metrics
+              containerPort: 9633
+          # SMART needs raw passthrough commands to the block device: root
+          # and privileged, which the image's default user cannot do.
+          # Privileged already exposes the host's /dev/sda; a /dev hostPath
+          # mount stops runc creating /dev/termination-log.
+          securityContext:
+            runAsUser: 0
+            privileged: true
+            readOnlyRootFilesystem: true
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 64Mi

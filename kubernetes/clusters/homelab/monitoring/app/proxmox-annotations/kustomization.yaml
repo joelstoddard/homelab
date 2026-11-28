@@ -1,0 +1,14 @@
+# poller.py may carry $, which Flux's substitution would eat; the name hash
+# stays, so an edit reaches the next Job (docs/design/observability.md).
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - cronjob.yaml
+  - secret-proxmox-annotations-token.sops.yaml
+generatorOptions:
+  annotations:
+    kustomize.toolkit.fluxcd.io/substitute: disabled
+configMapGenerator:
+  - name: proxmox-annotations
+    files:
+      - poller.py

@@ -7,16 +7,44 @@
   "schemaVersion": 39,
   "time": {"from": "now-7d", "to": "now"},
   "annotations": {
-    "list": [
-      {"name": "NetBox changes", "enable": true, "iconColor": "purple",
-       "datasource": {"type": "netboxlabs-netbox-datasource", "uid": "netbox"},
-       "target": {"refId": "Anno", "queryType": "annotations"}}
+    "list": [{"name": "Flux", "datasource": {"type": "grafana", "uid": "-- Grafana --"}, "enable": true, "iconColor": "purple", "target": {"type": "tags", "tags": ["flux"], "matchAny": true, "limit": 100}}, {"name": "NetBox", "datasource": {"type": "netboxlabs-netbox-datasource", "uid": "netbox"}, "enable": true, "iconColor": "blue", "target": {"refId": "Anno", "queryType": "annotations"}}, {"name": "Operator", "datasource": {"type": "grafana", "uid": "-- Grafana --"}, "enable": true, "iconColor": "orange", "target": {"type": "tags", "tags": ["operator"], "matchAny": true, "limit": 100}}, {"name": "Proxmox", "datasource": {"type": "grafana", "uid": "-- Grafana --"}, "enable": true, "iconColor": "yellow", "target": {"type": "tags", "tags": ["proxmox"], "matchAny": true, "limit": 100}}
     ]
   },
   "panels": [
+    {"id": 10, "type": "row", "title": "Summary", "collapsed": false, "panels": [], "gridPos": {"h": 1, "w": 24, "x": 0, "y": 0}},
+    {"id": 11, "type": "stat", "title": "Devices",
+     "description": "Every device NetBox holds, racked passive kit included.",
+     "datasource": {"type": "netboxlabs-netbox-datasource", "uid": "netbox"},
+     "targets": [{"refId": "A", "datasource": {"type": "netboxlabs-netbox-datasource", "uid": "netbox"}, "queryType": "objects", "objectType": "dcim/devices", "count": true}],
+     "fieldConfig": {"defaults": {"unit": "none", "color": {"mode": "fixed", "fixedColor": "text"}}, "overrides": []},
+     "options": {"colorMode": "value", "graphMode": "none", "textMode": "value", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}},
+     "gridPos": {"h": 4, "w": 6, "x": 0, "y": 1}},
+    {"id": 12, "type": "stat", "title": "Virtual machines",
+     "description": "Every virtual machine NetBox holds: the Proxmox guests and the cloud VPS.",
+     "datasource": {"type": "netboxlabs-netbox-datasource", "uid": "netbox"},
+     "targets": [{"refId": "A", "datasource": {"type": "netboxlabs-netbox-datasource", "uid": "netbox"}, "queryType": "objects", "objectType": "virtualization/virtual-machines", "count": true}],
+     "fieldConfig": {"defaults": {"unit": "none", "color": {"mode": "fixed", "fixedColor": "text"}}, "overrides": []},
+     "options": {"colorMode": "value", "graphMode": "none", "textMode": "value", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}},
+     "gridPos": {"h": 4, "w": 6, "x": 6, "y": 1}},
+    {"id": 13, "type": "stat", "title": "Devices not active",
+     "description": "Devices whose NetBox status is anything but Active: planned, staged, offline, failed, decommissioning or inventory.",
+     "datasource": {"type": "netboxlabs-netbox-datasource", "uid": "netbox"},
+     "targets": [{"refId": "A", "datasource": {"type": "netboxlabs-netbox-datasource", "uid": "netbox"}, "queryType": "objects", "objectType": "dcim/devices", "filters": [{"field": "status", "operator": "n", "value": "active"}], "count": true}],
+     "fieldConfig": {"defaults": {"unit": "none", "color": {"mode": "thresholds"}, "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "orange", "value": 1}]}}, "overrides": []},
+     "options": {"colorMode": "value", "graphMode": "none", "textMode": "value", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}},
+     "gridPos": {"h": 4, "w": 6, "x": 12, "y": 1}},
+    {"id": 14, "type": "stat", "title": "VMs not active",
+     "description": "Virtual machines whose NetBox status is anything but Active.",
+     "datasource": {"type": "netboxlabs-netbox-datasource", "uid": "netbox"},
+     "targets": [{"refId": "A", "datasource": {"type": "netboxlabs-netbox-datasource", "uid": "netbox"}, "queryType": "objects", "objectType": "virtualization/virtual-machines", "filters": [{"field": "status", "operator": "n", "value": "active"}], "count": true}],
+     "fieldConfig": {"defaults": {"unit": "none", "color": {"mode": "thresholds"}, "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "orange", "value": 1}]}}, "overrides": []},
+     "options": {"colorMode": "value", "graphMode": "none", "textMode": "value", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}},
+     "gridPos": {"h": 4, "w": 6, "x": 18, "y": 1}},
+
+    {"id": 15, "type": "row", "title": "Sizing and capacity", "collapsed": false, "panels": [], "gridPos": {"h": 1, "w": 24, "x": 0, "y": 5}},
     {"id": 1, "type": "table", "title": "VM sizing: NetBox vs Proxmox",
      "description": "NetBox is the source of truth for guest sizing. A non-zero drift is a change made in one place and not the other, or one still pending in the Proxmox config until apply-resize power-cycles the guest. A blank side means the guest exists in only one of the two.",
-     "gridPos": {"h": 12, "w": 12, "x": 0, "y": 0},
+     "gridPos": {"h": 12, "w": 12, "x": 0, "y": 6},
      "targets": [
        {"refId": "A", "datasource": {"type": "netboxlabs-netbox-datasource", "uid": "netbox"},
         "queryType": "objects", "objectType": "virtualization/virtual-machines",
@@ -24,12 +52,13 @@
         "fields": ["name", "vcpus", "memory"],
         "joinKeys": [{"source": "name", "output": "host", "transform": "lower"}], "limit": 200},
        {"refId": "B", "datasource": {"type": "prometheus", "uid": "prometheus"}, "instant": true, "range": false, "format": "table",
-        "expr": "max by (host) (label_replace(pve_memory_size_bytes{id=~\"(qemu|lxc)/.*\"} * on (id) group_left (name) max by (id, name) (pve_guest_info), \"host\", \"$1\", \"name\", \"(.*)\")) / 1048576"},
+        "expr": "max by (host) (label_replace(pve_memory_size_bytes{id=~\"(qemu|lxc)/.*\"} * on (id) group_left (name) max by (id, name) (pve_guest_info{template!=\"1\"}), \"host\", \"$1\", \"name\", \"(.*)\")) / 1048576"},
        {"refId": "C", "datasource": {"type": "prometheus", "uid": "prometheus"}, "instant": true, "range": false, "format": "table",
-        "expr": "max by (host) (label_replace(pve_cpu_usage_limit{id=~\"(qemu|lxc)/.*\"} * on (id) group_left (name) max by (id, name) (pve_guest_info), \"host\", \"$1\", \"name\", \"(.*)\"))"}
+        "expr": "max by (host) (label_replace(pve_cpu_usage_limit{id=~\"(qemu|lxc)/.*\"} * on (id) group_left (name) max by (id, name) (pve_guest_info{template!=\"1\"}), \"host\", \"$1\", \"name\", \"(.*)\"))"}
      ],
      "transformations": [
        {"id": "joinByField", "options": {"byField": "host", "mode": "outerTabular"}},
+       {"id": "renameByRegex", "options": {"regex": "^(.+) netbox_[a-z_]+$", "renamePattern": "$1"}},
        {"id": "calculateField", "options": {"mode": "binary", "alias": "Memory drift MiB", "binary": {"left": {"matcher": {"id": "byName", "options": "Value #B"}}, "operator": "-", "right": {"matcher": {"id": "byName", "options": "memory"}}}}},
        {"id": "calculateField", "options": {"mode": "binary", "alias": "vCPU drift", "binary": {"left": {"matcher": {"id": "byName", "options": "Value #C"}}, "operator": "-", "right": {"matcher": {"id": "byName", "options": "vcpus"}}}}},
        {"id": "organize", "options": {
@@ -50,7 +79,7 @@
 
     {"id": 2, "type": "table", "title": "Prefix utilization",
      "description": "NetBox's own utilization figure for each prefix. Orange from 80 %, red from 90 %.",
-     "gridPos": {"h": 12, "w": 12, "x": 12, "y": 0},
+     "gridPos": {"h": 12, "w": 12, "x": 12, "y": 6},
      "datasource": {"type": "netboxlabs-netbox-datasource", "uid": "netbox"},
      "targets": [
        {"refId": "A", "datasource": {"type": "netboxlabs-netbox-datasource", "uid": "netbox"},
@@ -69,9 +98,10 @@
        ]},
      "options": {"showHeader": true, "sortBy": [{"displayName": "utilization", "desc": true}]}},
 
+    {"id": 16, "type": "row", "title": "Coverage", "collapsed": false, "panels": [], "gridPos": {"h": 1, "w": 24, "x": 0, "y": 18}},
     {"id": 3, "type": "table", "title": "Monitoring coverage",
-     "description": "Every NetBox device and VM with a primary IP, against each signal that names it. A NetBox row with no signal is a host nothing watches; a row with no NetBox role or cluster is a host NetBox does not model. Proxmox, kubelet, scrape and probe show the latest up value; node and logs show presence.",
-     "gridPos": {"h": 16, "w": 24, "x": 0, "y": 12},
+     "description": "Every NetBox device and VM with a primary IP, against each signal that names it. A NetBox row with no signal is a host nothing watches; a row with no NetBox role or cluster is a host NetBox does not model. Proxmox, kubelet, scrape and probe show the latest up value; node and logs show presence. The cloud VPS reads blank on every signal: the home cluster has no route to it, so nothing here watches it.",
+     "gridPos": {"h": 16, "w": 24, "x": 0, "y": 19},
      "targets": [
        {"refId": "A", "datasource": {"type": "netboxlabs-netbox-datasource", "uid": "netbox"},
         "queryType": "objects", "objectType": "dcim/devices",
@@ -84,7 +114,7 @@
         "fields": ["name", "role"],
         "joinKeys": [{"source": "name", "output": "host", "transform": "lower"}], "limit": 200},
        {"refId": "C", "datasource": {"type": "prometheus", "uid": "prometheus"}, "instant": true, "range": false, "format": "table",
-        "expr": "max by (host) (label_replace(pve_up{id=~\"node/.*\"}, \"host\", \"$1\", \"id\", \"node/(.*)\")) or max by (host) (label_replace(pve_up{id=~\"(qemu|lxc)/.*\"} * on (id) group_left (name) max by (id, name) (pve_guest_info), \"host\", \"$1\", \"name\", \"(.*)\"))"},
+        "expr": "max by (host) (label_replace(pve_up{id=~\"node/.*\"}, \"host\", \"$1\", \"id\", \"node/(.*)\")) or max by (host) (label_replace(pve_up{id=~\"(qemu|lxc)/.*\"} * on (id) group_left (name) max by (id, name) (pve_guest_info{template!=\"1\"}), \"host\", \"$1\", \"name\", \"(.*)\"))"},
        {"refId": "D", "datasource": {"type": "prometheus", "uid": "prometheus"}, "instant": true, "range": false, "format": "table",
         "expr": "max by (host) (label_replace(node_uname_info, \"host\", \"$1\", \"nodename\", \"(.*)\"))"},
        {"refId": "E", "datasource": {"type": "prometheus", "uid": "prometheus"}, "instant": true, "range": false, "format": "table",
@@ -116,6 +146,176 @@
          {"matcher": {"id": "byName", "options": "Logs 1h"},
           "properties": [{"id": "unit", "value": "short"}, {"id": "color", "value": {"mode": "fixed", "fixedColor": "green"}}, {"id": "custom.cellOptions", "value": {"type": "color-text"}}]}
        ]},
-     "options": {"showHeader": true, "sortBy": [{"displayName": "Host", "desc": false}]}}
+     "options": {"showHeader": true, "sortBy": [{"displayName": "Host", "desc": false}]}},
+
+    {"id": 4, "type": "table", "title": "Status vs reachability",
+     "description": "NetBox's lifecycle status for every device and VM with a primary IP, against whether anything reports it: a probe, a scrape, node metrics or the kubelet. Reporting is up when any signal is up, down when every signal is down, and silent when no signal names the host. Read the two coloured columns together: a green Active beside a red down or a silent cell is a host that should run and does not; an orange status beside a green up is a host NetBox expects to be absent that still reports.",
+     "gridPos": {"h": 14, "w": 12, "x": 0, "y": 35},
+     "targets": [
+       {"refId": "A", "datasource": {"type": "netboxlabs-netbox-datasource", "uid": "netbox"},
+        "queryType": "objects", "objectType": "dcim/devices",
+        "filters": [{"field": "has_primary_ip", "operator": "", "value": "true"}],
+        "fields": ["name", "status"],
+        "joinKeys": [{"source": "name", "output": "host", "transform": "lower"}], "limit": 200},
+       {"refId": "B", "datasource": {"type": "netboxlabs-netbox-datasource", "uid": "netbox"},
+        "queryType": "objects", "objectType": "virtualization/virtual-machines",
+        "filters": [{"field": "has_primary_ip", "operator": "", "value": "true"}],
+        "fields": ["name", "status"],
+        "joinKeys": [{"source": "name", "output": "host", "transform": "lower"}], "limit": 200},
+       {"refId": "C", "datasource": {"type": "prometheus", "uid": "prometheus"}, "instant": true, "range": false, "format": "table",
+        "expr": "max by (host) (label_replace(probe_success, \"host\", \"$1\", \"instance\", \"(.*)\") or label_replace(up{job=~\"pve|truenas|pihole|bind|node-exporter\"}, \"host\", \"$1\", \"instance\", \"(.*)\") or label_replace(up{job=\"kubelet\"}, \"host\", \"$1\", \"node\", \"(.*)\"))"}
+     ],
+     "transformations": [
+       {"id": "merge", "filter": {"id": "byRefId", "options": "/^(A|B)$/"}, "options": {}},
+       {"id": "formatString", "options": {"stringField": "host", "outputFormat": "Lower Case"}},
+       {"id": "joinByField", "options": {"byField": "host", "mode": "outerTabular"}},
+       {"id": "organize", "options": {
+         "excludeByName": {"name": true, "status_value": true, "Time": true, "Time 1": true, "Time 2": true},
+         "indexByName": {"host": 0, "status": 1, "Value": 2, "Value #C": 2},
+         "renameByName": {"host": "Host", "status": "NetBox status", "Value": "Reporting", "Value #C": "Reporting"}}}
+     ],
+     "fieldConfig": {
+       "defaults": {"noValue": "—"},
+       "overrides": [
+         {"matcher": {"id": "byName", "options": "NetBox status"},
+          "properties": [
+            {"id": "mappings", "value": [{"type": "value", "options": {"Active": {"color": "green"}}}, {"type": "regex", "options": {"pattern": ".+", "result": {"color": "orange"}}}]},
+            {"id": "custom.cellOptions", "value": {"type": "color-text"}}
+          ]},
+         {"matcher": {"id": "byName", "options": "Reporting"},
+          "properties": [
+            {"id": "noValue", "value": "silent"},
+            {"id": "mappings", "value": [{"type": "value", "options": {"0": {"text": "down", "color": "red"}, "1": {"text": "up", "color": "green"}}}]},
+            {"id": "custom.cellOptions", "value": {"type": "color-text"}}
+          ]}
+       ]},
+     "options": {"showHeader": true, "sortBy": [{"displayName": "Host", "desc": false}]}},
+
+    {"id": 5, "type": "table", "title": "Platform vs running OS",
+     "description": "NetBox's platform for every device and VM with a primary IP, against the OS, kernel and kubelet each host reports. NetBox records the platform but no version: the Talos and Kubernetes versions the cluster should run are in versions.env, so a node whose OS or kubelet differs from its neighbours is one an upgrade missed. Blank observed cells are hosts that export no node metrics (the Debian containers, TrueNAS, the router).",
+     "gridPos": {"h": 14, "w": 12, "x": 12, "y": 35},
+     "targets": [
+       {"refId": "A", "datasource": {"type": "netboxlabs-netbox-datasource", "uid": "netbox"},
+        "queryType": "objects", "objectType": "dcim/devices",
+        "filters": [{"field": "has_primary_ip", "operator": "", "value": "true"}],
+        "fields": ["name", "platform"],
+        "joinKeys": [{"source": "name", "output": "host", "transform": "lower"}], "limit": 200},
+       {"refId": "B", "datasource": {"type": "netboxlabs-netbox-datasource", "uid": "netbox"},
+        "queryType": "objects", "objectType": "virtualization/virtual-machines",
+        "filters": [{"field": "has_primary_ip", "operator": "", "value": "true"}],
+        "fields": ["name", "platform"],
+        "joinKeys": [{"source": "name", "output": "host", "transform": "lower"}], "limit": 200},
+       {"refId": "C", "datasource": {"type": "prometheus", "uid": "prometheus"}, "instant": true, "range": false, "format": "table",
+        "expr": "max by (host, os) (label_replace(label_replace(node_os_info, \"host\", \"$1\", \"instance\", \"(.*)\"), \"os\", \"$1\", \"pretty_name\", \"(.*)\"))"},
+       {"refId": "D", "datasource": {"type": "prometheus", "uid": "prometheus"}, "instant": true, "range": false, "format": "table",
+        "expr": "max by (host, kernel) (label_replace(label_replace(node_uname_info, \"host\", \"$1\", \"nodename\", \"(.*)\"), \"kernel\", \"$1\", \"release\", \"(.*)\"))"},
+       {"refId": "E", "datasource": {"type": "prometheus", "uid": "prometheus"}, "instant": true, "range": false, "format": "table",
+        "expr": "max by (host, kubelet) (label_replace(label_replace(kube_node_info, \"host\", \"$1\", \"node\", \"(.*)\"), \"kubelet\", \"$1\", \"kubelet_version\", \"(.*)\"))"}
+     ],
+     "transformations": [
+       {"id": "merge", "filter": {"id": "byRefId", "options": "/^(A|B)$/"}, "options": {}},
+       {"id": "formatString", "options": {"stringField": "host", "outputFormat": "Lower Case"}},
+       {"id": "joinByField", "options": {"byField": "host", "mode": "outerTabular"}},
+       {"id": "organize", "options": {
+         "excludeByName": {"name": true, "platform_id": true, "platform_slug": true, "Value #C": true, "Value #D": true, "Value #E": true, "Time": true, "Time 1": true, "Time 2": true, "Time 3": true, "Time 4": true},
+         "indexByName": {"host": 0, "platform": 1, "os": 2, "kernel": 3, "kubelet": 4},
+         "renameByName": {"host": "Host", "platform": "NetBox platform", "os": "Running OS", "kernel": "Kernel", "kubelet": "Kubelet"}}}
+     ],
+     "fieldConfig": {"defaults": {"noValue": "—"}, "overrides": []},
+     "options": {"showHeader": true, "sortBy": [{"displayName": "Host", "desc": false}]}},
+
+    {"id": 17, "type": "row", "title": "Interfaces and addresses", "collapsed": false, "panels": [], "gridPos": {"h": 1, "w": 24, "x": 0, "y": 49}},
+    {"id": 6, "type": "table", "title": "Interfaces: NetBox vs node metrics",
+     "description": "How many interfaces NetBox models on each device and VM with a primary IP, against the physical NICs (en*, eth*, wl*) its node metrics report and how many of those have link. Bridges, taps and veths are left out: NetBox models the hardware. A non-zero drift is a NIC NetBox does not know about, or one it models that the host does not see. Blank observed cells, and a blank NIC drift, are hosts that export no node metrics: not measured, not zero drift.",
+     "gridPos": {"h": 12, "w": 12, "x": 0, "y": 50},
+     "targets": [
+       {"refId": "A", "datasource": {"type": "netboxlabs-netbox-datasource", "uid": "netbox"},
+        "queryType": "objects", "objectType": "dcim/devices",
+        "filters": [{"field": "has_primary_ip", "operator": "", "value": "true"}],
+        "fields": ["name", "interface_count"],
+        "joinKeys": [{"source": "name", "output": "host", "transform": "lower"}], "limit": 200},
+       {"refId": "B", "datasource": {"type": "netboxlabs-netbox-datasource", "uid": "netbox"},
+        "queryType": "objects", "objectType": "virtualization/virtual-machines",
+        "filters": [{"field": "has_primary_ip", "operator": "", "value": "true"}],
+        "fields": ["name", "interface_count"],
+        "joinKeys": [{"source": "name", "output": "host", "transform": "lower"}], "limit": 200},
+       {"refId": "C", "datasource": {"type": "prometheus", "uid": "prometheus"}, "instant": true, "range": false, "format": "table",
+        "expr": "count by (host) (label_replace(node_network_up{device=~\"(en|eth|wl).*\"}, \"host\", \"$1\", \"instance\", \"(.*)\"))"},
+       {"refId": "D", "datasource": {"type": "prometheus", "uid": "prometheus"}, "instant": true, "range": false, "format": "table",
+        "expr": "sum by (host) (label_replace(node_network_up{device=~\"(en|eth|wl).*\"}, \"host\", \"$1\", \"instance\", \"(.*)\"))"}
+     ],
+     "transformations": [
+       {"id": "merge", "filter": {"id": "byRefId", "options": "/^(A|B)$/"}, "options": {}},
+       {"id": "formatString", "options": {"stringField": "host", "outputFormat": "Lower Case"}},
+       {"id": "joinByField", "options": {"byField": "host", "mode": "outerTabular"}},
+       {"id": "calculateField", "options": {"mode": "binary", "alias": "NIC drift", "binary": {"left": {"matcher": {"id": "byName", "options": "Value #C"}}, "operator": "-", "right": {"matcher": {"id": "byName", "options": "interface_count"}}}}},
+       {"id": "organize", "options": {
+         "excludeByName": {"name": true, "Time": true, "Time 1": true, "Time 2": true},
+         "indexByName": {"host": 0, "interface_count": 1, "Value #C": 2, "Value #D": 3, "NIC drift": 4},
+         "renameByName": {"host": "Host", "interface_count": "NetBox interfaces", "Value #C": "Physical NICs", "Value #D": "With link"}}}
+     ],
+     "fieldConfig": {
+       "defaults": {"noValue": "—", "custom": {"align": "auto"}},
+       "overrides": [
+         {"matcher": {"id": "byName", "options": "NIC drift"},
+          "properties": [
+            {"id": "custom.cellOptions", "value": {"type": "color-background", "mode": "basic"}},
+            {"id": "thresholds", "value": {"mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "green", "value": -0.5}, {"color": "red", "value": 0.5}]}}
+          ]}
+       ]},
+     "options": {"showHeader": true, "sortBy": [{"displayName": "Host", "desc": false}]}},
+
+    {"id": 7, "type": "table", "title": "Node addresses: NetBox vs Kubernetes",
+     "description": "Each Kubernetes node's internal IP looked up in NetBox, joined on the address, which the table never shows. The NetBox owner should be the node itself and the address its primary IP; a blank NetBox side is an address NetBox does not hold on any interface, and a different owner is an address NetBox assigns elsewhere.",
+     "gridPos": {"h": 12, "w": 12, "x": 12, "y": 50},
+     "targets": [
+       {"refId": "A", "datasource": {"type": "netboxlabs-netbox-datasource", "uid": "netbox"},
+        "queryType": "ip-enrichment", "ipSource": "scope",
+        "filters": [{"field": "assigned_to_interface", "operator": "", "value": "true"}],
+        "contextFields": ["ip", "device_name", "vm_name", "is_primary_ip", "address_status"], "limit": 500},
+       {"refId": "B", "datasource": {"type": "prometheus", "uid": "prometheus"}, "instant": true, "range": false, "format": "table",
+        "expr": "max by (host, ip) (label_replace(label_replace(kube_node_info, \"host\", \"$1\", \"node\", \"(.*)\"), \"ip\", \"$1\", \"internal_ip\", \"(.*)\"))"}
+     ],
+     "transformations": [
+       {"id": "joinByField", "options": {"byField": "ip", "mode": "outerTabular"}},
+       {"id": "filterByValue", "options": {"type": "exclude", "match": "any", "filters": [{"fieldName": "host", "config": {"id": "isNull", "options": {}}}]}},
+       {"id": "organize", "options": {
+         "excludeByName": {"ip": true, "Time": true, "Value": true, "Value #B": true},
+         "indexByName": {"host": 0, "device_name": 1, "vm_name": 2, "is_primary_ip": 3, "address_status": 4},
+         "renameByName": {"host": "Kubernetes node", "device_name": "NetBox device", "vm_name": "NetBox VM", "is_primary_ip": "NetBox primary IP", "address_status": "NetBox status"}}}
+     ],
+     "fieldConfig": {
+       "defaults": {"noValue": "—"},
+       "overrides": [
+         {"matcher": {"id": "byName", "options": "NetBox primary IP"},
+          "properties": [
+            {"id": "noValue", "value": "not in NetBox"},
+            {"id": "mappings", "value": [{"type": "value", "options": {"true": {"text": "yes", "color": "green"}, "false": {"text": "no", "color": "red"}}}]},
+            {"id": "custom.cellOptions", "value": {"type": "color-text"}}
+          ]}
+       ]},
+     "options": {"showHeader": true, "sortBy": [{"displayName": "Kubernetes node", "desc": false}]}},
+
+    {"id": 18, "type": "row", "title": "Inventory", "collapsed": false, "panels": [], "gridPos": {"h": 1, "w": 24, "x": 0, "y": 62}},
+    {"id": 8, "type": "table", "title": "Devices and VMs by site and role",
+     "description": "NetBox alone, as context for the tables above: every device and virtual machine counted by site and role. A blank role is an object NetBox holds without one.",
+     "gridPos": {"h": 9, "w": 24, "x": 0, "y": 63},
+     "datasource": {"type": "netboxlabs-netbox-datasource", "uid": "netbox"},
+     "targets": [
+       {"refId": "A", "datasource": {"type": "netboxlabs-netbox-datasource", "uid": "netbox"},
+        "queryType": "objects", "objectType": "dcim/devices", "fields": ["name", "site", "role"], "limit": 500},
+       {"refId": "B", "datasource": {"type": "netboxlabs-netbox-datasource", "uid": "netbox"},
+        "queryType": "objects", "objectType": "virtualization/virtual-machines", "fields": ["name", "site", "role"], "limit": 500}
+     ],
+     "transformations": [
+       {"id": "merge", "options": {}},
+       {"id": "groupBy", "options": {"fields": {
+         "site": {"operation": "groupby", "aggregations": []},
+         "role": {"operation": "groupby", "aggregations": []},
+         "name": {"operation": "aggregate", "aggregations": ["count"]}}}},
+       {"id": "organize", "options": {"renameByName": {"site": "Site", "role": "Role", "name (count)": "Count"}}}
+     ],
+     "fieldConfig": {"defaults": {"noValue": "—"}, "overrides": []},
+     "options": {"showHeader": true, "sortBy": [{"displayName": "Count", "desc": true}]}}
   ]
 }

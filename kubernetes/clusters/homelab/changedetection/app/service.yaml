@@ -1,0 +1,27 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: changedetection
+  labels:
+    app.kubernetes.io/name: changedetection
+spec:
+  selector:
+    app.kubernetes.io/name: changedetection
+  ports:
+    - name: http
+      port: 5000
+      targetPort: http
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: sockpuppetbrowser
+  labels:
+    app.kubernetes.io/name: sockpuppetbrowser
+spec:
+  selector:
+    app.kubernetes.io/name: sockpuppetbrowser
+  ports:
+    - name: cdp
+      port: 3000
+      targetPort: cdp

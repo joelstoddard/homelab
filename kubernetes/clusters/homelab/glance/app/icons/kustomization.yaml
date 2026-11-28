@@ -1,0 +1,42 @@
+# Tile icons Glance serves under /assets/; SVG may carry $, so substitution is
+# off. Sources and the scan a new icon needs: docs/design/glance.md, "Icons".
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+generatorOptions:
+  annotations:
+    kustomize.toolkit.fluxcd.io/substitute: disabled
+configMapGenerator:
+  - name: glance-icons
+    files:
+      - actual-budget.svg
+      - bazarr.svg
+      - bentopdf.svg
+      - bitwarden.svg
+      - changedetection.svg
+      - dawarich.svg
+      - cloudflare.svg
+      - grafana.svg
+      - hetzner.svg
+      - home-assistant.svg
+      - it-tools.svg
+      - jellyfin.svg
+      - lidarr.svg
+      - longhorn.svg
+      - netbox.svg
+      - paperless-ngx.svg
+      - pi-hole.svg
+      - prowlarr.svg
+      - proxmox.svg
+      - qbittorrent.svg
+      - radarr.svg
+      - router-network.svg
+      - sabnzbd.svg
+      - searxng.svg
+      - seerr.svg
+      - sonarr.svg
+      - spliit.svg
+      - sure.svg
+      - tailscale.svg
+      - traefik.svg
+      - truenas.svg
+      - uptime-kuma.svg

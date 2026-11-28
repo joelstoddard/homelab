@@ -38,7 +38,7 @@ spec:
         - name: killswitch
           # Distroless, purely for `nft`; it ships no shell, so the ruleset is
           # a file. See docs/design/media-egress.md, "Inside the ruleset".
-          image: registry.k8s.io/build-image/distroless-iptables:v0.9.7
+          image: registry.k8s.io/build-image/distroless-iptables:v0.11.3
           command: ["/usr/sbin/nft", "-f", "/etc/killswitch/ruleset.nft"]
           # Capabilities are per container, not per pod. Root as well, because
           # netlink refuses the write without it.
@@ -60,7 +60,7 @@ spec:
         # Filtering is not routing: the kill switch decides what may leave,
         # these rules decide which way (docs/design/media-egress.md, "Traps").
         - name: iprules
-          image: ghcr.io/tailscale/tailscale:v1.102.3
+          image: ghcr.io/tailscale/tailscale:v1.104.7
           # pref 5100 must stay below tailscaled's 5270 and outside the 52xx
           # range it reconciles. No dollar sign anywhere in this script: the
           # manifest is substituted, and envsubst would blank one.
@@ -88,7 +88,7 @@ spec:
               cpu: 100m
               memory: 64Mi
         - name: tailscale
-          image: ghcr.io/tailscale/tailscale:v1.102.3
+          image: ghcr.io/tailscale/tailscale:v1.104.7
           # restartPolicy Always makes this a native sidecar: the kubelet
           # holds gost back until this container's startupProbe passes.
           restartPolicy: Always
@@ -200,7 +200,7 @@ spec:
               memory: 256Mi
       containers:
         - name: gost
-          image: gogost/gost:3.3.0
+          image: gogost/gost:3.3.3
           # Both bind and udp default off in gost; bind is what libtorrent's
           # SOCKS5 session needs to complete, udp is what uTP and DHT need —
           # trimming either silently reintroduces the bug this replaces.

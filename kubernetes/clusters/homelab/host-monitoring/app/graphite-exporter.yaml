@@ -21,7 +21,7 @@ spec:
     spec:
       containers:
         - name: graphite-exporter
-          image: prom/graphite-exporter:v0.16.0
+          image: prom/graphite-exporter:v0.17.0
           args:
             - --graphite.mapping-config=/etc/graphite/mapping.yml
             - --graphite.listen-address=:2003
@@ -84,6 +84,7 @@ metadata:
     lbipam.cilium.io/sharing-key: ingest
 spec:
   type: LoadBalancer
+  allocateLoadBalancerNodePorts: false
   selector:
     app.kubernetes.io/name: graphite-exporter
   ports:

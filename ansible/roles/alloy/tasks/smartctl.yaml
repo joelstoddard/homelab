@@ -1,0 +1,44 @@
+---
+# smartctl_exporter on loopback, scraped by this host's Alloy —
+# docs/design/host-monitoring.md, "SMART from the NUCs' own disks".
+
+- name: Add the trixie-backports apt repository.
+  # Debian packages the exporter in backports only. Backports sit at apt
+  # priority 100, so nothing else is pulled from it unless asked for.
+  ansible.builtin.apt_repository:
+    repo: "deb http://deb.debian.org/debian {{ ansible_distribution_release }}-backports main"
+    filename: debian-backports
+    state: present
+
+- name: Create the smartctl_exporter drop-in directory.
+  ansible.builtin.file:
+    path: /etc/systemd/system/smartctl_exporter.service.d
+    state: directory
+    mode: "0755"
+
+- name: Bind smartctl_exporter to loopback.
+  # Before the install: the package's postinst starts the unit at once, and
+  # its own ExecStart listens on every address.
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/smartctl_exporter.service.d/listen.conf
+    content: |
+      [Service]
+      ExecStart=
+      ExecStart=/usr/bin/smartctl_exporter --web.listen-address={{ alloy_smartctl_listen_address }}
+    mode: "0644"
+  notify: Restart smartctl_exporter
+
+- name: Install smartctl_exporter.
+  ansible.builtin.apt:
+    name: prometheus-smartctl-exporter
+    default_release: "{{ ansible_distribution_release }}-backports"
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Enable and start smartctl_exporter.
+  ansible.builtin.systemd:
+    name: smartctl_exporter
+    enabled: true
+    state: started
+    daemon_reload: true

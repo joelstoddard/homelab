@@ -12,6 +12,9 @@ resources:
   - secret-dashboard-auth.sops.yaml
   - secret-longhorn-auth.sops.yaml
   - secret-glance-auth.sops.yaml
+  - secret-it-tools-auth.sops.yaml
+  - secret-bentopdf-auth.sops.yaml
+  - secret-changedetection-auth.sops.yaml
 configMapGenerator:
   - name: traefik-values
     files:

@@ -134,17 +134,20 @@ addresses that name no account. For the same reason the Hetzner tile is just
 
 ## Widgets that call out of the cluster
 
-Four widgets make the **pod** fetch from the internet, unlike the icons, which
-the browser fetches: `weather` (Open-Meteo), `markets` (Yahoo Finance),
-`repository` (the GitHub API, unauthenticated) and the calendar, which is only
-a link. External names resolve because CoreDNS forwards to public resolvers
+Four widgets make the **pod** fetch from the internet: `weather`
+(Open-Meteo), `markets` (Yahoo Finance), `repository` (the GitHub API,
+unauthenticated) and the calendar, which is only a link. External names resolve because CoreDNS forwards to public resolvers
 (above). No NetworkPolicy covers the `glance` namespace, so nothing else is
 needed.
 
 The `repository` widgets run without a token, inside GitHub's anonymous limit
 of 60 requests an hour per source address. Three repositories on Glance's
-default cache stay well under it. A token would raise the limit but adds a
-credential, and nothing needs the extra headroom.
+default cache stay well under it. The `releases` widget adds six upstreams
+(Talos, Kubernetes, Flux, Cilium, Longhorn, Traefik) on a 6 h cache, about
+one request an hour. It shows what upstream has released; Renovate's
+dependency dashboard shows which of those bumps are waiting here. A token
+would raise the limit but adds a credential, and nothing needs the extra
+headroom.
 
 The weather location is personal, and this repo is public, so it is
 `${WEATHER_LOCATION}` in `cluster-secrets`, SOPS-encrypted like `NETBOX_URL`.
@@ -160,6 +163,26 @@ The calendar is Glance's month grid with its title linked to Google Calendar.
 Glance has no calendar source, so it cannot mark days that have events. Doing
 that means a `custom-api` widget against the Google Calendar API, with a
 credential in the cluster; it was not worth that.
+
+## Icons
+
+Every tile icon is an SVG in `app/icons/`, generated into the `glance-icons`
+ConfigMap and mounted read-only at `server.assets-path` (`/app/assets`), so a
+tile names `/assets/<name>.svg`. Glance's `di:`, `mdi:`, `si:` and `sh:`
+prefixes would make every browser that opens the page fetch from
+`cdn.jsdelivr.net`, a third party, from a homelab that runs its own search
+engine and DNS sink. A ConfigMap keeps the pod stateless, with no volume to
+back up. `make -C kubernetes lint` fails on a CDN prefix in `glance.yml` and
+on an `/assets/` icon that is not in the generator.
+
+The files are `svg/<name>.svg` from `homarr-labs/dashboard-icons` at commit
+`23fc02e7`, which is what `di:` served, and `router-network.svg` from
+`@mdi/svg` 7.4.47. An `mdi` icon is monochrome, so its tile keeps the
+`auto-invert` prefix that `mdi:` set implicitly. The files are served from the
+start page's own origin, so a new icon is checked for `<script>`, `on*`
+attributes, `<foreignObject>` and external `href` or `url()` before it is
+committed. Substitution is disabled on the generator because an SVG may carry
+`$`. Together the icons are about 90 KB of the ConfigMap's 1 MiB.
 
 ## The status codes are measured, not assumed
 
@@ -228,8 +251,8 @@ set to Basic, which makes every catch-all path 401. Seerr's
 `/api/v1/status/appdata` answers locally, where plain `/api/v1/status` reaches
 the GitHub API and so reports on something other than this cluster.
 
-**Traefik is the one override.** Its Service publishes only the `web` and
-`websecure` entrypoints, so a request carrying no Host that matches a router
+**Traefik is the one override.** Its Service publishes only the `web`,
+`websecure` and `uploads` entrypoints, so a request carrying no Host that matches a router
 ends at 404 — which still proves Traefik is accepting and routing traffic. Its
 `/ping` endpoint is on port 9000, which the Service does not publish, and the
 certificate served on the internal address is Traefik's own default, hence
@@ -333,8 +356,7 @@ health.
 
 `monitoring/app/dashboards/Services/glance.json` assembles those into one
 dashboard. The label to remember is that Traefik series are matched on the `service`
-label's `glance-glance-` prefix, because the CRD provider appends a hash, while
-kube-state-metrics series are matched on `exported_namespace`. Only requests
+label's `glance-glance-` prefix, because the CRD provider appends a hash. Only requests
 through the ingress are counted, so the `check-url` probes do not appear.
 
 Expect long flat stretches: a start page is opened a few times a day, not
@@ -352,15 +374,8 @@ not Glance failing.
   `docs/design/observability.md`.
 - **Resources fit 14 days of use** (to 2026-11-13): a 16 MiB peak working set
   and under 4m CPU sit inside the `10m`/`32Mi` requests and `128Mi` limit.
-- **Tile icons come from a public CDN.** `di:` and `mdi:` slugs resolve to
-  `cdn.jsdelivr.net`, fetched by the **browser**, not the pod — so the
-  cluster's name resolution is irrelevant and a wrong slug is a missing image
-  rather than a startup error. The cost is that opening the start page makes
-  outbound requests to a third party, which is a poor fit for a homelab that
-  runs its own search engine and DNS sink. Self-hosting them means setting
-  `assets-path` and mounting the files, which trades the stateless pod for a
-  volume; that trade was not worth making for a dozen icons, and it is the
-  first thing to revisit if the CDN dependency starts to grate.
+- **Icons are pinned copies.** They do not follow upstream redesigns, and a
+  new tile needs its icon added by hand (see "Icons").
 - **The TrueNAS figure follows CORE's metric names.** `graphite-exporter`
   passes TrueNAS CORE's collectd stream through unmapped, so every series is
   named `servers_Voyager_local_...`, with the host and dataset in the name.

@@ -8,6 +8,9 @@ metadata:
 spec:
   interval: 1h0m0s
   releaseName: cilium
+  # The agent and Envoy DaemonSets roll two nodes at a time; across 20 nodes
+  # an upgrade takes ~13 min, so the 5 min default fails a healthy rollout.
+  timeout: 20m0s
   chartRef:
     kind: OCIRepository
     name: cilium

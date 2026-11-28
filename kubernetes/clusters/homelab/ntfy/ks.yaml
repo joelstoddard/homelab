@@ -1,0 +1,30 @@
+# ntfy, the push-notification server Grafana alerts through.
+# See docs/design/ntfy.md.
+#
+# dependsOn longhorn for the auth/cache volume, traefik and traefik-middlewares
+# for the route, cluster-secrets for DOMAIN. decryption for app/secret.sops.yaml.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: ntfy
+  namespace: flux-system
+spec:
+  interval: 10m0s
+  path: ./kubernetes/clusters/homelab/ntfy/app
+  prune: true
+  dependsOn:
+    - name: traefik
+    - name: traefik-middlewares
+    - name: longhorn
+    - name: cluster-secrets
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+  decryption:
+    provider: sops
+    secretRef:
+      name: sops-age
+  postBuild:
+    substituteFrom:
+      - kind: Secret
+        name: cluster-secrets

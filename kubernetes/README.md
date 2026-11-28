@@ -637,7 +637,7 @@ Seerr, SABnzbd and Recyclarr — the torrent client lives next door in
 `media-downloads/`, reaching the internet through that namespace's VPN
 egress. Seven have a metrics exporter —
 everything but Seerr, which exposes no Prometheus endpoint, and Recyclarr,
-which is a CronJob. Rationale:
+which exports its own — and FlareSolverr serves its own on port 8192. Rationale:
 [`docs/design/media-foundation.md`](../docs/design/media-foundation.md) for
 the shared namespace and storage, with one document per application —
 [`docs/design/jellyfin.md`](../docs/design/jellyfin.md),
@@ -808,8 +808,7 @@ Consequences:
 - **No metrics endpoint, and no annotation.** Glance exposes none, so the
   dashboard (`monitoring/app/dashboards/Services/glance.json`) is built from
   Traefik, cAdvisor and kube-state-metrics. Traefik series match on the
-  `service` label's `glance-glance-` prefix, kube-state-metrics on
-  `exported_namespace`.
+  `service` label's `glance-glance-` prefix.
 
 ```bash
 flux --context homelab get ks glance
@@ -955,7 +954,8 @@ sync".
   nebula-sync splits `REPLICAS` on commas and each entry on its first `|`,
   so the password must contain neither.
 - **Egress is cluster DNS and the two instances on 443 only**, through
-  `toServices` on the selectorless `lan-services` Services.
+  `toServices` on the selectorless `lan-services` Services, plus Uptime
+  Kuma on 3001 for the `push` container's heartbeat after a successful run.
 - **An empty pihole-01 empties pihole-02.** Before rebuilding pihole-01,
   commit `spec.suspend: true` on the CronJob (Flux reverts a live suspend);
   the runbook is in `ansible/roles/dns/README.md`, "Rebuilding pihole-01".
@@ -963,7 +963,7 @@ sync".
 ```bash
 flux --context homelab get ks nebula-sync
 kubectl --context homelab -n nebula-sync create job --from=cronjob/nebula-sync nebula-sync-manual
-kubectl --context homelab -n nebula-sync logs job/nebula-sync-manual
+kubectl --context homelab -n nebula-sync logs job/nebula-sync-manual -c nebula-sync
 ```
 
 ## Cluster secrets

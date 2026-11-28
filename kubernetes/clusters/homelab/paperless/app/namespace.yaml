@@ -1,0 +1,6 @@
+# No PodSecurity labels: Talos's default "baseline" admits the root init container
+# that chowns /run for s6; "restricted" would refuse it (docs/design/paperless.md).
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: paperless

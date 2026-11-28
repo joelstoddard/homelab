@@ -1,0 +1,18 @@
+# No auth Middleware: Dawarich has its own login, and the phone apps post with an
+# API key, which a basic-auth prompt would break (docs/design/dawarich.md).
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: dawarich
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - kind: Rule
+      match: Host(`dawarich.${DOMAIN}`)
+      middlewares:
+        - name: default-headers
+          namespace: traefik
+      services:
+        - name: dawarich
+          port: 3000

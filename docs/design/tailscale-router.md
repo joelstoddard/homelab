@@ -97,4 +97,4 @@ entry pins that.
   (`docs/design/cilium-per-packet-lb.md`). Without that, any address announced
   by the router's own node is unreachable from the tailnet.
 - `:9002/metrics` is scraped via the pod's `prometheus.io/scrape` annotation;
-  the dashboard is `monitoring/app/dashboards/Services/tailscale.json`.
+  the dashboard is `monitoring/app/dashboards/Network/tailscale.json`.

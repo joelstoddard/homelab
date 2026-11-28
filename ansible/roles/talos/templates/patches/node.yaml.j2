@@ -4,11 +4,20 @@
 {% set is_pi = 'pis' in hostvars[node].group_names %}
 {% set zone_device = hostvars[node].cluster_device | default(none, true) %}
 {% set mac = hostvars[node].mac_address | default('') | lower %}
+{% set log_url = 'tcp://' ~ talos_logging_address ~ ':' ~ talos_logging_port ~ '/' if talos_logging_address else '' %}
 machine:
   install:
     image: factory.talos.dev/installer/{{ talos_pi_schematic_id if is_pi else talos_schematic_id }}:{{ talos_version }}
   nodeLabels:
     topology.kubernetes.io/zone: {{ (zone_device.name if zone_device else node) | lower }}
+{% if log_url %}
+  logging:
+    destinations:
+      - endpoint: {{ log_url }}
+        format: json_lines
+        extraTags:
+          node: {{ node | lower }}
+{% endif %}
 ---
 apiVersion: v1alpha1
 kind: HostnameConfig

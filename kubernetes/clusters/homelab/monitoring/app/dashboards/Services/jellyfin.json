@@ -1,4 +1,5 @@
 {
+  "annotations": {"list": [{"name": "Flux", "datasource": {"type": "grafana", "uid": "-- Grafana --"}, "enable": true, "iconColor": "purple", "target": {"type": "tags", "tags": ["flux"], "matchAny": true, "limit": 100}}, {"name": "NetBox", "datasource": {"type": "netboxlabs-netbox-datasource", "uid": "netbox"}, "enable": true, "iconColor": "blue", "target": {"refId": "Anno", "queryType": "annotations"}}, {"name": "Operator", "datasource": {"type": "grafana", "uid": "-- Grafana --"}, "enable": true, "iconColor": "orange", "target": {"type": "tags", "tags": ["operator"], "matchAny": true, "limit": 100}}, {"name": "Proxmox", "datasource": {"type": "grafana", "uid": "-- Grafana --"}, "enable": true, "iconColor": "yellow", "target": {"type": "tags", "tags": ["proxmox"], "matchAny": true, "limit": 100}}]},
   "id": null,
   "uid": "homelab-jellyfin",
   "title": "Jellyfin",
@@ -8,9 +9,8 @@
   "time": {"from": "now-6h", "to": "now"},
   "panels": [
     {"id": 1, "type": "stat", "title": "Availability", "gridPos": {"h": 4, "w": 6, "x": 0, "y": 0},
-     "description": "kube-state-metrics series carry the collector's own namespace AND pod, so the subject is exported_namespace and exported_pod. Matching on bare pod silently selects the kube-state-metrics pod and returns nothing.",
      "datasource": {"type": "prometheus", "uid": "prometheus"},
-     "targets": [{"refId": "A", "expr": "max(kube_pod_status_ready{exported_namespace=\"media\", condition=\"true\", exported_pod=~\"jellyfin-.*\", exported_pod!~\"jellyfin-exporter-.*\"})"}],
+     "targets": [{"refId": "A", "expr": "max(kube_pod_status_ready{namespace=\"media\", condition=\"true\", pod=~\"jellyfin-.*\", pod!~\"jellyfin-exporter-.*\"})"}],
      "fieldConfig": {"defaults": {"mappings": [
        {"type": "value", "options": {"0": {"text": "Down", "color": "red", "index": 0}, "1": {"text": "Up", "color": "green", "index": 1}}}],
        "noValue": "No data"}, "overrides": []},
@@ -19,7 +19,7 @@
     {"id": 2, "type": "stat", "title": "Restarts", "gridPos": {"h": 4, "w": 6, "x": 6, "y": 0},
      "description": "A climbing count means the pod is crash-looping. The config volume returning I/O errors is the failure that causes it.",
      "datasource": {"type": "prometheus", "uid": "prometheus"},
-     "targets": [{"refId": "A", "expr": "sum(kube_pod_container_status_restarts_total{exported_namespace=\"media\", container=\"jellyfin\"})"}],
+     "targets": [{"refId": "A", "expr": "sum(kube_pod_container_status_restarts_total{namespace=\"media\", container=\"jellyfin\"})"}],
      "fieldConfig": {"defaults": {"thresholds": {"mode": "absolute", "steps": [
        {"color": "green", "value": null}, {"color": "yellow", "value": 1}, {"color": "red", "value": 5}]}}, "overrides": []},
      "options": {"colorMode": "background", "graphMode": "area", "reduceOptions": {"calcs": ["lastNotNull"]}}},
@@ -99,7 +99,7 @@
     {"id": 25, "type": "timeseries", "title": "Transcode bitrate", "gridPos": {"h": 8, "w": 6, "x": 18, "y": 8},
      "datasource": {"type": "prometheus", "uid": "prometheus"},
      "targets": [{"refId": "A", "expr": "sum(jellyfin_transcoding_session_bitrate_bits_per_second)", "legendFormat": "total"}],
-     "fieldConfig": {"defaults": {"unit": "bps", "min": 0}, "overrides": []}},
+     "fieldConfig": {"defaults": {"unit": "bps", "min": 0, "noValue": "None"}, "overrides": []}},
 
     {"id": 5, "type": "timeseries", "title": "Requests by status", "gridPos": {"h": 8, "w": 12, "x": 0, "y": 16},
      "description": "Traefik's view of requests to Jellyfin, which exposes no Prometheus endpoint without a plugin. LAN clients that reach the pod directly bypass the ingress and are not counted.",
@@ -108,7 +108,7 @@
      "fieldConfig": {"defaults": {"unit": "reqps"}, "overrides": []}},
 
     {"id": 6, "type": "timeseries", "title": "Response time", "gridPos": {"h": 8, "w": 12, "x": 12, "y": 16},
-     "description": "Quantiles over Traefik's histogram. Buckets are coarse, so a quiet instance shows the bucket boundary rather than a true percentile.",
+     "description": "Quantiles over Traefik's histogram. Quantiles are interpolated within a bucket, so they are estimates.",
      "datasource": {"type": "prometheus", "uid": "prometheus"},
      "targets": [
        {"refId": "A", "expr": "histogram_quantile(0.50, sum by (le) (rate(traefik_service_request_duration_seconds_bucket{service=~\"media-jellyfin-.*\"}[$__rate_interval])))", "legendFormat": "p50"},
@@ -120,7 +120,7 @@
      "datasource": {"type": "prometheus", "uid": "prometheus"},
      "targets": [
        {"refId": "A", "expr": "sum(rate(container_cpu_usage_seconds_total{namespace=\"media\", container=\"jellyfin\"}[$__rate_interval]))", "legendFormat": "used"},
-       {"refId": "B", "expr": "max(kube_pod_container_resource_limits{exported_namespace=\"media\", resource=\"cpu\", container=\"jellyfin\"})", "legendFormat": "limit"}],
+       {"refId": "B", "expr": "max(kube_pod_container_resource_limits{namespace=\"media\", resource=\"cpu\", container=\"jellyfin\"})", "legendFormat": "limit"}],
      "fieldConfig": {"defaults": {"unit": "none", "decimals": 2}, "overrides": []}},
 
     {"id": 9, "type": "timeseries", "title": "CPU throttling", "gridPos": {"h": 8, "w": 6, "x": 6, "y": 24},
@@ -135,7 +135,7 @@
      "datasource": {"type": "prometheus", "uid": "prometheus"},
      "targets": [
        {"refId": "A", "expr": "sum(container_memory_working_set_bytes{namespace=\"media\", container=\"jellyfin\"})", "legendFormat": "working set"},
-       {"refId": "B", "expr": "max(kube_pod_container_resource_limits{exported_namespace=\"media\", resource=\"memory\", container=\"jellyfin\"})", "legendFormat": "limit"}],
+       {"refId": "B", "expr": "max(kube_pod_container_resource_limits{namespace=\"media\", resource=\"memory\", container=\"jellyfin\"})", "legendFormat": "limit"}],
      "fieldConfig": {"defaults": {"unit": "bytes"}, "overrides": []}},
 
     {"id": 11, "type": "timeseries", "title": "OOM kills", "gridPos": {"h": 8, "w": 6, "x": 18, "y": 24},

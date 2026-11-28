@@ -12,7 +12,6 @@ VENV ?= .venv
 # 3.14). The `build` target enforces the floor.
 PYTHON ?= python3
 PYTHON_MIN_VERSION ?= 3.11
-ANSIBLE_STDOUT_CALLBACK=yaml
 
 default: apply-pxe apply
 

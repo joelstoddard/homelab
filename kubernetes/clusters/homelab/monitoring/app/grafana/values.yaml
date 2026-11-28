@@ -1,9 +1,18 @@
-# Stateless Grafana: git is the source of truth. Datasources are provisioned
-# here with fixed UIDs so vendored dashboard JSON can name them; dashboards
-# arrive through the sidecar from labelled ConfigMaps (dashboards/). A UI edit
-# to a provisioned dashboard is refused; Save As a copy, iterate, export,
-# commit — the copy vanishes on restart. docs/design/observability.md.
+# Git is the source of config, re-applied over the database; the volume keeps
+# annotations (docs/design/observability.md, "Grafana state").
+# Pinned here, not taken from the chart, so one Renovate PR moves it with the
+# plugin installer's image below; make lint fails when the two differ.
+image:
+  tag: 13.3.2-distroless
 persistence:
+  enabled: true
+  storageClassName: longhorn
+  size: 1Gi
+# A Longhorn RWO volume attaches to one node, so the old pod must stop first.
+deploymentStrategy:
+  type: Recreate
+# fsGroup 472 already owns the volume; the chown container would run as root.
+initChownData:
   enabled: false
 testFramework:
   enabled: false
@@ -52,7 +61,7 @@ datasources:
 # its datasource file a Secret: docs/design/observability.md.
 extraInitContainers:
   - name: install-netbox-plugin
-    image: docker.io/grafana/grafana:13.2.1-distroless
+    image: docker.io/grafana/grafana:13.3.2-distroless
     command: [/usr/share/grafana/bin/grafana]
     args: [cli, --pluginsDir, /var/lib/grafana/plugins, plugins, install, netboxlabs-netbox-datasource, 1.0.3]
     securityContext:
@@ -69,6 +78,12 @@ extraSecretMounts:
     subPath: netbox.yaml
     readOnly: true
 sidecar:
+  # Alert rules, the policy and the contact point (alerting/), from this namespace.
+  alerts:
+    enabled: true
+    label: grafana_alert
+    labelValue: "1"
+    resource: both
   dashboards:
     enabled: true
     label: grafana_dashboard

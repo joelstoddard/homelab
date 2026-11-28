@@ -25,6 +25,9 @@ creation_rules:
   # eval-sources them as `export TF_VAR_*=...` lines).
   - path_regex: opentofu/resources/.*/secrets\.env$
     age: age1h5hafnt22aqn7uahcsmv5v8gfgwcxanypw0lantcush7jppt99fskz6vcv
+  # scripts/annotate's Grafana URL and token (dotenv).
+  - path_regex: scripts/.*\.sops\.env$
+    age: age1h5hafnt22aqn7uahcsmv5v8gfgwcxanypw0lantcush7jppt99fskz6vcv
   # Skylab's tree: the operator key and the skylab key, the only key in
   # skylab's sops-age Secret, so a compromised skylab decrypts nothing else.
   # Must precede the general kubernetes/ rule (first match wins);

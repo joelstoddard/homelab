@@ -1,0 +1,18 @@
+# Users and ACLs come from the ntfy-auth Secret as env, not from this file.
+# upstream-base-url gives the iPhone app instant delivery through ntfy.sh,
+# which receives only a hash of the topic, never the message.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ntfy-config
+  labels:
+    app.kubernetes.io/name: ntfy
+data:
+  server.yml: |
+    base-url: https://ntfy.${DOMAIN}
+    upstream-base-url: https://ntfy.sh
+    listen-http: ":8080"
+    behind-proxy: true
+    cache-file: /var/lib/ntfy/cache.db
+    auth-file: /var/lib/ntfy/user.db
+    auth-default-access: deny-all

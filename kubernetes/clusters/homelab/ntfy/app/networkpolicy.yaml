@@ -1,0 +1,50 @@
+# Admits Traefik, Grafana and kubelet probes; egress only to cluster DNS and
+# ntfy.sh. Each direction is default-deny once it has a rule.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: ntfy
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: ntfy
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: traefik
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: monitoring
+            app.kubernetes.io/name: grafana
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: changedetection
+            app.kubernetes.io/name: changedetection
+      toPorts:
+        - ports:
+            - port: "8080"
+              protocol: TCP
+    - fromEntities:
+        - host
+      toPorts:
+        - ports:
+            - port: "8080"
+              protocol: TCP
+  egress:
+    # The dns rule is what lets Cilium learn ntfy.sh's addresses for toFQDNs.
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: ANY
+          rules:
+            dns:
+              - matchName: ntfy.sh
+              - matchPattern: "**.cluster.local"
+    - toFQDNs:
+        - matchName: ntfy.sh
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP

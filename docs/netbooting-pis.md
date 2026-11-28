@@ -17,6 +17,24 @@ cluster; it is only the path *into* a (re)install.
 
 Everything below was exercised on real hardware during the first cutover.
 
+## The operator's address
+
+Every Pi boot depends on the operator, and `config.txt`, the dispatcher and
+the baked u-boot `serverip` all carry its address as it was at render time.
+The operator therefore has a DHCP reservation on the router, so its address
+never changes between renders. A new operator, or a moved one, is a re-render
+(`make -C ansible apply-pxe TAGS=pxe-server` on it) followed by one worker Pi
+rebooted to prove the path, before any other Pi reboots.
+
+`OPERATOR_IP` in `cluster-secrets` feeds a blackbox `http_2xx` probe of
+`/boot/uboot.scr` on the operator's Caddy; `infra-probe-failing` alerts after
+10 minutes of failure, which covers an operator that is off, out of battery or
+on another address.
+
+The PXE dnsmasq binds only the default-route interface (`interface=` +
+`bind-interfaces`), so it shares the host with another dnsmasq, such as
+NetworkManager's connection sharing on `usb0`.
+
 ## Boot order, hop by hop
 
 `<operator>` is the PXE server (`pxe_server_ip`); `<mac>` is the Pi's NIC MAC

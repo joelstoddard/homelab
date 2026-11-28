@@ -1,0 +1,87 @@
+# Both pods fetch whatever URL a watch names, so they reach the internet and
+# nothing inside: docs/design/changedetection.md, "Egress".
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: fetchers-egress
+spec:
+  endpointSelector:
+    matchExpressions:
+      - key: app.kubernetes.io/name
+        operator: In
+        values: [changedetection, sockpuppetbrowser]
+  enableDefaultDeny:
+    egress: true
+    # Explicit, so the kubelet's probes stay out of default-deny.
+    ingress: false
+  egress:
+    # By endpoint, not by Service CIDR: per-packet LB translates the Service
+    # address before policy sees it (docs/design/cilium-per-packet-lb.md).
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: ANY
+    - toEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: sockpuppetbrowser
+      toPorts:
+        - ports:
+            - port: "3000"
+              protocol: TCP
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: ntfy
+            app.kubernetes.io/name: ntfy
+      toPorts:
+        - ports:
+            - port: "8080"
+              protocol: TCP
+    - toEntities:
+        - world
+  egressDeny:
+    # Cilium counts every LAN host outside the cluster as world.
+    - toCIDR:
+        - ${LAN_PREFIX}
+    # The control-plane VIP is world too: deny the Kubernetes and Talos API
+    # ports on every destination.
+    - toEntities:
+        - world
+      toPorts:
+        - ports:
+            - port: "6443"
+              protocol: TCP
+            - port: "10250"
+              protocol: TCP
+            - port: "50000"
+              protocol: TCP
+            - port: "50001"
+              protocol: TCP
+---
+# The browser renders untrusted pages with no Chrome sandbox: only the app may
+# drive it.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: browser-ingress
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: sockpuppetbrowser
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: changedetection
+      toPorts:
+        - ports:
+            - port: "3000"
+              protocol: TCP
+    - fromEntities:
+        - host
+      toPorts:
+        - ports:
+            - port: "8080"
+              protocol: TCP

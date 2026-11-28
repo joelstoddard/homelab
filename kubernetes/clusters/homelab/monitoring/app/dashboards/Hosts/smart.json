@@ -1,0 +1,1215 @@
+{
+  "id": null,
+  "uid": "homelab-smart",
+  "title": "SMART",
+  "description": "SMART health and wear of every drive on every physical host, the NUCs, Pis and Voyager, the one to replace first at the top. docs/design/host-monitoring.md.",
+  "tags": [
+    "overview"
+  ],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "time": {
+    "from": "now-24h",
+    "to": "now"
+  },
+  "refresh": "5m",
+  "links": [
+    {
+      "type": "link",
+      "title": "Hosts overview",
+      "url": "/d/homelab-hosts-overview",
+      "icon": "dashboard"
+    },
+    {
+      "type": "dashboards",
+      "title": "Hosts",
+      "tags": [
+        "hosts"
+      ],
+      "asDropdown": true,
+      "includeVars": false,
+      "keepTime": true
+    }
+  ],
+  "templating": {
+    "list": []
+  },
+  "panels": [
+    {
+      "type": "row",
+      "title": "Summary",
+      "collapsed": false,
+      "id": 1,
+      "panels": [],
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Most worn drive",
+      "description": "The drive with the highest wear: endurance used for an SSD, power-on hours against a 5-year life (43,800 h) for a hard disk; the table's Basis column says which. Orange from 80 %, red from 100 %.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "topk(1, max by (instance, device) (smartctl_device_percentage_used{job=\"smartctl\"}) or max by (instance, device) (smartctl_scsi_percentage_used_endurance_indicator{job=\"smartctl\"}) or max by (instance, device) (100 - smartctl_device_attribute{job=\"smartctl\", attribute_name=~\"Wear_Leveling_Count|Percent_Lifetime_Remain|Media_Wearout_Indicator\", attribute_value_type=\"value\"}) or max by (instance, device) (smartctl_device_power_on_seconds{job=\"smartctl\"} / 3600 / 43800 * 100 and on (instance, device) smartctl_device_rotation_rate{job=\"smartctl\"} > 0))",
+          "instant": true,
+          "legendFormat": "{{instance}} {{device}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 0,
+          "noValue": "Not reported",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 80
+              },
+              {
+                "color": "red",
+                "value": 100
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value_and_name",
+        "justifyMode": "center",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "id": 2,
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 0,
+        "y": 1
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Wear 80 % or more",
+      "description": "Drives at or past 80 % wear, by the same measure as the table: endurance used for an SSD; a hard disk counts by age, power-on hours against 43,800 h (5 years).",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "count((max by (instance, device) (smartctl_device_percentage_used{job=\"smartctl\"}) or max by (instance, device) (smartctl_scsi_percentage_used_endurance_indicator{job=\"smartctl\"}) or max by (instance, device) (100 - smartctl_device_attribute{job=\"smartctl\", attribute_name=~\"Wear_Leveling_Count|Percent_Lifetime_Remain|Media_Wearout_Indicator\", attribute_value_type=\"value\"}) or max by (instance, device) (smartctl_device_power_on_seconds{job=\"smartctl\"} / 3600 / 43800 * 100 and on (instance, device) smartctl_device_rotation_rate{job=\"smartctl\"} > 0)) >= 80) or vector(0)",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "id": 3,
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 4,
+        "y": 1
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Errors",
+      "description": "Drives with NVMe media errors, reallocated, pending or uncorrectable sectors, SCSI grown defects or uncorrected read or write errors.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "count(group by (instance, device) (smartctl_device_media_errors{job=\"smartctl\"} > 0 or smartctl_device_attribute{job=\"smartctl\", attribute_name=~\"Reallocated_Sector_Ct|Current_Pending_Sector|Offline_Uncorrectable\", attribute_value_type=\"raw\"} > 0 or smartctl_scsi_grown_defect_list{job=\"smartctl\"} > 0 or smartctl_read_total_uncorrected_errors{job=\"smartctl\"} > 0 or smartctl_write_total_uncorrected_errors{job=\"smartctl\"} > 0)) or vector(0)",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "id": 4,
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 8,
+        "y": 1
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Failing health",
+      "description": "Drives whose own SMART health check fails, or whose NVMe critical warning is set.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "count(group by (instance, device) (smartctl_device_smart_status{job=\"smartctl\"} == 0 or smartctl_device_critical_warning{job=\"smartctl\"} > 0)) or vector(0)",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "id": 5,
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 12,
+        "y": 1
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Not reported",
+      "description": "Drives expected but silent now: seen by SMART in the last 7 days, a node's boot drive (sda or nvme0n1), or one of Voyager's disks in its collectd stream.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "count(max by (instance, device) (label_replace((topk by (instance, device) (1, max by (instance, device, model_name) (last_over_time(timestamp(smartctl_device{job=\"smartctl\"})[7d:10m]))) or on (instance, device) last_over_time(max by (instance, device) (label_replace(label_replace({__name__=~\"servers_Voyager_local_disktemp_.+_temperature\"}, \"device\", \"$1\", \"__name__\", \"servers_Voyager_local_disktemp_(.+)_temperature\"), \"instance\", \"voyager\", \"\", \"\"))[7d:1h]) or on (instance, device) label_replace(group by (instance, device) (node_disk_info{job=\"node-exporter\", instance!~\"k8s-.*\", device=~\"sda|nvme0n1\"}), \"device\", \"$1\", \"device\", \"(nvme[0-9]+)n[0-9]+\")) * 0 + 1, \"dashboard\", \"homelab-host-$1\", \"instance\", \"(.+)\")) unless on (instance, device) group by (instance, device) (smartctl_device{job=\"smartctl\"})) or vector(0)",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "id": 6,
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 16,
+        "y": 1
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Reporting",
+      "description": "Drives reporting SMART now.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "count(group by (instance, device) (smartctl_device{job=\"smartctl\"})) or vector(0)",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "id": 7,
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 20,
+        "y": 1
+      }
+    },
+    {
+      "type": "row",
+      "title": "Drives",
+      "collapsed": false,
+      "id": 8,
+      "panels": [],
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 5
+      }
+    },
+    {
+      "type": "table",
+      "title": "Every drive",
+      "description": "Every drive on every host, the one to replace first at the top: sorted by Health (Failing, then Errors, then OK), then by Wear, with drives not reporting last. Wear means two things. For an SSD it is the drive's own endurance used (NVMe percentage used, or 100 minus a SATA SSD's normalised wear attribute): 100 % is the rated write endurance spent, and the drive may run well past it. A hard disk reports no such figure, so its Wear is power-on hours against a 5-year life (43800 h), the warranty term of NAS and enterprise drives: a generic figure, not this drive's datasheet. A hard disk's real warning sign is Bad sectors (reallocated, pending and offline-uncorrectable, or SCSI grown defects) rising, which puts it in Errors whatever its age. Basis says which Wear a row has. A drive seen in the last 7 days, a node's boot drive, or one of Voyager's disks in its collectd stream that reports nothing now stays listed as Not reported with its last values. A Voyager disk in standby when the exporter restarts reads Not reported until it wakes. Written is NVMe and SCSI only.",
+      "datasource": {
+        "type": "datasource",
+        "uid": "-- Mixed --"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "(group by (instance, device) (smartctl_device_smart_status{job=\"smartctl\"} == 0 or smartctl_device_critical_warning{job=\"smartctl\"} > 0) * 3 or group by (instance, device) (smartctl_device_media_errors{job=\"smartctl\"} > 0 or smartctl_device_attribute{job=\"smartctl\", attribute_name=~\"Reallocated_Sector_Ct|Current_Pending_Sector|Offline_Uncorrectable\", attribute_value_type=\"raw\"} > 0 or smartctl_scsi_grown_defect_list{job=\"smartctl\"} > 0 or smartctl_read_total_uncorrected_errors{job=\"smartctl\"} > 0 or smartctl_write_total_uncorrected_errors{job=\"smartctl\"} > 0) * 2 or group by (instance, device) (smartctl_device{job=\"smartctl\"}) * 0 or on (instance, device) max by (instance, device) (label_replace((topk by (instance, device) (1, max by (instance, device, model_name) (last_over_time(timestamp(smartctl_device{job=\"smartctl\"})[7d:10m]))) or on (instance, device) last_over_time(max by (instance, device) (label_replace(label_replace({__name__=~\"servers_Voyager_local_disktemp_.+_temperature\"}, \"device\", \"$1\", \"__name__\", \"servers_Voyager_local_disktemp_(.+)_temperature\"), \"instance\", \"voyager\", \"\", \"\"))[7d:1h]) or on (instance, device) label_replace(group by (instance, device) (node_disk_info{job=\"node-exporter\", instance!~\"k8s-.*\", device=~\"sda|nvme0n1\"}), \"device\", \"$1\", \"device\", \"(nvme[0-9]+)n[0-9]+\")) * 0 + 1, \"dashboard\", \"homelab-host-$1\", \"instance\", \"(.+)\")) * -1) * on (instance, device) group_left (model_name, dashboard) label_replace((topk by (instance, device) (1, max by (instance, device, model_name) (last_over_time(timestamp(smartctl_device{job=\"smartctl\"})[7d:10m]))) or on (instance, device) last_over_time(max by (instance, device) (label_replace(label_replace({__name__=~\"servers_Voyager_local_disktemp_.+_temperature\"}, \"device\", \"$1\", \"__name__\", \"servers_Voyager_local_disktemp_(.+)_temperature\"), \"instance\", \"voyager\", \"\", \"\"))[7d:1h]) or on (instance, device) label_replace(group by (instance, device) (node_disk_info{job=\"node-exporter\", instance!~\"k8s-.*\", device=~\"sda|nvme0n1\"}), \"device\", \"$1\", \"device\", \"(nvme[0-9]+)n[0-9]+\")) * 0 + 1, \"dashboard\", \"homelab-host-$1\", \"instance\", \"(.+)\")",
+          "format": "table",
+          "instant": true,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          }
+        },
+        {
+          "refId": "B",
+          "expr": "(max by (instance, device) (last_over_time(smartctl_device_percentage_used{job=\"smartctl\"}[7d])) or max by (instance, device) (last_over_time(smartctl_scsi_percentage_used_endurance_indicator{job=\"smartctl\"}[7d])) or max by (instance, device) (100 - last_over_time(smartctl_device_attribute{job=\"smartctl\", attribute_name=~\"Wear_Leveling_Count|Percent_Lifetime_Remain|Media_Wearout_Indicator\", attribute_value_type=\"value\"}[7d])) or max by (instance, device) (last_over_time(smartctl_device_power_on_seconds{job=\"smartctl\"}[7d]) / 3600 / 43800 * 100 and on (instance, device) last_over_time(smartctl_device_rotation_rate{job=\"smartctl\"}[7d]) > 0)) * on (instance, device) group_left (model_name, dashboard) label_replace((topk by (instance, device) (1, max by (instance, device, model_name) (last_over_time(timestamp(smartctl_device{job=\"smartctl\"})[7d:10m]))) or on (instance, device) last_over_time(max by (instance, device) (label_replace(label_replace({__name__=~\"servers_Voyager_local_disktemp_.+_temperature\"}, \"device\", \"$1\", \"__name__\", \"servers_Voyager_local_disktemp_(.+)_temperature\"), \"instance\", \"voyager\", \"\", \"\"))[7d:1h]) or on (instance, device) label_replace(group by (instance, device) (node_disk_info{job=\"node-exporter\", instance!~\"k8s-.*\", device=~\"sda|nvme0n1\"}), \"device\", \"$1\", \"device\", \"(nvme[0-9]+)n[0-9]+\")) * 0 + 1, \"dashboard\", \"homelab-host-$1\", \"instance\", \"(.+)\")",
+          "format": "table",
+          "instant": true,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          }
+        },
+        {
+          "refId": "C",
+          "expr": "((max by (instance, device) (last_over_time(smartctl_device_percentage_used{job=\"smartctl\"}[7d])) or max by (instance, device) (last_over_time(smartctl_scsi_percentage_used_endurance_indicator{job=\"smartctl\"}[7d])) or max by (instance, device) (100 - last_over_time(smartctl_device_attribute{job=\"smartctl\", attribute_name=~\"Wear_Leveling_Count|Percent_Lifetime_Remain|Media_Wearout_Indicator\", attribute_value_type=\"value\"}[7d]))) * 0 or (max by (instance, device) (last_over_time(smartctl_device_power_on_seconds{job=\"smartctl\"}[7d]) / 3600 / 43800 * 100 and on (instance, device) last_over_time(smartctl_device_rotation_rate{job=\"smartctl\"}[7d]) > 0)) * 0 + 1) * on (instance, device) group_left (model_name, dashboard) label_replace((topk by (instance, device) (1, max by (instance, device, model_name) (last_over_time(timestamp(smartctl_device{job=\"smartctl\"})[7d:10m]))) or on (instance, device) last_over_time(max by (instance, device) (label_replace(label_replace({__name__=~\"servers_Voyager_local_disktemp_.+_temperature\"}, \"device\", \"$1\", \"__name__\", \"servers_Voyager_local_disktemp_(.+)_temperature\"), \"instance\", \"voyager\", \"\", \"\"))[7d:1h]) or on (instance, device) label_replace(group by (instance, device) (node_disk_info{job=\"node-exporter\", instance!~\"k8s-.*\", device=~\"sda|nvme0n1\"}), \"device\", \"$1\", \"device\", \"(nvme[0-9]+)n[0-9]+\")) * 0 + 1, \"dashboard\", \"homelab-host-$1\", \"instance\", \"(.+)\")",
+          "format": "table",
+          "instant": true,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          }
+        },
+        {
+          "refId": "D",
+          "expr": "(max by (instance, device) (last_over_time(smartctl_device_available_spare{job=\"smartctl\"}[7d]))) * on (instance, device) group_left (model_name, dashboard) label_replace((topk by (instance, device) (1, max by (instance, device, model_name) (last_over_time(timestamp(smartctl_device{job=\"smartctl\"})[7d:10m]))) or on (instance, device) last_over_time(max by (instance, device) (label_replace(label_replace({__name__=~\"servers_Voyager_local_disktemp_.+_temperature\"}, \"device\", \"$1\", \"__name__\", \"servers_Voyager_local_disktemp_(.+)_temperature\"), \"instance\", \"voyager\", \"\", \"\"))[7d:1h]) or on (instance, device) label_replace(group by (instance, device) (node_disk_info{job=\"node-exporter\", instance!~\"k8s-.*\", device=~\"sda|nvme0n1\"}), \"device\", \"$1\", \"device\", \"(nvme[0-9]+)n[0-9]+\")) * 0 + 1, \"dashboard\", \"homelab-host-$1\", \"instance\", \"(.+)\")",
+          "format": "table",
+          "instant": true,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          }
+        },
+        {
+          "refId": "E",
+          "expr": "(max by (instance, device) (last_over_time(smartctl_device_media_errors{job=\"smartctl\"}[7d]))) * on (instance, device) group_left (model_name, dashboard) label_replace((topk by (instance, device) (1, max by (instance, device, model_name) (last_over_time(timestamp(smartctl_device{job=\"smartctl\"})[7d:10m]))) or on (instance, device) last_over_time(max by (instance, device) (label_replace(label_replace({__name__=~\"servers_Voyager_local_disktemp_.+_temperature\"}, \"device\", \"$1\", \"__name__\", \"servers_Voyager_local_disktemp_(.+)_temperature\"), \"instance\", \"voyager\", \"\", \"\"))[7d:1h]) or on (instance, device) label_replace(group by (instance, device) (node_disk_info{job=\"node-exporter\", instance!~\"k8s-.*\", device=~\"sda|nvme0n1\"}), \"device\", \"$1\", \"device\", \"(nvme[0-9]+)n[0-9]+\")) * 0 + 1, \"dashboard\", \"homelab-host-$1\", \"instance\", \"(.+)\")",
+          "format": "table",
+          "instant": true,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          }
+        },
+        {
+          "refId": "F",
+          "expr": "(sum by (instance, device) (last_over_time(smartctl_device_attribute{job=\"smartctl\", attribute_name=~\"Reallocated_Sector_Ct|Current_Pending_Sector|Offline_Uncorrectable\", attribute_value_type=\"raw\"}[7d])) or max by (instance, device) (last_over_time(smartctl_scsi_grown_defect_list{job=\"smartctl\"}[7d]))) * on (instance, device) group_left (model_name, dashboard) label_replace((topk by (instance, device) (1, max by (instance, device, model_name) (last_over_time(timestamp(smartctl_device{job=\"smartctl\"})[7d:10m]))) or on (instance, device) last_over_time(max by (instance, device) (label_replace(label_replace({__name__=~\"servers_Voyager_local_disktemp_.+_temperature\"}, \"device\", \"$1\", \"__name__\", \"servers_Voyager_local_disktemp_(.+)_temperature\"), \"instance\", \"voyager\", \"\", \"\"))[7d:1h]) or on (instance, device) label_replace(group by (instance, device) (node_disk_info{job=\"node-exporter\", instance!~\"k8s-.*\", device=~\"sda|nvme0n1\"}), \"device\", \"$1\", \"device\", \"(nvme[0-9]+)n[0-9]+\")) * 0 + 1, \"dashboard\", \"homelab-host-$1\", \"instance\", \"(.+)\")",
+          "format": "table",
+          "instant": true,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          }
+        },
+        {
+          "refId": "G",
+          "expr": "(max by (instance, device) (last_over_time(smartctl_device_critical_warning{job=\"smartctl\"}[7d]))) * on (instance, device) group_left (model_name, dashboard) label_replace((topk by (instance, device) (1, max by (instance, device, model_name) (last_over_time(timestamp(smartctl_device{job=\"smartctl\"})[7d:10m]))) or on (instance, device) last_over_time(max by (instance, device) (label_replace(label_replace({__name__=~\"servers_Voyager_local_disktemp_.+_temperature\"}, \"device\", \"$1\", \"__name__\", \"servers_Voyager_local_disktemp_(.+)_temperature\"), \"instance\", \"voyager\", \"\", \"\"))[7d:1h]) or on (instance, device) label_replace(group by (instance, device) (node_disk_info{job=\"node-exporter\", instance!~\"k8s-.*\", device=~\"sda|nvme0n1\"}), \"device\", \"$1\", \"device\", \"(nvme[0-9]+)n[0-9]+\")) * 0 + 1, \"dashboard\", \"homelab-host-$1\", \"instance\", \"(.+)\")",
+          "format": "table",
+          "instant": true,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          }
+        },
+        {
+          "refId": "H",
+          "expr": "(max by (instance, device) (last_over_time(smartctl_device_power_on_seconds{job=\"smartctl\"}[7d])) / 3600) * on (instance, device) group_left (model_name, dashboard) label_replace((topk by (instance, device) (1, max by (instance, device, model_name) (last_over_time(timestamp(smartctl_device{job=\"smartctl\"})[7d:10m]))) or on (instance, device) last_over_time(max by (instance, device) (label_replace(label_replace({__name__=~\"servers_Voyager_local_disktemp_.+_temperature\"}, \"device\", \"$1\", \"__name__\", \"servers_Voyager_local_disktemp_(.+)_temperature\"), \"instance\", \"voyager\", \"\", \"\"))[7d:1h]) or on (instance, device) label_replace(group by (instance, device) (node_disk_info{job=\"node-exporter\", instance!~\"k8s-.*\", device=~\"sda|nvme0n1\"}), \"device\", \"$1\", \"device\", \"(nvme[0-9]+)n[0-9]+\")) * 0 + 1, \"dashboard\", \"homelab-host-$1\", \"instance\", \"(.+)\")",
+          "format": "table",
+          "instant": true,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          }
+        },
+        {
+          "refId": "I",
+          "expr": "(max by (instance, device) (last_over_time(smartctl_device_bytes_written{job=\"smartctl\"}[7d]))) * on (instance, device) group_left (model_name, dashboard) label_replace((topk by (instance, device) (1, max by (instance, device, model_name) (last_over_time(timestamp(smartctl_device{job=\"smartctl\"})[7d:10m]))) or on (instance, device) last_over_time(max by (instance, device) (label_replace(label_replace({__name__=~\"servers_Voyager_local_disktemp_.+_temperature\"}, \"device\", \"$1\", \"__name__\", \"servers_Voyager_local_disktemp_(.+)_temperature\"), \"instance\", \"voyager\", \"\", \"\"))[7d:1h]) or on (instance, device) label_replace(group by (instance, device) (node_disk_info{job=\"node-exporter\", instance!~\"k8s-.*\", device=~\"sda|nvme0n1\"}), \"device\", \"$1\", \"device\", \"(nvme[0-9]+)n[0-9]+\")) * 0 + 1, \"dashboard\", \"homelab-host-$1\", \"instance\", \"(.+)\")",
+          "format": "table",
+          "instant": true,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          }
+        },
+        {
+          "refId": "K",
+          "expr": "(max by (instance, device) (last_over_time(smartctl_device_temperature{job=\"smartctl\", temperature_type=\"current\"}[7d]))) * on (instance, device) group_left (model_name, dashboard) label_replace((topk by (instance, device) (1, max by (instance, device, model_name) (last_over_time(timestamp(smartctl_device{job=\"smartctl\"})[7d:10m]))) or on (instance, device) last_over_time(max by (instance, device) (label_replace(label_replace({__name__=~\"servers_Voyager_local_disktemp_.+_temperature\"}, \"device\", \"$1\", \"__name__\", \"servers_Voyager_local_disktemp_(.+)_temperature\"), \"instance\", \"voyager\", \"\", \"\"))[7d:1h]) or on (instance, device) label_replace(group by (instance, device) (node_disk_info{job=\"node-exporter\", instance!~\"k8s-.*\", device=~\"sda|nvme0n1\"}), \"device\", \"$1\", \"device\", \"(nvme[0-9]+)n[0-9]+\")) * 0 + 1, \"dashboard\", \"homelab-host-$1\", \"instance\", \"(.+)\")",
+          "format": "table",
+          "instant": true,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          }
+        },
+        {
+          "refId": "NetBoxDevices",
+          "datasource": {
+            "type": "netboxlabs-netbox-datasource",
+            "uid": "netbox"
+          },
+          "queryType": "objects",
+          "objectType": "dcim/devices",
+          "fields": [
+            "name",
+            "device_type",
+            "display_url"
+          ],
+          "joinKeys": [
+            {
+              "source": "name",
+              "output": "instance",
+              "transform": "lower"
+            }
+          ],
+          "limit": 500
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Health"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "3": {
+                        "text": "Failing",
+                        "color": "red"
+                      },
+                      "2": {
+                        "text": "Errors",
+                        "color": "orange"
+                      },
+                      "-1": {
+                        "text": "Not reported",
+                        "color": "blue"
+                      },
+                      "0": {
+                        "text": "OK",
+                        "color": "green"
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Wear"
+            },
+            "properties": [
+              {
+                "id": "noValue",
+                "value": "—"
+              },
+              {
+                "id": "unit",
+                "value": "percent"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "orange",
+                      "value": 80
+                    },
+                    {
+                      "color": "red",
+                      "value": 100
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Basis"
+            },
+            "properties": [
+              {
+                "id": "noValue",
+                "value": "—"
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "0": {
+                        "text": "Endurance used",
+                        "color": "text"
+                      },
+                      "1": {
+                        "text": "Age of 5-year life",
+                        "color": "text"
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Spare"
+            },
+            "properties": [
+              {
+                "id": "noValue",
+                "value": "—"
+              },
+              {
+                "id": "unit",
+                "value": "percent"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Media errors"
+            },
+            "properties": [
+              {
+                "id": "noValue",
+                "value": "—"
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "orange",
+                      "value": 1
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Bad sectors"
+            },
+            "properties": [
+              {
+                "id": "noValue",
+                "value": "—"
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "orange",
+                      "value": 1
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Critical warning"
+            },
+            "properties": [
+              {
+                "id": "noValue",
+                "value": "—"
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "red",
+                      "value": 1
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Power-on"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "h"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Written"
+            },
+            "properties": [
+              {
+                "id": "noValue",
+                "value": "—"
+              },
+              {
+                "id": "unit",
+                "value": "decbytes"
+              },
+              {
+                "id": "decimals",
+                "value": 1
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "°C"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "celsius"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "dashboard"
+            },
+            "properties": [
+              {
+                "id": "custom.hidden",
+                "value": true
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Host"
+            },
+            "properties": [
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "Open ${__value.raw}",
+                    "url": "/d/${__data.fields.dashboard}"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "NetBox"
+            },
+            "properties": [
+              {
+                "id": "noValue",
+                "value": "not in NetBox"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "display_url"
+            },
+            "properties": [
+              {
+                "id": "custom.hidden",
+                "value": true
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "sortBy": [
+          {
+            "displayName": "Health",
+            "desc": true
+          },
+          {
+            "displayName": "Wear",
+            "desc": true
+          }
+        ]
+      },
+      "transformations": [
+        {
+          "id": "merge",
+          "options": {},
+          "filter": {
+            "id": "byRefId",
+            "options": "/^(?:A|B|C|D|E|F|G|H|I|K)$/"
+          }
+        },
+        {
+          "id": "joinByField",
+          "options": {
+            "byField": "instance",
+            "mode": "outerTabular"
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
+            "regex": "^(.+) netbox_[a-z_]+$",
+            "renamePattern": "$1"
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true
+            },
+            "indexByName": {
+              "instance": 0,
+              "device": 3,
+              "model_name": 4,
+              "Value #A": 5,
+              "Value #B": 6,
+              "Value #C": 7,
+              "Value #D": 8,
+              "Value #E": 9,
+              "Value #F": 10,
+              "Value #G": 11,
+              "Value #H": 12,
+              "Value #I": 13,
+              "Value #K": 14,
+              "dashboard": 15,
+              "name": 1,
+              "device_type": 2
+            },
+            "renameByName": {
+              "instance": "Host",
+              "device": "Device",
+              "model_name": "Model",
+              "Value #A": "Health",
+              "Value #B": "Wear",
+              "Value #C": "Basis",
+              "Value #D": "Spare",
+              "Value #E": "Media errors",
+              "Value #F": "Bad sectors",
+              "Value #G": "Critical warning",
+              "Value #H": "Power-on",
+              "Value #I": "Written",
+              "Value #K": "°C",
+              "name": "NetBox",
+              "device_type": "NetBox model"
+            }
+          }
+        },
+        {
+          "id": "filterByValue",
+          "options": {
+            "type": "exclude",
+            "match": "any",
+            "filters": [
+              {
+                "fieldName": "Health",
+                "config": {
+                  "id": "isNull",
+                  "options": {}
+                }
+              }
+            ]
+          }
+        }
+      ],
+      "id": 9,
+      "gridPos": {
+        "h": 14,
+        "w": 24,
+        "x": 0,
+        "y": 6
+      }
+    },
+    {
+      "type": "row",
+      "title": "Over time",
+      "collapsed": false,
+      "id": 10,
+      "panels": [],
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 20
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Wear per drive, 30 days",
+      "description": "Each drive's Wear, as in the table: endurance used for an SSD, power-on hours against a 5-year (43,800 h) life for a hard disk. Click a line to open the host.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "timeFrom": "30d",
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "label_replace(max by (instance, device) (smartctl_device_percentage_used{job=\"smartctl\"}) or max by (instance, device) (smartctl_scsi_percentage_used_endurance_indicator{job=\"smartctl\"}) or max by (instance, device) (100 - smartctl_device_attribute{job=\"smartctl\", attribute_name=~\"Wear_Leveling_Count|Percent_Lifetime_Remain|Media_Wearout_Indicator\", attribute_value_type=\"value\"}) or max by (instance, device) (smartctl_device_power_on_seconds{job=\"smartctl\"} / 3600 / 43800 * 100 and on (instance, device) smartctl_device_rotation_rate{job=\"smartctl\"} > 0), \"dashboard\", \"homelab-host-$1\", \"instance\", \"(.+)\")",
+          "legendFormat": "{{instance}} {{device}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 0,
+          "min": 0,
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 0,
+            "showPoints": "never",
+            "thresholdsStyle": {
+              "mode": "line"
+            }
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 80
+              },
+              {
+                "color": "red",
+                "value": 100
+              }
+            ]
+          },
+          "links": [
+            {
+              "title": "Open ${__field.labels.instance}",
+              "url": "/d/${__field.labels.dashboard}"
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "lastNotNull"
+          ],
+          "sortBy": "Last *",
+          "sortDesc": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "id": 11,
+      "gridPos": {
+        "h": 10,
+        "w": 12,
+        "x": 0,
+        "y": 21
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Written per day",
+      "description": "Bytes each drive wrote per day, from its own lifetime counter (NVMe and SCSI drives only). Click a bar to open the host.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "timeFrom": "30d",
+      "interval": "1d",
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "label_replace(max by (instance, device) (increase(smartctl_device_bytes_written{job=\"smartctl\"}[1d])), \"dashboard\", \"homelab-host-$1\", \"instance\", \"(.+)\")",
+          "legendFormat": "{{instance}} {{device}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "decbytes",
+          "decimals": 1,
+          "min": 0,
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 80,
+            "lineWidth": 1,
+            "showPoints": "never",
+            "stacking": {
+              "mode": "none"
+            }
+          },
+          "links": [
+            {
+              "title": "Open ${__field.labels.instance}",
+              "url": "/d/${__field.labels.dashboard}"
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "mean",
+            "max"
+          ],
+          "sortBy": "Mean",
+          "sortDesc": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "id": 12,
+      "gridPos": {
+        "h": 10,
+        "w": 12,
+        "x": 12,
+        "y": 21
+      }
+    }
+  ],
+  "annotations": {
+    "list": [
+      {
+        "name": "Flux",
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "iconColor": "purple",
+        "target": {
+          "type": "tags",
+          "tags": [
+            "flux"
+          ],
+          "matchAny": true,
+          "limit": 100
+        }
+      },
+      {
+        "name": "NetBox",
+        "datasource": {
+          "type": "netboxlabs-netbox-datasource",
+          "uid": "netbox"
+        },
+        "enable": true,
+        "iconColor": "blue",
+        "target": {
+          "refId": "Anno",
+          "queryType": "annotations"
+        }
+      },
+      {
+        "name": "Operator",
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "iconColor": "orange",
+        "target": {
+          "type": "tags",
+          "tags": [
+            "operator"
+          ],
+          "matchAny": true,
+          "limit": 100
+        }
+      },
+      {
+        "name": "Proxmox",
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "iconColor": "yellow",
+        "target": {
+          "type": "tags",
+          "tags": [
+            "proxmox"
+          ],
+          "matchAny": true,
+          "limit": 100
+        }
+      }
+    ]
+  }
+}

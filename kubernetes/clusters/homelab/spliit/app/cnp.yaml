@@ -1,0 +1,25 @@
+# Only Spliit reaches the database, and only alloy-cluster its exporter.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: postgres-ingress
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: postgres
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: spliit
+      toPorts:
+        - ports:
+            - port: "5432"
+              protocol: TCP
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: alloy
+            app.kubernetes.io/instance: alloy-cluster
+      toPorts:
+        - ports:
+            - port: "9187"
+              protocol: TCP

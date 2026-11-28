@@ -24,11 +24,13 @@ when something breaks.
   workflow (`.github/workflows/lint.yaml`) runs on every Renovate PR: the
   drift guards in `make -C kubernetes lint-offline`, `make -C ansible build
   lint` and `tofu fmt`. It proves a PR is consistent and installs, not that
-  the new version runs on the cluster. Updates land on weekends, at most five PRs
-  open at once. A security update ignores the schedule when GitHub raises
-  a vulnerability alert for it, which covers the Python packages but not the
-  images, charts or annotated pins. The Dependency
-  Dashboard issue lists everything pending.
+  the new version runs on the cluster. The Dependency Dashboard issue lists
+  everything pending.
+
+- **Every update opens at once.** There is no schedule, no hourly cap and no
+  cap on open PRs (`prHourlyLimit` and `prConcurrentLimit` are 0). Each run
+  of the hosted app opens a PR for every update it finds. The cost is review
+  load: a backlog lands as one wave of PRs, each running CI.
 
 - **Every cluster tree.** The `flux` and `kubernetes` managers match
   `kubernetes/clusters/*/**`, so a new tree is covered without a config
@@ -51,6 +53,12 @@ when something breaks.
   never bump one at a time. If a Flux PR arrives without the regenerated
   file, its note says to run `make -C kubernetes generate` on the branch.
 
+  Grafana's `image.tag` and its plugin installer's image are a pair too,
+  in one file. A custom manager reads the tag as `docker.io/grafana/grafana`,
+  the installer image's depName, so both fall in `config:recommended`'s
+  Grafana monorepo group and share the `renovate/grafana-monorepo` branch.
+  A Grafana chart PR therefore leaves Grafana's version alone.
+
 - **Talos stays below 1.14.** Talos 1.14 makes `usb-storage` a kernel
   module and stops waiting for USB disks, so the Pis boot into maintenance
   mode ([siderolabs/talos#14260](https://github.com/siderolabs/talos/issues/14260)).
@@ -58,6 +66,12 @@ when something breaks.
   caps are `allowedVersions` rules; lift them with the `versions.env` hold.
   Merging a Talos or Kubernetes PR changes no node: `make -C ansible
   apply-upgrade` rolls it out (`docs/talos-bootstrap.md`).
+
+- **PostgreSQL majors are manual.** A new PostgreSQL major refuses the
+  previous major's data directory, so the per-app databases (Spliit, Sure,
+  and Dawarich's PostGIS) would crash on a merged major bump. Renovate opens
+  minor and digest updates only. A major upgrade is a `pg_dumpall` from the
+  old pod, a fresh volume, and a restore into the new one.
 
 - **Workflow actions stay SHA-pinned.** `config:recommended` updates each
   `uses: …@<sha> # vX.Y.Z` pin's digest and version comment together. The
@@ -68,6 +82,8 @@ when something breaks.
   with no version. Every entry in `ansible/collections/requirements.yaml`
   carries the version that runs today. The venv holds `ansible-core` only,
   so `~/.ansible/collections` is the one copy of each collection.
+  `community.general` stays below 14, whose `requires_ansible` is 2.19:
+  it follows the `ansible-core` hold, and the two lift together.
 
 - **A HelmRepository name used in two namespaces needs `metadata.namespace`.**
   Renovate matches a HelmRelease's `sourceRef` by name and namespace, and
@@ -78,13 +94,22 @@ when something breaks.
 - **The Python freeze is one PR.** `ansible/requirements.txt` pins every
   transitive package, so separate PRs would number in the dozens and
   merge into sets that do not install. All its updates share the
-  `ansible python deps` group, with majors in a second PR.
+  `ansible python deps` group, majors included: a minor in one pin can
+  require a major in another (wcmatch 10.2 needs bracex 3), so a split
+  PR does not install. `ansible-core` stays below 2.19, and `resolvelib`
+  below 1.1 with it: 2.19 changes the callback API the `redact` callback
+  uses and breaks the pinned `community.sops` (#404). `passlib` stays below
+  1.8: PyPI's 1.9.5 comes from the `libpass` fork's repository with no
+  announced transfer of the name, and passlib hashes the preseed root
+  passwords. Lift the rule once the fork or PyPI confirms the transfer.
 
 - **Annotated pins.** A pin that no built-in manager reads carries a
   `# renovate: datasource=… depName=…` comment on the line above it:
   `versions.env`, the `install.sh` tool versions, and the Pi netboot
-  `uboot_version` and `rpi_firmware_version`. One custom manager reads them
-  all. Two more custom managers read the digest-pinned `dns_lancache_image`
+  `uboot_version` and `rpi_firmware_version`, and CI's `AGE_VERSION` in
+  `.github/workflows/lint.yaml`. One custom manager reads them all; it allows
+  indentation before the pinned name, because the workflow's pin is a step
+  `env:` key. Two more custom managers read the digest-pinned `dns_lancache_image`
   and the Grafana NetBox plugin version in the Grafana values.
 
 - **PR notes carry the manual steps.**

@@ -6,13 +6,11 @@
     'config:recommended',
     ':dependencyDashboard',
     ':semanticCommitTypeAll(chore)',
-    'schedule:weekends',
   ],
   labels: ['dependencies'],
-  prConcurrentLimit: 5,
-  vulnerabilityAlerts: {
-    schedule: ['at any time'],
-  },
+  // Every update opens as soon as Renovate sees it: no schedule, no PR caps.
+  prHourlyLimit: 0,
+  prConcurrentLimit: 0,
   flux: {
     managerFilePatterns: ['/^kubernetes/clusters/.+\\.ya?ml$/'],
   },
@@ -27,9 +25,10 @@
         '/^versions\\.env$/',
         '/^install\\.sh$/',
         '/^ansible/roles/00-pxe/defaults/main\\.yaml$/',
+        '/^\\.github/workflows/.+\\.ya?ml$/',
       ],
       matchStrings: [
-        '# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)( registryUrl=(?<registryUrl>\\S+))?( extractVersion=(?<extractVersion>\\S+))?\\n[A-Za-z_]+[=:] ?"?(?<currentValue>[^"\\s]+)"?',
+        '# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)( registryUrl=(?<registryUrl>\\S+))?( extractVersion=(?<extractVersion>\\S+))?\\n\\s*[A-Za-z_]+[=:] ?"?(?<currentValue>[^"\\s]+)"?',
       ],
     },
     {
@@ -50,6 +49,14 @@
       datasourceTemplate: 'github-releases',
       extractVersionTemplate: '^v(?<version>.+)$',
     },
+    {
+      description: 'Grafana image.tag; as docker.io/grafana/grafana it joins the plugin installer image in the grafana monorepo group (make -C kubernetes lint)',
+      customType: 'regex',
+      managerFilePatterns: ['/^kubernetes/clusters/[^/]+/monitoring/app/grafana/values\\.yaml$/'],
+      matchStrings: ['\\nimage:\\n  tag: (?<currentValue>\\S+)\\n'],
+      depNameTemplate: 'docker.io/grafana/grafana',
+      datasourceTemplate: 'docker',
+    },
   ],
   packageRules: [
     {
@@ -64,6 +71,7 @@
       groupName: 'alloy chart',
       prBodyNotes: [
         'Set `alloy_version` in `ansible/roles/alloy/defaults/main.yaml` to this chart\'s appVersion (`apt-cache madison alloy`), then `make -C ansible apply-alloy`.',
+        'Re-vendor the `Alloy/` dashboards at this chart\'s appVersion tag: `docs/design/observability.md`, "Alloy mixin dashboards".',
       ],
     },
     {
@@ -85,6 +93,13 @@
       allowedVersions: '<1.37.0',
     },
     {
+      description: 'A PostgreSQL major cannot start on the previous major\'s data directory: upgrade by hand with a dump and restore (docs/design/renovate.md)',
+      matchDatasources: ['docker'],
+      matchPackageNames: ['docker.io/library/postgres', 'docker.io/imresamu/postgis'],
+      matchUpdateTypes: ['major'],
+      enabled: false,
+    },
+    {
       matchPackageNames: ['siderolabs/talos', 'kubernetes/kubernetes'],
       prBodyNotes: [
         'Merging changes no node. Roll it out with `make -C ansible apply-upgrade` (docs/talos-bootstrap.md, "Rebuild / bumping versions").',
@@ -100,12 +115,36 @@
       prBodyNotes: ['A bad bump stops the Pis netbooting. Netboot one Pi from the operator VM before merging.'],
     },
     {
-      description: 'ansible/requirements.txt is a full freeze: one PR, majors apart, checked as a set',
+      description: 'ansible/requirements.txt is a full freeze: one PR, majors included, because a minor can need another pin\'s major (wcmatch 10.2 needs bracex 3)',
       matchManagers: ['pip_requirements'],
       groupName: 'ansible python deps',
+      separateMajorMinor: false,
       prBodyNotes: [
         'Check the set installs: `make -C ansible build` then `make -C ansible lint`.',
       ],
+    },
+    {
+      description: 'ansible-core 2.19+ breaks the redact callback and community.sops; resolvelib follows ansible-core 2.18\'s cap',
+      matchManagers: ['pip_requirements'],
+      matchPackageNames: ['ansible-core'],
+      allowedVersions: '<2.19.0',
+    },
+    {
+      matchManagers: ['pip_requirements'],
+      matchPackageNames: ['resolvelib'],
+      allowedVersions: '<1.1.0',
+    },
+    {
+      description: 'community.general 14 requires ansible-core 2.19, which the rule above holds back',
+      matchManagers: ['ansible-galaxy'],
+      matchPackageNames: ['community.general'],
+      allowedVersions: '<14.0.0',
+    },
+    {
+      description: 'passlib 1.9.5 on PyPI comes from the libpass fork with no announced name transfer; hold until the transfer is confirmed (docs/design/renovate.md)',
+      matchManagers: ['pip_requirements'],
+      matchPackageNames: ['passlib'],
+      allowedVersions: '<1.8.0',
     },
     {
       description: 'CI Python matches the operator venv: 3.14 has no rpds-py wheel (.github/workflows/lint.yaml)',

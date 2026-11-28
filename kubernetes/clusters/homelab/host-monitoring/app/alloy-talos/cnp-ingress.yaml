@@ -1,0 +1,36 @@
+# Pods may not inject Talos log lines; LAN clients are stopped earlier, by the
+# Service's source ranges. Nodes are the host and remote-node entities.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: alloy-talos-ingress
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/instance: alloy-talos
+  enableDefaultDeny:
+    ingress: true
+    egress: false
+  ingress:
+    - fromEntities:
+        - host
+        - remote-node
+      toPorts:
+        - ports:
+            - port: "5170"
+              protocol: TCP
+    # Kubelet probes come from host; alloy-cluster scrapes the pod annotation.
+    - fromEntities:
+        - host
+      toPorts:
+        - ports:
+            - port: "12345"
+              protocol: TCP
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: alloy
+            app.kubernetes.io/instance: alloy-cluster
+      toPorts:
+        - ports:
+            - port: "12345"
+              protocol: TCP

@@ -6,6 +6,7 @@ resources:
   - secret-jellyfin-exporter.sops.yaml
   - secret-arr-apikeys.sops.yaml
   - secret-exporter-apikeys.sops.yaml
+  - secret-recyclarr-api.sops.yaml
   - pv-library.yaml
   - pvc-library.yaml
   - pvc-jellyfin-config.yaml
@@ -16,6 +17,7 @@ resources:
   - pvc-bazarr-config.yaml
   - pvc-seerr-config.yaml
   - pvc-sabnzbd-config.yaml
+  - pvc-recyclarr-state.yaml
   - jellyfin.yaml
   - jellyfin-exporter.yaml
   - prowlarr.yaml
@@ -33,12 +35,13 @@ resources:
   - sabnzbd.yaml
   - sabnzbd-exporter.yaml
   - recyclarr.yaml
-# Recyclarr's config, hashed so an edit rolls the next job. Substitution is
-# disabled: the file is embedded verbatim and envsubst would eat its `$schema`.
+# Recyclarr's config, hashed so an edit rolls the pod. Substitution is
+# disabled: the files are embedded verbatim and envsubst would eat each `$schema`.
 configMapGenerator:
   - name: recyclarr-config
     files:
       - config/recyclarr.yml
+      - config/settings.yml
 generatorOptions:
   labels:
     kustomize.toolkit.fluxcd.io/substitute: disabled

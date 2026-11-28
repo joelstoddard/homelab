@@ -29,7 +29,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: glance
-          image: docker.io/glanceapp/glance:v0.8.6
+          image: docker.io/glanceapp/glance:v0.8.8
           # stats.yml is not Flux-substituted, so Glance resolves DOMAIN there
           # from this variable, which Flux does substitute.
           env:
@@ -59,6 +59,9 @@ spec:
             - name: config
               mountPath: /app/config
               readOnly: true
+            - name: icons
+              mountPath: /app/assets
+              readOnly: true
           resources:
             requests:
               cpu: 10m
@@ -74,3 +77,6 @@ spec:
                   name: glance-config
               - configMap:
                   name: glance-stats
+        - name: icons
+          configMap:
+            name: glance-icons

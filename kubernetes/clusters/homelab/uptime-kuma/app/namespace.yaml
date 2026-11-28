@@ -1,0 +1,6 @@
+# No PodSecurity labels: the workload satisfies the "restricted" profile, so
+# Talos's default "baseline" enforcement passes without an opt-out.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: uptime-kuma

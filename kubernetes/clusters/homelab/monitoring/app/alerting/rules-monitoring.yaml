@@ -1,0 +1,164 @@
+apiVersion: 1
+groups:
+  - orgId: 1
+    name: monitoring
+    folder: Infrastructure
+    interval: 1m
+    rules:
+      - uid: infra-target-down
+        title: Scrape target down
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            relativeTimeRange: {from: 600, to: 0}
+            model:
+              refId: A
+              instant: true
+              expr: 'up'
+          - refId: B
+            datasourceUid: __expr__
+            model: {refId: B, type: reduce, expression: A, reducer: last}
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: B
+              conditions: [{evaluator: {type: lt, params: [1]}}]
+        noDataState: OK
+        execErrState: Error
+        for: 15m
+        annotations:
+          summary: '{{ $labels.job }} target {{ $labels.instance }} has been down for 15m'
+      # A failed blackbox probe still scrapes with up == 1, so the rule above never sees it.
+      - uid: infra-probe-failing
+        title: Probe failing
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            relativeTimeRange: {from: 600, to: 0}
+            model:
+              refId: A
+              instant: true
+              expr: 'min by (instance, module) (probe_success)'
+          - refId: B
+            datasourceUid: __expr__
+            model: {refId: B, type: reduce, expression: A, reducer: last}
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: B
+              conditions: [{evaluator: {type: lt, params: [1]}}]
+        noDataState: OK
+        execErrState: Error
+        for: 10m
+        annotations:
+          summary: '{{ $labels.module }} probe of {{ $labels.instance }} has failed for 10m'
+      - uid: infra-ingestion-stopped
+        title: Metric ingestion stopped
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            relativeTimeRange: {from: 600, to: 0}
+            model:
+              refId: A
+              instant: true
+              expr: 'count(up{job="prometheus"})'
+          - refId: B
+            datasourceUid: __expr__
+            model: {refId: B, type: reduce, expression: A, reducer: last}
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: B
+              conditions: [{evaluator: {type: lt, params: [1]}}]
+        noDataState: Alerting
+        execErrState: Alerting
+        for: 10m
+        annotations:
+          summary: 'No fresh samples for 10m (Prometheus or alloy-cluster down): metrics and every other alert are blind'
+      - uid: infra-prom-size-retention
+        title: Prometheus deleting by size
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            relativeTimeRange: {from: 600, to: 0}
+            model:
+              refId: A
+              instant: true
+              expr: 'increase(prometheus_tsdb_size_retentions_total[1h])'
+          - refId: B
+            datasourceUid: __expr__
+            model: {refId: B, type: reduce, expression: A, reducer: last}
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: B
+              conditions: [{evaluator: {type: gt, params: [0]}}]
+        noDataState: OK
+        execErrState: Error
+        for: 0m
+        annotations:
+          summary: 'Prometheus hit retentionSize and deleted blocks early: history is shorter than the time retention'
+      - uid: infra-alloy-remote-write
+        title: Alloy remote-write failing
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            relativeTimeRange: {from: 600, to: 0}
+            model:
+              refId: A
+              instant: true
+              expr: 'increase(prometheus_remote_storage_samples_failed_total[15m])'
+          - refId: B
+            datasourceUid: __expr__
+            model: {refId: B, type: reduce, expression: A, reducer: last}
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: B
+              conditions: [{evaluator: {type: gt, params: [0]}}]
+        noDataState: OK
+        execErrState: Error
+        for: 0m
+        annotations:
+          summary: '{{ $labels.pod }} failed {{ humanize $values.B.Value }} samples to Prometheus in 15m'
+      - uid: infra-loki-write-dropped
+        title: Alloy dropping log entries
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            relativeTimeRange: {from: 600, to: 0}
+            model:
+              refId: A
+              instant: true
+              expr: 'increase(loki_write_dropped_entries_total[15m])'
+          - refId: B
+            datasourceUid: __expr__
+            model: {refId: B, type: reduce, expression: A, reducer: last}
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: B
+              conditions: [{evaluator: {type: gt, params: [0]}}]
+        noDataState: OK
+        execErrState: Error
+        for: 0m
+        annotations:
+          summary: '{{ $labels.pod }} dropped {{ humanize $values.B.Value }} log entries to Loki in 15m ({{ $labels.reason }})'

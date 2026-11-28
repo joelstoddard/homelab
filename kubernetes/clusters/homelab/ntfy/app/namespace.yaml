@@ -1,0 +1,8 @@
+# PodSecurity "restricted": the workload runs as 1000 with no capability and a
+# read-only root.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ntfy
+  labels:
+    pod-security.kubernetes.io/enforce: restricted

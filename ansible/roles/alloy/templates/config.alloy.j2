@@ -1,5 +1,5 @@
 // Rendered by ansible/roles/alloy for {{ inventory_hostname | lower }}. Node
-// metrics and journald, pushed to the cluster over HTTPS with basic auth
+// metrics, SMART and journald, pushed to the cluster over HTTPS with basic auth
 // (kubernetes/clusters/homelab/monitoring/app/ingest/). docs/design/host-monitoring.md.
 
 local.file "hosts_password" {
@@ -56,6 +56,14 @@ prometheus.scrape "node" {
 	targets         = discovery.relabel.node.output
 	forward_to      = [prometheus.remote_write.cluster.receiver]
 	job_name        = "node-exporter"
+	scrape_interval = "{{ alloy_scrape_interval }}"
+}
+
+// smartctl_exporter on loopback (tasks/smartctl.yaml).
+prometheus.scrape "smartctl" {
+	targets         = [{"__address__" = "{{ alloy_smartctl_listen_address }}", "instance" = "{{ inventory_hostname | lower }}"}]
+	forward_to      = [prometheus.remote_write.cluster.receiver]
+	job_name        = "smartctl"
 	scrape_interval = "{{ alloy_scrape_interval }}"
 }
 

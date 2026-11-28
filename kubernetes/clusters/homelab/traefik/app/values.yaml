@@ -28,6 +28,20 @@ ports:
           to: websecure
           scheme: https
           permanent: true
+  # websecure's 60s readTimeout cuts any body still arriving at 60s; only the
+  # Proxmox routes join this port, where 1h covers a 6 GB ISO at 20 Mbit/s.
+  uploads:
+    port: 9443
+    expose:
+      default: true
+    exposedPort: 8443
+    protocol: TCP
+    http:
+      tls:
+        enabled: true
+    transport:
+      respondingTimeouts:
+        readTimeout: 1h
 providers:
   kubernetesCRD:
     # The shared default-headers Middleware, and each service's own
@@ -52,6 +66,14 @@ ingressRoute:
     middlewares:
       - name: default-headers
       - name: dashboard-auth
+# JSON to stdout, tailed into Loki by the node Alloy. Headers stay at the chart's
+# drop; query strings are dropped too, since some clients carry API keys there.
+accessLog:
+  enabled: true
+  format: json
+  fields:
+    queryParameters:
+      defaultMode: drop
 resources:
   requests:
     cpu: 25m
@@ -66,3 +88,6 @@ metrics:
     addEntryPointsLabels: true
     addRoutersLabels: true
     addServicesLabels: true
+    # The chart's default buckets (0.1, 0.3, 1.2 and 5 s) make every quantile coarse.
+    # These 13 bounds span 5 ms to 60 s and cost about 2,500 service series.
+    buckets: "0.005,0.01,0.025,0.05,0.1,0.25,0.5,1,2.5,5,10,30,60"

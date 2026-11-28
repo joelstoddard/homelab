@@ -1,4 +1,5 @@
 {
+  "annotations": {"list": [{"name": "Flux", "datasource": {"type": "grafana", "uid": "-- Grafana --"}, "enable": true, "iconColor": "purple", "target": {"type": "tags", "tags": ["flux"], "matchAny": true, "limit": 100}}, {"name": "NetBox", "datasource": {"type": "netboxlabs-netbox-datasource", "uid": "netbox"}, "enable": true, "iconColor": "blue", "target": {"refId": "Anno", "queryType": "annotations"}}, {"name": "Operator", "datasource": {"type": "grafana", "uid": "-- Grafana --"}, "enable": true, "iconColor": "orange", "target": {"type": "tags", "tags": ["operator"], "matchAny": true, "limit": 100}}, {"name": "Proxmox", "datasource": {"type": "grafana", "uid": "-- Grafana --"}, "enable": true, "iconColor": "yellow", "target": {"type": "tags", "tags": ["proxmox"], "matchAny": true, "limit": 100}}]},
   "id": null,
   "uid": "homelab-glance",
   "title": "Glance",
@@ -12,12 +13,11 @@
       "type": "stat",
       "title": "Availability",
       "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
-      "description": "kube-state-metrics series carry the collector's namespace, so the real one is exported_namespace.",
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "targets": [
         {
           "refId": "A",
-          "expr": "max(kube_pod_status_ready{exported_namespace=\"glance\", condition=\"true\"})"
+          "expr": "max(kube_pod_status_ready{namespace=\"glance\", condition=\"true\"})"
         }
       ],
       "fieldConfig": {
@@ -51,7 +51,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum(kube_pod_container_status_restarts_total{exported_namespace=\"glance\", container=\"glance\"})"
+          "expr": "sum(kube_pod_container_status_restarts_total{namespace=\"glance\", container=\"glance\"})"
         }
       ],
       "fieldConfig": {
@@ -181,7 +181,7 @@
         },
         {
           "refId": "B",
-          "expr": "max(kube_pod_container_resource_limits{exported_namespace=\"glance\", resource=\"cpu\"})",
+          "expr": "max(kube_pod_container_resource_limits{namespace=\"glance\", resource=\"cpu\"})",
           "legendFormat": "limit"
         }
       ],
@@ -205,7 +205,7 @@
         },
         {
           "refId": "B",
-          "expr": "max(kube_pod_container_resource_limits{exported_namespace=\"glance\", resource=\"memory\"})",
+          "expr": "max(kube_pod_container_resource_limits{namespace=\"glance\", resource=\"memory\"})",
           "legendFormat": "limit"
         }
       ],
@@ -219,7 +219,7 @@
       "type": "timeseries",
       "title": "Network throughput",
       "gridPos": { "h": 8, "w": 8, "x": 16, "y": 12 },
-      "description": "Mostly outbound: the pod polls a dozen check-urls a minute. Icons are fetched by the browser from a CDN and never cross this pod.",
+      "description": "Mostly outbound: the pod polls a dozen check-urls a minute. The tile icons are also served from this pod.",
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "targets": [
         {

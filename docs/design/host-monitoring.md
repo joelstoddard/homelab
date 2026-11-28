@@ -19,11 +19,12 @@ the constraints of the stack apply throughout: a public repo (no address or doma
 
 | Host | What it is | Agent | Data path |
 | --- | --- | --- | --- |
-| rumba, tango, salsa, samba | Debian 13 + Proxmox VE, Ansible group `proxmox` | yes | Alloy pushes node metrics and journald; `pve-exporter` polls the PVE API |
+| rumba, tango, salsa, samba | Debian 13 + Proxmox VE, Ansible group `proxmox` | yes | Alloy pushes node metrics, SMART and journald; `pve-exporter` polls the PVE API |
 | pihole-01, pihole-02 | The DNS chain's Pi-hole pair, Debian 13 LXCs (`docs/design/dns-chain.md`) | no — they resolve through Quad9, which cannot answer the ingest hostnames | `pihole-exporter` polls each v6 API; blackbox `dns_lookup`, `dns_wildcard` and `dns_lancache` probe each instance and the VIP |
 | bind9-01, bind9-02, lancache-01, lancache-02 | The DNS chain's BIND links, Debian 13 LXCs (`docs/design/dns-chain.md`) | no — same resolver constraint as the Pi-holes | `prometheus-bind-exporter` on each container, scraped by the gateway |
-| voyager | TrueNAS CORE (FreeBSD) | no — the base system stays stock, there are no Apps | Reporting → remote Graphite; System → Advanced → remote syslog |
-| hubble | ASUS router, stock firmware | no — nothing is installable | blackbox probes from the cluster; its own remote syslog |
+| voyager | TrueNAS CORE (FreeBSD) | no — the base system stays stock, there are no Apps; one static binary on the pool serves SMART | Reporting → remote Graphite; System → Advanced → remote syslog; `smartctl_exporter` scraped by the gateway |
+| operator | The PXE server every Pi boot depends on (`docs/netbooting-pis.md`) | no | blackbox `http_2xx` on Caddy's `/boot/uboot.scr` at `${OPERATOR_IP}` |
+| hubble | ASUS router, stock firmware | no — nothing is installable | blackbox probes from the cluster; its own remote syslog; Home Assistant's ASUSWRT integration polls its web API for CPU, memory, temperature and WAN counters |
 
 ## Design
 
@@ -84,6 +85,12 @@ the constraints of the stack apply throughout: a public repo (no address or doma
   target's `module` label; that label survives the relabel because
   `hubble` appears once per module and nothing else tells the three
   series apart.
+- **The Pis are probed from `alloy-cluster`, not the gateway.** Their
+  addresses are node addresses, so `alloy-cluster` discovers the arm64 nodes
+  and probes each one's Talos API (TCP 50000, `tcp_connect`) through the same
+  blackbox exporter, with `instance` set to the node name. No address enters
+  git, and a new Pi is probed once it joins. Check:
+  `count by (instance)(probe_success{module="tcp_connect"})` includes every Pi (it also lists hubble, the NUCs and voyager).
 - **The exporters whose `/metrics` is the data are scraped once.**
   `pihole-exporter` and `graphite-exporter` carry no `prometheus.io/scrape`
   annotation: their endpoints are the Pi-hole and TrueNAS data, and the
@@ -97,7 +104,10 @@ the constraints of the stack apply throughout: a public repo (no address or doma
   the `cilium-lb` pool like Traefik's, is claimed by two Services that share
   it through `lbipam.cilium.io/sharing-key: ingest`: `graphite` on TCP 2003
   and `syslog` on UDP and TCP 514. TrueNAS and the router need a fixed
-  address to send to, and one is enough.
+  address to send to, and one is enough. Both set
+  `allocateLoadBalancerNodePorts: false`, so neither receiver also listens
+  on a high port of every node's address; `make -C kubernetes lint-offline`
+  fails if either loses it.
 - **Syslog listens on 1514 in the pod.** The chart runs Alloy as its default
   user, root today, but 1514 needs neither root nor `NET_BIND_SERVICE` to
   bind — correct whatever the chart's user — so `alloy.extraPorts` opens 1514
@@ -247,16 +257,103 @@ the constraints of the stack apply throughout: a public repo (no address or doma
   the cluster's `secret-pve-exporter.sops.yaml` keys `PVE_USER`,
   `PVE_TOKEN_NAME` and `PVE_TOKEN_VALUE` (Ansible doesn't write the
   Kubernetes Secret: two systems, one hand-off).
+- **SMART from the NUCs' own disks.** Each NUC runs Debian's
+  `prometheus-smartctl-exporter` on `127.0.0.1:9633`, and that host's Alloy
+  scrapes it on the 60 s interval and pushes it through the existing
+  `prometheus.remote_write`. There is no new network path, no LAN port and
+  no cluster-side target. Debian packages the exporter in
+  `trixie-backports` only (0.14.0), so the role adds that source. Backports
+  sit at apt priority 100, so a host upgrade takes nothing else from them.
+  The packaged unit runs as root, which `smartctl` needs to read the
+  devices. Its postinst starts the unit at once on every address, so the
+  loopback drop-in is written before the package installs. Each NUC has one
+  NVMe drive, so the series are the NVMe set (health, critical warning,
+  percentage used, spare, media errors, error-log entries, temperature,
+  power-on time, bytes read and written): 53 series per host, the Go
+  runtime's included. The SMART row of each host dashboard
+  (`Hosts/<host>.json`, generated by `hosts.py`) reads them. `smartctl_device`
+  carries `serial_number` as a label, so the serials live in Prometheus; no
+  dashboard queries that label. The exporter
+  uses 3-8 MiB per host. The NUCs hold no ZFS pool (the root is ext4 on a
+  plain partition), so there is no ZFS detail to collect there; the fleet's
+  ZFS is TrueNAS, which reports through its Graphite stream.
+- **CPU power.** Each NUC exposes four RAPL zones under
+  `/sys/class/powercap`: `package-0` (the CPU package), `core`, `uncore` (the
+  integrated GPU) and `psys` (the whole platform). The unix exporter's `rapl`
+  collector turns them into `node_rapl_*_joules_total`, whose rate is watts.
+  Since kernel 5.10 the `energy_uj` files are root-only, closing the PLATYPUS
+  side channel, in which an unprivileged process infers another's secrets
+  from fine-grained power readings; Alloy runs as `alloy`, so the collector
+  failed (`node_scrape_collector_success{collector="rapl"} 0`). A udev rule
+  from the `alloy` role gives the files group `alloy`, mode `0440`, on every
+  `add` or `change` uevent. Every other account keeps the kernel default.
+  The trade-off is accepted because the hypervisors run only the operator's
+  own guests and services: QEMU guests cannot read the host's sysfs, and
+  the unprivileged DNS containers share the kernel but map no host group,
+  so the `alloy` gid is not theirs. The rule matches `intel-rapl*:*`, which
+  also covers `intel-rapl-mmio` zones on CPUs that have them; the collector
+  fails whole on the first unreadable zone.
 - **Two settings are clicked, not committed.** TrueNAS CORE: System →
   Reporting → Remote Graphite Server, and System → Advanced → Syslog server
   (UDP), both the ingest address. The router: System Log → Remote log server,
   the same address. Nothing in this repo can assert them, which is why the
   address is pinned — a moved `INGEST_LB_IP` means two UIs to revisit.
 
+## SMART on Voyager
+
+CORE's collectd stream carries no SMART data, so `smartctl_exporter` v0.15.0
+runs on Voyager as one static binary kept on the pool, outside the base
+system, started by a Post Init script (`scripts/truenas/smartctl-exporter.sh`).
+It reads the disks as root and uses CORE's own `/usr/local/sbin/smartctl`
+(smartmontools' FreeBSD install path; CORE bundles smartmontools for its
+S.M.A.R.T. service). Nothing on CORE blocks 9633 unless a firewall was added,
+and `alloy-gateway` must reach it. Port 9633 serves SMART data
+unauthenticated on the LAN. Install by hand, as root on Voyager
+(System → Shell, or SSH):
+
+1. Confirm `ls /usr/local/sbin/smartctl` finds the file; if not, point
+   `--smartctl.path` in the script at the path `which smartctl` prints.
+2. Stage the release and check it against the release's `sha256sums.txt`:
+
+   ```sh
+   mkdir -p /mnt/Voyager/scripts && cd /mnt/Voyager/scripts
+   fetch -o smartctl_exporter.tar.gz https://github.com/prometheus-community/smartctl_exporter/releases/download/v0.15.0/smartctl_exporter-0.15.0.freebsd-amd64.tar.gz
+   sha256 -q smartctl_exporter.tar.gz
+   ```
+
+   The output must be `cbb8d5eb75bbd3deb6485e1f342d765ff76a26db458e196ce198368a72770d58`.
+   If not, delete the file and stop.
+3. Unpack the binary beside the script:
+
+   ```sh
+   tar -xzf smartctl_exporter.tar.gz --strip-components=1 smartctl_exporter-0.15.0.freebsd-amd64/smartctl_exporter
+   rm smartctl_exporter.tar.gz
+   ```
+
+4. From the repo root on the workstation, copy the script over and make it
+   executable. Another directory works if `EXPORTER` in the script is
+   changed to match.
+
+   ```sh
+   scp scripts/truenas/smartctl-exporter.sh root@voyager:/mnt/Voyager/scripts/
+   ssh root@voyager chmod +x /mnt/Voyager/scripts/smartctl-exporter.sh
+   ```
+
+5. System → Tasks → Init/Shutdown Scripts → Add: Type `Script`, Script
+   `/mnt/Voyager/scripts/smartctl-exporter.sh`, When `Post Init`, Enabled.
+6. Start it now without a reboot: `/mnt/Voyager/scripts/smartctl-exporter.sh`.
+7. Verify: `fetch -qo - http://localhost:9633/metrics | grep smartctl_device`
+   lists every disk (ada0, da0-da3). Then `smartctl_device{instance="voyager"}`
+   in Grafana shows the same.
+
+An HBA that hides SMART passes through as SCSI: a disk missing from step 7
+is a `smartctl --scan` question, not a gateway one.
+
 ## Label conventions
 
 Metrics `job`: `node-exporter` (the four agent hosts, `instance` = host
-name), `pve` (`instance` = NUC name; the exporter's own `id` and `node`
+name), `smartctl` (the same four plus `voyager`, `instance` = host name,
+`device` = the kernel's name for the drive), `pve` (`instance` = NUC name; the exporter's own `id` and `node`
 labels carry the guests), `pihole` (`instance` = `pihole`, `hostname` =
 `pihole-01` or `pihole-02`), `bind` (`instance` = `bind9-01`, `bind9-02`,
 `lancache-01` or `lancache-02`), `truenas` (`instance` = `voyager`),
@@ -335,8 +432,10 @@ measured: the window holds no outage.
   so this buys a second agent's worth of configuration on every host.
 - **Nothing on the hosts at all.** Loses journald, per-process and filesystem
   detail.
-- **Installing on the router or on TrueNAS CORE.** Out of scope by decision:
-  stock firmware, and a base system not meant to carry packages.
+- **Installing an agent on the router or on TrueNAS CORE.** Out of scope by
+  decision: stock firmware, and a base system not meant to carry packages.
+  The one exception is `smartctl_exporter` on TrueNAS, a binary on the pool
+  that touches no base-system file.
 - **Static targets in the DaemonSet.** Would put `postBuild` substitution on
   the `alloy` layer, which deliberately has none: its River is full of `$1`.
   The gateway keeps all off-cluster wiring in one layer instead.
@@ -345,15 +444,26 @@ measured: the window holds no outage.
 
 - Syslog over UDP loses lines whenever the gateway restarts or the L2
   announcement moves, and says nothing about having lost them.
-- The router is probes and syslog only: no CPU, memory or interface
-  counters. SNMP or SSH would be the next step and is out of scope.
+- The router's counters come through Home Assistant: the ASUSWRT
+  integration polls the web API over HTTPS (port 8443, which needs the
+  router's Authentication Method set to "Both" so the port-80 `hubble`
+  route keeps working), and the `home-assistant` scrape carries them as
+  `homeassistant_sensor_*` series (`Hosts/hubble.json`). The stock
+  3.0.0.6.102 firmware has no SNMP. The integration and the router login
+  live in Home Assistant's `.storage`, not in git, so a rebuild that wipes
+  that volume loses them. Its entity IDs contain the router's address, so
+  queries select on `friendly_name`. Its sensors sample every 30 s, and it
+  reports no load average or Wi-Fi radio temperatures.
 - TrueNAS metric names are flattened collectd paths, not a curated schema:
   fine in Explore, no dashboard until the mapping exists.
-- No SMART or ZFS detail from the NUCs; `smartctl_exporter` is a follow-up.
+- A failing drive shows on the `SMART` dashboard only: the stack has no
+  alerting (`docs/design/observability.md`), so nothing pages on it.
 - Alloy on the hosts is memory the NUCs' VM budget does not account for.
 - Anything on the LAN can inject syslog lines and graphite samples at the
   shared LB address: both protocols are plaintext and unauthenticated, and
   the gateway accepts whatever arrives.
-- `check-alloy` only works once Alloy is already installed: on a fresh host
-  `/etc/default/alloy` and `/etc/alloy/config.alloy` don't exist yet, and
-  check mode can't edit or template a file that isn't there.
+- `check-alloy` only works once Alloy and `smartctl_exporter` are already
+  installed: on a fresh host `/etc/default/alloy` and
+  `/etc/alloy/config.alloy` don't exist yet, check mode can't edit or
+  template a file that isn't there, and it only simulates adding the
+  backports source the exporter installs from.

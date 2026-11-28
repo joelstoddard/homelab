@@ -54,3 +54,30 @@ metadata:
 spec:
   basicAuth:
     secret: glance-auth-users
+---
+# removeHeader: IT-Tools' cors-anywhere helper forwards request headers to
+# whatever site it fetches, so the credential must stop here.
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: it-tools-auth
+spec:
+  basicAuth:
+    secret: it-tools-auth-users
+    removeHeader: true
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: bentopdf-auth
+spec:
+  basicAuth:
+    secret: bentopdf-auth-users
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: changedetection-auth
+spec:
+  basicAuth:
+    secret: changedetection-auth-users

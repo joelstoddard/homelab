@@ -1,0 +1,69 @@
+# One fresh Chrome per fetch, closed after it; started --no-sandbox, so the pod
+# is the boundary: non-root, no capabilities, LAN-denied egress (cnp.yaml).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sockpuppetbrowser
+  labels:
+    app.kubernetes.io/name: sockpuppetbrowser
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: sockpuppetbrowser
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: sockpuppetbrowser
+    spec:
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: sockpuppetbrowser
+          image: docker.io/dgtlmoon/sockpuppetbrowser:0.0.5@sha256:71fed9b1de8de865a8f30c61e6d8d129de183bf34f8cc545dc7ae499198ec935
+          env:
+            - name: MAX_CONCURRENT_CHROME_PROCESSES
+              value: "2"
+            - name: LOG_LEVEL
+              value: INFO
+            - name: HOME
+              value: /tmp
+          ports:
+            - name: cdp
+              containerPort: 3000
+            - name: stats
+              containerPort: 8080
+          readinessProbe:
+            httpGet:
+              path: /stats
+              port: stats
+            periodSeconds: 15
+          livenessProbe:
+            httpGet:
+              path: /stats
+              port: stats
+            initialDelaySeconds: 20
+            periodSeconds: 30
+            failureThreshold: 3
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+          resources:
+            requests:
+              cpu: 50m
+              memory: 256Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+      volumes:
+        - name: tmp
+          emptyDir: {}

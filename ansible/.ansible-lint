@@ -20,3 +20,4 @@ exclude_paths:
   - roles/talos/files/secrets.sops.yaml
   - roles/talos/files/skylab/secrets.sops.yaml
   - roles/talos/vars/skylab.sops.yaml
+  - roles/talos/vars/homelab.sops.yaml

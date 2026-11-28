@@ -135,7 +135,7 @@ check "netbox_sizing" {
 
 check "netbox_primary_ipv4" {
   assert {
-    condition     = !local.in_eu || try(split("/", local.nb_vm.primary_ip4)[0] == hcloud_primary_ip.ipv4[0].ip_address, false)
+    condition     = !local.in_eu || try(split("/", data.netbox_ip_address.skylab[0].ip_address)[0] == hcloud_primary_ip.ipv4[0].ip_address, false)
     error_message = "NetBox's primary IPv4 for skylab is not the Hetzner primary IP. Enter the address on the branch record after apply."
   }
 }

@@ -33,10 +33,74 @@
         },
         "enable": true,
         "iconColor": "red",
-        "expr": "sum by (container, exported_pod) (changes(kube_pod_container_status_restarts_total{exported_namespace=\"$namespace\", exported_pod=~\"$workload-([b-df-hj-np-tv-xz24-9]{1,10}-)?[b-df-hj-np-tv-xz24-9]{5}|$workload-[0-9]+\"}[$__rate_interval])) > 0",
+        "expr": "sum by (container, pod) (changes(kube_pod_container_status_restarts_total{namespace=\"$namespace\", pod=~\"$workload-([b-df-hj-np-tv-xz24-9]{1,10}-)?[b-df-hj-np-tv-xz24-9]{5}|$workload-[0-9]+\"}[$__rate_interval])) > 0",
         "step": "$__interval",
         "titleFormat": "Restart",
-        "textFormat": "{{container}} in {{exported_pod}}"
+        "textFormat": "{{container}} in {{pod}}"
+      },
+      {
+        "name": "Flux",
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "iconColor": "purple",
+        "target": {
+          "type": "tags",
+          "tags": [
+            "flux"
+          ],
+          "matchAny": true,
+          "limit": 100
+        }
+      },
+      {
+        "name": "NetBox",
+        "datasource": {
+          "type": "netboxlabs-netbox-datasource",
+          "uid": "netbox"
+        },
+        "enable": true,
+        "iconColor": "blue",
+        "target": {
+          "refId": "Anno",
+          "queryType": "annotations"
+        }
+      },
+      {
+        "name": "Operator",
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "iconColor": "orange",
+        "target": {
+          "type": "tags",
+          "tags": [
+            "operator"
+          ],
+          "matchAny": true,
+          "limit": 100
+        }
+      },
+      {
+        "name": "Proxmox",
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "iconColor": "yellow",
+        "target": {
+          "type": "tags",
+          "tags": [
+            "proxmox"
+          ],
+          "matchAny": true,
+          "limit": 100
+        }
       }
     ]
   },
@@ -51,10 +115,10 @@
           "uid": "prometheus"
         },
         "query": {
-          "query": "label_values(kube_pod_owner, exported_namespace)",
+          "query": "label_values(kube_pod_owner, namespace)",
           "refId": "namespace"
         },
-        "definition": "label_values(kube_pod_owner, exported_namespace)",
+        "definition": "label_values(kube_pod_owner, namespace)",
         "refresh": 1,
         "sort": 1,
         "includeAll": false,
@@ -70,10 +134,10 @@
           "uid": "prometheus"
         },
         "query": {
-          "query": "query_result(group by (workload) (label_replace(kube_replicaset_owner{exported_namespace=\"$namespace\", owner_kind=\"Deployment\"}, \"workload\", \"$1\", \"owner_name\", \"(.*)\") or label_replace(kube_pod_owner{exported_namespace=\"$namespace\", owner_kind=~\"StatefulSet|DaemonSet\"}, \"workload\", \"$1\", \"owner_name\", \"(.*)\")))",
+          "query": "query_result(group by (workload) (label_replace(kube_replicaset_owner{namespace=\"$namespace\", owner_kind=\"Deployment\"}, \"workload\", \"$1\", \"owner_name\", \"(.*)\") or label_replace(kube_pod_owner{namespace=\"$namespace\", owner_kind=~\"StatefulSet|DaemonSet\"}, \"workload\", \"$1\", \"owner_name\", \"(.*)\")))",
           "refId": "workload"
         },
-        "definition": "query_result(group by (workload) (label_replace(kube_replicaset_owner{exported_namespace=\"$namespace\", owner_kind=\"Deployment\"}, \"workload\", \"$1\", \"owner_name\", \"(.*)\") or label_replace(kube_pod_owner{exported_namespace=\"$namespace\", owner_kind=~\"StatefulSet|DaemonSet\"}, \"workload\", \"$1\", \"owner_name\", \"(.*)\")))",
+        "definition": "query_result(group by (workload) (label_replace(kube_replicaset_owner{namespace=\"$namespace\", owner_kind=\"Deployment\"}, \"workload\", \"$1\", \"owner_name\", \"(.*)\") or label_replace(kube_pod_owner{namespace=\"$namespace\", owner_kind=~\"StatefulSet|DaemonSet\"}, \"workload\", \"$1\", \"owner_name\", \"(.*)\")))",
         "regex": "/workload=\"([^\"]+)\"/",
         "refresh": 2,
         "sort": 1,
@@ -118,7 +182,7 @@
             "uid": "prometheus"
           },
           "refId": "A",
-          "expr": "sum(max_over_time(kube_pod_container_status_restarts_total{exported_namespace=\"$namespace\", exported_pod=~\"$workload-([b-df-hj-np-tv-xz24-9]{1,10}-)?[b-df-hj-np-tv-xz24-9]{5}|$workload-[0-9]+\"}[$__range]) - min_over_time(kube_pod_container_status_restarts_total{exported_namespace=\"$namespace\", exported_pod=~\"$workload-([b-df-hj-np-tv-xz24-9]{1,10}-)?[b-df-hj-np-tv-xz24-9]{5}|$workload-[0-9]+\"}[$__range]))",
+          "expr": "sum(max_over_time(kube_pod_container_status_restarts_total{namespace=\"$namespace\", pod=~\"$workload-([b-df-hj-np-tv-xz24-9]{1,10}-)?[b-df-hj-np-tv-xz24-9]{5}|$workload-[0-9]+\"}[$__range]) - min_over_time(kube_pod_container_status_restarts_total{namespace=\"$namespace\", pod=~\"$workload-([b-df-hj-np-tv-xz24-9]{1,10}-)?[b-df-hj-np-tv-xz24-9]{5}|$workload-[0-9]+\"}[$__range]))",
           "instant": true
         }
       ],
@@ -178,7 +242,7 @@
             "uid": "prometheus"
           },
           "refId": "A",
-          "expr": "max by (reason) (topk(1, kube_pod_container_status_last_terminated_reason{exported_namespace=\"$namespace\", exported_pod=~\"$workload-([b-df-hj-np-tv-xz24-9]{1,10}-)?[b-df-hj-np-tv-xz24-9]{5}|$workload-[0-9]+\"} * on (exported_namespace, exported_pod, container) group_left () max by (exported_namespace, exported_pod, container) (kube_pod_container_status_last_terminated_timestamp{exported_namespace=\"$namespace\", exported_pod=~\"$workload-([b-df-hj-np-tv-xz24-9]{1,10}-)?[b-df-hj-np-tv-xz24-9]{5}|$workload-[0-9]+\"} > 0))) * 1000",
+          "expr": "max by (reason) (topk(1, kube_pod_container_status_last_terminated_reason{namespace=\"$namespace\", pod=~\"$workload-([b-df-hj-np-tv-xz24-9]{1,10}-)?[b-df-hj-np-tv-xz24-9]{5}|$workload-[0-9]+\"} * on (namespace, pod, container) group_left () max by (namespace, pod, container) (kube_pod_container_status_last_terminated_timestamp{namespace=\"$namespace\", pod=~\"$workload-([b-df-hj-np-tv-xz24-9]{1,10}-)?[b-df-hj-np-tv-xz24-9]{5}|$workload-[0-9]+\"} > 0))) * 1000",
           "legendFormat": "{{reason}}",
           "instant": true
         }
@@ -247,7 +311,7 @@
             "uid": "prometheus"
           },
           "refId": "A",
-          "expr": "sum(kube_pod_status_ready{exported_namespace=\"$namespace\", exported_pod=~\"$workload-([b-df-hj-np-tv-xz24-9]{1,10}-)?[b-df-hj-np-tv-xz24-9]{5}|$workload-[0-9]+\", condition=\"true\"})",
+          "expr": "sum(kube_pod_status_ready{namespace=\"$namespace\", pod=~\"$workload-([b-df-hj-np-tv-xz24-9]{1,10}-)?[b-df-hj-np-tv-xz24-9]{5}|$workload-[0-9]+\", condition=\"true\"})",
           "legendFormat": "Ready",
           "instant": true
         },
@@ -257,7 +321,7 @@
             "uid": "prometheus"
           },
           "refId": "B",
-          "expr": "max(kube_deployment_spec_replicas{exported_namespace=\"$namespace\", deployment=\"$workload\"} or kube_statefulset_replicas{exported_namespace=\"$namespace\", statefulset=\"$workload\"} or kube_daemonset_status_desired_number_scheduled{exported_namespace=\"$namespace\", daemonset=\"$workload\"})",
+          "expr": "max(kube_deployment_spec_replicas{namespace=\"$namespace\", deployment=\"$workload\"} or kube_statefulset_replicas{namespace=\"$namespace\", statefulset=\"$workload\"} or kube_daemonset_status_desired_number_scheduled{namespace=\"$namespace\", daemonset=\"$workload\"})",
           "legendFormat": "Desired",
           "instant": true
         }
@@ -392,7 +456,7 @@
             "uid": "prometheus"
           },
           "refId": "B",
-          "expr": "max by (container) (kube_pod_container_resource_requests{exported_namespace=\"$namespace\", exported_pod=~\"$workload-([b-df-hj-np-tv-xz24-9]{1,10}-)?[b-df-hj-np-tv-xz24-9]{5}|$workload-[0-9]+\", resource=\"memory\"})",
+          "expr": "max by (container) (kube_pod_container_resource_requests{namespace=\"$namespace\", pod=~\"$workload-([b-df-hj-np-tv-xz24-9]{1,10}-)?[b-df-hj-np-tv-xz24-9]{5}|$workload-[0-9]+\", resource=\"memory\"})",
           "legendFormat": "{{container}} request"
         },
         {
@@ -401,7 +465,7 @@
             "uid": "prometheus"
           },
           "refId": "C",
-          "expr": "max by (container) (kube_pod_container_resource_limits{exported_namespace=\"$namespace\", exported_pod=~\"$workload-([b-df-hj-np-tv-xz24-9]{1,10}-)?[b-df-hj-np-tv-xz24-9]{5}|$workload-[0-9]+\", resource=\"memory\"})",
+          "expr": "max by (container) (kube_pod_container_resource_limits{namespace=\"$namespace\", pod=~\"$workload-([b-df-hj-np-tv-xz24-9]{1,10}-)?[b-df-hj-np-tv-xz24-9]{5}|$workload-[0-9]+\", resource=\"memory\"})",
           "legendFormat": "{{container}} limit"
         }
       ],
@@ -472,7 +536,7 @@
             "uid": "prometheus"
           },
           "refId": "B",
-          "expr": "max by (container) (kube_pod_container_resource_limits{exported_namespace=\"$namespace\", exported_pod=~\"$workload-([b-df-hj-np-tv-xz24-9]{1,10}-)?[b-df-hj-np-tv-xz24-9]{5}|$workload-[0-9]+\", resource=\"cpu\"})",
+          "expr": "max by (container) (kube_pod_container_resource_limits{namespace=\"$namespace\", pod=~\"$workload-([b-df-hj-np-tv-xz24-9]{1,10}-)?[b-df-hj-np-tv-xz24-9]{5}|$workload-[0-9]+\", resource=\"cpu\"})",
           "legendFormat": "{{container}} limit"
         }
       ],
@@ -809,7 +873,7 @@
             "uid": "prometheus"
           },
           "refId": "A",
-          "expr": "group by (app) (label_replace(kube_replicaset_owner{exported_namespace=\"$namespace\", owner_name=\"$workload\", owner_name=~\"(sonarr|radarr|prowlarr|lidarr|bazarr|sabnzbd|jellyfin|home-assistant|searxng|glance|media-egress|tailscale)(-exporter)?\"}, \"app\", \"$1\", \"owner_name\", \"(.+?)(-exporter)?\"))",
+          "expr": "group by (app) (label_replace(kube_replicaset_owner{namespace=\"$namespace\", owner_name=\"$workload\", owner_name=~\"(sonarr|radarr|prowlarr|lidarr|bazarr|sabnzbd|jellyfin|home-assistant|searxng|glance|media-egress|tailscale|lancache|actual|uptime-kuma|seerr|flaresolverr|qbittorrent)(-exporter)?\"}, \"app\", \"$1\", \"owner_name\", \"(.+?)(-exporter)?\"))",
           "legendFormat": "{{app}}",
           "instant": true
         }

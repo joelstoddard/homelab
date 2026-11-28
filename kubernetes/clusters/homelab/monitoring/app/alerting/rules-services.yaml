@@ -1,0 +1,192 @@
+apiVersion: 1
+groups:
+  - orgId: 1
+    name: services
+    folder: Infrastructure
+    interval: 1m
+    rules:
+      - uid: infra-cert-expiry
+        title: Certificate expiring
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            relativeTimeRange: {from: 600, to: 0}
+            model:
+              refId: A
+              instant: true
+              expr: 'min by (exported_namespace, name) (certmanager_certificate_expiration_timestamp_seconds - time())'
+          - refId: B
+            datasourceUid: __expr__
+            model: {refId: B, type: reduce, expression: A, reducer: last}
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: B
+              conditions: [{evaluator: {type: lt, params: [1209600]}}]
+        noDataState: OK
+        execErrState: Error
+        for: 1h
+        annotations:
+          summary: 'Certificate {{ $labels.exported_namespace }}/{{ $labels.name }} expires in {{ humanizeDuration $values.B.Value }}: cert-manager is not renewing it'
+      - uid: infra-container-memory-near-limit
+        title: Container memory near limit
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            relativeTimeRange: {from: 600, to: 0}
+            model:
+              refId: A
+              instant: true
+              expr: 'max by (namespace, pod, container) (container_memory_working_set_bytes{container!=""}) / on (namespace, pod, container) max by (namespace, pod, container) (kube_pod_container_resource_limits{resource="memory"})'
+          - refId: B
+            datasourceUid: __expr__
+            model: {refId: B, type: reduce, expression: A, reducer: last}
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: B
+              conditions: [{evaluator: {type: gt, params: [0.8]}}]
+        noDataState: OK
+        execErrState: Error
+        for: 15m
+        annotations:
+          summary: '{{ $labels.namespace }}/{{ $labels.pod }} {{ $labels.container }} is at {{ humanizePercentage $values.B.Value }} of its memory limit'
+      - uid: infra-container-cpu-near-limit
+        title: Container CPU near limit
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            relativeTimeRange: {from: 600, to: 0}
+            model:
+              refId: A
+              instant: true
+              expr: 'sum by (namespace, pod, container) (rate(container_cpu_usage_seconds_total{container!=""}[5m])) / on (namespace, pod, container) max by (namespace, pod, container) (kube_pod_container_resource_limits{resource="cpu"})'
+          - refId: B
+            datasourceUid: __expr__
+            model: {refId: B, type: reduce, expression: A, reducer: last}
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: B
+              conditions: [{evaluator: {type: gt, params: [0.8]}}]
+        noDataState: OK
+        execErrState: Error
+        for: 30m
+        annotations:
+          summary: '{{ $labels.namespace }}/{{ $labels.pod }} {{ $labels.container }} is at {{ humanizePercentage $values.B.Value }} of its CPU limit'
+      # Long-lived connections (ingest, Home Assistant, Jellyfin, Uptime Kuma's Socket.IO, qBittorrent) read as slow by design.
+      - uid: infra-latency-p95
+        title: Service p95 latency high
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            relativeTimeRange: {from: 600, to: 0}
+            model:
+              refId: A
+              instant: true
+              expr: 'histogram_quantile(0.95, sum by (service, le) (rate(traefik_service_request_duration_seconds_bucket{service!~"monitoring-(prometheus-write|loki-push)-.*|home-assistant-.*|media-jellyfin-.*|uptime-kuma-.*|media-downloads-qbittorrent-.*"}[10m]))) and on (service) sum by (service) (rate(traefik_service_requests_total{service!~"monitoring-(prometheus-write|loki-push)-.*|home-assistant-.*|media-jellyfin-.*|uptime-kuma-.*|media-downloads-qbittorrent-.*"}[10m])) > 0.05'
+          - refId: B
+            datasourceUid: __expr__
+            model: {refId: B, type: reduce, expression: A, reducer: last}
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: B
+              conditions: [{evaluator: {type: gt, params: [2]}}]
+        noDataState: OK
+        execErrState: Error
+        for: 15m
+        annotations:
+          summary: '{{ $labels.service }} p95 latency is {{ humanizeDuration $values.B.Value }}'
+      - uid: infra-latency-p50
+        title: Service p50 latency high
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            relativeTimeRange: {from: 600, to: 0}
+            model:
+              refId: A
+              instant: true
+              expr: 'histogram_quantile(0.5, sum by (service, le) (rate(traefik_service_request_duration_seconds_bucket{service!~"monitoring-(prometheus-write|loki-push)-.*|home-assistant-.*|media-jellyfin-.*|uptime-kuma-.*|media-downloads-qbittorrent-.*"}[10m]))) and on (service) sum by (service) (rate(traefik_service_requests_total{service!~"monitoring-(prometheus-write|loki-push)-.*|home-assistant-.*|media-jellyfin-.*|uptime-kuma-.*|media-downloads-qbittorrent-.*"}[10m])) > 0.05'
+          - refId: B
+            datasourceUid: __expr__
+            model: {refId: B, type: reduce, expression: A, reducer: last}
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: B
+              conditions: [{evaluator: {type: gt, params: [0.5]}}]
+        noDataState: OK
+        execErrState: Error
+        for: 15m
+        annotations:
+          summary: '{{ $labels.service }} p50 latency is {{ humanizeDuration $values.B.Value }}'
+      # Recyclarr logs one line per sync job; Loki keeps it across pod restarts,
+      # which reset the server's own job counters (docs/design/recyclarr.md).
+      - uid: infra-recyclarr-sync-failed
+        title: Recyclarr sync failed
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: loki
+            relativeTimeRange: {from: 600, to: 0}
+            model:
+              refId: A
+              queryType: instant
+              expr: 'sum(count_over_time({namespace="media", container="recyclarr"} |= "Sync job" |~ "completed with status (Partial|Failed|Blocked)" [24h]))'
+          - refId: B
+            datasourceUid: __expr__
+            model: {refId: B, type: reduce, expression: A, reducer: last}
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: B
+              conditions: [{evaluator: {type: gt, params: [0]}}]
+        noDataState: OK
+        execErrState: Error
+        for: 0s
+        annotations:
+          summary: 'Recyclarr: {{ $values.B.Value }} sync job(s) in the last 24 h did not succeed; read the Recyclarr logs for the failing instance'
+      - uid: infra-recyclarr-no-sync
+        title: Recyclarr has not synced
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: loki
+            relativeTimeRange: {from: 600, to: 0}
+            model:
+              refId: A
+              queryType: instant
+              expr: 'sum(count_over_time({namespace="media", container="recyclarr"} |= "Sync job" |= "completed with status Succeeded" [26h]))'
+          - refId: B
+            datasourceUid: __expr__
+            model: {refId: B, type: reduce, expression: A, reducer: last}
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: B
+              conditions: [{evaluator: {type: lt, params: [1]}}]
+        noDataState: Alerting
+        execErrState: Error
+        for: 30m
+        annotations:
+          summary: 'Recyclarr: no successful sync in 26 h; the daily 04:00 sync is not running or not succeeding'

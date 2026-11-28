@@ -48,7 +48,7 @@ spec:
         # without this the first boot never completes. Written without a single
         # dollar sign: shell variables in a substituted layer are eaten.
         - name: seed-includes
-          image: busybox:1.37.0
+          image: busybox:1.38.0
           command:
             - sh
             - -c
@@ -65,7 +65,7 @@ spec:
               memory: 16Mi
       containers:
         - name: home-assistant
-          image: ghcr.io/home-assistant/home-assistant:2026.9.3
+          image: ghcr.io/home-assistant/home-assistant:2026.11.3
           ports:
             - name: http
               containerPort: 8123

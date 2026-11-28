@@ -127,6 +127,35 @@ discovery.relabel "annotated_pods" {
 		replacement   = "$1$2$3"
 		target_label  = "job"
 	}
+
+	// The Pi exporter reports the node's disk, so its series take the NUC label set.
+	// Without pod labels, a replaced pod continues the same series.
+	rule {
+		source_labels = ["job", "node"]
+		regex         = "smartctl;(.+)"
+		target_label  = "instance"
+	}
+
+	rule {
+		source_labels = ["job"]
+		regex         = "smartctl"
+		target_label  = "namespace"
+		replacement   = ""
+	}
+
+	rule {
+		source_labels = ["job"]
+		regex         = "smartctl"
+		target_label  = "pod"
+		replacement   = ""
+	}
+
+	rule {
+		source_labels = ["job"]
+		regex         = "smartctl"
+		target_label  = "node"
+		replacement   = ""
+	}
 }
 
 prometheus.scrape "annotated_pods" {
@@ -138,12 +167,13 @@ prometheus.scrape "annotated_pods" {
 
 // Unread internals of Cilium, Alloy, Prometheus, Loki, Grafana, Flux and
 // Traefik: histogram buckets (_sum and _count stay) and per-target bookkeeping.
+// Alloy's alloy_component_* buckets stay: the Controller dashboard (Kubernetes/Alloy) reads them.
 prometheus.relabel "annotated_pods" {
 	forward_to = [prometheus.remote_write.prometheus.receiver]
 
 	rule {
 		source_labels = ["__name__"]
-		regex         = "(cilium|prometheus|loki|grafana|alloy_component|go)_.*_bucket"
+		regex         = "(cilium|prometheus|loki|grafana|go)_.*_bucket"
 		action        = "drop"
 	}
 
@@ -261,6 +291,9 @@ prometheus.scrape "annotated_services" {
 	forward_to      = [prometheus.relabel.annotated_services.receiver]
 	job_name        = "annotated-services"
 	scrape_interval = "60s"
+	// kube-state-metrics series keep the object's namespace, pod and node
+	// rather than renaming them exported_*. No other target here sets those.
+	honor_labels = true
 }
 
 // cilium-envoy's proxy statistics and Hubble's gRPC server counters, which no
@@ -510,55 +543,59 @@ prometheus.scrape "kube_scheduler" {
 	}
 }
 
-// etcd is a Talos host service, not a pod: discover it by control-plane node
-// and hit the plain-HTTP metrics listener the talos role's patch opens.
-discovery.kubernetes "control_plane_nodes" {
-	role = "node"
+// ------------------------------------------------- cluster-wide: Pi probes --
 
-	selectors {
-		role  = "node"
-		label = "node-role.kubernetes.io/control-plane"
-	}
+// The Pi nodes' Talos API, probed from the blackbox exporter in host-monitoring.
+// Discovering the arm64 nodes keeps their addresses out of git and picks up a
+// new Pi without an edit (docs/design/host-monitoring.md).
+discovery.kubernetes "nodes" {
+	role = "node"
 }
 
-discovery.relabel "etcd" {
-	targets = discovery.kubernetes.control_plane_nodes.targets
+discovery.relabel "pi_probes" {
+	targets = discovery.kubernetes.nodes.targets
+
+	rule {
+		source_labels = ["__meta_kubernetes_node_label_kubernetes_io_arch"]
+		regex         = "arm64"
+		action        = "keep"
+	}
 
 	rule {
 		source_labels = ["__meta_kubernetes_node_address_InternalIP"]
 		regex         = "(.+)"
-		replacement   = "$1:2381"
-		target_label  = "__address__"
+		replacement   = "$1:50000"
+		target_label  = "__param_target"
 	}
 
 	rule {
-		source_labels = ["__meta_kubernetes_node_name"]
-		target_label  = "node"
+		target_label = "__param_module"
+		replacement  = "tcp_connect"
+	}
+
+	rule {
+		target_label = "module"
+		replacement  = "tcp_connect"
 	}
 
 	rule {
 		source_labels = ["__meta_kubernetes_node_name"]
 		target_label  = "instance"
 	}
-}
-
-prometheus.scrape "etcd" {
-	targets         = discovery.relabel.etcd.output
-	forward_to      = [prometheus.relabel.etcd.receiver]
-	job_name        = "etcd"
-	scrape_interval = "60s"
-}
-
-// Per-method gRPC result codes and the debugging histograms; the disk, raft
-// and request latency histograms stay.
-prometheus.relabel "etcd" {
-	forward_to = [prometheus.remote_write.prometheus.receiver]
 
 	rule {
-		source_labels = ["__name__"]
-		regex         = "grpc_server_handled_total|etcd_debugging_.*"
-		action        = "drop"
+		target_label = "__address__"
+		replacement  = "blackbox-exporter.host-monitoring.svc:9115"
 	}
+}
+
+prometheus.scrape "pi_probes" {
+	targets         = discovery.relabel.pi_probes.output
+	forward_to      = [prometheus.remote_write.prometheus.receiver]
+	job_name        = "blackbox"
+	metrics_path    = "/probe"
+	scrape_interval = "60s"
+	scrape_timeout  = "15s"
 }
 
 // --------------------------------------------------- cluster-wide: SearXNG --
@@ -622,6 +659,27 @@ prometheus.scrape "searxng" {
 	}
 }
 
+// -------------------------------------------------- cluster-wide: Dawarich --
+
+// Dawarich's /metrics needs basic auth, like SearXNG's, and Rails' host check
+// refuses a pod-IP Host, so the target is the Service name it allows
+// (docs/design/dawarich.md).
+prometheus.scrape "dawarich" {
+	targets = [{
+		"__address__" = "dawarich.dawarich.svc:3000",
+		"namespace"   = "dawarich",
+		"instance"    = "dawarich",
+	}]
+	forward_to      = [prometheus.remote_write.prometheus.receiver]
+	job_name        = "dawarich"
+	scrape_interval = "60s"
+
+	basic_auth {
+		username = "metrics"
+		password = remote.kubernetes.secret.cluster_secrets.data["DAWARICH_METRICS_PASSWORD"]
+	}
+}
+
 // -------------------------------------------- cluster-wide: Home Assistant --
 
 // Home Assistant's /api/prometheus needs a bearer token, which the
@@ -675,6 +733,59 @@ prometheus.scrape "home_assistant" {
 	scrape_interval = "60s"
 
 	bearer_token = remote.kubernetes.secret.cluster_secrets.data["HOME_ASSISTANT_TOKEN"]
+}
+
+// ------------------------------------------- cluster-wide: Uptime Kuma --
+
+// Uptime Kuma's /metrics (each monitor's status and response time) needs an
+// API key as the basic-auth password, which the annotation-driven scrapes
+// cannot carry (docs/design/uptime-kuma.md).
+discovery.kubernetes "uptime_kuma" {
+	role = "endpoints"
+
+	namespaces {
+		names = ["uptime-kuma"]
+	}
+
+	selectors {
+		role  = "endpoints"
+		field = "metadata.name=uptime-kuma"
+	}
+}
+
+discovery.relabel "uptime_kuma" {
+	targets = discovery.kubernetes.uptime_kuma.targets
+
+	rule {
+		source_labels = ["__meta_kubernetes_namespace"]
+		target_label  = "namespace"
+	}
+
+	rule {
+		source_labels = ["__meta_kubernetes_pod_name"]
+		target_label  = "pod"
+	}
+
+	rule {
+		source_labels = ["__meta_kubernetes_pod_name"]
+		target_label  = "instance"
+	}
+
+	rule {
+		source_labels = ["__meta_kubernetes_pod_node_name"]
+		target_label  = "node"
+	}
+}
+
+prometheus.scrape "uptime_kuma" {
+	targets         = discovery.relabel.uptime_kuma.output
+	forward_to      = [prometheus.remote_write.prometheus.receiver]
+	job_name        = "uptime-kuma"
+	scrape_interval = "60s"
+
+	basic_auth {
+		password = remote.kubernetes.secret.cluster_secrets.data["UPTIME_KUMA_API_KEY"]
+	}
 }
 
 // ------------------------------------------- cluster-wide: descheduler --

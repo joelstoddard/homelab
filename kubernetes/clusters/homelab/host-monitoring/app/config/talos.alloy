@@ -1,0 +1,69 @@
+// The Talos Alloy: service and kernel logs from every home-cluster node, one
+// JSON object per line over TCP (machine.logging in the talos role's node
+// patch). docs/design/observability.md.
+
+otelcol.receiver.tcplog "talos" {
+	listen_address = "0.0.0.0:5170"
+
+	output {
+		logs = [otelcol.exporter.loki.talos.input]
+	}
+}
+
+otelcol.exporter.loki "talos" {
+	forward_to = [loki.process.talos.receiver]
+}
+
+// The exporter wraps each Talos line as {"body": "<the line>"}.
+loki.process "talos" {
+	stage.json {
+		expressions = {body = "body"}
+	}
+
+	stage.json {
+		source      = "body"
+		expressions = {msg = "msg", node = "node", service = "\"talos-service\"", level = "\"talos-level\""}
+	}
+
+	// About 72 % and 27 % of one node's bytes: audit records, and the Talos
+	// dashboard's once-a-second API polls.
+	stage.drop {
+		source = "service"
+		value  = "auditd"
+	}
+
+	stage.drop {
+		source     = "msg"
+		expression = "machined/authz/(unix/)?authorizer authorized"
+	}
+
+	// The dashboard's own calls; remote calls and failures stay.
+	stage.drop {
+		source     = "msg"
+		expression = "machined OK \\[[^]]+\\] \\S+ unary Success \\(:authority=localhost;"
+	}
+
+	stage.labels {
+		values = {node = "", service = "", level = ""}
+	}
+
+	stage.static_labels {
+		values = {job = "talos"}
+	}
+
+	stage.label_drop {
+		values = ["exporter"]
+	}
+
+	stage.output {
+		source = "msg"
+	}
+
+	forward_to = [loki.write.loki.receiver]
+}
+
+loki.write "loki" {
+	endpoint {
+		url = "http://loki.monitoring.svc:3100/loki/api/v1/push"
+	}
+}

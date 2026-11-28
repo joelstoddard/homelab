@@ -1,0 +1,59 @@
+# Proxmox changes made outside OpenTofu become Grafana annotations tagged
+# proxmox: docs/design/observability.md, "Change annotations".
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: proxmox-annotations
+  labels:
+    app.kubernetes.io/name: proxmox-annotations
+spec:
+  schedule: "*/5 * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      activeDeadlineSeconds: 240
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: proxmox-annotations
+        spec:
+          restartPolicy: Never
+          securityContext:
+            runAsUser: 65534
+            runAsGroup: 65534
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: poller
+              image: docker.io/library/python:3.15.2-alpine@sha256:0f9552bb28711333da16915ec146f5e6bb44a7fdac9ced15dc17c2e0206346dd
+              command: ["python3", "-I", "/app/poller.py"]
+              env:
+                - name: GRAFANA_TOKEN
+                  valueFrom:
+                    secretKeyRef:
+                      name: proxmox-annotations-token
+                      key: token
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+              volumeMounts:
+                - name: poller
+                  mountPath: /app
+                  readOnly: true
+              resources:
+                requests:
+                  cpu: 10m
+                  memory: 32Mi
+                limits:
+                  cpu: 200m
+                  memory: 128Mi
+          volumes:
+            - name: poller
+              configMap:
+                name: proxmox-annotations

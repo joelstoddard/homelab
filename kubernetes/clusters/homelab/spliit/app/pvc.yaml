@@ -1,0 +1,14 @@
+# PostgreSQL's data on Longhorn, never Voyager: a database corrupts on NFS.
+# No backup until #228 (docs/design/spliit.md).
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: postgres-data
+  labels:
+    app.kubernetes.io/name: postgres
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 2Gi

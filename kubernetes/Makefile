@@ -42,10 +42,20 @@ ALLOY_CONFIG   := $(HOME_TREE)/alloy/app/config
 DNS_VARS_FILE      := ../ansible/inventory/group_vars/dns.sops.yaml
 PIHOLE_PASSWORD_COPIES := $(HOME_TREE)/nebula-sync/app/secret.sops.yaml \
                           $(HOME_TREE)/host-monitoring/app/secret-pihole-exporter.sops.yaml
+# The talos role's copy of INGEST_LB_IP: Ansible cannot read Flux's Secret.
+TALOS_VARS_FILE    := ../ansible/roles/talos/vars/homelab.sops.yaml
+CLUSTER_SECRETS    := $(HOME_TREE)/cluster-secrets/app/secrets.sops.yaml
+TALOS_LOGS_SERVICE := $(HOME_TREE)/host-monitoring/app/alloy-talos/service-talos-logs.yaml
+INGEST_SERVICES    := $(HOME_TREE)/host-monitoring/app/alloy-gateway/service-syslog.yaml \
+                      $(HOME_TREE)/host-monitoring/app/graphite-exporter.yaml
 ALLOY_RELEASES := $(HOME_TREE)/alloy/app/alloy/helmrelease.yaml \
                   $(HOME_TREE)/alloy/app/alloy-cluster/helmrelease.yaml \
                   $(HOME_TREE)/alloy/app/alloy-events/helmrelease.yaml \
-                  $(HOME_TREE)/host-monitoring/app/alloy-gateway/helmrelease.yaml
+                  $(HOME_TREE)/host-monitoring/app/alloy-gateway/helmrelease.yaml \
+                  $(HOME_TREE)/host-monitoring/app/alloy-talos/helmrelease.yaml
+GRAFANA_VALUES := $(HOME_TREE)/monitoring/app/grafana/values.yaml
+GLANCE_CONFIG  := $(HOME_TREE)/glance/app/config/glance.yml
+GLANCE_ICONS   := $(HOME_TREE)/glance/app/icons
 # Skylab's security guards and probes (docs/design/skylab-security.md). A
 # listed layer must carry a default-deny egress policy once it exists.
 SKYLAB_TREE          := clusters/skylab
@@ -65,9 +75,10 @@ help:
 	@echo "              OCIRepository matches CILIUM_VERSION, kubectl kustomize builds each root and"
 	@echo "              every */app, every Flux path stays in its own tree, kubernetes/ holds no"
 	@echo "              manifest, every *.sops.yaml is encrypted, every *.json parses, and every"
-	@echo "              PIHOLE_PASSWORD copy matches its source (needs the age key), and skylab's"
-	@echo "              NodePort bind, metadata deny, app egress policies and no NodePort/LB Service."
-	@echo "  lint-offline - lint without the PIHOLE_PASSWORD comparison: no age key. CI runs it."
+	@echo "              PIHOLE_PASSWORD copy and talos_logging_address match their sources (need the"
+	@echo "              age key), and skylab's NodePort bind, metadata deny, app egress policies and"
+	@echo "              no NodePort/LB Service."
+	@echo "  lint-offline - lint without the age-key comparisons. CI runs it."
 	@echo "  check     - Server-side dry run of CLUSTER's flux-system/ (client-side before the first install)."
 	@echo "  apply     - components -> sops-age secret -> sync, on CLUSTER. Idempotent. Default."
 	@echo "  generate  - Regenerate every tree's gotk-components.yaml from FLUX_VERSION (needs the flux CLI)."
@@ -124,16 +135,44 @@ lint-offline:
 	done
 	@for f in $(ALLOY_RELEASES); do \
 		grep -q '^      version: "$(ALLOY_VERSION)"$$' $$f || { \
-			echo "$$f is not at chart $(ALLOY_VERSION); the four Alloy releases and versions.env bump together." >&2; \
+			echo "$$f is not at chart $(ALLOY_VERSION); every Alloy release and versions.env bump together." >&2; \
 			exit 1; }; \
 	done
-	@echo ">> the four Alloy HelmReleases at chart $(ALLOY_VERSION)"
+	@echo ">> every Alloy HelmRelease at chart $(ALLOY_VERSION)"
+	@grep -q '^  loadBalancerSourceRanges: $${TALOS_NODE_SOURCE_RANGES:=\[127\.0\.0\.1/32\]}$$' $(TALOS_LOGS_SERVICE) && \
+	grep -q '^  allocateLoadBalancerNodePorts: false$$' $(TALOS_LOGS_SERVICE) || { \
+		echo "$(TALOS_LOGS_SERVICE) must keep its deny-by-default source ranges and no NodePort, or the LAN can send Talos log lines." >&2; \
+		exit 1; }
+	@echo ">> talos-logs admits only the nodes"
+	@for f in $(INGEST_SERVICES); do \
+		grep -q '^  allocateLoadBalancerNodePorts: false$$' $$f || { \
+			echo "$$f must not allocate NodePorts, or its receiver listens on every node address too." >&2; \
+			exit 1; }; \
+	done
+	@echo ">> syslog and graphite listen only on the ingest address"
 	@a=$$(sed -n '/^prometheus\.relabel "kube_components" {/,/^}/p' $(ALLOY_CONFIG)/config.alloy); \
 	b=$$(sed -n '/^prometheus\.relabel "kube_components" {/,/^}/p' $(ALLOY_CONFIG)/cluster.alloy); \
 	[ -n "$$a" ] && [ "$$a" = "$$b" ] || { \
 		echo "kube_components differs between config.alloy and cluster.alloy; kubelet and the control plane drop the same families." >&2; \
 		exit 1; }
 	@echo ">> kube_components drop rules identical in config.alloy and cluster.alloy"
+	@a=$$(awk '/^image:/{f=1; next} /^[^ ]/{f=0} f && /^  tag:/{print $$2}' $(GRAFANA_VALUES)); \
+	b=$$(sed -n 's|^ *image: docker.io/grafana/grafana:||p' $(GRAFANA_VALUES)); \
+	[ -n "$$a" ] && [ "$$a" = "$$b" ] || { \
+		echo "$(GRAFANA_VALUES): image.tag ($$a) and the plugin installer's tag ($$b) differ; the plugin must install from Grafana's own image." >&2; \
+		exit 1; }
+	@echo ">> Grafana and its plugin installer share one image tag"
+	@cdn=$$(grep -nE '^[[:space:]]*-?[[:space:]]*icon:[[:space:]]*(auto-invert[[:space:]]+)?(di|mdi|si|sh):' $(GLANCE_CONFIG)); \
+	[ -z "$$cdn" ] || { \
+		echo "$(GLANCE_CONFIG) loads an icon from a CDN:" >&2; echo "$$cdn" >&2; \
+		echo "add the SVG to $(GLANCE_ICONS) and name /assets/<file>; see docs/design/glance.md, \"Icons\"." >&2; \
+		exit 1; }; \
+	for a in $$(sed -nE 's#^[[:space:]]*-?[[:space:]]*icon:[[:space:]]*(auto-invert[[:space:]]+)?/assets/##p' $(GLANCE_CONFIG)); do \
+		[ -f $(GLANCE_ICONS)/$$a ] && grep -qx "      - $$a" $(GLANCE_ICONS)/kustomization.yaml || { \
+			echo "$(GLANCE_CONFIG) names /assets/$$a, which is not a file listed in $(GLANCE_ICONS)/kustomization.yaml." >&2; \
+			exit 1; }; \
+	done
+	@echo ">> every Glance icon is served from the glance-icons ConfigMap"
 	@stray=$$(find . -path './clusters/*/*' -prune -o -type f \( -name '*.yaml' -o -name '*.yml' -o -name '*.json' \) -print); \
 	[ -z "$$stray" ] || { \
 		echo "manifest outside a cluster tree:" $$stray >&2; \
@@ -229,6 +268,16 @@ lint: lint-offline
 			exit 1; }; \
 	done
 	@echo ">> every PIHOLE_PASSWORD copy matches dns_pihole_web_password"
+	@a=$$(sops -d --extract '["talos_logging_address"]' $(TALOS_VARS_FILE)) || exit 1; \
+	b=$$(sops -d --extract '["stringData"]["INGEST_LB_IP"]' $(CLUSTER_SECRETS)) || exit 1; \
+	[ -n "$$a" ] && [ "$$a" = "$$b" ] || { \
+		echo "$(TALOS_VARS_FILE) talos_logging_address is empty or differs from INGEST_LB_IP; change both." >&2; \
+		exit 1; }
+	@echo ">> talos_logging_address matches INGEST_LB_IP"
+	@sops -d --extract '["stringData"]["TALOS_NODE_SOURCE_RANGES"]' $(CLUSTER_SECRETS) | python3 -c 'import ipaddress, json, sys; r = json.load(sys.stdin); sys.exit(not (r and all(ipaddress.ip_network(c).prefixlen == 32 for c in r)))' || { \
+		echo "TALOS_NODE_SOURCE_RANGES in $(CLUSTER_SECRETS) must be a non-empty JSON list of /32s." >&2; \
+		exit 1; }
+	@echo ">> TALOS_NODE_SOURCE_RANGES is a list of node /32s"
 
 # Only flux-system/ is dry-run: SOPS-encrypted Secrets elsewhere fail a
 # server dry run (top-level `sops:` field, non-base64 values). Before the
@@ -244,6 +293,7 @@ check: build lint
 	fi
 
 apply: build lint components secret sync
+	@../scripts/annotate flux-bootstrap "flux: install and sync applied to $(CLUSTER)" "cluster:$(CLUSTER)"
 
 # Server-side apply throughout: kustomize-controller drops the kubectl field
 # manager when it takes these objects over, so a later re-run with changed

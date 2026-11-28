@@ -27,6 +27,16 @@ resources:
   - media-egress/ks.yaml
   - glance/ks.yaml
   - home-assistant/ks.yaml
+  - actual/ks.yaml
+  - uptime-kuma/ks.yaml
+  - ntfy/ks.yaml
+  - it-tools/ks.yaml
+  - bentopdf/ks.yaml
+  - changedetection/ks.yaml
+  - spliit/ks.yaml
+  - sure/ks.yaml
+  - dawarich/ks.yaml
+  - paperless/ks.yaml
   - orb-agent/ks.yaml
   - lancache/ks.yaml
   - nebula-sync/ks.yaml

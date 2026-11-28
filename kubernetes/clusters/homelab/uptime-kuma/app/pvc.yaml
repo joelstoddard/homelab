@@ -1,0 +1,15 @@
+# The SQLite database: monitors, settings and history. A Longhorn RWO volume is
+# a local filesystem to the one pod that mounts it, so SQLite's locking holds,
+# unlike on NFS (docs/design/uptime-kuma.md).
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: uptime-kuma-data
+  labels:
+    app.kubernetes.io/name: uptime-kuma
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi

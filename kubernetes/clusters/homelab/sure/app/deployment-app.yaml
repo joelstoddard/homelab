@@ -1,0 +1,135 @@
+# web and the Sidekiq worker share one pod because both mount the RWO storage
+# volume. The web entrypoint runs db:prepare (create or migrate) on every start.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sure
+  labels:
+    app.kubernetes.io/name: sure
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: sure
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: sure
+    spec:
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      # Ruby rejects a world-writable temp dir without the sticky bit, which every
+      # emptyDir is; TMPDIR points at this 0700 one (docs/design/sure.md).
+      initContainers:
+        - name: tmpdir
+          image: ghcr.io/we-promise/sure:0.7.6-hotfix.2@sha256:08f4fb26cedd0e5743792178ee744c1ea8b3ccd8cd9da1941ffc3ba7ef16ae6c
+          command: ["mkdir", "-p", "-m", "0700", "/rails/tmp/sys"]
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: tmp
+              mountPath: /rails/tmp
+      containers:
+        - name: web
+          image: ghcr.io/we-promise/sure:0.7.6-hotfix.2@sha256:08f4fb26cedd0e5743792178ee744c1ea8b3ccd8cd9da1941ffc3ba7ef16ae6c
+          env: &env
+            - name: TMPDIR
+              value: /rails/tmp/sys
+            - name: SELF_HOSTED
+              value: "true"
+            - name: APP_DOMAIN
+              value: sure.${DOMAIN}
+            # Traefik terminates TLS: assume it, never redirect the kubelet's HTTP probes.
+            - name: RAILS_FORCE_SSL
+              value: "false"
+            - name: RAILS_ASSUME_SSL
+              value: "true"
+            - name: DB_HOST
+              value: postgres.sure.svc
+            - name: DB_PORT
+              value: "5432"
+            - name: POSTGRES_USER
+              value: sure
+            - name: POSTGRES_DB
+              value: sure
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: sure-db
+                  key: POSTGRES_PASSWORD
+            - name: SECRET_KEY_BASE
+              valueFrom:
+                secretKeyRef:
+                  name: sure-db
+                  key: SECRET_KEY_BASE
+            - name: REDIS_URL
+              value: redis://valkey.sure.svc:6379/1
+          ports:
+            - name: http
+              containerPort: 3000
+          readinessProbe:
+            httpGet:
+              path: /up
+              port: http
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /up
+              port: http
+            initialDelaySeconds: 120
+            periodSeconds: 30
+            failureThreshold: 3
+          securityContext: &containersecurity
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts: &mounts
+            - name: storage
+              mountPath: /rails/storage
+            - name: tmp
+              mountPath: /rails/tmp
+            - name: log
+              mountPath: /rails/log
+            - name: systmp
+              mountPath: /tmp
+          resources:
+            requests:
+              cpu: 50m
+              memory: 384Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+        - name: worker
+          image: ghcr.io/we-promise/sure:0.7.6-hotfix.2@sha256:08f4fb26cedd0e5743792178ee744c1ea8b3ccd8cd9da1941ffc3ba7ef16ae6c
+          command: ["bundle", "exec", "sidekiq"]
+          env: *env
+          securityContext: *containersecurity
+          volumeMounts: *mounts
+          resources:
+            requests:
+              cpu: 20m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 768Mi
+      volumes:
+        - name: storage
+          persistentVolumeClaim:
+            claimName: sure-storage
+        - name: tmp
+          emptyDir: {}
+        - name: log
+          emptyDir: {}
+        - name: systmp
+          emptyDir: {}

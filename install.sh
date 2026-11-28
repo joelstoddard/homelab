@@ -2,10 +2,14 @@
 # Installs the host-level prerequisites for running the homelab Ansible
 # automation against this machine as the PXE server. Idempotent.
 #
-# Usage: sudo ./install.sh [target-user]
+# Usage: sudo ./install.sh [target-user], or as root on bare Debian: ./install.sh <user>
 #   target-user defaults to $SUDO_USER; falls back to a clear error.
 
 set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=scripts/lib/fetch-verified.sh
+. "${SCRIPT_DIR}/scripts/lib/fetch-verified.sh"
 
 if [[ $EUID -ne 0 ]]; then
     echo "Please run as root (e.g. sudo ./install.sh)" >&2
@@ -40,12 +44,21 @@ fi
 echo ">> Updating apt cache"
 apt-get update
 
-echo ">> Installing base tooling (curl, ca-certificates, gnupg, python3-venv, git, make, rsync)"
+echo ">> Installing base tooling (curl, ca-certificates, gnupg, python3-venv, git, make, rsync, jq, openssl, sudo, ssh)"
 # arp-scan: the talos role finds maintenance-mode nodes by MAC on the LAN.
 apt-get install -y \
     ca-certificates curl gnupg \
     python3 python3-pip python3-venv \
-    git make rsync arp-scan
+    git make rsync arp-scan jq openssl sudo openssh-client
+
+# The PXE and Talos plays become root on localhost without -K (docs/setup.md).
+# The file name has no dot: sudo skips any sudoers.d file whose name has one.
+echo ">> Granting ${TARGET_USER} passwordless sudo"
+SUDOERS_TMP="$(mktemp)"
+echo "${TARGET_USER} ALL=(ALL) NOPASSWD: ALL" > "$SUDOERS_TMP"
+visudo -cqf "$SUDOERS_TMP"
+install -m 0440 "$SUDOERS_TMP" /etc/sudoers.d/homelab-operator
+rm -f "$SUDOERS_TMP"
 
 # Skip a download when the installed binary reports the pinned version.
 # Matching the bare number ignores a leading v; argv mirrors verify() below.
@@ -65,29 +78,32 @@ echo ">> Installing age (encrypted host_vars decryption)"
 apt-get install -y age
 
 # renovate: datasource=github-releases depName=getsops/sops
-SOPS_VERSION="v3.12.2"
+SOPS_VERSION="v3.13.3"
 SOPS_ARCH="$(dpkg --print-architecture)"
 if have_version "$SOPS_VERSION" sops --version; then
     echo ">> sops ${SOPS_VERSION} already installed"
 else
     echo ">> Installing sops ${SOPS_VERSION} from upstream release"
-    curl -fsSL -o /usr/local/bin/sops \
-        "https://github.com/getsops/sops/releases/download/${SOPS_VERSION}/sops-${SOPS_VERSION}.linux.${SOPS_ARCH}"
-    chmod +x /usr/local/bin/sops
+    SOPS_REL="https://github.com/getsops/sops/releases/download/${SOPS_VERSION}"
+    fetch_verified "${SOPS_REL}/sops-${SOPS_VERSION}.linux.${SOPS_ARCH}" \
+        "${SOPS_REL}/sops-${SOPS_VERSION}.checksums.txt" \
+        "sops-${SOPS_VERSION}.linux.${SOPS_ARCH}" /usr/local/bin/sops
 fi
 
 # tofu isn't in apt for Debian/Ubuntu; pull the upstream .deb release.
 # Bump TOFU_VERSION when operator workstations move.
 # renovate: datasource=github-releases depName=opentofu/opentofu extractVersion=^v(?<version>.+)$
-TOFU_VERSION="1.10.6"
+TOFU_VERSION="1.13.10"
 TOFU_ARCH="$(dpkg --print-architecture)"
 if have_version "$TOFU_VERSION" tofu --version; then
     echo ">> OpenTofu ${TOFU_VERSION} already installed"
 else
     echo ">> Installing OpenTofu ${TOFU_VERSION} from upstream .deb release"
     TOFU_DEB="$(mktemp --suffix=.deb)"
-    curl -fsSL -o "$TOFU_DEB" \
-        "https://github.com/opentofu/opentofu/releases/download/v${TOFU_VERSION}/tofu_${TOFU_VERSION}_${TOFU_ARCH}.deb"
+    TOFU_REL="https://github.com/opentofu/opentofu/releases/download/v${TOFU_VERSION}"
+    fetch_verified "${TOFU_REL}/tofu_${TOFU_VERSION}_${TOFU_ARCH}.deb" \
+        "${TOFU_REL}/tofu_${TOFU_VERSION}_SHA256SUMS" \
+        "tofu_${TOFU_VERSION}_${TOFU_ARCH}.deb" "$TOFU_DEB"
     apt-get install -y "$TOFU_DEB"
     rm -f "$TOFU_DEB"
 fi
@@ -97,7 +113,6 @@ fi
 # Neither is packaged for Debian/Ubuntu; pull the upstream release binaries.
 # Versions come from repo-root versions.env — the single source shared with
 # Ansible and OpenTofu. Bump there, not here.
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck disable=SC1091
 . "${SCRIPT_DIR}/versions.env"
 TALOSCTL_VERSION="${TALOS_VERSION}"
@@ -112,18 +127,17 @@ if have_version "$TALOSCTL_VERSION" talosctl version --client; then
     echo ">> talosctl ${TALOSCTL_VERSION} already installed"
 else
     echo ">> Installing talosctl ${TALOSCTL_VERSION} from upstream release"
-    curl -fsSL -o /usr/local/bin/talosctl \
-        "https://github.com/siderolabs/talos/releases/download/${TALOSCTL_VERSION}/talosctl-linux-${GOARCH}"
-    chmod +x /usr/local/bin/talosctl
+    TALOS_REL="https://github.com/siderolabs/talos/releases/download/${TALOSCTL_VERSION}"
+    fetch_verified "${TALOS_REL}/talosctl-linux-${GOARCH}" "${TALOS_REL}/sha256sum.txt" \
+        "talosctl-linux-${GOARCH}" /usr/local/bin/talosctl
 fi
 
 if have_version "$KUBECTL_VERSION" kubectl version --client; then
     echo ">> kubectl ${KUBECTL_VERSION} already installed"
 else
     echo ">> Installing kubectl ${KUBECTL_VERSION} from upstream release"
-    curl -fsSL -o /usr/local/bin/kubectl \
-        "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/${GOARCH}/kubectl"
-    chmod +x /usr/local/bin/kubectl
+    KUBECTL_URL="https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/${GOARCH}/kubectl"
+    fetch_verified "$KUBECTL_URL" "${KUBECTL_URL}.sha256" kubectl /usr/local/bin/kubectl
 fi
 
 # flux regenerates kubernetes/clusters/homelab/flux-system/gotk-components.yaml on version bumps
@@ -133,8 +147,12 @@ if have_version "$FLUX_VERSION" flux --version; then
     echo ">> flux ${FLUX_VERSION} already installed"
 else
     echo ">> Installing flux ${FLUX_VERSION} from upstream release"
-    curl -fsSL "https://github.com/fluxcd/flux2/releases/download/${FLUX_VERSION}/flux_${FLUX_VERSION#v}_linux_${GOARCH}.tar.gz" \
-        | tar -xz -C /usr/local/bin flux
+    FLUX_REL="https://github.com/fluxcd/flux2/releases/download/${FLUX_VERSION}"
+    FLUX_TGZ="flux_${FLUX_VERSION#v}_linux_${GOARCH}.tar.gz"
+    fetch_verified "${FLUX_REL}/${FLUX_TGZ}" "${FLUX_REL}/flux_${FLUX_VERSION#v}_checksums.txt" \
+        "$FLUX_TGZ" "/tmp/${FLUX_TGZ}"
+    tar -xzf "/tmp/${FLUX_TGZ}" -C /usr/local/bin flux
+    rm -f "/tmp/${FLUX_TGZ}"
 fi
 
 # helm seeds Cilium once, right after `talosctl bootstrap` (ansible/roles/talos
@@ -143,13 +161,16 @@ fi
 # kubernetes.core >= 6.5.0 (ansible/collections/requirements.yaml). The tarball
 # nests the binary under linux-<arch>/.
 # renovate: datasource=github-releases depName=helm/helm
-HELM_VERSION="v4.2.4"
+HELM_VERSION="v4.3.2"
 if have_version "$HELM_VERSION" helm version; then
     echo ">> helm ${HELM_VERSION} already installed"
 else
     echo ">> Installing helm ${HELM_VERSION} from upstream release"
-    curl -fsSL "https://get.helm.sh/helm-${HELM_VERSION}-linux-${GOARCH}.tar.gz" \
-        | tar -xz -C /usr/local/bin --strip-components=1 "linux-${GOARCH}/helm"
+    HELM_TGZ="helm-${HELM_VERSION}-linux-${GOARCH}.tar.gz"
+    fetch_verified "https://get.helm.sh/${HELM_TGZ}" "https://get.helm.sh/${HELM_TGZ}.sha256sum" \
+        "$HELM_TGZ" "/tmp/${HELM_TGZ}"
+    tar -xzf "/tmp/${HELM_TGZ}" -C /usr/local/bin --strip-components=1 "linux-${GOARCH}/helm"
+    rm -f "/tmp/${HELM_TGZ}"
 fi
 
 # hcloud-upload-image uploads skylab's Talos snapshot to Hetzner
@@ -164,8 +185,13 @@ if have_version "$HCLOUD_UPLOAD_IMAGE_VERSION" hcloud-upload-image --version; th
     echo ">> hcloud-upload-image ${HCLOUD_UPLOAD_IMAGE_VERSION} already installed"
 else
     echo ">> Installing hcloud-upload-image ${HCLOUD_UPLOAD_IMAGE_VERSION} from upstream release"
-    curl -fsSL "https://github.com/apricote/hcloud-upload-image/releases/download/${HCLOUD_UPLOAD_IMAGE_VERSION}/hcloud-upload-image_Linux_${HUI_ARCH}.tar.gz" \
-        | tar -xz -C /usr/local/bin hcloud-upload-image
+    HUI_REL="https://github.com/apricote/hcloud-upload-image/releases/download/${HCLOUD_UPLOAD_IMAGE_VERSION}"
+    HUI_TGZ="hcloud-upload-image_Linux_${HUI_ARCH}.tar.gz"
+    fetch_verified "${HUI_REL}/${HUI_TGZ}" \
+        "${HUI_REL}/hcloud-upload-image_${HCLOUD_UPLOAD_IMAGE_VERSION#v}_checksums.txt" \
+        "$HUI_TGZ" "/tmp/${HUI_TGZ}"
+    tar -xzf "/tmp/${HUI_TGZ}" -C /usr/local/bin hcloud-upload-image
+    rm -f "/tmp/${HUI_TGZ}"
 fi
 
 echo ">> Installing Docker apt key + repo (${DOCKER_REPO_DISTRO}/${CODENAME})"
@@ -222,6 +248,10 @@ verify age
 verify python3
 verify git
 verify make
+verify jq
+verify openssl version
+verify sudo
+verify ssh -V
 verify rsync
 verify arp-scan
 

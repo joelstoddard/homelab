@@ -35,7 +35,9 @@ All make targets accept: `LIMIT=<host>`, `TAGS=<tag>`, `VERBOSITY=-vvv`, `EXTRA_
 
 The root `Makefile` delegates to subdirectory Makefiles; `ansible/`, `opentofu/` and `kubernetes/` exist. `make homelab` runs `install ansible opentofu dns talos kubernetes`; `dns` is `make -C ansible apply-dns` then `make -C opentofu apply LIMIT=pihole-config`. The tailnet policy is not in the chain (applied by CI from a private repo — see the Kubernetes section).
 
-CI is `.github/workflows/lint.yaml`: `make lint-sops` (every file a `.sops.yaml` rule covers is encrypted), `make -C opentofu fmt`, `make -C kubernetes lint-offline` (`lint` minus the one check that decrypts) and `make -C ansible build lint`, on every pull request. It holds no age key, so a check that needs one stays out of `lint-offline`.
+CI is `.github/workflows/lint.yaml`: `make lint-sops` (every file a `.sops.yaml` rule covers is encrypted), `make -C opentofu fmt` and `tofu validate` per resource dir, `make -C kubernetes lint-offline` (`lint` minus the one check that decrypts), `make -C ansible build lint`, and every directory's `test_*.py` under `ansible/.venv/bin/python -m unittest`, on every pull request. It holds no age key, so a check that needs one stays out of `lint-offline`.
+
+Testing is dry runs against the live fleet, then a live check of the behaviour. Unit tests cover only small, self-contained logic (the `talos` role's filter and task files, the dashboard `vendor.py` and `hosts.py`, and a layout check over every dashboard), as `test_*.py` beside the code. Lint proves syntax only, so a change is verified by its dry run (`make -C ansible check*`, `make -C opentofu check` — exit 0 is no changes, 2 is changes — or `flux build kustomization <layer>`), then by exercising what it does after apply. Templated decision logic in a role (a Jinja comparison that picks a branch) is tested by dry-running it against a host on each side of the decision; lint never evaluates it (#304).
 
 ## Architecture
 
@@ -48,7 +50,7 @@ Two stages, two playbook entry points:
 - **`playbooks/talos.yaml`** — bootstraps a Kubernetes cluster: the home cluster, or skylab with `make -C ansible apply-talos CLUSTER=skylab`. Runs `connection: local`, driving nodes over the Talos API (`talosctl`) because Talos nodes have no SSH or Python. This is why the Talos lifecycle is its own play rather than a branch of `02-preflights`. A cluster's hosts are the `talos` group at the NetBox site its `roles/talos/vars/<cluster>.yaml` names (`docs/design/skylab-bootstrap.md`). Dispatches the `talos` library's `config`/`apply`/`bootstrap`/`kubeconfig` tasks.
 - **`playbooks/reset.yaml`** — wipes named Talos nodes back to maintenance mode (`talosctl reset --wipe-mode all`, working the Pi netboot gate around it) so `talos.yaml` can reinstall them. The rebuild path for version bumps; deliberately not part of `make homelab`. See `docs/talos-bootstrap.md` "Rebuild / bumping versions".
 - **`playbooks/upgrade.yaml`** — rolls a config change / new installer image onto RUNNING Talos nodes one at a time (authenticated apply-config; talosctl upgrade for VMs, reboot into refreshed netboot assets for Pis; health between nodes). `make -C ansible apply-upgrade EXTRA_VARS='{"upgrade_hosts": [...]|"all"}'`. The day-2 path; `reset.yaml` is for multi-minor jumps.
-- **`playbooks/resize.yaml`** — picks up a Proxmox hardware change (memory, cores) on RUNNING Talos VMs one at a time: halt, stop, start, gated on node Ready + no degraded Longhorn volume + cluster health, then verifies the guest's own reported total. `make -C ansible apply-resize EXTRA_VARS='{"resize_hosts": [...]|"agents"|"all"}'`, after `make -C opentofu`. Renders no machine config (a power cycle pushes none), so unlike the other Talos playbooks it needs only a talosconfig — the rendered one, else `~/.talos/config`. Refuses control-plane targets unless `resize_allow_controlplane=true`: the agents run overcommitted on zram and etcd must stay resident (`docs/design/zram-swap.md`).
+- **`playbooks/resize.yaml`** — picks up a Proxmox hardware change (memory, cores, balloon device) on RUNNING Talos VMs one at a time: halt, stop, start, gated on node Ready + no degraded Longhorn volume + cluster health, then verifies the guest's own reported total. It cycles a VM with any pending Proxmox config key (read with `pvesh` on its NUC) or whose guest sees outside its running balloon minimum..NetBox `memory` (`roles/talos/tasks/resize-decision.yaml`). `make -C ansible apply-resize EXTRA_VARS='{"resize_hosts": [...]|"agents"|"all"}'`, after `make -C opentofu`. Renders no machine config (a power cycle pushes none), so unlike the other Talos playbooks it needs only a talosconfig — the rendered one, else `~/.talos/config`. Refuses control-plane targets unless `resize_allow_controlplane=true`: the agents run overcommitted on zram and etcd must stay resident (`docs/design/zram-swap.md`).
 - **`playbooks/pi-eeprom-netboot.yaml`** — one-time per Pi: flips the Raspberry Pi 4 bootloader EEPROM to `BOOT_ORDER=0xf42` (network, then USB, then restart), after which the `00-pxe` dnsmasq gate decides each boot. Runs over SSH against the Pi's *current* OS, and only stages the change — the firmware flashes it on the next boot. `EXTRA_VARS='pi_reboot=true'` reboots fire-and-forget, because a successful cutover leaves no SSH to come back to. `make -C ansible apply-pi-eeprom LIMIT=<Pi>`.
 - **`playbooks/pi-cutover.yaml`** — drives a Pi the rest of the way to Talos: EEPROM → netboot into maintenance → install to `/dev/sda` → boot from disk. One-way for the old OS. It probes SSH to build its own pending set, so Pis already on Talos (which answer none) are skipped and the play is safe to re-run — which is why the root `make talos` target calls it before `apply-talos`. Narrow it with `EXTRA_VARS='{"pi_cutover_hosts": [...]}'`, NOT `--limit`: the localhost plays would be skipped. See `docs/netbooting-pis.md`.
 - **`playbooks/dns.yaml`** — configures the DNS chain's containers (NetBox tag `dns`, plus `pihole`/`lancache`/`bind9` per link), which `main.yaml` cannot reach. A localhost play first fails unless every configured link has two hosts; the play then runs `serial: 1`, so both instances of a link are never down at once. `make -C ansible apply-dns`. A last play, after every host, asserts the Pi-hole pair runs one FTL version and exactly one instance holds the VIP; it delegates to both instances whatever the `--limit`. The chain is every client's only resolver — see `docs/design/dns-chain.md`.
@@ -132,7 +134,9 @@ Current implementation:
   `docs/talos-bootstrap.md`.
 - `alloy` — OS library installing Grafana Alloy on the hosts outside the
   cluster (the four NUCs, NetBox tag `alloy` → group `alloy`): apt repo,
-  one `config.alloy` template, journald access, service.
+  one `config.alloy` template, journald access, service, plus
+  `smartctl_exporter` from `trixie-backports` on loopback, which that Alloy
+  scrapes (`job="smartctl"`, the SMART row of each `Hosts/<host>.json`).
   Dispatched from `02-preflights`, with `playbooks/alloy.yaml` /
   `make -C ansible apply-alloy` as the targeted entry point; the read-only
   PVE token the cluster's exporter uses comes from the `proxmox` library's
@@ -165,6 +169,10 @@ Current implementation:
 
 Per-host secrets (e.g., `root_password`) live in `ansible/inventory/host_vars/<hostname>.sops.yaml`, SOPS+Age encrypted. Each play loads them via a `community.sops.load_vars` pre-task that maps the NetBox-capitalized inventory hostname to the lowercase filename on disk. Recipients are configured in the repo-root `.sops.yaml`.
 
+Ansible output is redacted by the `redact` stdout callback (`ansible.cfg`, `ansible/plugins/callback/redact.py`): at start-up it decrypts every `*.sops.yaml` under `ansible/` into memory, then every message `Display` prints or logs (results at any verbosity, `--diff`, warnings, failures) has those values and any opaque 24+-character token replaced by `<REDACTED sha256:xxxxxxxx>`. The rules live in `ansible/plugins/redact_rules.py`, shared with the `talos_redact` filter. Without the Age key it warns once and redacts by shape only. It does not cover output printed before callbacks load (the NetBox inventory's `-v` lines), ad-hoc `ansible`, or an `ANSIBLE_STDOUT_CALLBACK` override. Keep `no_log` anyway. See `docs/design/output-redaction.md`.
+
+A second callback, `annotate` (`ansible/plugins/callback/annotate.py`), posts a Grafana Operator annotation through `scripts/annotate` for every playbook run that changed something and was not `--check`; OpenTofu applies (`scripts/annotate-tofu`) and `make -C kubernetes apply` do the same. It never fails a run. See `docs/design/observability.md`, "Change annotations".
+
 Inventory is dynamic from NetBox via the `netbox.netbox.nb_inventory` plugin (`ansible/inventory/netbox.yaml`). The plugin reads `NETBOX_API` and `NETBOX_TOKEN` from the environment; export them in your shell (or via direnv / shell rc / per-session `export`) before running `make`. MAC addresses (for WOL and dnsmasq allowlist) come from NetBox's `dcim/mac-addresses/` table; `mac_address` and `fqdn` are surfaced as runtime hostvars via `inventory/group_vars/all.yaml`. All group_vars live inventory-adjacent at `ansible/inventory/group_vars/` (so they load for any playbook regardless of its directory): `all.yaml` for repo-wide defaults plus runtime aliases, `nucs.yaml`/`pis.yaml` for hardware-class disk paths, `proxmox.yaml` to override `ansible_user=root` for the Proxmox conversion phase. See `ansible/inventory/README.md` for the seeding flow when adding a new PXE-managed host.
 
 ### OpenTofu (opentofu/)
@@ -182,9 +190,11 @@ them — NetBox is the source of truth, not a generator script. The
 `talos_version` comes from repo-root `versions.env` (the Makefile injects it as
 `TF_VAR_talos_version`). `modules/vm` sets `reboot_after_update = false`: the
 provider's own reboot is a hard `qmstop` + `qmstart` fired at every changed VM
-in parallel, so a geometry change (memory, cores) is left pending in the
-Proxmox config and picked up serially by `make -C ansible apply-resize` — see
-`docs/design/zram-swap.md`.
+in parallel, so a geometry change (memory, cores, balloon device) is left
+pending in the Proxmox config and picked up serially by
+`make -C ansible apply-resize` — see `docs/design/zram-swap.md`. Worker VMs
+carry a balloon with a 4000 MB minimum (`balloon_min_mb` in
+`modules/k8s-vm`); control-plane VMs carry none, so etcd stays resident.
 The six LXCs of the DNS chain sit beside the VMs, in `dns.tf`: Bind9 and
 lancache-dns in `resources/{rumba,salsa}/`, `pihole-01` in `resources/tango/`
 and `pihole-02` in `resources/samba/`; the folder is the node, as for the
@@ -295,7 +305,7 @@ full list is `flux-system`, `cilium`, `cilium-lb`, `descheduler`, `cluster-secre
 `cert-manager-issuers`, `traefik`, `traefik-middlewares`, `lan-services`,
 `tailscale`, `longhorn`, `longhorn-jobs`, `monitoring`, `alloy`,
 `host-monitoring`, `searxng`, `media`, `media-downloads`, `media-egress`, `glance`,
-`home-assistant`, `orb-agent`, `lancache`, `nebula-sync`).
+`home-assistant`, `actual`, `uptime-kuma`, `ntfy`, `it-tools`, `bentopdf`, `changedetection`, `spliit`, `sure`, `dawarich`, `paperless`, `orb-agent`, `lancache`, `nebula-sync`).
 `cluster-secrets/` is one SOPS Secret in `flux-system` holding `DOMAIN`,
 `TRAEFIK_LB_IP` and `ACME_EMAIL`; consumers (`cert-manager-issuers`,
 `traefik`, `longhorn`) add `dependsOn: cluster-secrets` +
@@ -322,7 +332,10 @@ redirecting to `websecure`, `TLSStore/default` serving `wildcard-tls` — the
 cluster's only certificate, so a new service needs one `IngressRoute` (or a
 plain `Ingress` with the `router.entrypoints` / `router.tls` annotations)
 and nothing else: no `Certificate`, no `tls.secretName`, no DNS record.
-The shared `default-headers` middleware and one `<service>-auth` basic-auth
+`websecure` keeps Traefik's 60 s `readTimeout`, which cuts any request body
+still arriving at 60 s; a second TLS entrypoint, `uploads` (Service port 8443,
+`readTimeout: 1h`), carries only the four Proxmox routes, so an ISO upload
+goes to `https://<node>.${DOMAIN}:8443`. The shared `default-headers` middleware and one `<service>-auth` basic-auth
 Middleware per service that has no login of its own (`dashboard-auth`,
 `longhorn-auth`, `glance-auth` — there is no shared `basic-auth`, and a
 shared credential is deliberately rejected) live in the `traefik` namespace
@@ -353,7 +366,8 @@ passthrough"), and a missing passthrough gives a valid certificate and a
 Traefik 404. See `docs/design/ingress-tls.md`.
 `monitoring/` (`dependsOn: cilium, longhorn, cluster-secrets,
 traefik-middlewares`, `wait: true`) is Prometheus as a remote-write-only
-TSDB, Loki Monolithic on Longhorn and a stateless Grafana whose dashboards
+TSDB, Loki Monolithic on Longhorn and a Grafana whose config is all from
+git (its 1Gi Longhorn volume holds annotations, not config) and whose dashboards
 are JSON under `monitoring/app/dashboards/<Folder>/` (one ConfigMap per
 file, sidecar-loaded, read-only in the UI; datasource UIDs `prometheus` /
 `loki` are fixed). `alloy/` (`dependsOn: monitoring`, PSA privileged) is
@@ -362,8 +376,8 @@ kubelet/cAdvisor, exporting node metrics in-process and tailing
 `/var/log/pods` (`alloy/app/config/config.alloy`); one `alloy-cluster`
 replica scraping every cluster-wide target — pods and Services annotated
 `prometheus.io/scrape` + `prometheus.io/port`, the control plane, Longhorn,
-SearXNG, Home Assistant, the descheduler — on a Pi by preferred (not required) arm64
-affinity (`cluster.alloy`); and a one-replica `alloy-events`. No Prometheus
+SearXNG, Home Assistant, Dawarich, the descheduler — on a Pi by preferred (not required) arm64
+affinity (`cluster.alloy`); a one-replica `alloy-events`; and a privileged `smartctl-exporter` DaemonSet on the arm64 nodes (`/dev/sda;sntrealtek`, `job="smartctl"`). No Prometheus
 Operator, no CRDs: those two River files are the only place scrape config
 lives. `alloy-cluster` is an ordinary pod, so a NetworkPolicy-protected
 target admits it by namespace + pod label. The three `monitoring` values files
@@ -371,17 +385,34 @@ are substituted, so `${DOMAIN}` is the only `$` allowed in them; dashboards
 and River sit in nested kustomizations whose ConfigMaps carry
 `kustomize.toolkit.fluxcd.io/substitute: disabled`. Control-plane component
 metrics need the talos role's control-plane patch (`bind-address`,
-`listen-metrics-urls`). See `docs/design/observability.md`.
+`listen-metrics-urls`). Alerting is provisioned from `monitoring/app/alerting/`
+through Grafana's alerts sidecar, contact point `ntfy` via the in-cluster
+Service, and kube-state-metrics exports Flux Ready state as `gotk_resource_info`.
+Every dashboard has four change toggles: Flux (Flux's `grafana` Provider),
+NetBox (its change log), Operator (`scripts/annotate`) and Proxmox (the
+`proxmox-annotations` CronJob, reading the NUCs' journal in Loki, OpenTofu's
+token excluded). After a change no
+tool records — a `talosctl` or `kubectl` action, a UI edit — run
+`make annotate MSG="what changed"`.
+See `docs/design/observability.md`, "Change annotations".
 `host-monitoring/` (`dependsOn: monitoring, cilium-lb, cluster-secrets`,
 substituted) is the fleet outside the cluster: `pve-exporter`,
 `pihole-exporter` and `blackbox-exporter` poll and probe Proxmox, Pi-hole and
 the router, `graphite-exporter` receives TrueNAS's collectd stream, and a
 third Alloy (`alloy-gateway`) scrapes all four, plus the
 `prometheus-bind-exporter` the `dns` role runs on each Bind9 and
-lancache-dns container (`job="bind"`, `:9119`), and runs the syslog receiver;
+lancache-dns container (`job="bind"`, `:9119`), and Voyager's `smartctl_exporter` (`job="smartctl"`, runbook in `docs/design/host-monitoring.md`), and runs the syslog receiver;
 the two receivers share one pinned `${INGEST_LB_IP}` through
 `lbipam.cilium.io/sharing-key`, syslog on 1514 in the pod so it needs neither
-root nor NET_BIND_SERVICE. The Alloys on the Proxmox hosts push
+root nor NET_BIND_SERVICE. Another Alloy, `alloy-talos`, takes the Talos
+nodes' machine and kernel logs on TCP 5170 of the same address
+(`job="talos"`, labelled `node`/`service`/`level`, `auditd` and the dashboard's
+API polls dropped), alone with the experimental stability flag that
+`otelcol.receiver.tcplog` needs; `loadBalancerSourceRanges` from
+`TALOS_NODE_SOURCE_RANGES` (the 20 node `/32`s, deny-all when missing), no
+NodePort and a CiliumNetworkPolicy keep the LAN and pods from sending, so a
+new or re-addressed node needs a `cluster-secrets` edit. The Alloys on the
+Proxmox hosts push
 in through `prometheus.${DOMAIN}/api/v1/write` and
 `loki.${DOMAIN}/loki/api/v1/push` — `monitoring/app/ingest/`, one `hosts`
 credential behind the `ingest-auth` Middleware, a deliberate exception to the
@@ -389,7 +420,9 @@ per-service basic-auth rule because both sinks are write-only. Addresses are
 only ever `${…}` from `cluster-secrets`, listed in
 `host-monitoring/app/targets/targets.json`; the gateway's River sits in
 `app/config/` with substitution disabled and its targets mount at
-`/etc/alloy-targets`, outside the chart's read-only `/etc/alloy`. No ICMP
+`/etc/alloy-targets`, outside the chart's read-only `/etc/alloy`. The Pis'
+Talos API probes (`tcp_connect`, port 50000) are not in that file: `alloy-cluster`
+discovers the arm64 nodes and probes them through the same exporter. No ICMP
 probes: PodSecurity baseline forbids `NET_RAW`. See
 `docs/design/host-monitoring.md`.
 `searxng/` (`dependsOn: traefik, traefik-middlewares, cluster-secrets`,
@@ -459,6 +492,111 @@ location and the URLs are therefore set in the UI and survive in
 No auth middleware — Home Assistant has its own login, as do SearXNG,
 Jellyfin, the four \*arr applications and qBittorrent. Two replicas are
 impossible, not merely unwise. See `docs/design/home-assistant.md`.
+`actual/` and `uptime-kuma/` (`dependsOn: traefik, traefik-middlewares, longhorn,
+cluster-secrets`, substituted, no `decryption`) are Actual, the finance
+manager, on `actual.${DOMAIN}`, and Uptime Kuma, a status page with no
+notifications, on `uptime.${DOMAIN}`. Each is one replica, `Recreate`, its
+own login, a preferred arm64 affinity and a Longhorn RWO volume (2Gi / 1Gi),
+running as uid 1000 on a read-only root. Both keep SQLite on Longhorn,
+never on Voyager: SQLite corrupts on NFS. Uptime Kuma pins
+`UPTIME_KUMA_DB_TYPE=sqlite`, its monitors are UI state with no backup until
+#228, and they reach targets by `.svc` name or address because cluster DNS
+cannot resolve the LAN wildcard. See `docs/design/actual.md` and
+`docs/design/uptime-kuma.md`.
+`ntfy/` (`dependsOn: traefik, traefik-middlewares, longhorn, cluster-secrets`,
+substituted, `decryption`) is the push-notification server on `ntfy.${DOMAIN}`
+that Grafana alerting posts to through the in-cluster Service, never the public
+hostname. One replica, `Recreate`, uid 1000 on a read-only root, SQLite cache
+and auth databases on a Longhorn RWO volume. Auth is deny-all with users
+declared from the `ntfy-auth` Secret, whose substitution is disabled so Flux
+does not strip `$` from the bcrypt hashes; the container receives only the two
+hash/ACL keys, not the plaintext passwords beside them. `upstream-base-url:
+https://ntfy.sh` is the iOS wake-up relay and the one third-party dependency.
+A `CiliumNetworkPolicy` limits egress to cluster DNS and `ntfy.sh:443`. See
+`docs/design/ntfy.md`.
+`it-tools/` (`dependsOn: traefik, traefik-middlewares, cluster-secrets`,
+substituted, no `decryption`) is ShareVB's maintained IT-Tools fork on
+`it-tools.${DOMAIN}`, not the stale upstream: one static app pod plus four
+helpers (network utils, HTML-to-PDF, cors-anywhere, a WebSocket TCP/UDP
+bridge) under `/svc/<name>` on the same hostname, all behind the one
+`it-tools-auth` Middleware, so `tools-settings.json` holds URLs and never a
+credential (the app serves it publicly). That Middleware sets
+`removeHeader: true` because cors-anywhere forwards headers to the sites it
+fetches. Traefik's `sanitizePath` turns `/https://host` into `/https:/host`
+and refuses to put `//` back, so the cors route rewrites it to `host:443`;
+those replacements are `$${1}` in git. `helpers-egress` allows only DNS and
+the `world` entity (cluster pods, nodes and LB addresses are unreachable)
+and denies TrueNAS NFS plus the Kubernetes and Talos API ports everywhere,
+because the control-plane VIP is `world` to Cilium. Every `/svc/*` rule also
+matches `Sec-Fetch-Site: same-origin`, so no other site can drive a helper
+with the cached credential. No Docker image downloader: Talos has no Docker
+socket. See `docs/design/it-tools.md`.
+`bentopdf/` (`dependsOn: traefik, traefik-middlewares, cluster-secrets`,
+substituted, no `decryption`) is BentoPDF's upstream `bentopdf-simple` image
+on `bentopdf.${DOMAIN}`, behind its own `bentopdf-auth`: one stateless
+nginx pod, uid 101 on a read-only root with three `emptyDir`s it cannot
+start without. Every tool runs in the browser, and the advanced ones
+(PyMuPDF, Ghostscript, CoherentPDF, OCR) load WASM from jsDelivr, a
+deliberate trade-off: self-hosting it means our own image. See
+`docs/design/bentopdf.md`.
+`changedetection/` (`dependsOn: traefik, traefik-middlewares, longhorn,
+cluster-secrets`, substituted, no `decryption`) is changedetection.io on
+`changedetection.${DOMAIN}`, behind its own `changedetection-auth`, watching
+product prices and stock: the app (uid 1000, 1Gi Longhorn datastore,
+`Recreate`) and `sockpuppetbrowser`, a Chrome started `--no-sandbox` that only
+the app may reach. Both pods fetch any URL a watch names, so
+`fetchers-egress` allows DNS and the internet and denies `${LAN_PREFIX}` (the
+whole LAN, from `cluster-secrets`) and the Kubernetes and Talos API ports.
+Changes go to ntfy's `changedetection` topic as the write-only ntfy user
+`changedetection`; its Apprise URL and the watches are UI state on the volume.
+See `docs/design/changedetection.md`.
+`spliit/` (`dependsOn: traefik, traefik-middlewares, longhorn,
+cluster-secrets`, substituted, `decryption`) is Spliit, shared expenses, on
+`spliit.${DOMAIN}`, with **no auth Middleware**: the one documented exception
+among services without a login, because each group is an unguessable link
+meant to be shared. It has its own plain PostgreSQL 18 `Deployment` (uid 70,
+`Recreate`, 2Gi Longhorn, no backup until #228) with a `postgres-exporter`
+sidecar, reachable only from Spliit and `alloy-cluster`; `secret-db.sops.yaml`
+holds the password and both connection URLs, substitution disabled. Spliit
+runs `prisma migrate deploy` on every start. Sure and Dawarich follow the same
+one-PostgreSQL-per-app pattern until the HA database (#173). See
+`docs/design/spliit.md`.
+`sure/` (`dependsOn: traefik, traefik-middlewares, longhorn, cluster-secrets`,
+substituted, `decryption`) is Sure, personal finance on trial against Actual,
+on `sure.${DOMAIN}` with its own login, CSV import only (no SimpleFIN, Plaid
+or OpenAI). The Rails `web` and Sidekiq `worker` are two containers of one
+`Recreate` pod because both mount the RWO `sure-storage` claim; `web` runs
+`db:prepare` on every start. Its own PostgreSQL (Spliit's pattern) and a
+Valkey queue with `noeviction`, never `allkeys-lru`, since an evicted key is a
+lost job. `RAILS_FORCE_SSL=false` keeps the `/up` probes from being redirected;
+`RAILS_ASSUME_SSL=true` keeps cookies secure. Never regenerate
+`SECRET_KEY_BASE`: the encryption keys derive from it. See
+`docs/design/sure.md`.
+`dawarich/` (`dependsOn: traefik, traefik-middlewares, longhorn,
+cluster-secrets`, substituted, `decryption`) is Dawarich, location history, on
+`dawarich.${DOMAIN}` with its own login; the phone posts over the tailnet with
+an API key. One Rails container with Sidekiq embedded, whose entrypoint copies
+`public_dist` into an `emptyDir` `public/` and migrates and seeds on every
+start — the seed creates the admin `demo@dawarich.app` / `safepassword` on an
+empty database, deleted by hand after every fresh install. Its own PostGIS
+(`imresamu/postgis` 17, the multi-arch build; 5Gi, volume one level above
+`PGDATA`) and a `noeviction` Valkey; the Sure `TMPDIR` init container.
+`APPLICATION_HOSTS` must name every `Host` it is reached by, or Rails answers
+403; `/api/v1/health` is exempt, so the probes use it. Its Yabeda `/metrics`
+needs basic auth, so `cluster.alloy` scrapes it explicitly on the Service name
+with `DAWARICH_METRICS_PASSWORD` from `cluster-secrets`. See
+`docs/design/dawarich.md`.
+`paperless/` (`dependsOn: traefik, traefik-middlewares, longhorn,
+cluster-secrets`, substituted, `decryption`) is Paperless-ngx on
+`paperless.${DOMAIN}` with its own login. Documents live on Voyager's own
+`paperless` dataset (Mapall user `paperless`, one NFS PersistentVolume mounted
+by `subPath` as `media/`, `consume/` and `export/`; the consume folder is also
+an SMB share for the scanner and is polled every 30 s, as NFS has no inotify).
+The index and SQLite are on Longhorn. Rootless as uid 1000 on a read-only root,
+except a root init container that chowns `/run` with `CHOWN` alone, because
+s6-overlay refuses a `/run` it does not own — so the namespace stays
+`baseline`. A Valkey broker; the first superuser `admin` comes from
+`secret.sops.yaml`. See `docs/design/paperless.md`.
 `orb-agent/` (`decryption`, no `dependsOn`, not substituted) is the LAN
 discovery agent for NetBox Assurance: one `netboxlabs/orb-agent` replica,
 `Recreate`, Fleet-managed, on `hostNetwork` in a PodSecurity `privileged`
@@ -500,13 +638,15 @@ set to Basic. SABnzbd is the Usenet client and lives here, not in
 `sabnzbd.${DOMAIN}` until a login is set, exempts the `.svc.cluster.local`
 name the *arr use, and accepts the kubelet's IP `Host`, so probes hit
 `/robots.txt`. Its provider credentials and API key are in `sabnzbd.ini` on
-the claim, not in git — there is no env override. Recyclarr is the one
-`CronJob` here — it syncs the TRaSH quality profiles and custom formats into
-Sonarr and Radarr daily and exits, so it has no Service, route or claim. Its
-config is a ConfigMap with substitution disabled, and two things bite:
-instance names must be unique **across** services (a duplicate syncs nothing
-and still exits 0), and it must NOT be given a tty — a real sync logs plain
-`[INF]` lines, and a terminal replaces them with redrawn progress frames.
+the claim, not in git — there is no env override. Recyclarr 9 is a
+server: one Deployment that syncs the TRaSH quality profiles and custom
+formats into Sonarr and Radarr at 04:00 from `config/settings.yml`, with no
+Service or route, state on the `recyclarr-state` claim and a generated API key
+it refuses to start without (nothing calls the API). Its config is a
+ConfigMap with substitution disabled; instance names must be unique **across**
+services. Its alerts are two Loki rules on its per-job log line, because its
+sync metric's series start at the first job of each status and reset with the
+pod.
 See `docs/design/recyclarr.md`. The \*arr stack's design is split across
 `docs/design/media-foundation.md` (shared namespace, storage, ingress policy),
 `docs/design/arr-core.md` (Prowlarr, Sonarr, Radarr, Lidarr),
@@ -538,16 +678,21 @@ and must never be the chain (it would resolve the CDNs to itself). The image
 proxies to any Host or SNI name, so a `CiliumNetworkPolicy` limits its egress
 to public addresses on 80/443 plus DNS. A missing
 `LANCACHE_LB_IP` substitutes empty, Cilium hands out a dynamic address, and
-every game download fails while the layer reports Ready. See
-`docs/design/lancache.md`.
+every game download fails while the layer reports Ready. nginx logs only to
+files on the dataset, so two follower containers (`access-log`, `error-log`;
+the same image, `tail -F` to stdout) put them in Loki; the access log is the
+image's `cachelog-json` and `access-log` drops the `/lancache-heartbeat`
+probe lines. The follower command needs its `trap 'exit 0' TERM`: a shell as
+PID 1 ignores SIGTERM and stalls every `Recreate` rollout. Hit rate is LogQL
+on `Network/lancache.json`, not a metric. See `docs/design/lancache.md`.
 `nebula-sync/` (`dependsOn: cilium, lan-services`, `decryption`, NOT
 substituted) is an hourly `CronJob` copying the Pi-hole pair's gravity tables
 (groups, adlists, domain lists, clients) one way from pihole-01 to pihole-02
 through the `lan-services` names, then running gravity on pihole-02:
 `FULL_SYNC=false` and no `SYNC_CONFIG_*`, because the `dns` role owns each
 instance's config. The image is digest-pinned and multi-arch; the namespace
-is PSA `restricted`; a `CiliumNetworkPolicy` limits egress to cluster DNS
-and the two Services on 443 via `toServices`. The password is
+is PSA `restricted`; a `CiliumNetworkPolicy` limits egress to cluster DNS,
+the two Services on 443 via `toServices`, and Uptime Kuma's push endpoint. The password is
 `PIHOLE_PASSWORD` in `app/secret.sops.yaml`, a copy of
 `dns_pihole_web_password` (the only source; Flux decrypts only its own
 layer) that `make -C kubernetes lint` fails on if it differs, appended to `PRIMARY` and

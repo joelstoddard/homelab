@@ -11,14 +11,17 @@ spec:
   chart:
     spec:
       chart: traefik
-      version: "41.5.0"
+      version: "43.0.0"
       sourceRef:
         kind: HelmRepository
         name: traefik
   install:
     remediation:
       retries: 3
+  # Flux skips the chart's crds/ on upgrade by default, which left the CRDs at
+  # the first-installed version while the controller moved on.
   upgrade:
+    crds: CreateReplace
     remediation:
       retries: 3
   valuesFrom:

@@ -1,5 +1,5 @@
 locals {
-  nb_vm = data.netbox_virtual_machines.match.vms[0]
+  nb_vm = data.netbox_virtual_machines.match.virtual_machines[0]
 
   link = split("-", var.name)[0]
   idx  = tonumber(split("-", var.name)[1])

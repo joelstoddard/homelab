@@ -1,0 +1,37 @@
+#!/bin/sh
+# Usage: scripts/annotate <source> <text> [tag...]
+#
+# Posts a Grafana annotation tagged "operator", <source> and each extra tag, which every
+# dashboard's Operator toggle shows. Set ANNOTATE_START_MS and ANNOTATE_END_MS (epoch ms)
+# for a region; otherwise it marks now. It never fails the change it records: any error
+# is a warning and exit 0. docs/design/observability.md, "Change annotations".
+HERE=$(cd "$(dirname "$0")" && pwd)
+ENV_FILE=${ANNOTATE_ENV_FILE:-$HERE/annotate.sops.env}
+
+warn() { echo "annotate: $1; no annotation posted" >&2; exit 0; }
+
+[ $# -ge 2 ] || { echo "usage: scripts/annotate <source> <text> [tag...]" >&2; exit 0; }
+command -v sops >/dev/null 2>&1 || warn "sops not on PATH"
+command -v curl >/dev/null 2>&1 || warn "curl not on PATH"
+
+url=$(sops -d --extract '["GRAFANA_URL"]' "$ENV_FILE" 2>/dev/null) || warn "cannot decrypt $ENV_FILE"
+[ -n "$url" ] || warn "GRAFANA_URL is empty in $ENV_FILE"
+
+body=$(python3 -I - "$@" <<'PY'
+import json, os, sys, time
+source, text, extra = sys.argv[1], sys.argv[2], sys.argv[3:]
+now = int(time.time() * 1000)
+start = int(os.environ.get("ANNOTATE_START_MS") or now)
+end = int(os.environ.get("ANNOTATE_END_MS") or start)
+print(json.dumps({"time": start, "timeEnd": end, "text": text,
+                  "tags": ["operator", source, *extra]}))
+PY
+) || warn "could not build the request"
+
+# The token reaches curl as a config file on stdin, never on a command line.
+sops -d --extract '["GRAFANA_TOKEN"]' "$ENV_FILE" 2>/dev/null |
+  { read -r token; printf 'header = "Authorization: Bearer %s"\n' "$token"; } |
+  curl -sf --max-time 10 -K - -X POST -H 'Content-Type: application/json' \
+    --data @/dev/fd/3 "$url/api/annotations" >/dev/null 3<<EOF || warn "Grafana refused the request or is unreachable"
+$body
+EOF

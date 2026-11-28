@@ -1,0 +1,41 @@
+# Each helper serves from its root, so its /svc/<name> prefix is stripped.
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: strip-svc
+spec:
+  stripPrefixRegex:
+    regex:
+      - ^/svc/[a-z]+
+---
+# cors-anywhere answers 400 to a request without Origin or X-Requested-With,
+# and a same-origin GET from the browser carries neither.
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: cors-xrw
+spec:
+  headers:
+    customRequestHeaders:
+      X-Requested-With: XMLHttpRequest
+---
+# Restore the target scheme that Traefik's sanitizePath strips from
+# /https://host, as host:443 or a bare host (docs/design/it-tools.md).
+# $$ is Flux's escape, so Traefik receives ${1}.
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: cors-https-target
+spec:
+  replacePathRegex:
+    regex: ^/https:/([^/:]+)(/.*)?$
+    replacement: /$${1}:443$${2}
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: cors-http-target
+spec:
+  replacePathRegex:
+    regex: ^/http:/(.*)$
+    replacement: /$${1}
