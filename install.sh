@@ -7,6 +7,10 @@
 
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=scripts/lib/fetch-verified.sh
+. "${SCRIPT_DIR}/scripts/lib/fetch-verified.sh"
+
 if [[ $EUID -ne 0 ]]; then
     echo "Please run as root (e.g. sudo ./install.sh)" >&2
     exit 1
@@ -71,9 +75,10 @@ if have_version "$SOPS_VERSION" sops --version; then
     echo ">> sops ${SOPS_VERSION} already installed"
 else
     echo ">> Installing sops ${SOPS_VERSION} from upstream release"
-    curl -fsSL -o /usr/local/bin/sops \
-        "https://github.com/getsops/sops/releases/download/${SOPS_VERSION}/sops-${SOPS_VERSION}.linux.${SOPS_ARCH}"
-    chmod +x /usr/local/bin/sops
+    SOPS_REL="https://github.com/getsops/sops/releases/download/${SOPS_VERSION}"
+    fetch_verified "${SOPS_REL}/sops-${SOPS_VERSION}.linux.${SOPS_ARCH}" \
+        "${SOPS_REL}/sops-${SOPS_VERSION}.checksums.txt" \
+        "sops-${SOPS_VERSION}.linux.${SOPS_ARCH}" /usr/local/bin/sops
 fi
 
 # tofu isn't in apt for Debian/Ubuntu; pull the upstream .deb release.
@@ -86,8 +91,10 @@ if have_version "$TOFU_VERSION" tofu --version; then
 else
     echo ">> Installing OpenTofu ${TOFU_VERSION} from upstream .deb release"
     TOFU_DEB="$(mktemp --suffix=.deb)"
-    curl -fsSL -o "$TOFU_DEB" \
-        "https://github.com/opentofu/opentofu/releases/download/v${TOFU_VERSION}/tofu_${TOFU_VERSION}_${TOFU_ARCH}.deb"
+    TOFU_REL="https://github.com/opentofu/opentofu/releases/download/v${TOFU_VERSION}"
+    fetch_verified "${TOFU_REL}/tofu_${TOFU_VERSION}_${TOFU_ARCH}.deb" \
+        "${TOFU_REL}/tofu_${TOFU_VERSION}_SHA256SUMS" \
+        "tofu_${TOFU_VERSION}_${TOFU_ARCH}.deb" "$TOFU_DEB"
     apt-get install -y "$TOFU_DEB"
     rm -f "$TOFU_DEB"
 fi
@@ -97,7 +104,6 @@ fi
 # Neither is packaged for Debian/Ubuntu; pull the upstream release binaries.
 # Versions come from repo-root versions.env — the single source shared with
 # Ansible and OpenTofu. Bump there, not here.
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck disable=SC1091
 . "${SCRIPT_DIR}/versions.env"
 TALOSCTL_VERSION="${TALOS_VERSION}"
@@ -112,18 +118,17 @@ if have_version "$TALOSCTL_VERSION" talosctl version --client; then
     echo ">> talosctl ${TALOSCTL_VERSION} already installed"
 else
     echo ">> Installing talosctl ${TALOSCTL_VERSION} from upstream release"
-    curl -fsSL -o /usr/local/bin/talosctl \
-        "https://github.com/siderolabs/talos/releases/download/${TALOSCTL_VERSION}/talosctl-linux-${GOARCH}"
-    chmod +x /usr/local/bin/talosctl
+    TALOS_REL="https://github.com/siderolabs/talos/releases/download/${TALOSCTL_VERSION}"
+    fetch_verified "${TALOS_REL}/talosctl-linux-${GOARCH}" "${TALOS_REL}/sha256sum.txt" \
+        "talosctl-linux-${GOARCH}" /usr/local/bin/talosctl
 fi
 
 if have_version "$KUBECTL_VERSION" kubectl version --client; then
     echo ">> kubectl ${KUBECTL_VERSION} already installed"
 else
     echo ">> Installing kubectl ${KUBECTL_VERSION} from upstream release"
-    curl -fsSL -o /usr/local/bin/kubectl \
-        "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/${GOARCH}/kubectl"
-    chmod +x /usr/local/bin/kubectl
+    KUBECTL_URL="https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/${GOARCH}/kubectl"
+    fetch_verified "$KUBECTL_URL" "${KUBECTL_URL}.sha256" kubectl /usr/local/bin/kubectl
 fi
 
 # flux regenerates kubernetes/clusters/homelab/flux-system/gotk-components.yaml on version bumps
@@ -133,8 +138,12 @@ if have_version "$FLUX_VERSION" flux --version; then
     echo ">> flux ${FLUX_VERSION} already installed"
 else
     echo ">> Installing flux ${FLUX_VERSION} from upstream release"
-    curl -fsSL "https://github.com/fluxcd/flux2/releases/download/${FLUX_VERSION}/flux_${FLUX_VERSION#v}_linux_${GOARCH}.tar.gz" \
-        | tar -xz -C /usr/local/bin flux
+    FLUX_REL="https://github.com/fluxcd/flux2/releases/download/${FLUX_VERSION}"
+    FLUX_TGZ="flux_${FLUX_VERSION#v}_linux_${GOARCH}.tar.gz"
+    fetch_verified "${FLUX_REL}/${FLUX_TGZ}" "${FLUX_REL}/flux_${FLUX_VERSION#v}_checksums.txt" \
+        "$FLUX_TGZ" "/tmp/${FLUX_TGZ}"
+    tar -xzf "/tmp/${FLUX_TGZ}" -C /usr/local/bin flux
+    rm -f "/tmp/${FLUX_TGZ}"
 fi
 
 # helm seeds Cilium once, right after `talosctl bootstrap` (ansible/roles/talos
@@ -148,8 +157,11 @@ if have_version "$HELM_VERSION" helm version; then
     echo ">> helm ${HELM_VERSION} already installed"
 else
     echo ">> Installing helm ${HELM_VERSION} from upstream release"
-    curl -fsSL "https://get.helm.sh/helm-${HELM_VERSION}-linux-${GOARCH}.tar.gz" \
-        | tar -xz -C /usr/local/bin --strip-components=1 "linux-${GOARCH}/helm"
+    HELM_TGZ="helm-${HELM_VERSION}-linux-${GOARCH}.tar.gz"
+    fetch_verified "https://get.helm.sh/${HELM_TGZ}" "https://get.helm.sh/${HELM_TGZ}.sha256sum" \
+        "$HELM_TGZ" "/tmp/${HELM_TGZ}"
+    tar -xzf "/tmp/${HELM_TGZ}" -C /usr/local/bin --strip-components=1 "linux-${GOARCH}/helm"
+    rm -f "/tmp/${HELM_TGZ}"
 fi
 
 # hcloud-upload-image uploads skylab's Talos snapshot to Hetzner
@@ -164,8 +176,13 @@ if have_version "$HCLOUD_UPLOAD_IMAGE_VERSION" hcloud-upload-image --version; th
     echo ">> hcloud-upload-image ${HCLOUD_UPLOAD_IMAGE_VERSION} already installed"
 else
     echo ">> Installing hcloud-upload-image ${HCLOUD_UPLOAD_IMAGE_VERSION} from upstream release"
-    curl -fsSL "https://github.com/apricote/hcloud-upload-image/releases/download/${HCLOUD_UPLOAD_IMAGE_VERSION}/hcloud-upload-image_Linux_${HUI_ARCH}.tar.gz" \
-        | tar -xz -C /usr/local/bin hcloud-upload-image
+    HUI_REL="https://github.com/apricote/hcloud-upload-image/releases/download/${HCLOUD_UPLOAD_IMAGE_VERSION}"
+    HUI_TGZ="hcloud-upload-image_Linux_${HUI_ARCH}.tar.gz"
+    fetch_verified "${HUI_REL}/${HUI_TGZ}" \
+        "${HUI_REL}/hcloud-upload-image_${HCLOUD_UPLOAD_IMAGE_VERSION#v}_checksums.txt" \
+        "$HUI_TGZ" "/tmp/${HUI_TGZ}"
+    tar -xzf "/tmp/${HUI_TGZ}" -C /usr/local/bin hcloud-upload-image
+    rm -f "/tmp/${HUI_TGZ}"
 fi
 
 echo ">> Installing Docker apt key + repo (${DOCKER_REPO_DISTRO}/${CODENAME})"
