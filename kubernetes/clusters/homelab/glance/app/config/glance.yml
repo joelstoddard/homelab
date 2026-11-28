@@ -179,46 +179,46 @@ pages:
                     check-url: http://home-assistant.home-assistant.svc:8123/manifest.json
                     icon: /assets/home-assistant.svg
 
-              - type: monitor
-                title: Tools
-                cache: 1m
-                sites:
-                  - title: SearXNG
-                    url: https://searx.${DOMAIN}
-                    check-url: http://searxng.searxng.svc:8080/healthz
-                    icon: /assets/searxng.svg
-                  - title: Actual
-                    url: https://actual.${DOMAIN}
-                    check-url: http://actual.actual.svc:5006/health
-                    icon: /assets/actual-budget.svg
-                  - title: Spliit
-                    url: https://spliit.${DOMAIN}
-                    check-url: http://spliit.spliit.svc:3000/
-                    icon: /assets/spliit.svg
-                  - title: Sure
-                    url: https://sure.${DOMAIN}
-                    check-url: http://sure.sure.svc:3000/up
-                    icon: /assets/sure.svg
-                  - title: Dawarich
-                    url: https://dawarich.${DOMAIN}
-                    check-url: http://dawarich.dawarich.svc:3000/api/v1/health
-                    icon: /assets/dawarich.svg
-                  - title: Paperless-ngx
-                    url: https://paperless.${DOMAIN}
-                    check-url: http://paperless.paperless.svc:8000/accounts/login/
-                    icon: /assets/paperless-ngx.svg
-                  - title: IT-Tools
-                    url: https://it-tools.${DOMAIN}
-                    check-url: http://it-tools.it-tools.svc:8080/
-                    icon: /assets/it-tools.svg
-                  - title: BentoPDF
-                    url: https://bentopdf.${DOMAIN}
-                    check-url: http://bentopdf.bentopdf.svc:8080/
-                    icon: /assets/bentopdf.svg
-                  - title: changedetection.io
-                    url: https://changedetection.${DOMAIN}
-                    check-url: http://changedetection.changedetection.svc:5000/
-                    icon: /assets/changedetection.svg
+          - type: monitor
+            title: Tools
+            cache: 1m
+            sites:
+              - title: SearXNG
+                url: https://searx.${DOMAIN}
+                check-url: http://searxng.searxng.svc:8080/healthz
+                icon: /assets/searxng.svg
+              - title: Actual
+                url: https://actual.${DOMAIN}
+                check-url: http://actual.actual.svc:5006/health
+                icon: /assets/actual-budget.svg
+              - title: Spliit
+                url: https://spliit.${DOMAIN}
+                check-url: http://spliit.spliit.svc:3000/
+                icon: /assets/spliit.svg
+              - title: Sure
+                url: https://sure.${DOMAIN}
+                check-url: http://sure.sure.svc:3000/up
+                icon: /assets/sure.svg
+              - title: Dawarich
+                url: https://dawarich.${DOMAIN}
+                check-url: http://dawarich.dawarich.svc:3000/api/v1/health
+                icon: /assets/dawarich.svg
+              - title: Paperless-ngx
+                url: https://paperless.${DOMAIN}
+                check-url: http://paperless.paperless.svc:8000/accounts/login/
+                icon: /assets/paperless-ngx.svg
+              - title: IT-Tools
+                url: https://it-tools.${DOMAIN}
+                check-url: http://it-tools.it-tools.svc:8080/
+                icon: /assets/it-tools.svg
+              - title: BentoPDF
+                url: https://bentopdf.${DOMAIN}
+                check-url: http://bentopdf.bentopdf.svc:8080/
+                icon: /assets/bentopdf.svg
+              - title: changedetection.io
+                url: https://changedetection.${DOMAIN}
+                check-url: http://changedetection.changedetection.svc:5000/
+                icon: /assets/changedetection.svg
 
           - type: split-column
             widgets:
