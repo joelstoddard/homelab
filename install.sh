@@ -2,7 +2,7 @@
 # Installs the host-level prerequisites for running the homelab Ansible
 # automation against this machine as the PXE server. Idempotent.
 #
-# Usage: sudo ./install.sh [target-user]
+# Usage: sudo ./install.sh [target-user], or as root on bare Debian: ./install.sh <user>
 #   target-user defaults to $SUDO_USER; falls back to a clear error.
 
 set -euo pipefail
