@@ -38,6 +38,8 @@ EXPECTED_UIDS = {
     "infra-nuc-temperature",
     "infra-pi-temperature",
     "infra-node-disk-full",
+    "infra-truenas-pool-warning",
+    "infra-truenas-pool-critical",
 }
 
 
@@ -118,6 +120,13 @@ class Rules(unittest.TestCase):
         pi = rule("infra-pi-temperature")["data"][0]["model"]["expr"]
         self.assertIn('instance=~"rumba|tango|salsa|samba"', nuc)
         self.assertIn('instance!~"rumba|tango|salsa|samba"', pi)
+
+    def test_pool_rules_share_one_expression_at_rising_thresholds(self):
+        # Two copies of the pool formula can drift apart; the levels must stay 80 % then 90 %.
+        warn, crit = rule("infra-truenas-pool-warning"), rule("infra-truenas-pool-critical")
+        self.assertEqual(warn["data"][0]["model"]["expr"], crit["data"][0]["model"]["expr"])
+        level = lambda r: r["data"][2]["model"]["conditions"][0]["evaluator"]["params"][0]
+        self.assertEqual((level(warn), level(crit)), (0.8, 0.9))
 
 
 class Wiring(unittest.TestCase):
