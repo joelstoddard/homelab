@@ -11,6 +11,7 @@ RULE_FILES = sorted(glob.glob(os.path.join(HERE, "rules-*.yaml")))
 
 EXPECTED_UIDS = {
     "infra-target-down",
+    "infra-probe-failing",
     "infra-ingestion-stopped",
     "infra-prom-size-retention",
     "infra-alloy-remote-write",
@@ -127,6 +128,12 @@ class Rules(unittest.TestCase):
         self.assertEqual(warn["data"][0]["model"]["expr"], crit["data"][0]["model"]["expr"])
         level = lambda r: r["data"][2]["model"]["conditions"][0]["evaluator"]["params"][0]
         self.assertEqual((level(warn), level(crit)), (0.8, 0.9))
+
+    def test_probe_rule_reads_probe_success(self):
+        # A failed blackbox probe still scrapes with up == 1; only probe_success carries the result.
+        expr = rule("infra-probe-failing")["data"][0]["model"]["expr"]
+        self.assertIn("probe_success", expr)
+        self.assertNotIn("up", expr.replace("probe_success", ""))
 
 
 class Wiring(unittest.TestCase):
