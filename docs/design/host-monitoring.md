@@ -23,6 +23,7 @@ the constraints of the stack apply throughout: a public repo (no address or doma
 | pihole-01, pihole-02 | The DNS chain's Pi-hole pair, Debian 13 LXCs (`docs/design/dns-chain.md`) | no — they resolve through Quad9, which cannot answer the ingest hostnames | `pihole-exporter` polls each v6 API; blackbox `dns_lookup`, `dns_wildcard` and `dns_lancache` probe each instance and the VIP |
 | bind9-01, bind9-02, lancache-01, lancache-02 | The DNS chain's BIND links, Debian 13 LXCs (`docs/design/dns-chain.md`) | no — same resolver constraint as the Pi-holes | `prometheus-bind-exporter` on each container, scraped by the gateway |
 | voyager | TrueNAS CORE (FreeBSD) | no — the base system stays stock, there are no Apps; one static binary on the pool serves SMART | Reporting → remote Graphite; System → Advanced → remote syslog; `smartctl_exporter` scraped by the gateway |
+| operator | The PXE server every Pi boot depends on (`docs/netbooting-pis.md`) | no | blackbox `http_2xx` on Caddy's `/boot/uboot.scr` at `${OPERATOR_IP}` |
 | hubble | ASUS router, stock firmware | no — nothing is installable | blackbox probes from the cluster; its own remote syslog; Home Assistant's ASUSWRT integration polls its web API for CPU, memory, temperature and WAN counters |
 
 ## Design
