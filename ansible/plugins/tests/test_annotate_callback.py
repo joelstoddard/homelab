@@ -39,6 +39,14 @@ class Describe(unittest.TestCase):
                                             "lancache-01": host()}, check=False)
         self.assertEqual(text, "ansible: dns.yaml changed 3 tasks on bind9-01, pihole-02")
 
+    def test_a_change_on_localhost_alone_leaves_no_mark(self):
+        self.assertIsNone(module.describe("talos.yaml", {"localhost": host(changed=4)}, check=False))
+
+    def test_a_change_on_localhost_is_left_out_of_the_count_and_hosts(self):
+        text = module.describe("talos.yaml", {"localhost": host(changed=4), "kosmos": host(changed=1)},
+                               check=False)
+        self.assertEqual(text, "ansible: talos.yaml changed 1 task on kosmos")
+
     def test_a_change_with_failures_says_so(self):
         text = module.describe("main.yaml", {"rumba": host(changed=1), "tango": host(failures=2, unreachable=1)},
                                check=False)
