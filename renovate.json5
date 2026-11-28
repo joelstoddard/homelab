@@ -93,6 +93,13 @@
       allowedVersions: '<1.37.0',
     },
     {
+      description: 'A PostgreSQL major cannot start on the previous major\'s data directory: upgrade by hand with a dump and restore (docs/design/renovate.md)',
+      matchDatasources: ['docker'],
+      matchPackageNames: ['docker.io/library/postgres', 'docker.io/imresamu/postgis'],
+      matchUpdateTypes: ['major'],
+      enabled: false,
+    },
+    {
       matchPackageNames: ['siderolabs/talos', 'kubernetes/kubernetes'],
       prBodyNotes: [
         'Merging changes no node. Roll it out with `make -C ansible apply-upgrade` (docs/talos-bootstrap.md, "Rebuild / bumping versions").',

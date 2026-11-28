@@ -11,7 +11,8 @@ If you've done this before and just want the commands, jump to
   Bookworm+, amd64 or arm64. This box doubles as the PXE server.
   macOS / Docker Desktop is out — the PXE stack uses host networking,
   which Docker Desktop doesn't support.
-- **Sudo access** on that machine.
+- **Root access** on that machine. A bare Debian install is enough:
+  `install.sh` installs `sudo` and grants the operator user its rights.
 - **L2 connectivity** to the target hosts. The PXE server runs dnsmasq
   in DHCP-proxy mode; it must share a broadcast domain with the
   machines it's PXE-booting. Confirm UDP/53, 67, and 69 are free on the
@@ -27,23 +28,36 @@ If you've done this before and just want the commands, jump to
 
 ## Step 1 — Install host prerequisites
 
+On a bare Debian install, as root (`su -`), with `<user>` the operator
+account:
+
 ```bash
-git clone <this-repo> homelab
-cd homelab
-sudo ./install.sh
+apt-get install -y git
+git clone <this-repo> /home/<user>/homelab
+cd /home/<user>/homelab && ./install.sh <user>
+chown -R <user>: /home/<user>/homelab
 ```
+
+On a machine where the user already has sudo, `sudo ./install.sh` from the
+clone does the same.
 
 `install.sh` is idempotent. It lands:
 
 - `docker-ce` + compose plugin (for the PXE stack).
-- `age` (apt) + `sops` (upstream release, pinned in `install.sh:57`).
-- `opentofu` (upstream `.deb`, pinned in `install.sh:66`).
-- `python3` + `python3-venv` + `python3-pip` (3.11+ required for
-  `ansible-core 2.18`).
-- `git`, `make`, `rsync`.
+- From apt: `age`, `python3` + `python3-venv` + `python3-pip` (3.11+
+  required for `ansible-core 2.18`), `git`, `make`, `rsync`, `arp-scan`,
+  `jq`, `openssl`, `sudo`, `openssh-client`.
+- From upstream releases, at the versions pinned in `versions.env` and
+  `install.sh`: `sops`, `tofu`, `talosctl`, `kubectl`, `flux`, `helm`,
+  `hcloud-upload-image`. Each download is checked against its release's
+  SHA-256 checksum file (`scripts/lib/fetch-verified.sh`); a mismatch
+  stops the script and installs nothing.
+- `/etc/sudoers.d/homelab-operator`: passwordless sudo for `<user>`,
+  because the PXE and Talos plays become root on localhost without
+  asking for a password.
 
-It also adds the invoking user to the `docker` group. **You need a
-fresh login session** for that to take effect.
+It also adds the user to the `docker` group. **You need a fresh login
+session** for that to take effect.
 
 ```bash
 exec $SHELL -l                    # pick up docker-group membership
@@ -60,13 +74,15 @@ pointing at the case statement to extend. Add your distro there.
 make bootstrap-secrets             # interactive, run as your user (not root)
 ```
 
-This script writes three files:
+This script writes these files:
 
 | File | Where | What |
 | --- | --- | --- |
 | `~/.config/sops/age/keys.txt` | Operator home, 0600 | Age private key — decrypts everything SOPS-encrypted in the repo. |
 | `~/.config/netbox/env` | Operator home, 0600 | Shell script with `export NETBOX_API=` + `export NETBOX_TOKEN=`. |
 | `opentofu/secrets.sops.yaml` | Repo (committed, encrypted) | State encryption passphrase, Proxmox API endpoint URL, LAN gateway. |
+| `~/.ssh/id_rsa` + `.pub` | Operator home, 0600 / 0644 | The private key every NUC and Pi trusts, pasted; the public key is derived from it. |
+| `~/.bashrc` | Operator home | A `# >>> homelab >>>` block exporting `SOPS_AGE_KEY_FILE` and sourcing the NetBox env. |
 
 You'll be prompted for:
 
@@ -111,16 +127,10 @@ authorised to decrypt the host_vars files. Two paths:
   pull. You don't need to re-encrypt yourself — `sops updatekeys` on
   their workstation is enough.
 
-## Step 3 — Wire the env vars into your shell
+## Step 3 — Pick up the env vars
 
-Add these to `~/.zshrc` (or `~/.bashrc`):
-
-```bash
-export SOPS_AGE_KEY_FILE="$HOME/.config/sops/age/keys.txt"
-source "$HOME/.config/netbox/env"
-```
-
-Then start a fresh shell:
+`bootstrap-secrets` writes the two lines to `~/.bashrc`. A zsh user copies
+the block into `~/.zshrc`. Then start a fresh shell:
 
 ```bash
 exec $SHELL -l
@@ -264,18 +274,15 @@ The full recipe (after initial setup is done):
 For when you've done this before and just want the commands:
 
 ```bash
-# On a fresh Linux operator box, as a non-root user with sudo:
-git clone <repo> homelab && cd homelab
-sudo ./install.sh
-exec $SHELL -l                 # pick up docker group
+# On a bare Debian box, as root:
+apt-get install -y git
+git clone <repo> /home/<user>/homelab
+cd /home/<user>/homelab && ./install.sh <user>
+chown -R <user>: /home/<user>/homelab
 
-make bootstrap-secrets         # interactive: age key + NetBox env + tofu secrets
-
-# Shell rc:
-cat >> ~/.zshrc <<'EOF'
-export SOPS_AGE_KEY_FILE="$HOME/.config/sops/age/keys.txt"
-source "$HOME/.config/netbox/env"
-EOF
+# As <user>, in a fresh login:
+cd ~/homelab
+make bootstrap-secrets         # interactive: age key, NetBox env, SSH key, tofu secrets, ~/.bashrc
 exec $SHELL -l
 
 # If new Age key: append public key to .sops.yaml, then:
