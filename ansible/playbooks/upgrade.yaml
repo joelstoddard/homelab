@@ -115,16 +115,6 @@
           - "workers: {{ groups['upgrade_workers'] | default([]) | join(', ') }}"
           - "control plane: {{ groups['upgrade_controlplane'] | default([]) | join(', ') }}"
 
-# The PXE server re-renders the Debian preseeds it owns, which need each
-# NUC's SOPS root_password — same loader play as pxe.yaml / reset.yaml.
-- name: Load per-host SOPS vars onto each PXE target.
-  hosts: pxe
-  gather_facts: false
-  connection: local
-  tasks:
-    - name: Load this host's SOPS-encrypted vars.
-      ansible.builtin.import_tasks: tasks/load-host-sops-vars.yaml
-
 # The Pis boot the netboot image, so refreshing the staged kernel/initramfs
 # for the current schematic IS their upgrade; the reboot in tasks/upgrade.yaml
 # picks it up. Gate unchanged (steady state). Skipped when no Pi is targeted.

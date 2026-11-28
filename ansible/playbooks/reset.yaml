@@ -48,16 +48,6 @@
       ansible.builtin.debug:
         msg: "wiping to maintenance mode: {{ groups['reset_pending'] | join(', ') }}"
 
-# The PXE server re-renders the Debian preseeds it owns, which need each
-# NUC's SOPS root_password — same loader play as pxe.yaml.
-- name: Load per-host SOPS vars onto each PXE target.
-  hosts: pxe
-  gather_facts: false
-  connection: local
-  tasks:
-    - name: Load this host's SOPS-encrypted vars.
-      ansible.builtin.import_tasks: tasks/load-host-sops-vars.yaml
-
 - name: Open the netboot gate for the Pi targets.
   hosts: localhost
   connection: local
