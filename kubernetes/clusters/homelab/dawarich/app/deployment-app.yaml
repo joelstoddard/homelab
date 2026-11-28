@@ -29,7 +29,7 @@ spec:
       # emptyDir is; TMPDIR points at this 0700 one (docs/design/sure.md).
       initContainers:
         - name: tmpdir
-          image: docker.io/freikin/dawarich:1.23.0@sha256:c9c6a9c04fa2ad11c438fc0b0ea3b7d95fc7e6d8c7a3cfa98bf1fc5aef2dbfd4
+          image: docker.io/freikin/dawarich:1.24.0@sha256:5634307e9c9a50abf86112dbda896ea20fc4116c51cf90e391b9c8633b563cf1
           command: ["mkdir", "-p", "-m", "0700", "/var/app/tmp/sys"]
           securityContext:
             allowPrivilegeEscalation: false
@@ -41,7 +41,7 @@ spec:
               mountPath: /var/app/tmp
       containers:
         - name: dawarich
-          image: docker.io/freikin/dawarich:1.23.0@sha256:c9c6a9c04fa2ad11c438fc0b0ea3b7d95fc7e6d8c7a3cfa98bf1fc5aef2dbfd4
+          image: docker.io/freikin/dawarich:1.24.0@sha256:5634307e9c9a50abf86112dbda896ea20fc4116c51cf90e391b9c8633b563cf1
           command: ["web-entrypoint.sh"]
           args: ["bin/rails", "server", "-p", "3000", "-b", "::"]
           env:
