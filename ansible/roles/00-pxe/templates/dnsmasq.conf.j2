@@ -4,6 +4,11 @@
 # systemd-resolved (or any other resolver) for port 53.
 port=0
 
+# Only the LAN interface, so another dnsmasq on the host (NetworkManager's
+# connection sharing, libvirt) can hold its own interface's DHCP port.
+interface={{ ansible_default_ipv4.interface }}
+bind-interfaces
+
 # DHCP behaviour
 {% if dhcp_proxy %}
 # Proxy mode: do not allocate IPs, only handle PXE handshake.

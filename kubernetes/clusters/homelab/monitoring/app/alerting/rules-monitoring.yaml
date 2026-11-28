@@ -31,6 +31,33 @@ groups:
         for: 15m
         annotations:
           summary: '{{ $labels.job }} target {{ $labels.instance }} has been down for 15m'
+      # A failed blackbox probe still scrapes with up == 1, so the rule above never sees it.
+      - uid: infra-probe-failing
+        title: Probe failing
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            relativeTimeRange: {from: 600, to: 0}
+            model:
+              refId: A
+              instant: true
+              expr: 'min by (instance, module) (probe_success)'
+          - refId: B
+            datasourceUid: __expr__
+            model: {refId: B, type: reduce, expression: A, reducer: last}
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: B
+              conditions: [{evaluator: {type: lt, params: [1]}}]
+        noDataState: OK
+        execErrState: Error
+        for: 10m
+        annotations:
+          summary: '{{ $labels.module }} probe of {{ $labels.instance }} has failed for 10m'
       - uid: infra-ingestion-stopped
         title: Metric ingestion stopped
         condition: C
