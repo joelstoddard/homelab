@@ -164,3 +164,85 @@ groups:
         for: 30m
         annotations:
           summary: '{{ $labels.node }} has {{ humanizePercentage $values.B.Value }} of its {{ $labels.resource }} requested'
+      # The NUCs throttle at 100 °C and rumba ran near it for weeks with a failed fan;
+      # short bursts above 90 °C are normal, so only a sustained 10 minutes fires.
+      - uid: infra-nuc-temperature
+        title: NUC running hot
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            relativeTimeRange: {from: 600, to: 0}
+            model:
+              refId: A
+              instant: true
+              expr: 'max by (instance) (node_hwmon_temp_celsius{instance=~"rumba|tango|salsa|samba"})'
+          - refId: B
+            datasourceUid: __expr__
+            model: {refId: B, type: reduce, expression: A, reducer: last}
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: B
+              conditions: [{evaluator: {type: gt, params: [90]}}]
+        noDataState: OK
+        execErrState: Error
+        for: 10m
+        annotations:
+          summary: '{{ $labels.instance }} is at {{ $values.B.Value }} °C: check its fan and airflow'
+      # A Raspberry Pi 4 starts throttling at 80 °C.
+      - uid: infra-pi-temperature
+        title: Pi running hot
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            relativeTimeRange: {from: 600, to: 0}
+            model:
+              refId: A
+              instant: true
+              expr: 'max by (instance) (node_hwmon_temp_celsius{instance!~"rumba|tango|salsa|samba"})'
+          - refId: B
+            datasourceUid: __expr__
+            model: {refId: B, type: reduce, expression: A, reducer: last}
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: B
+              conditions: [{evaluator: {type: gt, params: [80]}}]
+        noDataState: OK
+        execErrState: Error
+        for: 10m
+        annotations:
+          summary: '{{ $labels.instance }} is at {{ $values.B.Value }} °C and throttling'
+      # /var on a Talos node holds Longhorn replicas, images and logs; / is a NUC's root.
+      - uid: infra-node-disk-full
+        title: Node disk nearly full
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            relativeTimeRange: {from: 600, to: 0}
+            model:
+              refId: A
+              instant: true
+              expr: 'max by (instance, mountpoint) (1 - node_filesystem_avail_bytes{mountpoint=~"/|/var"} / node_filesystem_size_bytes{mountpoint=~"/|/var"})'
+          - refId: B
+            datasourceUid: __expr__
+            model: {refId: B, type: reduce, expression: A, reducer: last}
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: B
+              conditions: [{evaluator: {type: gt, params: [0.85]}}]
+        noDataState: OK
+        execErrState: Error
+        for: 30m
+        annotations:
+          summary: '{{ $labels.instance }} {{ $labels.mountpoint }} is {{ humanizePercentage $values.B.Value }} full'
