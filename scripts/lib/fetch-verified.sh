@@ -1,3 +1,4 @@
+# shellcheck shell=bash
 # Sourced by install.sh. Installs a release download only when its SHA-256
 # matches the checksum file published with the same release.
 
