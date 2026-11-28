@@ -44,7 +44,7 @@ uboot_build_dir: "{{ role_path }}/files/build/u-boot"
 # the board DTB (which u-boot needs — it is where ${fdt_addr} comes from),
 # then the kernel= file. Pinned to a raspberrypi/firmware release tag.
 # renovate: datasource=github-tags depName=raspberrypi/firmware
-rpi_firmware_version: "1.20260521"
+rpi_firmware_version: "1.20260915"
 rpi_firmware_base_url: "https://github.com/raspberrypi/firmware/raw/{{ rpi_firmware_version }}/boot"
 rpi_firmware_files:
   - start4.elf
