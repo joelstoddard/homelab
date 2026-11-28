@@ -81,7 +81,7 @@ This script writes these files:
 | `~/.config/sops/age/keys.txt` | Operator home, 0600 | Age private key — decrypts everything SOPS-encrypted in the repo. |
 | `~/.config/netbox/env` | Operator home, 0600 | Shell script with `export NETBOX_API=` + `export NETBOX_TOKEN=`. |
 | `opentofu/secrets.sops.yaml` | Repo (committed, encrypted) | State encryption passphrase, Proxmox API endpoint URL, LAN gateway. |
-| `~/.ssh/id_rsa` + `.pub` | Operator home, 0600 | The private key every NUC and Pi trusts, pasted; the public key is derived from it. |
+| `~/.ssh/id_rsa` + `.pub` | Operator home, 0600 / 0644 | The private key every NUC and Pi trusts, pasted; the public key is derived from it. |
 | `~/.bashrc` | Operator home | A `# >>> homelab >>>` block exporting `SOPS_AGE_KEY_FILE` and sourcing the NetBox env. |
 
 You'll be prompted for:

@@ -116,12 +116,17 @@ else
     require_cmd ssh-keygen
     echo "  Paste the existing private key the fleet trusts. End with Ctrl-D on its own line."
     # A paste from another machine can carry CRLF line ends, which ssh-keygen rejects.
-    tr -d '\r' </dev/stdin | write_protected "$SSH_KEY_FILE"
-    if ! ssh-keygen -y -f "$SSH_KEY_FILE" > "${SSH_KEY_FILE}.pub" 2>/dev/null; then
-        rm -f "$SSH_KEY_FILE" "${SSH_KEY_FILE}.pub"
+    # The key on disk is replaced only once the paste has proved valid.
+    install -d -m 0700 "$(dirname "$SSH_KEY_FILE")"
+    ssh_tmp="$(mktemp "${SSH_KEY_FILE}.XXXXXX")"
+    tr -d '\r' </dev/stdin > "$ssh_tmp"
+    if ! ssh_pub="$(ssh-keygen -y -f "$ssh_tmp" 2>/dev/null)"; then
+        rm -f "$ssh_tmp"
         echo "  not a valid private key; nothing written." >&2
         exit 1
     fi
+    mv "$ssh_tmp" "$SSH_KEY_FILE"
+    echo "$ssh_pub" > "${SSH_KEY_FILE}.pub"
 fi
 
 # ---- OpenTofu secrets ----
