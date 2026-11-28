@@ -33,6 +33,8 @@ EXPECTED_UIDS = {
     "infra-container-cpu-near-limit",
     "infra-latency-p95",
     "infra-latency-p50",
+    "infra-recyclarr-sync-failed",
+    "infra-recyclarr-no-sync",
 }
 
 
@@ -66,10 +68,10 @@ class Rules(unittest.TestCase):
         self.assertEqual(len(uids), len(set(uids)), uids)
         self.assertEqual(set(uids), EXPECTED_UIDS)
 
-    def test_every_query_uses_prometheus_uid(self):
+    def test_every_query_uses_a_fixed_datasource_uid(self):
         for r in rules():
             for query in r["data"]:
-                self.assertIn(query["datasourceUid"], {"prometheus", "__expr__"}, f"{r['uid']} {query['refId']}")
+                self.assertIn(query["datasourceUid"], {"prometheus", "loki", "__expr__"}, f"{r['uid']} {query['refId']}")
 
     def test_every_condition_names_a_query(self):
         # A condition naming a missing refId is accepted by YAML and rejected by Grafana at load.
@@ -98,6 +100,13 @@ class Rules(unittest.TestCase):
         r = rule("infra-ingestion-stopped")
         self.assertEqual(r["noDataState"], "Alerting")
         self.assertEqual(r["execErrState"], "Alerting")
+
+
+    def test_recyclarr_no_sync_rule_alerts_on_nodata(self):
+        # A server that never syncs writes no completion line, so the query returns nothing.
+        r = rule("infra-recyclarr-no-sync")
+        self.assertEqual(r["noDataState"], "Alerting")
+        self.assertIn('completed with status Succeeded', r["data"][0]["model"]["expr"])
 
 
 class Wiring(unittest.TestCase):
