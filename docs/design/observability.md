@@ -115,7 +115,9 @@ defaults that hide the control-plane components.
         `redact`) posts one region per playbook run, from its start to its
         stats, tagged `ansible` and `playbook:<file>` (plus `failed`), only
         when a task changed something and the run was not `--check`. A dry
-        run or a no-op run leaves no mark.
+        run, a no-op run or a run that changed only `localhost` leaves no
+        mark: `localhost` is the operator, so its changes are noise on a
+        fleet dashboard.
      2. **OpenTofu:** `run_tofu apply` passes each root's log to
         `scripts/annotate-tofu`, which reads the last "Apply complete!"
         line (the provider retry appends to the same log) and marks only a

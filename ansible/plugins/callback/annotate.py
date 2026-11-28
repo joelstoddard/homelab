@@ -1,7 +1,7 @@
 """annotate: marks a playbook run that changed something as an Operator annotation in Grafana.
 
 One region per run, from the playbook's start to its stats; none for --check or a run that
-changed nothing. Why: docs/design/observability.md, "Change annotations". Tests:
+changed nothing but localhost. Why: docs/design/observability.md, "Change annotations". Tests:
 ansible/plugins/tests.
 """
 import os
@@ -31,7 +31,8 @@ def describe(playbook, summary, check):
     """The annotation text for a run, or None when the run should leave no mark."""
     if check:
         return None
-    changed = {h: s["changed"] for h, s in summary.items() if s["changed"]}
+    # localhost changes are operator-side (rendered configs, fetched assets), not the fleet.
+    changed = {h: s["changed"] for h, s in summary.items() if s["changed"] and h != "localhost"}
     if not changed:
         return None
     total = sum(changed.values())
