@@ -637,7 +637,7 @@ Seerr, SABnzbd and Recyclarr — the torrent client lives next door in
 `media-downloads/`, reaching the internet through that namespace's VPN
 egress. Seven have a metrics exporter —
 everything but Seerr, which exposes no Prometheus endpoint, and Recyclarr,
-which is a CronJob — and FlareSolverr serves its own on port 8192. Rationale:
+which exports its own — and FlareSolverr serves its own on port 8192. Rationale:
 [`docs/design/media-foundation.md`](../docs/design/media-foundation.md) for
 the shared namespace and storage, with one document per application —
 [`docs/design/jellyfin.md`](../docs/design/jellyfin.md),

@@ -1,12 +1,11 @@
 # Recyclarr
 
-Deployed in `media` 2026-09-20, verified in both Sonarr and Radarr. Recyclarr
-is the one genuinely config-as-code component in the stack, and the only one
-that is a `CronJob` rather than a Deployment: it syncs the TRaSH guide into
-Sonarr and Radarr and exits. It therefore has no Service, no `IngressRoute`,
-no `/media` mount and no config claim. It covers **Sonarr and Radarr only** —
-the schema admits no other service — so Lidarr and Prowlarr are outside its
-reach by design rather than by omission. See
+Recyclarr syncs the TRaSH guide into Sonarr and Radarr. Version 9 is a
+server, not a command: its image runs a long-lived process that syncs on its
+own cron schedule, so it is a one-replica `Recreate` Deployment in `media`
+with no Service, no `IngressRoute` and no `/media` mount. It covers **Sonarr
+and Radarr only**, as its schema admits no other service, so Lidarr and
+Prowlarr are outside its reach by design. See
 `docs/design/media-foundation.md` for the shared namespace this document
 assumes, and `docs/design/arr-core.md` for the four applications it partly
 configures.
@@ -40,6 +39,26 @@ thing to check in rendered output to prove substitution is off.
 A cold run, cloning both guide repositories, peaked at 78 MiB and took under six
 seconds, so the container is sized 128Mi/512Mi with 50m/1 CPU.
 
+## The server
+
+- **Schedule:** `config/settings.yml` sets `server.schedule.cron` to 04:00, in
+  the container's `TZ` (Europe/London). It sits in the same substitution-free
+  ConfigMap as `recyclarr.yml`; both are mounted read-only under `/config`, and
+  the generated name hash rolls the pod on any edit.
+- **State and data:** `RECYCLARR_STATE_DIR=/state` is the `recyclarr-state`
+  claim (1Gi; under 1 MiB measured), holding which custom formats and profiles
+  Recyclarr manages in each app. `RECYCLARR_DATA_DIR=/data` is an `emptyDir`
+  for the guide clones (73 MiB), fetched again on start.
+- **API key:** the server refuses to start without one of 32+ characters.
+  Nothing calls the API, so `recyclarr-api` holds a generated key and no
+  client reads it.
+- **Probes:** `/readyz` and `/livez` on the management port, 7983. The port
+  opens only after the first guide download; the startupProbe allows five
+  minutes, and the boot test measured about five seconds.
+- **A manual sync** runs through the server:
+  `kubectl -n media exec deploy/recyclarr -- recyclarr sync`, or `sync --preview`
+  to see the changes without making them.
+
 **Recyclarr could satisfy `restricted`, and deliberately does not.** Its image
 runs as 1000:1000 rather than starting as root, so — like Seerr — it could
 carry a `securityContext` meeting the `restricted` profile, which the
@@ -48,35 +67,26 @@ instead, because the namespace enforces `baseline` and hardening the minority
 of manifests that can be is an inconsistency without a benefit. Hardening the
 namespace is a change to make to all of them at once, or not at all.
 
-## Metrics
+## Metrics and alerts
 
-Recyclarr is not an exportarr target — see `docs/design/arr-metrics.md`. It
-is a CronJob rather than a service; kube-state-metrics already reports its
-schedule and per-run outcome through `kube_cronjob_*` and
-`kube_job_status_failed`. The sync runs in an init container, and a `push` container
-then reports the success to an Uptime Kuma push monitor
-(`docs/design/uptime-kuma.md`, "The CronJobs report through push monitors").
-Read a run's sync output with `-c recyclarr`; the default container is
-`push`.
+Recyclarr is not an exportarr target (`docs/design/arr-metrics.md`). Its own
+`/metrics` on 7983 is scraped through the pod annotation and exports
+`recyclarr_sync_job_duration_seconds`, labelled with the job's status and
+trigger.
+
+The alerts read Loki instead, because each status series appears only after
+the first job with that status and resets with the pod, so `increase()` never
+sees a first failure. The server logs one line per job, `Sync job <id>
+completed with status <Status>`, and two rules in
+`monitoring/app/alerting/rules-services.yaml` send to ntfy:
+`infra-recyclarr-sync-failed` (a job ended Partial, Failed or Blocked in
+24 h) and `infra-recyclarr-no-sync` (no Succeeded job in 26 h, or no line at
+all). A fresh install alerts until its first sync, so run one by hand.
 
 ## Traps
 
-- **Recyclarr instance names must be unique across services, not per service.**
-  Naming both the Sonarr and the Radarr instance `main` is a duplicate:
-  Recyclarr drops *both*, syncs nothing, prints nothing above `--log debug`, and
-  **exits 0**. The upstream templates each carry a distinct profile-shaped name,
-  which is why this is easy to introduce and hard to notice. Ours are `tv` and
-  `movies`. A malformed config behaves the same way — error printed, exit 0 —
-  so the config is validated against the live instances with `sync --preview`
-  before merge. Runtime failures are better behaved: an unreachable host and a
-  rejected API key both exit 1 and fail the Job.
-- **`--preview` and a real sync report through different channels, and only
-  `--preview` needs a terminal.** Preview renders its change tables solely
-  through Spectre.Console, which draws nothing when stdout is not a terminal —
-  the same reason `recyclarr list ...` appears to do nothing when piped. A real
-  sync does not: it logs plain `[INF]`/`[WRN]` lines naming what it created,
-  replaced or skipped per instance. **Do not give the CronJob a tty.** Measured
-  on this cluster, one sync wrote 18 clean, readable lines without one and 321
-  with, nearly all of them redrawn progress frames. Give a terminal only to an
-  interactive `--preview`, where it is the difference between tables and
-  silence.
+- **Instance names must be unique across services, not per service.** Under
+  version 8, naming both the Sonarr and the Radarr instance `main` dropped
+  both and exited 0. Ours are `tv` and `movies`. Validate a config change with
+  `sync --preview` against the live instances before merge; version 9 refuses
+  to start on a config error and fails a sync on an unknown `trash_id`.

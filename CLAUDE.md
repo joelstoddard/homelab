@@ -638,13 +638,15 @@ set to Basic. SABnzbd is the Usenet client and lives here, not in
 `sabnzbd.${DOMAIN}` until a login is set, exempts the `.svc.cluster.local`
 name the *arr use, and accepts the kubelet's IP `Host`, so probes hit
 `/robots.txt`. Its provider credentials and API key are in `sabnzbd.ini` on
-the claim, not in git — there is no env override. Recyclarr is the one
-`CronJob` here — it syncs the TRaSH quality profiles and custom formats into
-Sonarr and Radarr daily and exits, so it has no Service, route or claim. Its
-config is a ConfigMap with substitution disabled, and two things bite:
-instance names must be unique **across** services (a duplicate syncs nothing
-and still exits 0), and it must NOT be given a tty — a real sync logs plain
-`[INF]` lines, and a terminal replaces them with redrawn progress frames.
+the claim, not in git — there is no env override. Recyclarr 9 is a
+server: one Deployment that syncs the TRaSH quality profiles and custom
+formats into Sonarr and Radarr at 04:00 from `config/settings.yml`, with no
+Service or route, state on the `recyclarr-state` claim and a generated API key
+it refuses to start without (nothing calls the API). Its config is a
+ConfigMap with substitution disabled; instance names must be unique **across**
+services. Its alerts are two Loki rules on its per-job log line, because its
+sync metric's series start at the first job of each status and reset with the
+pod.
 See `docs/design/recyclarr.md`. The \*arr stack's design is split across
 `docs/design/media-foundation.md` (shared namespace, storage, ingress policy),
 `docs/design/arr-core.md` (Prowlarr, Sonarr, Radarr, Lidarr),
