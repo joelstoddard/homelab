@@ -86,3 +86,57 @@ groups:
         for: 0m
         annotations:
           summary: 'Disk {{ $labels.device }} on {{ $labels.instance }} is failing SMART: replace it'
+      # CORE exports no pool metric, only per-dataset df: the pool is every dataset's
+      # used plus the root dataset's free, the Storage dashboard's "Pool used" formula.
+      - uid: infra-truenas-pool-warning
+        title: Voyager pool above 80 %
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            relativeTimeRange: {from: 600, to: 0}
+            model:
+              refId: A
+              instant: true
+              expr: 'sum({__name__=~"servers_Voyager_local_df_mnt_Voyager(_.+)?_df_complex_used"}) / (sum({__name__=~"servers_Voyager_local_df_mnt_Voyager(_.+)?_df_complex_used"}) + sum(servers_Voyager_local_df_mnt_Voyager_df_complex_free))'
+          - refId: B
+            datasourceUid: __expr__
+            model: {refId: B, type: reduce, expression: A, reducer: last}
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: B
+              conditions: [{evaluator: {type: gt, params: [0.8]}}]
+        noDataState: OK
+        execErrState: Error
+        for: 15m
+        annotations:
+          summary: 'Voyager pool is {{ humanizePercentage $values.B.Value }} used: ZFS slows past 80 %'
+      - uid: infra-truenas-pool-critical
+        title: Voyager pool above 90 %
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            relativeTimeRange: {from: 600, to: 0}
+            model:
+              refId: A
+              instant: true
+              expr: 'sum({__name__=~"servers_Voyager_local_df_mnt_Voyager(_.+)?_df_complex_used"}) / (sum({__name__=~"servers_Voyager_local_df_mnt_Voyager(_.+)?_df_complex_used"}) + sum(servers_Voyager_local_df_mnt_Voyager_df_complex_free))'
+          - refId: B
+            datasourceUid: __expr__
+            model: {refId: B, type: reduce, expression: A, reducer: last}
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: B
+              conditions: [{evaluator: {type: gt, params: [0.9]}}]
+        noDataState: OK
+        execErrState: Error
+        for: 15m
+        annotations:
+          summary: 'Voyager pool is {{ humanizePercentage $values.B.Value }} used: free space or add disks before NFS writes fail'
